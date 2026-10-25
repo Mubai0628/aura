@@ -1,0 +1,20 @@
+/* The app's base styles, split by region; the order is the cascade order. */
+@import './base.css';
+@import './buttons.css';
+@import './shell.css';
+@import './conversation.css';
+@import './composer.css';
+@import './right-workspace.css';
+@import './settings-shell.css';
+@import './settings-pages.css';
+@import './model-settings.css';
+@import './dialogs.css';
+@import './provider-dialog.css';
+@import './settings-forms.css';
+@import './tool-settings.css';
+@import './session-tools.css';
+@import './security-settings.css';
+@import './notifications.css';
+@import './motion.css';
+@import './responsive.css';
+@import './shell-execution.css';

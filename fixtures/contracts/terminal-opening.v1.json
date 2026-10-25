@@ -1,0 +1,76 @@
+{
+  "changes": [
+    {
+      "contract_version": 1,
+      "opening_id": "00000000-0000-4000-8000-000000000001",
+      "phase": "waiting_runtime",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "contract_version": 1,
+      "opening_id": "00000000-0000-4000-8000-000000000001",
+      "phase": "waiting_launch",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "contract_version": 1,
+      "opening_id": "00000000-0000-4000-8000-000000000001",
+      "phase": "launching",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "contract_version": 1,
+      "opening_id": "00000000-0000-4000-8000-000000000001",
+      "phase": "cancelled",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    }
+  ],
+  "progress": [
+    {
+      "contract_version": 1,
+      "phase": "waiting_runtime",
+      "request_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "contract_version": 1,
+      "phase": "waiting_launch",
+      "request_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "contract_version": 1,
+      "phase": "launching",
+      "request_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "contract_version": 1,
+      "phase": "cancelled",
+      "request_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    }
+  ],
+  "reference": {
+    "contract_version": 1,
+    "opening_id": "00000000-0000-4000-8000-000000000001"
+  },
+  "start": {
+    "contract_version": 1,
+    "opening_id": "00000000-0000-4000-8000-000000000001",
+    "request": {
+      "columns": 120,
+      "rows": 30,
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "shell": "power_shell"
+    }
+  }
+}

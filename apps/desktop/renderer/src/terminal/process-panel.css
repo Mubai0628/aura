@@ -1,0 +1,42 @@
+.process-panel {
+  padding: 14px;
+  overflow: auto;
+  height: 100%;
+}
+.process-toolbar,
+.process-panel li > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.process-toolbar {
+  justify-content: space-between;
+}
+.process-panel ul {
+  list-style: none;
+  padding: 0;
+}
+.process-panel li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.process-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px var(--font-mono);
+}
+.process-panel p,
+.process-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+.process-call {
+  overflow-wrap: anywhere;
+}
+.process-panel button {
+  padding: 5px 9px;
+  color: var(--ink);
+  background: var(--canvas);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}

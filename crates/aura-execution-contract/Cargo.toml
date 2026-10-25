@@ -1,0 +1,17 @@
+[package]
+name = "aura-execution-contract"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-security-contract = { path = "../aura-security-contract" }
+serde_json.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+schemars.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+
+[lints]
+workspace = true

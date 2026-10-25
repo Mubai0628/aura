@@ -1,0 +1,50 @@
+.tool-packages-panel .package-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.tool-packages-panel .package-tools {
+  display: grid;
+  gap: 10px;
+  margin: 10px 0;
+  padding-left: 18px;
+}
+
+.tool-packages-panel .package-tools p,
+.tool-packages-panel .package-review p {
+  margin: 2px 0;
+}
+
+.tool-packages-panel .package-approval {
+  border: 1px solid var(--border-strong, currentColor);
+  border-radius: 8px;
+  margin: 10px 0;
+  padding: 10px 12px;
+}
+
+.tool-packages-panel .package-report {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.tool-packages-panel .package-report th,
+.tool-packages-panel .package-report td {
+  border-bottom: 1px solid var(--border-subtle, rgba(127, 127, 127, 0.3));
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.tool-packages-panel .package-settings textarea,
+.tool-packages-panel .package-settings input {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  margin: 4px 0 8px;
+  width: 100%;
+}
+
+.tool-packages-panel .package-credential {
+  margin-top: 6px;
+}

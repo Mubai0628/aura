@@ -1,0 +1,20 @@
+[package]
+name = "aura-context-tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-security-contract = { path = "../aura-security-contract" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-context-runtime = { path = "../aura-context-runtime" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-persistence = { path = "../aura-persistence" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

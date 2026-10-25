@@ -1,0 +1,8 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_refusal_fixture","type":"message","role":"assistant","content":[],"stop_reason":null,"usage":{"input_tokens":7,"output_tokens":0}}}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_sequence":null,"stop_details":{"type":"refusal","category":"cyber","explanation":"This request was declined."}},"usage":{"output_tokens":0}}
+
+event: message_stop
+data: {"type":"message_stop"}

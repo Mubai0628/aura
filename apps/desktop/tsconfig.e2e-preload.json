@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["DOM", "ES2024"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["node", "electron"]
+  },
+  "include": [
+    "e2e/preload/**/*.cts",
+    "preload/**/*.cts",
+    "shared/**/*.ts",
+    "vite.e2e-preload.config.ts"
+  ]
+}

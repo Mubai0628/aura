@@ -1,0 +1,72 @@
+/* A list's shape while it is read for the first time. */
+.skeleton-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.skeleton-lines {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+}
+
+.skeleton-block {
+  display: block;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-muted) 25%,
+    var(--line) 50%,
+    var(--surface-muted) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.skeleton-title {
+  width: 40%;
+  height: 12px;
+}
+
+.skeleton-text {
+  width: 70%;
+  height: 10px;
+}
+
+.list-sentinel {
+  height: 1px;
+  list-style: none;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+  }
+}

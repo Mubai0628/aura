@@ -1,0 +1,20 @@
+node_modules/
+target/
+apps/desktop/dist/
+apps/desktop/test-results/
+apps/desktop/playwright-report/
+coverage/
+docs/
+resources/schemas/*.json
+resources/tools/builtin-tool-definition-set.v1.json
+# Rust-generated; cargo xtask contracts --check owns byte determinism.
+resources/tools/builtin-agent-release.v1.json
+# Local-only imported reviews/task records; preserve source evidence bytes.
+history/context/
+fixtures/contracts/*.json
+packages/contracts/src/generated/*.ts
+pnpm-lock.yaml
+# Recorded test inputs: captured web pages, evaluation task files and request goldens. Their
+# bytes are the data under test, so formatting them would change what the tests read.
+crates/aura-web-runtime/tests/fixtures/
+crates/aura-tool-eval/fixtures/

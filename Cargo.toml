@@ -1,0 +1,161 @@
+[workspace]
+members = [
+    "crates/aura-agent-domain",
+    "crates/aura-commands",
+    "crates/aura-hooks",
+    "crates/aura-mcp",
+    "crates/aura-skills",
+    "crates/aura-plugins",
+    "crates/aura-activity-domain",
+    "crates/aura-activity-runtime",
+    "crates/aura-execution-orchestrator",
+    "crates/aura-execution-maintainer",
+    "crates/aura-web-domain",
+    "crates/aura-browser-domain",
+    "crates/aura-web-runtime",
+    "crates/aura-execution-helper",
+    "crates/aura-windows-user-contract",
+    "crates/aura-backend-windows-user",
+    "crates/aura-command-runner",
+    "crates/aura-restricted-user-spike",
+    "crates/aura-backend-core",
+    "crates/aura-v2-importer",
+    "crates/aura-persistence-v2",
+    "crates/aura-backend-api",
+    "crates/aura-persistence-core",
+    "crates/aura-execution-contract",
+    "crates/aura-runtime-contract",
+    "crates/aura-workspace-domain",
+    "crates/aura-security-contract",
+    "crates/aura-approval",
+    "crates/aura-artifact-contract",
+    "crates/aura-config",
+    "crates/aura-context-domain",
+    "crates/aura-context-runtime",
+    "crates/aura-context-tools",
+    "crates/aura-context-fixtures",
+    "crates/aura-prompt-runtime",
+    "crates/aura-contract-schema",
+    "crates/aura-core",
+    "crates/aura-domain-common",
+    "crates/aura-fs-tools",
+    "crates/aura-ipc",
+    "crates/aura-launcher",
+    "crates/aura-setup",
+    "crates/aura-model-domain",
+    "crates/aura-model-config",
+    "crates/aura-model-catalog",
+    "crates/aura-model-transport",
+    "crates/aura-model-adapter-openai-responses",
+    "crates/aura-model-adapter-openai-chat",
+    "crates/aura-model-adapter-anthropic",
+    "crates/aura-model-fixtures",
+    "crates/aura-memory-domain",
+    "crates/aura-memory",
+    "crates/aura-secret-scanner",
+    "crates/aura-network-control",
+    "crates/aura-net-tools",
+    "crates/aura-permission-domain",
+    "crates/aura-permission-engine",
+    "crates/aura-persistence",
+    "crates/aura-projection-contract",
+    "crates/aura-sandbox",
+    "crates/aura-sandbox-host",
+    "crates/aura-tool-contract",
+    "crates/aura-tool-domain",
+    "crates/aura-tool-fixtures",
+    "crates/aura-tool-eval",
+    "crates/aura-tool-package",
+    "crates/aura-tool-projection",
+    "crates/aura-tool-registry",
+    "crates/aura-tool-runtime",
+    "crates/aura-tool-scheduler",
+    "crates/aura-egress-proxy",
+    "crates/aura-elevated-helper",
+    "crates/aura-workspace",
+    "crates/aura-windows-platform",
+    "xtask",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+
+[workspace.dependencies]
+anyhow = "1.0"
+async-compression = { version = "0.4", features = ["brotli", "gzip", "tokio", "zlib", "zstd"] }
+base64 = "0.22"
+blake3 = "1.8"
+bytes = "1.10"
+diffy = "0.5.1"
+dunce = "1.0.5"
+encoding_rs = "0.8"
+embed-manifest = "1.5.0"
+futures-util = "0.3"
+flate2 = "1.1"
+getrandom = "0.3"
+globset = "0.4"
+grep-matcher = "0.1"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+httpdate = "1.0.3"
+ignore = "0.4"
+jsonschema = { version = "0.52.1", default-features = false }
+junction = "2.0"
+notify = "8.2"
+regex = "1.12"
+resvg = { version = "0.48.1", default-features = false }
+reqwest = { version = "0.13.4", default-features = false, features = ["http2", "json", "rustls", "stream"] }
+# `hooks` is the only way SQLite exposes a connection-wide instruction count: the
+# per-statement counter misses the statements a cached statement already prepared. The
+# persistence writer installs one progress handler that counts only while a caller has
+# asked for a measurement, so the cost of "how much SQLite work did that batch do" is
+# a number a regression can assert instead of a wall-clock guess.
+rusqlite = { version = "0.40.2", default-features = false, features = ["backup", "bundled", "hooks"] }
+ryu-js = "1.0.3"
+schemars = "1.1"
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tempfile = "3.23"
+thiserror = "2.0"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+tokio = { version = "1.53", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["io"] }
+toml = "1.1.4"
+ulid = "1.2"
+url = { version = "2.5", features = ["serde"] }
+windows-sys = "0.61.2"
+zeroize = "1.8"
+zstd = "0.13.3"
+zip = { version = "=8.2.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+
+# Third-party crates build without debug information in
+# development and test builds; Aura's own crates keep theirs. The programs link faster and the
+# build directory shrinks; only stepping into a dependency in a debugger is lost.
+[profile.dev.package."*"]
+debug = false
+
+# Every Core test fixture hashes the ~200 MB test
+# program twice, and SHA-256 built without optimization took 4.1 s each time, most of a test's
+# 9 s start. The hash is optimized in development and test builds too.
+[profile.dev.package.sha2]
+opt-level = 3
+
+# The development Core checks and reads its large Store with SQLite built
+# optimized; the full check of a 1.26 GiB store took 3.2 s unoptimized and 2.3 s optimized.
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3

@@ -1,0 +1,119 @@
+.session-tool-activity-card {
+  width: min(630px, calc(100% - 32px));
+  padding: 12px 14px;
+  margin: 0 auto 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.session-tool-activity-card > header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.runtime-readiness-card ul {
+  padding: 0;
+  margin: 8px 0;
+  list-style: none;
+}
+
+.runtime-readiness-card ul > li {
+  grid-template-columns: minmax(0, 1fr) auto;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.runtime-readiness-card > p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.session-tool-activity-icon {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  color: #356257;
+  background: #e2ece8;
+}
+
+.session-tool-activity-card header strong {
+  font-size: 11px;
+}
+
+.session-tool-activity-card header p,
+.session-tool-activity-more {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.session-tool-activity-card ol {
+  padding: 0;
+  margin: 9px 0 0;
+  list-style: none;
+}
+
+.session-tool-activity-card li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid #edf0ed;
+}
+
+.session-tool-activity-card li > span:nth-child(2) {
+  min-width: 0;
+}
+
+.session-tool-activity-card li strong,
+.session-tool-activity-card li small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tool-activity-card li strong {
+  color: #3b433d;
+  font-size: 10px;
+}
+
+.session-tool-activity-card li small,
+.session-tool-activity-card time {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.session-tool-activity-card time {
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-call-dot {
+  width: 7px;
+  height: 7px;
+  border: 1px solid #a8aea9;
+  border-radius: 50%;
+}
+
+.tool-call-dot.state-running,
+.tool-call-dot.state-cancelling {
+  border-color: #638b82;
+  background: #73a095;
+}
+
+.tool-call-dot.state-finalized {
+  border-color: #649270;
+  background: #72a17d;
+}
+
+.tool-call-dot.state-recovery_required {
+  border-color: #b06c55;
+  background: #c68167;
+}

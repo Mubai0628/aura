@@ -1,0 +1,198 @@
+:root {
+  color-scheme: light;
+  color: #242724;
+  background: #f7f7f5;
+  font-family: var(--font-ui);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ink: #242724;
+  --muted: #606761;
+  --quiet: #858b86;
+  --line: #e3e5e1;
+  --line-strong: #d5d8d3;
+  --canvas: #fbfbfa;
+  --surface: #ffffff;
+  --surface-muted: #f4f5f2;
+  --surface-selected: #ecefed;
+  --accent: #3f625c;
+  --accent-strong: #2f524c;
+  --accent-soft: #dce8e3;
+  --sand-soft: #ede4d3;
+  --success: #3b7657;
+  --warning: #9a6b22;
+  --danger: #a53e3e;
+  --focus: #2e6973;
+  /* The soft ring around a field being typed into. */
+  --focus-ring: rgba(46, 105, 115, 0.15);
+  --shadow-popover: 0 12px 32px rgba(37, 43, 39, 0.12);
+  /* Design language: one scale for tone, depth, shape and motion. */
+  --success-soft: #e4f0e8;
+  --warning-soft: #f8f0e1;
+  --warning-line: #ead8b4;
+  --danger-soft: #f8e8e8;
+  --danger-line: #ebc9c9;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow-xs: 0 1px 2px rgba(31, 38, 33, 0.05);
+  --shadow-sm: 0 1px 2px rgba(31, 38, 33, 0.04), 0 4px 12px rgba(31, 38, 33, 0.05);
+  --shadow-md: 0 2px 6px rgba(31, 38, 33, 0.05), 0 12px 28px rgba(31, 38, 33, 0.09);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  /* Fonts, the owner's set C (bundled): Inter with 思源黑体 for the interface and the
+     conversation, 思源宋体 for large titles and thinking, JetBrains Mono for code. */
+  --font-ui:
+    'Inter Variable', 'Noto Sans SC Variable', 'Segoe UI Variable Text', 'Microsoft YaHei UI',
+    sans-serif;
+  --font-serif: 'Noto Serif SC Variable', SimSun, serif;
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-color: #c8ccc8 transparent;
+  scrollbar-width: thin;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  min-width: 640px;
+  background: var(--canvas);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+/* Code, paths and identifiers in the code font rather than the browser's default monospace. */
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+}
+
+button {
+  border: 0;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+button:focus-visible,
+input:is(
+    [type='checkbox'],
+    [type='radio'],
+    [type='range'],
+    [type='color'],
+    [type='file'],
+    [type='button'],
+    [type='submit'],
+    [type='reset']
+  ):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* A field being typed into shows it by its own border in the focus colour and a soft ring that
+   follows its corners — never a dark rectangle drawn around it. A field inside a frame (the search
+   boxes: icon, field, buttons) leaves that to the frame, marked `field-frame`. */
+:where(
+  input:not(
+    [type='checkbox'],
+    [type='radio'],
+    [type='range'],
+    [type='color'],
+    [type='file'],
+    [type='button'],
+    [type='submit'],
+    [type='reset']
+  ),
+  textarea,
+  select
+):focus-visible {
+  outline: none;
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.field-frame {
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.field-frame:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.field-frame :where(input, textarea, select):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+::selection {
+  color: #183530;
+  background: #cfe2dc;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #c8ccc8;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.app-shell {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--canvas);
+}

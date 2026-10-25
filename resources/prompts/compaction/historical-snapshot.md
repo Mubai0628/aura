@@ -1,0 +1,1 @@
+Summarize eligible sealed history so the work can go on without it: what was asked and decided, what was built or changed and where, what was run and what it showed, and what is still open; retain the required source and anchor mapping. Do not summarize the current root message or active lineage.

@@ -1,0 +1,157 @@
+/* Settings → 插件; the page, cards, pills and panels come from styles/settings-pages.css. */
+.plugin-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.plugin-version {
+  color: var(--quiet);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* Real descriptions run to many lines; the card keeps three, the review shows all of it. */
+.plugin-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.plugin-preview-description {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.plugin-warning,
+.plugin-unsupported {
+  color: var(--warning);
+  font-size: 12.5px;
+}
+
+.plugin-card > .settings-panel,
+.plugin-card > .plugin-runtime {
+  margin-top: 12px;
+}
+
+.plugin-uninstall {
+  margin-left: auto;
+}
+
+/* What it brings, read before trusting: one row per kind of content. */
+.plugin-preview {
+  display: grid;
+  gap: 12px;
+}
+
+.plugin-preview > p {
+  margin: 0;
+}
+
+.plugin-preview-lead {
+  font-weight: 650;
+}
+
+.plugin-preview section {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 4px 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.plugin-preview h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.plugin-preview ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plugin-preview li p {
+  margin: 2px 0 0;
+}
+
+.plugin-mono {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+/* How what it brings is running. */
+.plugin-runtime {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.plugin-runtime h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.plugin-runtime-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plugin-runtime-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.plugin-runtime-row code {
+  color: var(--quiet);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.plugin-runtime-row .button {
+  margin-left: auto;
+}
+
+.plugin-runtime-count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.plugin-runtime-error {
+  margin: 4px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.plugin-runtime details {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .plugin-preview section {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

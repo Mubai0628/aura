@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aura SVG 素材预览</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f8f9fa;
+        color: #29333a;
+        font:
+          14px/1.6 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1280px;
+        padding: 36px 24px;
+        margin: auto;
+      }
+      h1 {
+        font-size: 26px;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 32px 0 4px;
+      }
+      p {
+        color: #606c76;
+        margin: 0 0 18px;
+      }
+      header {
+        border-bottom: 1px solid #dce1e5;
+        padding-bottom: 12px;
+      }
+      nav {
+        display: flex;
+        gap: 18px;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      nav a {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 2px solid #467487;
+        outline-offset: 3px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+        gap: 10px;
+      }
+      .card {
+        display: grid;
+        gap: 10px;
+        padding: 16px;
+        border: 1px solid #e0e5e8;
+        border-radius: 10px;
+        background: white;
+        min-width: 0;
+      }
+      .card > span {
+        font:
+          12px/1.5 ui-monospace,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      .samples {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 36px;
+      }
+      .symbol {
+        display: inline-block;
+        width: var(--size);
+        height: var(--size);
+        flex: none;
+        background: currentColor;
+        mask: var(--asset) center / contain no-repeat;
+      }
+      .dark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 5px;
+        color: #e8edef;
+        background: #273039;
+      }
+      img {
+        object-fit: contain;
+        flex: none;
+      }
+      footer {
+        margin-top: 32px;
+        color: #606c76;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Aura SVG 素材预览</h1>
+        <p>本地素材，共 66 个 SVG。仅供选型与接入检查，不是产品界面或验收截图。</p>
+        <nav><a href="README.md">使用规则</a><a href="manifest.json">来源与散列</a></nav>
+      </header>
+      <section>
+        <h2>界面图标 · 38</h2>
+        <p>16 / 20 / 24px；最右为深色背景。按工具类别映射，状态另有文字。</p>
+        <div class="grid">
+          <a class="card" href="lucide/activity.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/activity.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/activity.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/activity.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/activity.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>activity</span></a
+          ><a class="card" href="lucide/check.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/check.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/check.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/check.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/check.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>check</span></a
+          ><a class="card" href="lucide/chevron-down.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/chevron-down.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/chevron-down.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/chevron-down.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/chevron-down.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>chevron-down</span></a
+          ><a class="card" href="lucide/chevron-right.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/chevron-right.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/chevron-right.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/chevron-right.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/chevron-right.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>chevron-right</span></a
+          ><a class="card" href="lucide/circle-alert.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/circle-alert.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/circle-alert.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/circle-alert.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/circle-alert.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>circle-alert</span></a
+          ><a class="card" href="lucide/circle-question-mark.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/circle-question-mark.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/circle-question-mark.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/circle-question-mark.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/circle-question-mark.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>circle-question-mark</span></a
+          ><a class="card" href="lucide/circle-slash.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/circle-slash.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/circle-slash.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/circle-slash.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/circle-slash.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>circle-slash</span></a
+          ><a class="card" href="lucide/external-link.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/external-link.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/external-link.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/external-link.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/external-link.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>external-link</span></a
+          ><a class="card" href="lucide/file-code.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/file-code.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-code.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-code.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/file-code.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>file-code</span></a
+          ><a class="card" href="lucide/file-diff.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/file-diff.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-diff.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-diff.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/file-diff.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>file-diff</span></a
+          ><a class="card" href="lucide/file-pen-line.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/file-pen-line.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-pen-line.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-pen-line.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/file-pen-line.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>file-pen-line</span></a
+          ><a class="card" href="lucide/file-search.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/file-search.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-search.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-search.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/file-search.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>file-search</span></a
+          ><a class="card" href="lucide/file-text.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/file-text.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-text.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/file-text.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/file-text.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>file-text</span></a
+          ><a class="card" href="lucide/folder-open.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/folder-open.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/folder-open.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/folder-open.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/folder-open.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>folder-open</span></a
+          ><a class="card" href="lucide/folder-tree.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/folder-tree.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/folder-tree.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/folder-tree.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/folder-tree.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>folder-tree</span></a
+          ><a class="card" href="lucide/git-branch.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/git-branch.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/git-branch.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/git-branch.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/git-branch.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>git-branch</span></a
+          ><a class="card" href="lucide/globe.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/globe.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/globe.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/globe.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/globe.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>globe</span></a
+          ><a class="card" href="lucide/image.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/image.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/image.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/image.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/image.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>image</span></a
+          ><a class="card" href="lucide/link.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/link.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/link.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/link.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/link.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>link</span></a
+          ><a class="card" href="lucide/list-checks.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/list-checks.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/list-checks.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/list-checks.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/list-checks.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>list-checks</span></a
+          ><a class="card" href="lucide/list-todo.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/list-todo.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/list-todo.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/list-todo.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/list-todo.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>list-todo</span></a
+          ><a class="card" href="lucide/loader-circle.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/loader-circle.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/loader-circle.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/loader-circle.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/loader-circle.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>loader-circle</span></a
+          ><a class="card" href="lucide/message-circle.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/message-circle.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/message-circle.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/message-circle.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/message-circle.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>message-circle</span></a
+          ><a class="card" href="lucide/minimize-2.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/minimize-2.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/minimize-2.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/minimize-2.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/minimize-2.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>minimize-2</span></a
+          ><a class="card" href="lucide/octagon-x.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/octagon-x.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/octagon-x.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/octagon-x.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/octagon-x.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>octagon-x</span></a
+          ><a class="card" href="lucide/package-minus.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/package-minus.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/package-minus.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/package-minus.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/package-minus.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>package-minus</span></a
+          ><a class="card" href="lucide/package-plus.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/package-plus.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/package-plus.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/package-plus.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/package-plus.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>package-plus</span></a
+          ><a class="card" href="lucide/package-search.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/package-search.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/package-search.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/package-search.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/package-search.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>package-search</span></a
+          ><a class="card" href="lucide/panel-right-open.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/panel-right-open.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/panel-right-open.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/panel-right-open.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/panel-right-open.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>panel-right-open</span></a
+          ><a class="card" href="lucide/pause.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/pause.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/pause.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/pause.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/pause.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>pause</span></a
+          ><a class="card" href="lucide/pencil.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/pencil.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/pencil.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/pencil.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/pencil.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>pencil</span></a
+          ><a class="card" href="lucide/settings-2.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/settings-2.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/settings-2.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/settings-2.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/settings-2.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>settings-2</span></a
+          ><a class="card" href="lucide/shield-alert.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/shield-alert.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/shield-alert.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/shield-alert.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/shield-alert.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>shield-alert</span></a
+          ><a class="card" href="lucide/sparkles.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/sparkles.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/sparkles.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/sparkles.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/sparkles.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>sparkles</span></a
+          ><a class="card" href="lucide/square.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/square.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/square.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/square.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/square.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>square</span></a
+          ><a class="card" href="lucide/target.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/target.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/target.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/target.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/target.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>target</span></a
+          ><a class="card" href="lucide/terminal.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/terminal.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/terminal.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/terminal.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/terminal.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>terminal</span></a
+          ><a class="card" href="lucide/wrench.svg"
+            ><div class="samples">
+              <span
+                class="symbol"
+                style="--asset: url('lucide/wrench.svg'); --size: 16px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/wrench.svg'); --size: 20px"
+                aria-hidden="true"
+              ></span
+              ><span
+                class="symbol"
+                style="--asset: url('lucide/wrench.svg'); --size: 24px"
+                aria-hidden="true"
+              ></span
+              ><span class="dark"
+                ><span
+                  class="symbol"
+                  style="--asset: url('lucide/wrench.svg'); --size: 20px"
+                  aria-hidden="true"
+                ></span
+              ></span>
+            </div>
+            <span>wrench</span></a
+          >
+        </div>
+      </section>
+      <section>
+        <h2>技术与应用备用 · 28</h2>
+        <p>保留官方颜色和比例，按实际技术/应用使用。</p>
+        <div class="grid">
+          <a class="card" href="devicon/bash.svg"
+            ><div class="samples">
+              <img src="devicon/bash.svg" width="24" height="24" alt="" /><img
+                src="devicon/bash.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>bash</span></a
+          ><a class="card" href="devicon/chrome.svg"
+            ><div class="samples">
+              <img src="devicon/chrome.svg" width="24" height="24" alt="" /><img
+                src="devicon/chrome.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>chrome</span></a
+          ><a class="card" href="devicon/cplusplus.svg"
+            ><div class="samples">
+              <img src="devicon/cplusplus.svg" width="24" height="24" alt="" /><img
+                src="devicon/cplusplus.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>cplusplus</span></a
+          ><a class="card" href="devicon/csharp.svg"
+            ><div class="samples">
+              <img src="devicon/csharp.svg" width="24" height="24" alt="" /><img
+                src="devicon/csharp.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>csharp</span></a
+          ><a class="card" href="devicon/css3.svg"
+            ><div class="samples">
+              <img src="devicon/css3.svg" width="24" height="24" alt="" /><img
+                src="devicon/css3.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>css3</span></a
+          ><a class="card" href="devicon/docker.svg"
+            ><div class="samples">
+              <img src="devicon/docker.svg" width="24" height="24" alt="" /><img
+                src="devicon/docker.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>docker</span></a
+          ><a class="card" href="devicon/electron.svg"
+            ><div class="samples">
+              <img src="devicon/electron.svg" width="24" height="24" alt="" /><img
+                src="devicon/electron.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>electron</span></a
+          ><a class="card" href="devicon/firefox.svg"
+            ><div class="samples">
+              <img src="devicon/firefox.svg" width="24" height="24" alt="" /><img
+                src="devicon/firefox.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>firefox</span></a
+          ><a class="card" href="devicon/git.svg"
+            ><div class="samples">
+              <img src="devicon/git.svg" width="24" height="24" alt="" /><img
+                src="devicon/git.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>git</span></a
+          ><a class="card" href="devicon/github.svg"
+            ><div class="samples">
+              <img src="devicon/github.svg" width="24" height="24" alt="" /><img
+                src="devicon/github.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>github</span></a
+          ><a class="card" href="devicon/go.svg"
+            ><div class="samples">
+              <img src="devicon/go.svg" width="24" height="24" alt="" /><img
+                src="devicon/go.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>go</span></a
+          ><a class="card" href="devicon/html5.svg"
+            ><div class="samples">
+              <img src="devicon/html5.svg" width="24" height="24" alt="" /><img
+                src="devicon/html5.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>html5</span></a
+          ><a class="card" href="devicon/java.svg"
+            ><div class="samples">
+              <img src="devicon/java.svg" width="24" height="24" alt="" /><img
+                src="devicon/java.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>java</span></a
+          ><a class="card" href="devicon/javascript.svg"
+            ><div class="samples">
+              <img src="devicon/javascript.svg" width="24" height="24" alt="" /><img
+                src="devicon/javascript.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>javascript</span></a
+          ><a class="card" href="devicon/json.svg"
+            ><div class="samples">
+              <img src="devicon/json.svg" width="24" height="24" alt="" /><img
+                src="devicon/json.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>json</span></a
+          ><a class="card" href="devicon/linux.svg"
+            ><div class="samples">
+              <img src="devicon/linux.svg" width="24" height="24" alt="" /><img
+                src="devicon/linux.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>linux</span></a
+          ><a class="card" href="devicon/markdown.svg"
+            ><div class="samples">
+              <img src="devicon/markdown.svg" width="24" height="24" alt="" /><img
+                src="devicon/markdown.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>markdown</span></a
+          ><a class="card" href="devicon/nodejs.svg"
+            ><div class="samples">
+              <img src="devicon/nodejs.svg" width="24" height="24" alt="" /><img
+                src="devicon/nodejs.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>nodejs</span></a
+          ><a class="card" href="devicon/npm.svg"
+            ><div class="samples">
+              <img src="devicon/npm.svg" width="24" height="24" alt="" /><img
+                src="devicon/npm.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>npm</span></a
+          ><a class="card" href="devicon/pnpm.svg"
+            ><div class="samples">
+              <img src="devicon/pnpm.svg" width="24" height="24" alt="" /><img
+                src="devicon/pnpm.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>pnpm</span></a
+          ><a class="card" href="devicon/powershell.svg"
+            ><div class="samples">
+              <img src="devicon/powershell.svg" width="24" height="24" alt="" /><img
+                src="devicon/powershell.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>powershell</span></a
+          ><a class="card" href="devicon/python.svg"
+            ><div class="samples">
+              <img src="devicon/python.svg" width="24" height="24" alt="" /><img
+                src="devicon/python.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>python</span></a
+          ><a class="card" href="devicon/react.svg"
+            ><div class="samples">
+              <img src="devicon/react.svg" width="24" height="24" alt="" /><img
+                src="devicon/react.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>react</span></a
+          ><a class="card" href="devicon/rust.svg"
+            ><div class="samples">
+              <img src="devicon/rust.svg" width="24" height="24" alt="" /><img
+                src="devicon/rust.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>rust</span></a
+          ><a class="card" href="devicon/typescript.svg"
+            ><div class="samples">
+              <img src="devicon/typescript.svg" width="24" height="24" alt="" /><img
+                src="devicon/typescript.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>typescript</span></a
+          ><a class="card" href="devicon/vitejs.svg"
+            ><div class="samples">
+              <img src="devicon/vitejs.svg" width="24" height="24" alt="" /><img
+                src="devicon/vitejs.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>vitejs</span></a
+          ><a class="card" href="devicon/vscode.svg"
+            ><div class="samples">
+              <img src="devicon/vscode.svg" width="24" height="24" alt="" /><img
+                src="devicon/vscode.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>vscode</span></a
+          ><a class="card" href="devicon/windows11.svg"
+            ><div class="samples">
+              <img src="devicon/windows11.svg" width="24" height="24" alt="" /><img
+                src="devicon/windows11.svg"
+                width="36"
+                height="36"
+                alt=""
+              />
+            </div>
+            <span>windows11</span></a
+          >
+        </div>
+      </section>
+      <footer>
+        公开来源：Lucide / Devicon。完整许可随附。iconfont 21124 集合未下载，本页不代表该集合。
+      </footer>
+    </main>
+  </body>
+</html>

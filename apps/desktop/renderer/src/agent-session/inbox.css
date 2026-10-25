@@ -1,0 +1,139 @@
+/* A compact tray over the composer, about two
+   thirds of its width: one line per message, every action an icon. */
+.agent-inbox {
+  width: clamp(320px, 66%, 640px);
+  max-width: 100%;
+  max-height: 168px;
+  margin: 0 auto 6px;
+  padding: 5px 6px 6px 10px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgba(28, 38, 32, 0.07);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.agent-inbox > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  color: var(--muted);
+}
+
+.agent-inbox > header > strong {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.agent-inbox ol {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-inbox li + li {
+  border-top: 1px solid var(--line);
+}
+
+.agent-inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+}
+
+.agent-inbox-lane {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  color: var(--quiet);
+}
+
+.agent-inbox-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 2px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.agent-inbox-actions {
+  display: inline-flex;
+  flex: none;
+  gap: 1px;
+}
+
+.agent-inbox-action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.agent-inbox-action:hover:not(:disabled),
+.agent-inbox-action:focus-visible {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.agent-inbox-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.agent-inbox-full {
+  margin: 0 0 6px 22px;
+  color: var(--muted);
+}
+
+.agent-inbox-editor {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.agent-inbox-editor textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 46px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.agent-inbox > p[role='alert'] {
+  margin: 4px 0 2px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: var(--surface-muted);
+  color: var(--muted);
+}

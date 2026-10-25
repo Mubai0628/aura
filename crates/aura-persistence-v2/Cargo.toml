@@ -1,0 +1,44 @@
+[package]
+name = "aura-persistence-v2"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-memory-domain = { path = "../aura-memory-domain" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-hooks = { path = "../aura-hooks" }
+aura-mcp = { path = "../aura-mcp" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+blake3.workspace = true
+
+[dev-dependencies]
+rusqlite = { workspace = true, features = ["trace"] }
+# The consent cases drive the real Final Dispatch Guard, so the test needs the
+# engine that production dispatch calls rather than a re-implementation of it.
+aura-permission-engine = { path = "../aura-permission-engine" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+time.workspace = true
+aura-context-fixtures = { path = "../aura-context-fixtures" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+tempfile.workspace = true
+aura-contract-schema = { path = "../aura-contract-schema" }
+
+[lints]
+workspace = true

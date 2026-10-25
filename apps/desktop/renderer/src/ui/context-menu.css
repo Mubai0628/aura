@@ -1,0 +1,84 @@
+/* right-click menus — of a file or a link in the conversation, of a tab in
+   the right sidebar, of a file in the tree. */
+.context-menu {
+  position: fixed;
+  inset: auto;
+  z-index: 80;
+  min-width: 200px;
+  max-width: 300px;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  color: var(--ink);
+  font-size: 12.5px;
+  animation: context-menu-in 120ms var(--ease-out) both;
+}
+
+.context-menu [role='menuitem'] {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  column-gap: 9px;
+  align-items: center;
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu [role='menuitem']:hover,
+.context-menu [role='menuitem']:focus-visible {
+  outline: none;
+  background: var(--surface-muted);
+}
+
+.context-menu [role='menuitem'][aria-disabled='true'] {
+  color: var(--quiet);
+  cursor: default;
+}
+
+.context-menu [role='menuitem'][aria-disabled='true']:hover {
+  background: transparent;
+}
+
+.context-menu-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.context-menu-note {
+  grid-column: 2;
+  color: var(--quiet);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.context-menu hr {
+  margin: 4px 6px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+@keyframes context-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-menu {
+    animation: none;
+  }
+}

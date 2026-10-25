@@ -1,0 +1,155 @@
+.right-workspace {
+  z-index: 10;
+  display: grid;
+  /* The column never grows past the sidebar for what it holds — many browser
+     pages had widened it off the screen, and the page drawn over it out of place. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 47px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: #fbfbfa;
+  overflow: hidden;
+}
+
+.right-workspace-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 7px 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.right-workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.right-sidebar-toggle {
+  border: 1px solid transparent;
+}
+
+.right-sidebar-toggle:hover {
+  border-color: var(--line);
+  background: var(--surface-selected);
+}
+
+.right-tab-strip {
+  min-width: 0;
+}
+.right-workspace-label {
+  color: var(--quiet);
+  font-size: 12px;
+}
+
+.tool-add-button {
+  border: 1px solid transparent;
+}
+
+.tool-add-button[aria-expanded='true'] {
+  border-color: var(--line);
+  background: var(--surface-selected);
+}
+
+.tool-picker {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 40;
+  width: 265px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.tool-picker button,
+.right-shortcuts button {
+  display: grid;
+  grid-template-columns: 21px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 7px;
+  color: #444b45;
+  text-align: left;
+  background: transparent;
+  transition:
+    background 140ms ease-out,
+    color 140ms ease-out;
+}
+
+.tool-picker button:hover,
+.right-shortcuts button:hover {
+  background: #f0f2ef;
+}
+
+kbd {
+  padding: 1px 5px;
+  border: 0;
+  border-radius: 5px;
+  color: #737a75;
+  background: #f0f1ef;
+  font-family: inherit;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.right-shortcuts {
+  align-self: center;
+  width: min(255px, calc(100% - 36px));
+  margin: auto;
+}
+
+.right-shortcuts > p {
+  margin: 0 9px 7px;
+  color: var(--quiet);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.settings-search {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.settings-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.right-panel-empty,
+.model-empty-state {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.right-panel-empty {
+  align-self: center;
+  max-width: 235px;
+  margin: auto;
+  color: var(--quiet);
+}
+
+.right-panel-empty h3 {
+  margin: 12px 0 3px;
+  color: #424943;
+  font-size: 14px;
+}
+.right-panel-empty p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}

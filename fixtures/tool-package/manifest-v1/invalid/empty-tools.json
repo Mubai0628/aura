@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "byte_length": 21,
+      "path": "bin/fixture.exe",
+      "role": "runtime_executable",
+      "sha256": {
+        "algorithm": "sha256",
+        "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+      }
+    }
+  ],
+  "minimum_aura_version": "0.1.0",
+  "package_key": "org.aura.fixture.stdio",
+  "package_version": "1.0.0",
+  "schema_version": 1,
+  "tools": [],
+  "ui": {
+    "description": null,
+    "display_name": "Aura Fixture Package"
+  }
+}

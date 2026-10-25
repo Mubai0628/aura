@@ -1,0 +1,7 @@
+{
+  "error": {
+    "type": "rate_limit_error",
+    "code": "rate_limit_exceeded",
+    "message": "Fixture request rate is temporarily limited."
+  }
+}

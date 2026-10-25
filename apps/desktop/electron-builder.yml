@@ -1,0 +1,21 @@
+appId: dev.aura.desktop
+productName: Aura
+executableName: Aura
+asar: true
+npmRebuild: false
+electronDist: ../../target/electron-dist-staging
+directories:
+  output: ../../target/electron-builder-package
+files:
+  - dist/**/*
+  - '!dist/e2e/**/*'
+  - '!dist/e2e-native/**/*'
+  - '!dist/native/*.node'
+  - package.json
+extraResources:
+  - from: dist/native/aura-main-pipe.node
+    to: native/aura-main-pipe.node
+win:
+  target:
+    - target: dir
+  verifyUpdateCodeSignature: false

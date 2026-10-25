@@ -1,0 +1,46 @@
+.execution-strategy-fields {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.execution-strategy-fields label {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.execution-strategy-fields select {
+  min-width: 220px;
+}
+
+.execution-strategy-fields label[data-invalid='true'] input {
+  border-color: var(--danger, #c2410c);
+}
+
+.execution-strategy-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.execution-strategy-fields input:not([type='checkbox']) {
+  width: 220px;
+  max-width: 100%;
+}
+
+.execution-strategy-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.execution-strategy-revision,
+.execution-strategy-pending,
+.execution-strategy-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.execution-strategy-note {
+  margin: 8px 0 0;
+}

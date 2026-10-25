@@ -1,0 +1,15 @@
+CREATE TABLE turn_tasks(id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), state TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE agent_runs(id TEXT PRIMARY KEY, turn_task_id TEXT NOT NULL REFERENCES turn_tasks(id), parent_id TEXT REFERENCES agent_runs(id), state TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE model_steps(id TEXT PRIMARY KEY, agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), ordinal INTEGER NOT NULL CHECK(ordinal>0), snapshot_id TEXT REFERENCES model_execution_snapshots(id), state TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload)), UNIQUE(agent_run_id,ordinal)) STRICT;
+CREATE TABLE recovery_episodes(agent_run_id TEXT NOT NULL REFERENCES agent_runs(id), ordinal INTEGER NOT NULL CHECK(ordinal>0), state TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload)), PRIMARY KEY(agent_run_id,ordinal)) STRICT;
+CREATE TABLE turn_state_snapshots(turn_task_id TEXT PRIMARY KEY REFERENCES turn_tasks(id), revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE agent_visible_index(owner TEXT NOT NULL, attempt TEXT NOT NULL, sequence INTEGER NOT NULL, text_start INTEGER NOT NULL, text_end INTEGER NOT NULL, text_len INTEGER NOT NULL, reasoning_start INTEGER NOT NULL, reasoning_end INTEGER NOT NULL, reasoning_len INTEGER NOT NULL, PRIMARY KEY(owner, attempt, sequence)) STRICT;
+CREATE INDEX agent_visible_index_text ON agent_visible_index(owner, attempt, text_end);
+CREATE INDEX agent_visible_index_reasoning ON agent_visible_index(owner, attempt, reasoning_end);
+CREATE TABLE agent_visible_body(owner TEXT NOT NULL, source TEXT NOT NULL, revision TEXT NOT NULL, ordinal INTEGER NOT NULL, byte_len INTEGER NOT NULL, text TEXT NOT NULL, PRIMARY KEY(owner, source, revision, ordinal)) STRICT;
+CREATE TABLE agent_visible_delta(owner TEXT NOT NULL, attempt TEXT NOT NULL, sequence INTEGER NOT NULL, text TEXT NOT NULL, reasoning TEXT NOT NULL, PRIMARY KEY(owner, attempt, sequence)) STRICT;
+CREATE TABLE agent_visible_coverage(owner TEXT NOT NULL, attempt TEXT NOT NULL, first_sequence INTEGER NOT NULL, max_sequence INTEGER NOT NULL, index_count INTEGER NOT NULL, text_end INTEGER NOT NULL, reasoning_end INTEGER NOT NULL, PRIMARY KEY(owner, attempt)) STRICT;
+CREATE TABLE turn_poll(id TEXT PRIMARY KEY, revision INTEGER NOT NULL, state TEXT NOT NULL, payload TEXT NOT NULL) STRICT;
+CREATE TABLE agent_visible_repair(owner TEXT NOT NULL, attempt TEXT NOT NULL, sequence INTEGER NOT NULL, text_copied INTEGER NOT NULL, reasoning_copied INTEGER NOT NULL, text_len INTEGER NOT NULL, reasoning_len INTEGER NOT NULL, PRIMARY KEY(owner, attempt, sequence)) STRICT;
+CREATE TABLE agent_visible_repair_turn(id INTEGER PRIMARY KEY CHECK(id=1), owner TEXT NOT NULL) STRICT;
+CREATE TABLE turn_poll_capture(id TEXT PRIMARY KEY, revision INTEGER NOT NULL, state TEXT NOT NULL, total_len INTEGER NOT NULL, copied INTEGER NOT NULL, payload BLOB NOT NULL) STRICT;

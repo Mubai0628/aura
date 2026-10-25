@@ -1,0 +1,35 @@
+/* Current execution records reuse the existing activity card. */
+.agent-tool-activity li {
+  display: block;
+}
+.agent-tool-call-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.agent-tool-call-summary button {
+  margin-left: auto;
+}
+.shell-execution-details {
+  width: 100%;
+  min-width: 0;
+  margin-top: 12px;
+}
+.shell-execution-details pre {
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.shell-execution-details dd {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.shell-execution-details button {
+  margin: 6px 8px 6px 0;
+}
+.shell-execution-details summary {
+  cursor: pointer;
+}

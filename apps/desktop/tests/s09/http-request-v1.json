@@ -1,0 +1,260 @@
+{
+  "handler": {
+    "handler": "http_request"
+  },
+  "definition": {
+    "tool_id": "tol_01M2DG020980080021AN94200Z",
+    "tool_version": {
+      "semantic_version": null,
+      "definition_revision": "1"
+    },
+    "tool_package_id": null,
+    "package_key": null,
+    "tool_key": null,
+    "canonical_name": "http.request",
+    "display_name": "Make an HTTP request",
+    "model_description": "Call an HTTP or HTTPS API, including localhost and LAN. method defaults to GET; headers and body are optional. GET and HEAD cannot carry a body. body accepts text or JSON (up to 1 MiB). credential selects the api_key slot or an unambiguous configured name; Core only sends it to a user-approved origin. Read-only mode requires network approval. Other modes allow ordinary network tools. GET/HEAD follow up to three redirects and remove credentials across origins. Mutating methods never automatically retry or redirect; an interrupted write may need verification. HTTP 4xx/5xx are normal results. Responses are bounded; use http.download for large or binary files. Approval does not grant file access.",
+    "model_summary": "Make an HTTP request",
+    "input_schema": {
+      "schema_dialect": "json_schema_draft_2020_12",
+      "schema_policy_version": 1,
+      "document": {
+        "$defs": {
+          "HttpHeader": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "value"],
+            "type": "object"
+          },
+          "HttpRequestBody": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "content_type": {
+                    "type": ["string", "null"]
+                  },
+                  "kind": {
+                    "const": "text",
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": ["kind", "text"],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "json",
+                    "type": "string"
+                  },
+                  "value": true
+                },
+                "required": ["kind", "value"],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/HttpRequestBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "credential": {
+            "description": "Selects an existing credential slot configured by the user for this exact tool.",
+            "type": ["string", "null"]
+          },
+          "headers": {
+            "items": {
+              "$ref": "#/$defs/HttpHeader"
+            },
+            "type": "array"
+          },
+          "method": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": ["url"],
+        "type": "object"
+      },
+      "schema_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "b9809c667129a88acd4a7a45e5f6d86621c15ac922a2d4e5bbb1463349be3dc6"
+      }
+    },
+    "strict": true,
+    "result_contract": {
+      "type": "structured_json",
+      "result_schema": {
+        "schema_dialect": "json_schema_draft_2020_12",
+        "schema_policy_version": 1,
+        "document": {
+          "$defs": {
+            "HttpBodyKind": {
+              "enum": ["text", "json", "binary"],
+              "type": "string"
+            },
+            "HttpHeader": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": ["name", "value"],
+              "type": "object"
+            }
+          },
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "body_kind": {
+              "$ref": "#/$defs/HttpBodyKind"
+            },
+            "bytes_received": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "elapsed_ms": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "final_url": {
+              "description": "Safe display URL: credentials and query values are never exposed here.",
+              "type": "string"
+            },
+            "headers": {
+              "items": {
+                "$ref": "#/$defs/HttpHeader"
+              },
+              "type": "array"
+            },
+            "hint": {
+              "type": ["string", "null"]
+            },
+            "json": true,
+            "redirects": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "status": {
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "text": {
+              "type": ["string", "null"]
+            },
+            "transfer_complete": {
+              "type": "boolean"
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "status",
+            "headers",
+            "body_kind",
+            "truncated",
+            "bytes_received",
+            "final_url",
+            "redirects",
+            "elapsed_ms",
+            "transfer_complete"
+          ],
+          "type": "object"
+        },
+        "schema_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "feac2912758f9d1c892a886b9c0f8392ad05248e4bac94f3225962fc752ee0a6"
+        }
+      }
+    },
+    "runtime": {
+      "type": "external_source",
+      "source_contract_key": "aura.builtin.http.request.v1"
+    },
+    "capabilities": ["ordinary_network"],
+    "resource_claims": [],
+    "audience": "subagent_configurable",
+    "source_kind": "built_in",
+    "execution_semantics": {
+      "automatic_retry_allowed": false,
+      "repeat_is_idempotent": false,
+      "may_create_persistent_effects": true
+    },
+    "runtime_file_closure_hash": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "46fe1734b4606fa14060a66fa92eb6e0493600839c88fc66095091c660da0e70"
+    },
+    "definition_fingerprint": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "a4bb437ace7b99efa7b2d77db9f5db2c2504d411fab8be8b8c57941f10aac626"
+    },
+    "entity_revision": "1",
+    "created_at": "2026-09-09T00:00:00Z"
+  },
+  "instance": {
+    "tool_instance_id": "tin_01M2DG020980080021AN94200Z",
+    "tool_id": "tol_01M2DG020980080021AN94200Z",
+    "tool_version": {
+      "semantic_version": null,
+      "definition_revision": "1"
+    },
+    "source_kind": "built_in",
+    "source_contract_fingerprint": {
+      "source_kind": "built_in",
+      "signed_builtin_tool_contract_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "9040e69abf9066fafa03d083ad393182d733519a7aa7b320d9425e6cc3037b20"
+      }
+    },
+    "enabled": true,
+    "runtime_health": "healthy",
+    "overrides": {
+      "timeout_ms": null,
+      "max_retries": null,
+      "max_concurrent_attempts": null,
+      "subagent_enabled": null
+    },
+    "entity_revision": "1",
+    "created_at": "2026-09-09T00:00:00Z",
+    "updated_at": "2026-09-09T00:00:00Z"
+  }
+}

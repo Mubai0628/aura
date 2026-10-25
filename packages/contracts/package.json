@@ -1,0 +1,25 @@
+{
+  "name": "@aura/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./generated": "./src/generated/contracts.ts",
+    "./id-prefixes": "./src/generated/id-prefixes.ts",
+    "./tool-errors": "./src/generated/tool-errors.ts"
+  },
+  "dependencies": {
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:"
+  },
+  "scripts": {
+    "test:unit": "vitest run --configLoader native --pool=threads --maxWorkers=2",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

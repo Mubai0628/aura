@@ -1,0 +1,27 @@
+[package]
+name = "aura-model-catalog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-security-contract = { path = "../aura-security-contract" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-persistence = { path = "../aura-persistence" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+aura-model-fixtures = { path = "../aura-model-fixtures" }
+tempfile.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

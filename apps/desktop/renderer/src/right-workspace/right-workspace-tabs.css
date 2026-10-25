@@ -1,0 +1,130 @@
+/* The right sidebar's tabs — one row that scrolls sideways when there are many. A tab named after its file or its command gives way first, down to a few
+  characters; one named after its tool keeps its name. Past that the wheel scrolls the row, its
+   edges fade where more tabs are, and 全部标签 lists them all. The tabs are kept tight so the
+   usual three (a file, a terminal, the review) fit the sidebar as it first opens. */
+.right-workspace-toolbar {
+  gap: 4px;
+}
+
+.right-workspace-actions {
+  flex: none;
+}
+
+.right-tab-strip-frame {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.right-tab-strip {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.right-tab-strip-frame[data-overflow-left] .right-tab-strip {
+  mask-image: linear-gradient(to right, transparent, #000 20px);
+}
+
+.right-tab-strip-frame[data-overflow-right] .right-tab-strip {
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+}
+
+.right-tab-strip-frame[data-overflow-left][data-overflow-right] .right-tab-strip {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 20px,
+    #000 calc(100% - 20px),
+    transparent
+  );
+}
+
+.right-tab-list-button {
+  flex: none;
+  border: 1px solid transparent;
+}
+
+.right-tab-list-button:hover {
+  border-color: var(--line);
+  background: var(--surface-selected);
+}
+
+.tool-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  max-width: 180px;
+  border-radius: 7px;
+  color: var(--muted);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.tool-tab.gives-way {
+  flex: 0 1 auto;
+  min-width: 74px;
+}
+
+.tool-tab:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.tool-tab.is-active {
+  background: var(--surface-selected);
+  color: var(--ink);
+}
+
+.tool-tab > button[role='tab'] {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 5px 1px 5px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tool-tab > button[role='tab'] > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-tab > button[role='tab'] > svg {
+  flex: none;
+}
+
+.tool-tab > .icon-button {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 1px;
+  border-radius: 5px;
+  opacity: 0.5;
+}
+
+.tool-tab:hover > .icon-button,
+.tool-tab.is-active > .icon-button,
+.tool-tab > .icon-button:focus-visible {
+  opacity: 1;
+}
+
+.right-workspace-error {
+  margin: 6px 11px 0;
+  color: var(--danger);
+  font-size: 12px;
+}

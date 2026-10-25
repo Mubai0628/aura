@@ -1,0 +1,19 @@
+{
+  "canonical_manifest_hash": {
+    "algorithm": "sha256",
+    "canonicalization_version": "rfc8785_jcs_v1",
+    "hex": "8c0b06754a75334b05c3bc7919d9058875adba7c308c0cb5b82f5c8030e3129b"
+  },
+  "files": [
+    {
+      "byte_length": 21,
+      "path": "bin/fixture.exe",
+      "raw_file_sha256": {
+        "algorithm": "sha256",
+        "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+      },
+      "role": "runtime_executable"
+    }
+  ],
+  "policy_version": 1
+}

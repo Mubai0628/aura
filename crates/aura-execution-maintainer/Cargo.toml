@@ -1,0 +1,19 @@
+[package]
+name = "aura-execution-maintainer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-windows-platform = { path = "../aura-windows-platform", features = ["execution-maintenance"] }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

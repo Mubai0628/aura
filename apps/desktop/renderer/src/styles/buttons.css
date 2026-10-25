@@ -1,0 +1,126 @@
+/*
+ * Buttons. `.button` is the ordinary action; `is-primary` the page's main action,
+ * `is-danger` a destructive one, `is-ghost` a quiet one, `is-small` a row action. An unclassed
+ * button inside a Settings page gets the ordinary look, so no page falls back to the browser's
+ * grey block. A busy button (aria-busy) shows a small spinner instead of being re-pressed.
+ */
+.button,
+:where(.settings-page) button:where(:not([class])) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  font-size: 13px;
+  font-weight: 520;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.button:hover:not(:disabled),
+:where(.settings-page) button:where(:not([class])):hover:not(:disabled) {
+  border-color: #c4c9c3;
+  background: var(--surface-muted);
+}
+
+.button:active:not(:disabled),
+:where(.settings-page) button:where(:not([class])):active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: none;
+}
+
+.button.is-primary {
+  border-color: var(--accent-strong);
+  color: #ffffff;
+  background: var(--accent);
+  box-shadow:
+    var(--shadow-xs),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.button.is-primary:hover:not(:disabled) {
+  border-color: #23433e;
+  background: var(--accent-strong);
+}
+
+.button.is-danger {
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
+.button.is-danger:hover:not(:disabled) {
+  border-color: #dfb1b1;
+  background: var(--danger-soft);
+}
+
+.button.is-danger.is-solid {
+  border-color: #8f3434;
+  color: #ffffff;
+  background: var(--danger);
+}
+
+.button.is-danger.is-solid:hover:not(:disabled) {
+  background: #8f3434;
+}
+
+.button.is-ghost {
+  border-color: transparent;
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.button.is-ghost:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+
+.button.is-small {
+  min-height: 27px;
+  padding: 0 9px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.button[aria-busy='true'] {
+  color: transparent;
+  pointer-events: none;
+}
+
+.button[aria-busy='true']::after {
+  position: absolute;
+  inset: 0;
+  width: 14px;
+  height: 14px;
+  margin: auto;
+  border: 2px solid var(--muted);
+  border-right-color: transparent;
+  border-radius: 50%;
+  content: '';
+  animation: button-busy 640ms linear infinite;
+}
+
+.button.is-primary[aria-busy='true']::after {
+  border-color: #ffffff;
+  border-right-color: transparent;
+}
+
+@keyframes button-busy {
+  to {
+    transform: rotate(360deg);
+  }
+}

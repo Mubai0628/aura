@@ -1,0 +1,32 @@
+[
+  {
+    "violation": "runner:aura-egress-proxy->aura-network-control->aura-persistence",
+    "remove_by": "network-control store access moves into Core",
+    "reason": "The egress proxy still reaches the network-control store through aura-persistence; no new proxy SQL paths."
+  },
+  {
+    "violation": "runner:aura-egress-proxy->aura-network-control->aura-persistence->rusqlite",
+    "remove_by": "network-control store access moves into Core",
+    "reason": "The egress proxy still reaches the network-control store through aura-persistence; no new proxy SQL paths."
+  },
+  {
+    "violation": "runner:aura-sandbox-host->aura-persistence",
+    "remove_by": "retirement of the legacy Strict host",
+    "reason": "The legacy Strict host keeps its store access until it is retired; the command runner has no exemption."
+  },
+  {
+    "violation": "runner:aura-sandbox-host->aura-persistence->rusqlite",
+    "remove_by": "retirement of the legacy Strict host",
+    "reason": "The legacy Strict host keeps its store access until it is retired; the command runner has no exemption."
+  },
+  {
+    "violation": "runner:aura-sandbox-host->aura-sandbox->aura-persistence",
+    "remove_by": "retirement of the legacy Strict host",
+    "reason": "The legacy Strict host keeps its store access until it is retired; the command runner has no exemption."
+  },
+  {
+    "violation": "runner:aura-sandbox-host->aura-sandbox->aura-persistence->rusqlite",
+    "remove_by": "retirement of the legacy Strict host",
+    "reason": "The legacy Strict host keeps its store access until it is retired; the command runner has no exemption."
+  }
+]

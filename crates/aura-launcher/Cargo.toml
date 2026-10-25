@@ -1,0 +1,29 @@
+[package]
+name = "aura-launcher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "AuraLauncher"
+path = "src/main.rs"
+
+[dependencies]
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+anyhow.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+blake3.workspace = true
+dunce.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[build-dependencies]
+embed-manifest.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

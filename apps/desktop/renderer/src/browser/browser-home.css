@@ -1,0 +1,215 @@
+/* The browser's start page. The art is drawn in the window's own colours. */
+.browser-home {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px 20px 40px;
+  overflow: auto;
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--surface) 0%, transparent 70%), var(--canvas);
+  animation: browser-home-in var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes browser-home-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.browser-home-art {
+  width: min(300px, 100%);
+  height: auto;
+  flex: none;
+}
+
+.browser-home-address {
+  display: flex;
+  width: min(380px, 100%);
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 6px 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--quiet);
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgb(36 39 36 / 6%);
+}
+
+.browser-home-address input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  color: var(--ink);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.browser-home-address .icon-button {
+  flex: none;
+  border-radius: 50%;
+}
+
+.browser-home-problem {
+  max-width: min(380px, 100%);
+  margin: 0;
+  color: var(--warning);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.art-halo-in {
+  stop-color: var(--accent-soft);
+  stop-opacity: 0.95;
+}
+
+.art-halo-out {
+  stop-color: var(--accent-soft);
+  stop-opacity: 0;
+}
+
+.art-sphere-top {
+  stop-color: var(--surface);
+}
+
+.art-sphere-bottom {
+  stop-color: var(--accent-soft);
+}
+
+/* Drawn through <use>: the shapes in <defs> carry their own class. */
+.art-land-shape {
+  fill: var(--accent);
+  fill-opacity: 0.16;
+}
+
+.art-land {
+  animation: art-land 26s linear infinite;
+}
+
+@keyframes art-land {
+  to {
+    transform: translateX(108px);
+  }
+}
+
+.art-grid ellipse,
+.art-grid path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.2;
+  stroke-width: 1;
+}
+
+.art-rim {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.45;
+  stroke-width: 1.4;
+}
+
+.art-orbit {
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.35;
+  stroke-width: 1.2;
+  stroke-dasharray: 2 7;
+  stroke-linecap: round;
+  animation: art-orbit 16s linear infinite;
+}
+
+@keyframes art-orbit {
+  to {
+    stroke-dashoffset: -180;
+  }
+}
+
+.art-planet {
+  fill: var(--accent);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: art-pulse 3.2s var(--ease-in-out) infinite;
+}
+
+@keyframes art-pulse {
+  50% {
+    opacity: 0.65;
+    transform: scale(1.35);
+  }
+}
+
+.art-spark {
+  fill: var(--accent);
+  fill-opacity: 0.55;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: art-twinkle 4.6s var(--ease-in-out) infinite;
+}
+
+@keyframes art-twinkle {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.7) rotate(45deg);
+  }
+}
+
+.art-card {
+  filter: drop-shadow(0 4px 8px rgb(36 39 36 / 8%));
+}
+
+.art-card-float {
+  animation: art-float 6.4s var(--ease-in-out) infinite;
+}
+
+.art-card-b .art-card-float {
+  animation-duration: 7.6s;
+  animation-delay: -2.4s;
+}
+
+.art-card-c .art-card-float {
+  animation-duration: 8.8s;
+  animation-delay: -4.8s;
+}
+
+@keyframes art-float {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.art-card-body {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+}
+
+.art-card-bar {
+  fill: var(--surface-muted);
+}
+
+.art-card-dot {
+  fill: var(--line-strong);
+}
+
+.art-card-line {
+  fill: var(--line);
+}
+
+.art-card-block {
+  fill: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .browser-home,
+  .browser-home-art * {
+    animation: none;
+  }
+}

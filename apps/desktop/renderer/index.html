@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: aura:; media-src 'self' aura:; connect-src 'self' http://127.0.0.1:5175 ws://127.0.0.1:5175"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Aura</title>
+    <link rel="stylesheet" href="/splash.css" />
+  </head>
+  <body>
+    <div id="aura-splash" aria-hidden="true">
+      <canvas id="aura-splash-lake" class="splash-lake"></canvas>
+      <div class="splash-caption" id="aura-splash-caption">正在启动</div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

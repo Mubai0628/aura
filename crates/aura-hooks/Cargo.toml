@@ -1,0 +1,21 @@
+[package]
+name = "aura-hooks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+blake3.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+junction.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

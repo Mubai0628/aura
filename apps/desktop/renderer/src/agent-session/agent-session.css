@@ -1,0 +1,440 @@
+.agent-conversation {
+  max-width: 860px;
+  width: 100%;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 12px 24px 32px;
+  overflow-wrap: anywhere;
+}
+/* Earlier history is paged automatically at this marker, so it stays invisible
+   while it works: it only has to be observable, not readable. The retry for a
+   page that brought nothing is the one thing it ever shows. */
+.agent-history-sentinel {
+  min-height: 1px;
+}
+.agent-history-sentinel p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.agent-turn {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+  /* A turn out of sight keeps the size it
+     last had instead of being laid out again for every width the drag passes through. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
+}
+.agent-turn > header,
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+.agent-turn > header {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+/* The bubble is as wide as its text, up to the width it always had, and
+   sits on the right; the text inside starts on the left. */
+.agent-user-message {
+  width: fit-content;
+  max-width: 92%;
+  background: var(--surface-muted);
+  padding: 6px 16px;
+  margin: 6px 0 6px auto;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.65;
+  text-align: left;
+}
+.agent-message-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+/* A Markdown body under a plain-text host class keeps that host's frame but not
+   its pre-wrap, which would turn source newlines into hard breaks. */
+.markdown-body.agent-message-text,
+.markdown-body.agent-final-report,
+.markdown-body.agent-reasoning,
+.markdown-body.agent-interim-reply {
+  white-space: normal;
+}
+.agent-reasoning {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--muted);
+  border-left: 2px solid #ddd;
+  padding-left: 14px;
+}
+.agent-reasoning .markdown-body {
+  margin: 5px 0;
+  font-size: 14px;
+}
+.agent-empty {
+  margin: auto;
+  padding: 40px;
+  text-align: center;
+  color: var(--muted);
+}
+/* The approval is a header, a body that scrolls, and actions that stay in view (frozen
+   design §12.1: explanation, operation, source and the answers first; the rest under 查看详情). */
+.agent-approval {
+  display: flex;
+  flex-direction: column;
+  max-height: min(56vh, 480px);
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid #d3e0d9;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow-wrap: anywhere;
+  animation: approval-in var(--dur-base) var(--ease-out) both;
+}
+.agent-approval-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #f5f9f7;
+}
+.agent-approval-mark {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.agent-approval-header strong {
+  font-size: 13px;
+}
+.agent-approval-kind {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.agent-approval-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px 12px;
+  font-size: 13px;
+}
+.agent-approval-body > p {
+  margin: 6px 0;
+}
+.agent-approval-purpose {
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--surface-muted);
+}
+.agent-approval-purpose span {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--quiet);
+  font-size: 11px;
+}
+.agent-approval dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 8px 0;
+}
+.agent-approval dt {
+  color: var(--muted);
+}
+.agent-approval dd {
+  margin: 0;
+}
+.agent-approval dd > span {
+  display: block;
+}
+.agent-approval summary {
+  cursor: pointer;
+}
+.agent-approval-details {
+  margin-top: 8px;
+}
+.agent-approval-details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  list-style: none;
+}
+.agent-approval-details > summary::-webkit-details-marker {
+  display: none;
+}
+.agent-approval-details > summary::before {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: '';
+  transform: rotate(-45deg);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.agent-approval-details[open] > summary::before {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+.agent-approval-details > summary:hover {
+  color: var(--ink);
+}
+.agent-approval-details[open] > :not(summary) {
+  animation: settings-item-in var(--dur-base) var(--ease-out) both;
+}
+/* Everything but the model's explanation waits here; the technical facts come last. */
+.agent-approval-details > p {
+  margin: 6px 0;
+}
+.agent-approval-technical {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.agent-approval-reasons ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.agent-approval-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: #fcfcfb;
+}
+.agent-approval-loading {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--muted);
+}
+.agent-approval-error {
+  margin: 0;
+  padding: 8px 14px;
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+@keyframes approval-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.agent-result {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 8px 0;
+  padding: 8px 12px;
+}
+.agent-result pre,
+.agent-approval pre,
+.agent-inspector pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 360px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+/* Inside a scroll box the box scrolls, not the text as well. */
+.agent-result .scroll-box > pre {
+  max-height: none;
+  margin: 0;
+  overflow: visible;
+}
+.agent-follow {
+  position: sticky;
+  bottom: 16px;
+  display: block;
+  margin: 8px auto;
+  border-radius: 20px;
+  padding: 8px 18px;
+  background: var(--surface);
+  border: 1px solid #ccc;
+}
+.agent-inspector {
+  overflow: auto;
+  padding: 12px;
+  height: 100%;
+  font-size: 13px;
+}
+.agent-conversation button,
+.agent-approval button {
+  cursor: pointer;
+  min-height: 30px;
+}
+.agent-conversation button:disabled,
+.agent-approval button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+@media (max-width: 720px) {
+  .agent-conversation {
+    padding: 8px 12px 24px;
+  }
+  /* Room left of the message for its 复制 (reply-actions.css). */
+  .agent-user-message {
+    max-width: calc(100% - max(3%, 34px));
+  }
+}
+.agent-context-remediation {
+  max-height: min(360px, 40vh);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.agent-context-remediation p,
+.agent-context-remediation ul {
+  margin: 8px 0;
+}
+
+/* Tool chip: readable name and real state instead of a result id. */
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  font-size: 12px;
+}
+.tool-chip-dot {
+  color: #8a8f8c;
+}
+.tool-chip-kind {
+  color: var(--muted);
+}
+.tool-chip-name {
+  font-weight: 600;
+}
+.tool-chip-state {
+  color: var(--muted);
+  font-size: 11px;
+}
+.tool-chip-success .tool-chip-dot {
+  color: #3f6b52;
+}
+.tool-chip-failed .tool-chip-dot {
+  color: #a3514b;
+}
+.tool-chip-waiting .tool-chip-dot {
+  color: #8a6d3b;
+}
+.tool-chip-running .tool-chip-dot {
+  color: #46626f;
+  animation: tool-call-pulse 1.4s ease-in-out infinite;
+}
+.tool-chip-identity {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.agent-result summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+.agent-result summary::-webkit-details-marker {
+  display: none;
+}
+.agent-result-identity {
+  margin: 6px 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.agent-actions {
+  gap: 6px 10px;
+}
+
+.agent-tool-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.agent-tool-target {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-chip-running .tool-chip-dot,
+  .tool-icon[data-icon='loader-circle'] {
+    animation: none;
+  }
+}
+
+@keyframes tool-call-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A Shell deletion is permanent and asked every time. */
+.agent-approval-warning {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+/* What a permanent deletion deletes, under its warning. */
+.agent-approval-deletions {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.agent-approval-deletions li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.agent-approval-deletions span {
+  flex: none;
+  color: var(--muted);
+}
+
+.agent-approval-deletions code {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

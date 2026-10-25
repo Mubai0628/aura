@@ -1,0 +1,164 @@
+.tool-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.tool-entity-list li > button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: #46504a;
+  background: #fafbfa;
+  font: inherit;
+  font-size: 10px;
+}
+
+.tool-entity-list li > button:disabled {
+  color: var(--quiet);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.tool-section-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.tool-section-heading > div {
+  min-width: 0;
+}
+
+.tool-section-heading h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.tool-section-heading p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.tool-section-heading > span {
+  flex: 0 0 auto;
+  color: var(--quiet);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tool-entity-list {
+  padding: 0;
+  margin: 12px 0 0;
+  list-style: none;
+}
+
+.tool-entity-list li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid #edf0ed;
+}
+
+.tool-entity-list li > span:first-child {
+  min-width: 0;
+}
+
+.tool-entity-list strong,
+.tool-entity-list small {
+  display: block;
+}
+
+.tool-entity-list strong {
+  overflow: hidden;
+  color: #38413b;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-entity-list small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.tool-entity-list small {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-entity-list li > button {
+  order: 3;
+  flex: 0 0 auto;
+}
+
+.tool-projection-placeholder {
+  display: flex;
+  min-height: 86px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+.tool-projection-placeholder.is-empty {
+  color: var(--quiet);
+}
+
+.tool-inline-empty {
+  margin: 13px 0 0;
+  color: var(--quiet);
+  font-size: 10px;
+}
+
+.tool-contract-wait {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.tool-contract-wait {
+  margin: 10px 0 0;
+  line-height: 1.55;
+}
+
+.tool-detail-error {
+  display: block;
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 10px;
+}
+
+.tool-settings-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  border: 1px solid #ead9b7;
+  border-radius: 8px;
+  color: #755a29;
+  background: #fffaf0;
+  font-size: 10px;
+}
+
+.tool-settings-issue span,
+.tool-settings-issue strong {
+  display: block;
+}
+
+.tool-settings-issue strong {
+  margin-bottom: 2px;
+}

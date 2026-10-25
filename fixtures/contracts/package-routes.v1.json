@@ -1,0 +1,686 @@
+{
+  "cancel": {
+    "run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "version": {
+      "package_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+      },
+      "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "package_version": "1.0.0"
+    }
+  },
+  "change": {
+    "expected_package_revision": "4",
+    "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  },
+  "conformance": {
+    "report": {
+      "cases": [
+        {
+          "case_name": "deterministic fixture",
+          "execution_location": "user_job",
+          "reason": "completed",
+          "runtime_evidence_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "1f49789e450b42af7ccf193988a0205588ccef66bc28a165332c2e782b9b4959"
+          },
+          "tool_key": "fixture"
+        }
+      ],
+      "cleanup_verified": true,
+      "completed_at": "2026-10-16T00:00:00Z",
+      "run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "settings_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+      },
+      "started_at": "2026-10-16T00:00:00Z",
+      "version": {
+        "package_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+        },
+        "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "package_version": "1.0.0",
+        "revision": "2"
+      }
+    },
+    "report_hash": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "93a52f7e0e6be5b9e4853ed68d04f4e5bd81219fd3dafe2c25e2a1711a24d4a3"
+    },
+    "run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "started_at": "2026-10-16T00:00:00Z",
+    "state": "succeeded",
+    "version": {
+      "package_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+      },
+      "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "package_version": "1.0.0",
+      "revision": "2"
+    }
+  },
+  "enable": {
+    "enabled": false,
+    "expected_package_revision": "4",
+    "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  },
+  "import_cancelled": {
+    "type": "cancelled"
+  },
+  "import_imported": {
+    "type": "imported",
+    "view": {
+      "conformance": {
+        "report": {
+          "cases": [
+            {
+              "case_name": "deterministic fixture",
+              "execution_location": "user_job",
+              "reason": "completed",
+              "runtime_evidence_hash": {
+                "algorithm": "sha256",
+                "canonicalization_version": "rfc8785_jcs_v1",
+                "hex": "1f49789e450b42af7ccf193988a0205588ccef66bc28a165332c2e782b9b4959"
+              },
+              "tool_key": "fixture"
+            }
+          ],
+          "cleanup_verified": true,
+          "completed_at": "2026-10-16T00:00:00Z",
+          "run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "settings_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+          },
+          "started_at": "2026-10-16T00:00:00Z",
+          "version": {
+            "package_fingerprint": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+            },
+            "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "package_version": "1.0.0",
+            "revision": "2"
+          }
+        },
+        "report_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "93a52f7e0e6be5b9e4853ed68d04f4e5bd81219fd3dafe2c25e2a1711a24d4a3"
+        },
+        "run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "started_at": "2026-10-16T00:00:00Z",
+        "state": "succeeded",
+        "version": {
+          "package_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+          },
+          "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "package_version": "1.0.0",
+          "revision": "2"
+        }
+      },
+      "package_revision": "3",
+      "preview": {
+        "conformance": "succeeded",
+        "content": {
+          "manifest": {
+            "files": [
+              {
+                "byte_length": 21,
+                "path": "bin/fixture.exe",
+                "role": "runtime_executable",
+                "sha256": {
+                  "algorithm": "sha256",
+                  "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+                }
+              }
+            ],
+            "minimum_aura_version": "0.1.0",
+            "package_key": "org.aura.fixture.stdio",
+            "package_version": "1.0.0",
+            "schema_version": 1,
+            "tools": [
+              {
+                "audience": "subagent_configurable",
+                "capability_requirements": [
+                  "process_execute"
+                ],
+                "conformance_cases": [
+                  {
+                    "arguments": {},
+                    "name": "deterministic fixture"
+                  }
+                ],
+                "execution_semantics": {
+                  "automatic_retry_allowed": false,
+                  "may_create_persistent_effects": false,
+                  "repeat_is_idempotent": true
+                },
+                "instance_configuration": null,
+                "model": {
+                  "canonical_name": "user.org.aura.fixture.stdio.fixture",
+                  "description": "Execute the package fixture with validated arguments.",
+                  "input_schema": {
+                    "document": {
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "additionalProperties": false,
+                      "type": "object"
+                    },
+                    "schema_dialect": "json_schema_draft_2020_12",
+                    "schema_hash": {
+                      "algorithm": "sha256",
+                      "canonicalization_version": "rfc8785_jcs_v1",
+                      "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+                    },
+                    "schema_policy_version": 1
+                  },
+                  "result_contract": {
+                    "type": "unit"
+                  },
+                  "strict": true,
+                  "summary": "Execute a deterministic package fixture."
+                },
+                "resource_claims": [],
+                "runtime": {
+                  "arguments": [],
+                  "credential_slot": null,
+                  "environment": [],
+                  "executable": "bin/fixture.exe",
+                  "protocol_version": 1,
+                  "type": "aura_stdio",
+                  "working_directory": {
+                    "type": "package_root"
+                  }
+                },
+                "semantic_version": null,
+                "tool_key": "fixture",
+                "ui": {
+                  "display_name": "Fixture Tool"
+                }
+              }
+            ],
+            "ui": {
+              "description": null,
+              "display_name": "Aura Fixture Package"
+            }
+          },
+          "package_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+          },
+          "runtime_closure_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+          },
+          "security_fingerprint": {
+            "algorithm": "blake3",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "62eef53a317755e0114541cc5accaa8009e3c7606ab94a4c16d204c099200143"
+          }
+        },
+        "contract_version": 1,
+        "install_effect": "trust_current_fingerprint_and_enable",
+        "runtimes": [
+          {
+            "execution_location": "user_job",
+            "support": "ready_for_conformance",
+            "tool_key": "fixture",
+            "working_directory": {
+              "declared": {
+                "type": "package_root"
+              },
+              "type": "unresolved"
+            }
+          }
+        ],
+        "version": {
+          "package_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+          },
+          "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "package_version": "1.0.0",
+          "revision": "2"
+        }
+      },
+      "settings": []
+    }
+  },
+  "import_source": {
+    "path": "C:\\Synthetic\\汉字 package"
+  },
+  "install": {
+    "expected_package_revision": "3",
+    "report_hash": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "93a52f7e0e6be5b9e4853ed68d04f4e5bd81219fd3dafe2c25e2a1711a24d4a3"
+    },
+    "version": {
+      "package_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+      },
+      "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "package_version": "1.0.0",
+      "revision": "2"
+    }
+  },
+  "list": {
+    "packages": [
+      {
+        "display_name": "Aura Fixture Package",
+        "installed": {
+          "enabled": true,
+          "tools": [
+            {
+              "canonical_name": "user.org.aura.fixture.stdio.fixture",
+              "credential": null,
+              "display_name": "Fixture Tool",
+              "execution_location": "user_job",
+              "tool_id": "tol_3DYWHY4GFRRK57DSAQDGE4ACHA",
+              "tool_instance_id": "tin_3N92WPJTQQFYJPFZA41SYS2E0Z",
+              "tool_key": "fixture"
+            }
+          ],
+          "trusted": true,
+          "version": {
+            "package_fingerprint": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+            },
+            "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "package_version": "1.0.0"
+          }
+        },
+        "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "package_key": "org.aura.fixture.stdio",
+        "revision": "4",
+        "versions": [
+          {
+            "conformance": "succeeded",
+            "imported_at": "2026-10-16T00:00:00Z",
+            "version": {
+              "package_fingerprint": {
+                "algorithm": "sha256",
+                "canonicalization_version": "rfc8785_jcs_v1",
+                "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+              },
+              "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+              "package_version": "1.0.0",
+              "revision": "2"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "preparation": {
+    "preparation_id": "0123456789abcdef0123456789abcdef",
+    "preview": {
+      "conformance": "succeeded",
+      "content": {
+        "manifest": {
+          "files": [
+            {
+              "byte_length": 21,
+              "path": "bin/fixture.exe",
+              "role": "runtime_executable",
+              "sha256": {
+                "algorithm": "sha256",
+                "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+              }
+            }
+          ],
+          "minimum_aura_version": "0.1.0",
+          "package_key": "org.aura.fixture.stdio",
+          "package_version": "1.0.0",
+          "schema_version": 1,
+          "tools": [
+            {
+              "audience": "subagent_configurable",
+              "capability_requirements": [
+                "process_execute"
+              ],
+              "conformance_cases": [
+                {
+                  "arguments": {},
+                  "name": "deterministic fixture"
+                }
+              ],
+              "execution_semantics": {
+                "automatic_retry_allowed": false,
+                "may_create_persistent_effects": false,
+                "repeat_is_idempotent": true
+              },
+              "instance_configuration": null,
+              "model": {
+                "canonical_name": "user.org.aura.fixture.stdio.fixture",
+                "description": "Execute the package fixture with validated arguments.",
+                "input_schema": {
+                  "document": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "type": "object"
+                  },
+                  "schema_dialect": "json_schema_draft_2020_12",
+                  "schema_hash": {
+                    "algorithm": "sha256",
+                    "canonicalization_version": "rfc8785_jcs_v1",
+                    "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+                  },
+                  "schema_policy_version": 1
+                },
+                "result_contract": {
+                  "type": "unit"
+                },
+                "strict": true,
+                "summary": "Execute a deterministic package fixture."
+              },
+              "resource_claims": [],
+              "runtime": {
+                "arguments": [],
+                "credential_slot": null,
+                "environment": [],
+                "executable": "bin/fixture.exe",
+                "protocol_version": 1,
+                "type": "aura_stdio",
+                "working_directory": {
+                  "type": "package_root"
+                }
+              },
+              "semantic_version": null,
+              "tool_key": "fixture",
+              "ui": {
+                "display_name": "Fixture Tool"
+              }
+            }
+          ],
+          "ui": {
+            "description": null,
+            "display_name": "Aura Fixture Package"
+          }
+        },
+        "package_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+        },
+        "runtime_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+        },
+        "security_fingerprint": {
+          "algorithm": "blake3",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "62eef53a317755e0114541cc5accaa8009e3c7606ab94a4c16d204c099200143"
+        }
+      },
+      "contract_version": 1,
+      "install_effect": "trust_current_fingerprint_and_enable",
+      "runtimes": [
+        {
+          "execution_location": "user_job",
+          "support": "ready_for_conformance",
+          "tool_key": "fixture",
+          "working_directory": {
+            "declared": {
+              "type": "package_root"
+            },
+            "type": "unresolved"
+          }
+        }
+      ],
+      "version": {
+        "package_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+        },
+        "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "package_version": "1.0.0",
+        "revision": "2"
+      }
+    },
+    "preview_hash": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "d846e6a366adf5b7ab37b95ba8b6b7b90d8cf04d43180d0af8dbe8fba38f0611"
+    }
+  },
+  "prepare": {
+    "settings": [],
+    "version": {
+      "package_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+      },
+      "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "package_version": "1.0.0",
+      "revision": "2"
+    }
+  },
+  "start": {
+    "preparation_id": "0123456789abcdef0123456789abcdef",
+    "preview_hash": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "d846e6a366adf5b7ab37b95ba8b6b7b90d8cf04d43180d0af8dbe8fba38f0611"
+    }
+  },
+  "version_ref": {
+    "package_fingerprint": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+    },
+    "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "package_version": "1.0.0"
+  },
+  "version_view": {
+    "conformance": {
+      "report": {
+        "cases": [
+          {
+            "case_name": "deterministic fixture",
+            "execution_location": "user_job",
+            "reason": "completed",
+            "runtime_evidence_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "1f49789e450b42af7ccf193988a0205588ccef66bc28a165332c2e782b9b4959"
+            },
+            "tool_key": "fixture"
+          }
+        ],
+        "cleanup_verified": true,
+        "completed_at": "2026-10-16T00:00:00Z",
+        "run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "settings_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        },
+        "started_at": "2026-10-16T00:00:00Z",
+        "version": {
+          "package_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+          },
+          "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "package_version": "1.0.0",
+          "revision": "2"
+        }
+      },
+      "report_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "93a52f7e0e6be5b9e4853ed68d04f4e5bd81219fd3dafe2c25e2a1711a24d4a3"
+      },
+      "run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "started_at": "2026-10-16T00:00:00Z",
+      "state": "succeeded",
+      "version": {
+        "package_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+        },
+        "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "package_version": "1.0.0",
+        "revision": "2"
+      }
+    },
+    "package_revision": "3",
+    "preview": {
+      "conformance": "succeeded",
+      "content": {
+        "manifest": {
+          "files": [
+            {
+              "byte_length": 21,
+              "path": "bin/fixture.exe",
+              "role": "runtime_executable",
+              "sha256": {
+                "algorithm": "sha256",
+                "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+              }
+            }
+          ],
+          "minimum_aura_version": "0.1.0",
+          "package_key": "org.aura.fixture.stdio",
+          "package_version": "1.0.0",
+          "schema_version": 1,
+          "tools": [
+            {
+              "audience": "subagent_configurable",
+              "capability_requirements": [
+                "process_execute"
+              ],
+              "conformance_cases": [
+                {
+                  "arguments": {},
+                  "name": "deterministic fixture"
+                }
+              ],
+              "execution_semantics": {
+                "automatic_retry_allowed": false,
+                "may_create_persistent_effects": false,
+                "repeat_is_idempotent": true
+              },
+              "instance_configuration": null,
+              "model": {
+                "canonical_name": "user.org.aura.fixture.stdio.fixture",
+                "description": "Execute the package fixture with validated arguments.",
+                "input_schema": {
+                  "document": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "additionalProperties": false,
+                    "type": "object"
+                  },
+                  "schema_dialect": "json_schema_draft_2020_12",
+                  "schema_hash": {
+                    "algorithm": "sha256",
+                    "canonicalization_version": "rfc8785_jcs_v1",
+                    "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+                  },
+                  "schema_policy_version": 1
+                },
+                "result_contract": {
+                  "type": "unit"
+                },
+                "strict": true,
+                "summary": "Execute a deterministic package fixture."
+              },
+              "resource_claims": [],
+              "runtime": {
+                "arguments": [],
+                "credential_slot": null,
+                "environment": [],
+                "executable": "bin/fixture.exe",
+                "protocol_version": 1,
+                "type": "aura_stdio",
+                "working_directory": {
+                  "type": "package_root"
+                }
+              },
+              "semantic_version": null,
+              "tool_key": "fixture",
+              "ui": {
+                "display_name": "Fixture Tool"
+              }
+            }
+          ],
+          "ui": {
+            "description": null,
+            "display_name": "Aura Fixture Package"
+          }
+        },
+        "package_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+        },
+        "runtime_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+        },
+        "security_fingerprint": {
+          "algorithm": "blake3",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "62eef53a317755e0114541cc5accaa8009e3c7606ab94a4c16d204c099200143"
+        }
+      },
+      "contract_version": 1,
+      "install_effect": "trust_current_fingerprint_and_enable",
+      "runtimes": [
+        {
+          "execution_location": "user_job",
+          "support": "ready_for_conformance",
+          "tool_key": "fixture",
+          "working_directory": {
+            "declared": {
+              "type": "package_root"
+            },
+            "type": "unresolved"
+          }
+        }
+      ],
+      "version": {
+        "package_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+        },
+        "package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "package_version": "1.0.0",
+        "revision": "2"
+      }
+    },
+    "settings": []
+  }
+}

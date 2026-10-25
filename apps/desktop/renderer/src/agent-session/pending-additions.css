@@ -1,0 +1,46 @@
+/* A message appended to the running task that the model has not taken yet: the user's
+   bubble, dimmed, its dots pulsing until the model's next step takes it. */
+.agent-pending-addition > :not(.agent-user-actions) {
+  opacity: 0.7;
+}
+
+.agent-pending-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.agent-pending-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: agent-pending-dot 1.2s var(--ease-in-out) infinite;
+}
+
+.agent-pending-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.agent-pending-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes agent-pending-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-pending-dots i {
+    animation: none;
+    opacity: 0.6;
+  }
+}

@@ -1,0 +1,39 @@
+.aura-switch {
+  flex-shrink: 0;
+  width: 36px;
+  height: 22px;
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: background 140ms ease;
+}
+.aura-switch[data-state='checked'] {
+  background: var(--accent);
+}
+.aura-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.aura-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.aura-switch-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px #0002;
+  transition: transform 140ms ease;
+}
+.aura-switch-thumb[data-state='checked'] {
+  transform: translateX(14px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .aura-switch,
+  .aura-switch-thumb {
+    transition: none;
+  }
+}

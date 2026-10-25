@@ -1,0 +1,111 @@
+.context-ring-anchor {
+  position: relative;
+  flex: 0 0 28px;
+}
+.context-ring-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.context-ring-button:hover,
+.context-ring-button[aria-expanded='true'] {
+  background: var(--surface-muted);
+}
+.context-ring {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: conic-gradient(#242827 var(--context-angle), #dcdedc 0);
+  mask: radial-gradient(transparent 53%, #000 55%);
+}
+/* Above the ring, a square-cornered
+   card in the inspector's pixel style — a row of squares per kind of use, then the whole use. */
+.context-pixel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 50;
+  display: grid;
+  gap: 8px;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  box-shadow: 4px 4px 0 rgba(31, 38, 33, 0.08);
+  transform: translateX(-50%);
+  animation: context-pixel-enter 140ms ease-out;
+}
+
+.context-pixel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.context-pixel-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--warning-line);
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.context-pixel-link {
+  margin-left: auto;
+}
+
+.context-pixel-rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) 4.2em;
+  gap: 6px 8px;
+  font-size: 11px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.context-pixel-rows li {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.context-pixel-rows b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The whole use stands apart from its parts. */
+.context-pixel-rows li.is-total {
+  padding-top: 6px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.context-pixel-rows li.is-total .pixel-row-name {
+  color: var(--ink);
+}
+
+@keyframes context-pixel-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-pixel {
+    animation: none;
+  }
+}

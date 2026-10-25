@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "event_kinds": [
+    "sandbox.started",
+    "sandbox.process_started",
+    "sandbox.stdout_chunk",
+    "sandbox.stderr_chunk",
+    "sandbox.exit",
+    "sandbox.cancelled",
+    "sandbox.timeout",
+    "sandbox.policy_violation",
+    "sandbox.cleanup_completed",
+    "sandbox.cleanup_failed"
+  ]
+}

@@ -1,0 +1,23 @@
+[package]
+name = "aura-tool-scheduler"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+schemars.workspace = true
+
+[lints]
+workspace = true

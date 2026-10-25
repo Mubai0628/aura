@@ -1,0 +1,8 @@
+/* Group labels after the first one (the first is styled with the navigation itself). */
+.settings-navigation > p.settings-navigation-group:not(:first-child) {
+  padding: 14px 9px 7px;
+  margin: 0;
+  color: var(--quiet);
+  font-size: 11px;
+  font-weight: 650;
+}

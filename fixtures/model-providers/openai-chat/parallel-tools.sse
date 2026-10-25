@@ -1,0 +1,11 @@
+data: {"id":"chatcmpl_fixture","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"fixture reasoning"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_fixture","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"Call_Chat_A","type":"function","function":{"name":"workspace_read__01arz3ndektsv4rrffq69g5fav","arguments":"{\"path\":"}},{"index":1,"id":"Call_Chat_B","type":"function","function":{"name":"workspace_search__01arz3ndektsv4rrffq69g5faw","arguments":"{\"query\":"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_fixture","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"README.md\"}"}},{"index":1,"function":{"arguments":"\"Aura\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_fixture","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: {"id":"chatcmpl_fixture","choices":[],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28,"completion_tokens_details":{"reasoning_tokens":2}}}
+
+data: [DONE]

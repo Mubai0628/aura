@@ -1,0 +1,7 @@
+data: {"id":"chatcmpl_refusal_fixture","choices":[{"index":0,"delta":{"role":"assistant","refusal":"I cannot help with that."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl_refusal_fixture","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl_refusal_fixture","choices":[],"usage":{"prompt_tokens":5,"completion_tokens":4,"total_tokens":9}}
+
+data: [DONE]

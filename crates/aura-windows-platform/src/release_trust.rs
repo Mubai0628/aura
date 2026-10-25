@@ -1,0 +1,919 @@
+use std::{
+    ffi::{CStr, c_void},
+    io::{self, Read},
+    mem::size_of,
+    path::Path,
+    ptr::{null, null_mut},
+    slice,
+};
+
+use aura_domain_common::{ContentHash, ContentHashAlgorithm};
+use aura_runtime_contract::{BuildComponentManifest, ReleaseDescriptor, ReleaseTrustDomain};
+use sha2::{Digest, Sha256};
+use windows_sys::Win32::{
+    Foundation::{CRYPT_E_NO_SIGNER, GetLastError},
+    Security::Cryptography::{
+        CERT_BASIC_CONSTRAINTS2_INFO, CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, CERT_CHAIN_CONTEXT,
+        CERT_CHAIN_DISABLE_AIA, CERT_CHAIN_DISABLE_AUTH_ROOT_AUTO_UPDATE, CERT_CHAIN_ENGINE_CONFIG,
+        CERT_CHAIN_PARA, CERT_CHAIN_POLICY_BASE, CERT_CHAIN_POLICY_PARA, CERT_CHAIN_POLICY_STATUS,
+        CERT_CHAIN_REVOCATION_CHECK_CACHE_ONLY, CERT_CONTEXT, CERT_DIGITAL_SIGNATURE_KEY_USAGE,
+        CERT_FIND_EXT_ONLY_ENHKEY_USAGE_FLAG, CERT_INFO, CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED,
+        CERT_QUERY_CONTENT_PKCS7_SIGNED, CERT_QUERY_FORMAT_FLAG_BINARY, CERT_QUERY_OBJECT_BLOB,
+        CERT_STORE_ADD_ALWAYS, CERT_STORE_CREATE_NEW_FLAG, CERT_STORE_PROV_MEMORY,
+        CERT_TRUST_NO_ERROR, CERT_USAGE_MATCH, CMSG_SIGNER_COUNT_PARAM, CMSG_SIGNER_INFO,
+        CMSG_SIGNER_INFO_PARAM, CRYPT_ALGORITHM_IDENTIFIER, CRYPT_INTEGER_BLOB,
+        CRYPT_VERIFY_MESSAGE_PARA, CTL_USAGE, CertAddEncodedCertificateToStore, CertCloseStore,
+        CertCreateCertificateChainEngine, CertEnumCertificatesInStore, CertFindExtension,
+        CertFreeCertificateChain, CertFreeCertificateChainEngine, CertFreeCertificateContext,
+        CertGetCertificateChain, CertGetEnhancedKeyUsage, CertGetIntendedKeyUsage, CertOpenStore,
+        CertVerifyCertificateChainPolicy, CertVerifyTimeValidity, CryptDecodeObjectEx,
+        CryptMsgClose, CryptMsgGetParam, CryptQueryObject, CryptVerifyDetachedMessageSignature,
+        HCERTCHAINENGINE, HCERTSTORE, PKCS_7_ASN_ENCODING, USAGE_MATCH_TYPE_AND, X509_ASN_ENCODING,
+        X509_BASIC_CONSTRAINTS2, szOID_BASIC_CONSTRAINTS2, szOID_ECC_PUBLIC_KEY,
+        szOID_ECDSA_SHA256, szOID_ENHANCED_KEY_USAGE, szOID_KEY_USAGE, szOID_NIST_sha256,
+        szOID_PKIX_KP_CODE_SIGNING,
+    },
+};
+
+use crate::{NativeFileIdentity, VerifiedFile, open_verified_executable, process::ProcessIdentity};
+
+const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
+const MAX_SIGNATURE_BYTES: usize = 4 * 1024 * 1024;
+const MAX_CERTIFICATE_BYTES: usize = 1024 * 1024;
+const MAX_CHAIN_ELEMENTS: usize = 16;
+const MAX_EKU_COUNT: usize = 32;
+const P256_PARAMETERS_DER: &[u8] = &[0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07];
+
+/// Opaque evidence that the configured Release Manifest trust root accepted
+/// the exact raw component manifest bytes.
+///
+/// Construction intentionally remains inside `aura-windows-platform`; the
+/// concrete signature container and algorithm are frozen separately.
+#[derive(Debug)]
+pub struct VerifiedActiveReleaseTrust {
+    release_descriptor: ReleaseDescriptor,
+}
+
+/// A process identity bound to the exact active Core file object. The pinned
+/// handle denies writes and replacement for the lifetime of this witness.
+pub struct AuthenticatedActiveCoreIdentity {
+    process: ProcessIdentity,
+    executable_identity: NativeFileIdentity,
+    _pinned_executable: VerifiedFile,
+}
+
+impl AuthenticatedActiveCoreIdentity {
+    pub const fn process(&self) -> &ProcessIdentity {
+        &self.process
+    }
+
+    pub const fn executable_identity(&self) -> &NativeFileIdentity {
+        &self.executable_identity
+    }
+}
+
+pub fn verify_active_release_trust(
+    component_manifest_path: &Path,
+    release_descriptor: &ReleaseDescriptor,
+) -> io::Result<VerifiedActiveReleaseTrust> {
+    let root_der = configured_release_root(release_descriptor)?;
+    let manifest = read_bounded(component_manifest_path, MAX_MANIFEST_BYTES, "Release Manifest")?;
+    let signature = read_bounded(
+        &component_manifest_path.with_file_name("component-manifest.p7s"),
+        MAX_SIGNATURE_BYTES,
+        "Release Manifest signature",
+    )?;
+    verify_release_manifest_with_root(&manifest, &signature, root_der, release_descriptor)
+}
+
+fn configured_release_root(release_descriptor: &ReleaseDescriptor) -> io::Result<&'static [u8]> {
+    match release_descriptor.bundle_namespace.trust_domain() {
+        Some(ReleaseTrustDomain::Production) => configured_production_release_root(),
+        Some(ReleaseTrustDomain::Development) => Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Aura Development Release Root is not configured for this binary",
+        )),
+        Some(ReleaseTrustDomain::Test) => Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Aura Test Release Root is not configured for this binary",
+        )),
+        None => Err(invalid_data("unsupported Release Bundle namespace")),
+    }
+}
+
+fn configured_production_release_root() -> io::Result<&'static [u8]> {
+    // The release-owner supplied public certificate is intentionally not
+    // generated by P04. Until the offline Root Key Ceremony provides it, the
+    // production trust domain must remain unavailable and fail closed.
+    #[cfg(aura_production_release_trust)]
+    const PRODUCTION_RELEASE_ROOT_DER: &[u8] = include_bytes!(
+        "../../../resources/release-trust/production/aura-production-release-root-v1.der"
+    );
+    #[cfg(not(aura_production_release_trust))]
+    const PRODUCTION_RELEASE_ROOT_DER: &[u8] = &[];
+    if PRODUCTION_RELEASE_ROOT_DER.is_empty() {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Aura Production Release Root is not configured",
+        ))
+    } else {
+        Ok(PRODUCTION_RELEASE_ROOT_DER)
+    }
+}
+
+/// Checks raw component manifest bytes and their detached signature against the release root this
+/// program was built with. Fails closed when the build carries no root for the manifest's trust
+/// domain.
+pub fn verify_release_manifest(
+    manifest_bytes: &[u8],
+    signature_der: &[u8],
+    expected_descriptor: &ReleaseDescriptor,
+) -> io::Result<()> {
+    let root_der = configured_release_root(expected_descriptor)?;
+    verify_release_manifest_with_root(manifest_bytes, signature_der, root_der, expected_descriptor)
+        .map(drop)
+}
+
+/// Checks raw component manifest bytes and their detached signature against `root_der`, a release
+/// root certificate in DER, with the same rules as the active release check. It yields no trust
+/// evidence: only the configured root establishes that.
+pub fn verify_release_manifest_against_root(
+    manifest_bytes: &[u8],
+    signature_der: &[u8],
+    root_der: &[u8],
+    expected_descriptor: &ReleaseDescriptor,
+) -> io::Result<()> {
+    verify_release_manifest_with_root(manifest_bytes, signature_der, root_der, expected_descriptor)
+        .map(drop)
+}
+
+fn verify_release_manifest_with_root(
+    manifest_bytes: &[u8],
+    signature_der: &[u8],
+    root_der: &[u8],
+    expected_descriptor: &ReleaseDescriptor,
+) -> io::Result<VerifiedActiveReleaseTrust> {
+    require_bounded(manifest_bytes, MAX_MANIFEST_BYTES, "Release Manifest")?;
+    require_bounded(signature_der, MAX_SIGNATURE_BYTES, "detached CMS")?;
+    require_bounded(root_der, MAX_CERTIFICATE_BYTES, "Release Root certificate")?;
+    if expected_descriptor.identity.component_manifest_hash.algorithm
+        != ContentHashAlgorithm::Sha256
+    {
+        return Err(invalid_data("Release Identity must use SHA-256"));
+    }
+    let actual_hash = ContentHash::new(
+        ContentHashAlgorithm::Sha256,
+        format!("{:x}", Sha256::digest(manifest_bytes)),
+    )
+    .map_err(|error| invalid_data(error.to_string()))?;
+    if actual_hash != expected_descriptor.identity.component_manifest_hash {
+        return Err(permission_denied(
+            "raw component-manifest.json bytes do not match Release Identity",
+        ));
+    }
+    let manifest: BuildComponentManifest = serde_json::from_slice(manifest_bytes)
+        .map_err(|error| invalid_data(format!("Release Manifest JSON is invalid: {error}")))?;
+    if manifest.release_bundle_id != expected_descriptor.identity.release_bundle_id {
+        return Err(permission_denied(
+            "signed Release Manifest does not contain the expected release_bundle_id",
+        ));
+    }
+    if manifest.bundle_namespace != expected_descriptor.bundle_namespace {
+        return Err(permission_denied(
+            "signed Release Manifest does not contain the expected bundle_namespace",
+        ));
+    }
+    let cms = CmsMessage::query_detached(signature_der)?;
+    cms.require_single_allowed_signer()?;
+    let signer = cms.verify(signature_der, manifest_bytes)?;
+    validate_leaf(signer.as_ptr())?;
+    validate_chain(signer.as_ptr(), cms.store(), root_der)?;
+    Ok(VerifiedActiveReleaseTrust { release_descriptor: expected_descriptor.clone() })
+}
+
+struct CmsMessage {
+    store: CertStore,
+    message: *mut c_void,
+}
+
+impl CmsMessage {
+    fn query_detached(signature: &[u8]) -> io::Result<Self> {
+        let mut blob = CRYPT_INTEGER_BLOB {
+            cbData: u32_len(signature.len(), "CMS signature")?,
+            pbData: signature.as_ptr().cast_mut(),
+        };
+        let mut encoding = 0;
+        let mut content_type = 0;
+        let mut format_type = 0;
+        let mut store: HCERTSTORE = null_mut();
+        let mut message: *mut c_void = null_mut();
+        // SAFETY: the input blob and all out-pointers remain live for the call.
+        let queried = unsafe {
+            CryptQueryObject(
+                CERT_QUERY_OBJECT_BLOB,
+                (&raw mut blob).cast(),
+                CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED,
+                CERT_QUERY_FORMAT_FLAG_BINARY,
+                0,
+                &raw mut encoding,
+                &raw mut content_type,
+                &raw mut format_type,
+                &raw mut store,
+                &raw mut message,
+                null_mut(),
+            )
+        };
+        if queried == 0 {
+            return Err(last_error("failed to decode DER detached CMS SignedData"));
+        }
+        if content_type != CERT_QUERY_CONTENT_PKCS7_SIGNED
+            || encoding & (X509_ASN_ENCODING | PKCS_7_ASN_ENCODING)
+                != (X509_ASN_ENCODING | PKCS_7_ASN_ENCODING)
+            || store.is_null()
+            || message.is_null()
+        {
+            if !message.is_null() {
+                // SAFETY: message was returned by CryptQueryObject.
+                unsafe { CryptMsgClose(message) };
+            }
+            if !store.is_null() {
+                // SAFETY: store was returned by CryptQueryObject.
+                unsafe { CertCloseStore(store, 0) };
+            }
+            return Err(invalid_data("signature must be binary DER detached PKCS#7 SignedData"));
+        }
+        Ok(Self { store: CertStore(store), message })
+    }
+
+    const fn store(&self) -> HCERTSTORE {
+        self.store.0
+    }
+
+    fn require_single_allowed_signer(&self) -> io::Result<()> {
+        if crypt_message_u32(self.message, CMSG_SIGNER_COUNT_PARAM, 0)? != 1 {
+            return Err(permission_denied("Release CMS must contain exactly one signer"));
+        }
+        let buffer = crypt_message_aligned(self.message, CMSG_SIGNER_INFO_PARAM, 0)?;
+        // SAFETY: the aligned buffer contains a complete CMSG_SIGNER_INFO.
+        let signer = unsafe { &*buffer.as_ptr().cast::<CMSG_SIGNER_INFO>() };
+        require_algorithm(&signer.HashAlgorithm, szOID_NIST_sha256, "CMS digest")?;
+        require_algorithm(&signer.HashEncryptionAlgorithm, szOID_ECDSA_SHA256, "CMS signature")?;
+        Ok(())
+    }
+
+    fn verify(&self, signature: &[u8], manifest: &[u8]) -> io::Result<CertContext> {
+        let parameters = CRYPT_VERIFY_MESSAGE_PARA {
+            cbSize: size_of::<CRYPT_VERIFY_MESSAGE_PARA>() as u32,
+            dwMsgAndCertEncodingType: X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+            ..Default::default()
+        };
+        let content_pointers = [manifest.as_ptr()];
+        let content_lengths = [u32_len(manifest.len(), "Release Manifest")?];
+        let mut signer: *mut CERT_CONTEXT = null_mut();
+        // SAFETY: input buffers and output pointer remain valid for the call.
+        let verified = unsafe {
+            CryptVerifyDetachedMessageSignature(
+                &raw const parameters,
+                0,
+                signature.as_ptr(),
+                u32_len(signature.len(), "CMS signature")?,
+                1,
+                content_pointers.as_ptr(),
+                content_lengths.as_ptr(),
+                &raw mut signer,
+            )
+        };
+        if verified == 0 || signer.is_null() {
+            return Err(last_error("detached CMS signature verification failed"));
+        }
+        // Defense in depth: signer index 1 must report CRYPT_E_NO_SIGNER.
+        // SAFETY: the same immutable input buffers remain valid.
+        let second = unsafe {
+            CryptVerifyDetachedMessageSignature(
+                &raw const parameters,
+                1,
+                signature.as_ptr(),
+                u32_len(signature.len(), "CMS signature")?,
+                1,
+                content_pointers.as_ptr(),
+                content_lengths.as_ptr(),
+                null_mut(),
+            )
+        };
+        // SAFETY: read immediately after the failed signer-index call.
+        let second_error = unsafe { GetLastError() };
+        if second != 0 || second_error != CRYPT_E_NO_SIGNER as u32 {
+            // SAFETY: signer came from the successful verification call.
+            unsafe { CertFreeCertificateContext(signer) };
+            return Err(permission_denied("Release CMS contains more than one signer"));
+        }
+        Ok(CertContext(signer))
+    }
+}
+
+impl Drop for CmsMessage {
+    fn drop(&mut self) {
+        // SAFETY: message is owned by this wrapper and closed once.
+        unsafe { CryptMsgClose(self.message) };
+    }
+}
+
+struct CertStore(HCERTSTORE);
+
+impl CertStore {
+    fn memory() -> io::Result<Self> {
+        // SAFETY: this opens a new isolated in-memory certificate store.
+        let store = unsafe {
+            CertOpenStore(CERT_STORE_PROV_MEMORY, 0, 0, CERT_STORE_CREATE_NEW_FLAG, null())
+        };
+        if store.is_null() {
+            return Err(last_error("failed to create isolated Aura Release Root store"));
+        }
+        Ok(Self(store))
+    }
+
+    fn add_der(&self, certificate: &[u8]) -> io::Result<()> {
+        // SAFETY: certificate bytes and the store handle are live for the call.
+        if unsafe {
+            CertAddEncodedCertificateToStore(
+                self.0,
+                X509_ASN_ENCODING,
+                certificate.as_ptr(),
+                u32_len(certificate.len(), "Release Root certificate")?,
+                CERT_STORE_ADD_ALWAYS,
+                null_mut(),
+            )
+        } == 0
+        {
+            return Err(last_error("failed to load embedded Aura Release Root"));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for CertStore {
+    fn drop(&mut self) {
+        // SAFETY: store is owned by this wrapper and closed once.
+        unsafe { CertCloseStore(self.0, 0) };
+    }
+}
+
+struct CertContext(*mut CERT_CONTEXT);
+
+impl CertContext {
+    const fn as_ptr(&self) -> *const CERT_CONTEXT {
+        self.0
+    }
+}
+
+impl Drop for CertContext {
+    fn drop(&mut self) {
+        // SAFETY: context is owned by this wrapper and freed once.
+        unsafe { CertFreeCertificateContext(self.0) };
+    }
+}
+
+struct ChainEngine(HCERTCHAINENGINE);
+
+impl Drop for ChainEngine {
+    fn drop(&mut self) {
+        // SAFETY: engine is owned by this wrapper and freed once.
+        unsafe { CertFreeCertificateChainEngine(self.0) };
+    }
+}
+
+struct ChainContext(*mut CERT_CHAIN_CONTEXT);
+
+impl Drop for ChainContext {
+    fn drop(&mut self) {
+        // SAFETY: chain is owned by this wrapper and freed once.
+        unsafe { CertFreeCertificateChain(self.0) };
+    }
+}
+
+fn validate_leaf(signer: *const CERT_CONTEXT) -> io::Result<()> {
+    // SAFETY: caller owns a live signer context throughout this function.
+    let context = unsafe { signer.as_ref() }
+        .ok_or_else(|| invalid_data("CMS signer certificate is missing"))?;
+    // SAFETY: a live CERT_CONTEXT owns a live CERT_INFO.
+    let info = unsafe { context.pCertInfo.as_ref() }
+        .ok_or_else(|| invalid_data("CMS signer certificate info is missing"))?;
+    // SAFETY: null time means current verification time.
+    if unsafe { CertVerifyTimeValidity(null(), info) } != 0 {
+        return Err(permission_denied("CMS signer certificate is not currently valid"));
+    }
+    require_algorithm(
+        &info.SubjectPublicKeyInfo.Algorithm,
+        szOID_ECC_PUBLIC_KEY,
+        "leaf public key",
+    )?;
+    if blob_bytes(&info.SubjectPublicKeyInfo.Algorithm.Parameters)? != P256_PARAMETERS_DER {
+        return Err(permission_denied("CMS signer leaf key is not P-256"));
+    }
+
+    let constraints = required_extension(info, szOID_BASIC_CONSTRAINTS2, "Basic Constraints")?;
+    let mut decoded = CERT_BASIC_CONSTRAINTS2_INFO::default();
+    let mut decoded_size = size_of::<CERT_BASIC_CONSTRAINTS2_INFO>() as u32;
+    // SAFETY: extension blob and fixed output buffer are valid for the call.
+    let decoded_ok = unsafe {
+        CryptDecodeObjectEx(
+            X509_ASN_ENCODING,
+            X509_BASIC_CONSTRAINTS2,
+            constraints.Value.pbData,
+            constraints.Value.cbData,
+            0,
+            null(),
+            (&raw mut decoded).cast(),
+            &raw mut decoded_size,
+        )
+    };
+    if decoded_ok == 0 || decoded_size < size_of::<CERT_BASIC_CONSTRAINTS2_INFO>() as u32 {
+        return Err(last_error("failed to decode leaf Basic Constraints"));
+    }
+    if decoded.fCA != 0 {
+        return Err(permission_denied("CMS signer leaf certificate must have CA=false"));
+    }
+
+    required_extension(info, szOID_KEY_USAGE, "Key Usage")?;
+    let mut key_usage = [0_u8; 2];
+    // SAFETY: output bytes and CERT_INFO are live for the call.
+    let key_usage_ok = unsafe {
+        CertGetIntendedKeyUsage(
+            context.dwCertEncodingType,
+            info,
+            key_usage.as_mut_ptr(),
+            key_usage.len() as u32,
+        )
+    };
+    if key_usage_ok == 0 || key_usage[0] & CERT_DIGITAL_SIGNATURE_KEY_USAGE as u8 == 0 {
+        return Err(permission_denied(
+            "CMS signer leaf certificate lacks Digital Signature Key Usage",
+        ));
+    }
+
+    required_extension(info, szOID_ENHANCED_KEY_USAGE, "Extended Key Usage")?;
+    let mut usage_size = 0;
+    // SAFETY: first call queries the exact output size.
+    let usage_size_ok = unsafe {
+        CertGetEnhancedKeyUsage(
+            signer,
+            CERT_FIND_EXT_ONLY_ENHKEY_USAGE_FLAG,
+            null_mut(),
+            &raw mut usage_size,
+        )
+    };
+    if usage_size_ok == 0 || usage_size < size_of::<CTL_USAGE>() as u32 {
+        return Err(last_error("failed to query leaf Code Signing EKU"));
+    }
+    let mut usage_buffer = aligned_buffer(usage_size, MAX_SIGNATURE_BYTES)?;
+    // SAFETY: aligned output buffer has the exact CryptoAPI-reported size.
+    if unsafe {
+        CertGetEnhancedKeyUsage(
+            signer,
+            CERT_FIND_EXT_ONLY_ENHKEY_USAGE_FLAG,
+            usage_buffer.as_mut_ptr().cast(),
+            &raw mut usage_size,
+        )
+    } == 0
+    {
+        return Err(last_error("failed to read leaf Code Signing EKU"));
+    }
+    // SAFETY: the buffer contains a complete, aligned CTL_USAGE.
+    let usage = unsafe { &*usage_buffer.as_ptr().cast::<CTL_USAGE>() };
+    if usage.cUsageIdentifier == 0
+        || usage.cUsageIdentifier as usize > MAX_EKU_COUNT
+        || usage.rgpszUsageIdentifier.is_null()
+    {
+        return Err(permission_denied("CMS signer leaf EKU set is invalid"));
+    }
+    let expected = oid_bytes(szOID_PKIX_KP_CODE_SIGNING)?;
+    let mut code_signing = false;
+    for index in 0..usage.cUsageIdentifier as usize {
+        // SAFETY: CryptoAPI returned cUsageIdentifier array entries.
+        let oid = unsafe { *usage.rgpszUsageIdentifier.add(index) };
+        if oid_bytes(oid)? == expected {
+            code_signing = true;
+        }
+    }
+    if !code_signing {
+        return Err(permission_denied("CMS signer leaf certificate lacks Code Signing EKU"));
+    }
+    Ok(())
+}
+
+fn required_extension<'a>(
+    info: &'a CERT_INFO,
+    oid: windows_sys::core::PCSTR,
+    label: &str,
+) -> io::Result<&'a windows_sys::Win32::Security::Cryptography::CERT_EXTENSION> {
+    if info.cExtension == 0 || info.rgExtension.is_null() {
+        return Err(permission_denied(format!("CMS signer leaf lacks {label}")));
+    }
+    // SAFETY: CERT_INFO supplies cExtension live entries and a static OID.
+    let extension = unsafe { CertFindExtension(oid, info.cExtension, info.rgExtension) };
+    // SAFETY: returned pointer borrows the live CERT_INFO extension array.
+    unsafe { extension.as_ref() }
+        .ok_or_else(|| permission_denied(format!("CMS signer leaf lacks {label}")))
+}
+
+fn require_algorithm(
+    algorithm: &CRYPT_ALGORITHM_IDENTIFIER,
+    expected: windows_sys::core::PCSTR,
+    label: &str,
+) -> io::Result<()> {
+    if oid_bytes(algorithm.pszObjId)? != oid_bytes(expected)? {
+        return Err(permission_denied(format!("{label} algorithm is not allowed")));
+    }
+    Ok(())
+}
+
+fn oid_bytes(oid: windows_sys::core::PCSTR) -> io::Result<Vec<u8>> {
+    if oid.is_null() {
+        return Err(invalid_data("certificate algorithm OID is missing"));
+    }
+    // SAFETY: Windows OID constants and CryptoAPI decoded OIDs are NUL-terminated.
+    Ok(unsafe { CStr::from_ptr(oid.cast()) }.to_bytes().to_vec())
+}
+
+fn blob_bytes(blob: &CRYPT_INTEGER_BLOB) -> io::Result<&[u8]> {
+    let length = blob.cbData as usize;
+    if length > MAX_CERTIFICATE_BYTES || (length != 0 && blob.pbData.is_null()) {
+        return Err(invalid_data("certificate algorithm parameter blob is invalid"));
+    }
+    // SAFETY: decoded certificate guarantees cbData readable bytes.
+    Ok(unsafe { slice::from_raw_parts(blob.pbData, length) })
+}
+
+fn validate_chain(
+    signer: *const CERT_CONTEXT,
+    cms_store: HCERTSTORE,
+    root_der: &[u8],
+) -> io::Result<()> {
+    let root_store = CertStore::memory()?;
+    root_store.add_der(root_der)?;
+    let cms_certificates = enumerate_certificates(cms_store)?;
+    let engine_config = CERT_CHAIN_ENGINE_CONFIG {
+        cbSize: size_of::<CERT_CHAIN_ENGINE_CONFIG>() as u32,
+        dwFlags: CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL | CERT_CHAIN_DISABLE_AIA,
+        hExclusiveRoot: root_store.0,
+        ..Default::default()
+    };
+    let mut engine: HCERTCHAINENGINE = null_mut();
+    // SAFETY: engine config and output pointer remain valid for the call.
+    let engine_ok =
+        unsafe { CertCreateCertificateChainEngine(&raw const engine_config, &raw mut engine) };
+    if engine_ok == 0 || engine.is_null() {
+        return Err(last_error("failed to create exclusive Aura certificate chain engine"));
+    }
+    let engine = ChainEngine(engine);
+
+    let mut usage_oids = [szOID_PKIX_KP_CODE_SIGNING.cast_mut()];
+    let chain_parameters = CERT_CHAIN_PARA {
+        cbSize: size_of::<CERT_CHAIN_PARA>() as u32,
+        RequestedUsage: CERT_USAGE_MATCH {
+            dwType: USAGE_MATCH_TYPE_AND,
+            Usage: CTL_USAGE { cUsageIdentifier: 1, rgpszUsageIdentifier: usage_oids.as_mut_ptr() },
+        },
+        ..Default::default()
+    };
+    let flags = CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL
+        | CERT_CHAIN_DISABLE_AUTH_ROOT_AUTO_UPDATE
+        | CERT_CHAIN_DISABLE_AIA
+        | CERT_CHAIN_REVOCATION_CHECK_CACHE_ONLY;
+    let mut chain: *mut CERT_CHAIN_CONTEXT = null_mut();
+    // SAFETY: all handles and pointers are live for the call.
+    let chain_ok = unsafe {
+        CertGetCertificateChain(
+            engine.0,
+            signer,
+            null(),
+            cms_store,
+            &raw const chain_parameters,
+            flags,
+            null(),
+            &raw mut chain,
+        )
+    };
+    if chain_ok == 0 || chain.is_null() {
+        return Err(last_error("failed to build exclusive Aura release certificate chain"));
+    }
+    let chain = ChainContext(chain);
+    // SAFETY: the wrapper owns a live CERT_CHAIN_CONTEXT.
+    let context = unsafe { &*chain.0 };
+    if context.TrustStatus.dwErrorStatus != CERT_TRUST_NO_ERROR || context.cChain != 1 {
+        return Err(permission_denied("Aura release signer chain is not exclusively trusted"));
+    }
+    let policy = CERT_CHAIN_POLICY_PARA {
+        cbSize: size_of::<CERT_CHAIN_POLICY_PARA>() as u32,
+        ..Default::default()
+    };
+    let mut status = CERT_CHAIN_POLICY_STATUS {
+        cbSize: size_of::<CERT_CHAIN_POLICY_STATUS>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: chain and policy buffers are live for the call.
+    let policy_ok = unsafe {
+        CertVerifyCertificateChainPolicy(
+            CERT_CHAIN_POLICY_BASE,
+            chain.0,
+            &raw const policy,
+            &raw mut status,
+        )
+    };
+    if policy_ok == 0 || status.dwError != 0 {
+        return Err(permission_denied("Aura release signer certificate chain policy failed"));
+    }
+
+    if context.rgpChain.is_null() {
+        return Err(invalid_data("release certificate chain is missing"));
+    }
+    // SAFETY: cChain == 1 and rgpChain is non-null.
+    let simple = unsafe { *context.rgpChain };
+    // SAFETY: CryptoAPI returned this pointer as part of the live chain context.
+    let simple = unsafe { simple.as_ref() }
+        .ok_or_else(|| invalid_data("release certificate simple chain is missing"))?;
+    if simple.cElement < 2
+        || simple.cElement as usize > MAX_CHAIN_ELEMENTS
+        || simple.rgpElement.is_null()
+        || simple.TrustStatus.dwErrorStatus != CERT_TRUST_NO_ERROR
+    {
+        return Err(permission_denied("release certificate chain shape is invalid"));
+    }
+    let mut chain_der = Vec::with_capacity(simple.cElement as usize);
+    for index in 0..simple.cElement as usize {
+        // SAFETY: CryptoAPI reports cElement entries in rgpElement.
+        let element = unsafe { *simple.rgpElement.add(index) };
+        // SAFETY: chain element remains live with the chain context.
+        let element = unsafe { element.as_ref() }
+            .ok_or_else(|| invalid_data("release certificate chain element is missing"))?;
+        if element.TrustStatus.dwErrorStatus != CERT_TRUST_NO_ERROR {
+            return Err(permission_denied("release certificate chain element is untrusted"));
+        }
+        chain_der.push(certificate_der(element.pCertContext)?);
+    }
+    if chain_der.last().is_none_or(|root| root.as_slice() != root_der) {
+        return Err(permission_denied(
+            "release certificate chain did not terminate at the embedded Aura Root",
+        ));
+    }
+    for intermediate in chain_der.iter().skip(1).take(chain_der.len().saturating_sub(2)) {
+        if !cms_certificates.iter().any(|certificate| certificate == intermediate) {
+            return Err(permission_denied(
+                "Release CMS did not carry its complete intermediate certificate chain",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn enumerate_certificates(store: HCERTSTORE) -> io::Result<Vec<Vec<u8>>> {
+    let mut certificates = Vec::new();
+    let mut previous: *const CERT_CONTEXT = null();
+    loop {
+        // SAFETY: store is live; CryptoAPI owns and releases enumeration contexts.
+        let current = unsafe { CertEnumCertificatesInStore(store, previous) };
+        if current.is_null() {
+            break;
+        }
+        certificates.push(certificate_der(current)?);
+        previous = current;
+    }
+    Ok(certificates)
+}
+
+fn certificate_der(context: *const CERT_CONTEXT) -> io::Result<Vec<u8>> {
+    // SAFETY: caller guarantees the context remains live while the slice is used.
+    let context = unsafe { context.as_ref() }
+        .ok_or_else(|| invalid_data("certificate context is missing"))?;
+    let length = context.cbCertEncoded as usize;
+    if length == 0 || length > MAX_CERTIFICATE_BYTES || context.pbCertEncoded.is_null() {
+        return Err(invalid_data("certificate DER byte length is invalid"));
+    }
+    // SAFETY: CERT_CONTEXT guarantees cbCertEncoded readable bytes.
+    Ok(unsafe { slice::from_raw_parts(context.pbCertEncoded, length) }.to_vec())
+}
+
+fn crypt_message_u32(message: *mut c_void, parameter: u32, index: u32) -> io::Result<u32> {
+    let mut value = 0_u32;
+    let mut size = size_of::<u32>() as u32;
+    // SAFETY: fixed output and live message handle are valid for the call.
+    let ok = unsafe {
+        CryptMsgGetParam(message, parameter, index, (&raw mut value).cast(), &raw mut size)
+    };
+    if ok == 0 || size != size_of::<u32>() as u32 {
+        return Err(last_error("failed to read CMS scalar parameter"));
+    }
+    Ok(value)
+}
+
+fn crypt_message_aligned(
+    message: *mut c_void,
+    parameter: u32,
+    index: u32,
+) -> io::Result<Vec<usize>> {
+    let mut size = 0_u32;
+    // SAFETY: first call queries the exact required size.
+    let query_ok =
+        unsafe { CryptMsgGetParam(message, parameter, index, null_mut(), &raw mut size) };
+    if query_ok == 0 || size < size_of::<CMSG_SIGNER_INFO>() as u32 {
+        return Err(last_error("failed to query CMS signer information"));
+    }
+    let mut buffer = aligned_buffer(size, MAX_SIGNATURE_BYTES)?;
+    // SAFETY: aligned buffer has at least the queried size.
+    if unsafe {
+        CryptMsgGetParam(message, parameter, index, buffer.as_mut_ptr().cast(), &raw mut size)
+    } == 0
+    {
+        return Err(last_error("failed to read CMS signer information"));
+    }
+    Ok(buffer)
+}
+
+fn aligned_buffer(byte_length: u32, maximum: usize) -> io::Result<Vec<usize>> {
+    let length = byte_length as usize;
+    if length == 0 || length > maximum {
+        return Err(invalid_data("CryptoAPI output buffer length is invalid"));
+    }
+    let words = length
+        .checked_add(size_of::<usize>() - 1)
+        .and_then(|value| value.checked_div(size_of::<usize>()))
+        .ok_or_else(|| invalid_data("CryptoAPI output buffer length overflow"))?;
+    Ok(vec![0_usize; words])
+}
+
+fn read_bounded(path: &Path, maximum: usize, label: &str) -> io::Result<Vec<u8>> {
+    let metadata = std::fs::metadata(path)?;
+    let length = usize::try_from(metadata.len())
+        .map_err(|_| invalid_data(format!("{label} byte length overflow")))?;
+    if length == 0 || length > maximum {
+        return Err(invalid_data(format!("{label} byte length is invalid")));
+    }
+    std::fs::read(path)
+}
+
+fn require_bounded(bytes: &[u8], maximum: usize, label: &str) -> io::Result<()> {
+    if bytes.is_empty() || bytes.len() > maximum {
+        return Err(invalid_data(format!("{label} byte length is invalid")));
+    }
+    Ok(())
+}
+
+fn u32_len(length: usize, label: &str) -> io::Result<u32> {
+    u32::try_from(length).map_err(|_| invalid_data(format!("{label} is too large")))
+}
+
+fn last_error(context: &str) -> io::Error {
+    // SAFETY: GetLastError has no preconditions and is read immediately.
+    let code = unsafe { GetLastError() };
+    io::Error::new(io::ErrorKind::PermissionDenied, format!("{context} (Win32 0x{code:08x})"))
+}
+
+fn invalid_data(message: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, message.into())
+}
+
+fn permission_denied(message: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::PermissionDenied, message.into())
+}
+
+pub fn authenticate_active_core_identity(
+    trust: &VerifiedActiveReleaseTrust,
+    expected_release_descriptor: &ReleaseDescriptor,
+    process: &ProcessIdentity,
+    expected_core_path: &Path,
+    expected_core_hash: &ContentHash,
+) -> io::Result<AuthenticatedActiveCoreIdentity> {
+    if trust.release_descriptor != *expected_release_descriptor {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "active Core trust evidence does not match the Release identity",
+        ));
+    }
+    let mut pinned = open_verified_executable(expected_core_path)?;
+    let actual_process_file = open_verified_executable(&process.executable_path)?;
+    if pinned.info().identity != actual_process_file.info().identity {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "named-pipe server is not the active Release Bundle Core executable",
+        ));
+    }
+    let mut bytes = Vec::new();
+    pinned.file_mut().read_to_end(&mut bytes)?;
+    let actual_hash = match expected_core_hash.algorithm {
+        ContentHashAlgorithm::Sha256 => format!("{:x}", Sha256::digest(&bytes)),
+        ContentHashAlgorithm::Blake3 => blake3::hash(&bytes).to_hex().to_string(),
+    };
+    if actual_hash != expected_core_hash.hex {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "active Core executable does not match the trusted component manifest",
+        ));
+    }
+    let executable_identity = pinned.info().identity.clone();
+    Ok(AuthenticatedActiveCoreIdentity {
+        process: process.clone(),
+        executable_identity,
+        _pinned_executable: pinned,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FIXTURE_MANIFEST: &[u8] =
+        include_bytes!("../tests/fixtures/release-trust/component-manifest.json");
+    const FIXTURE_SIGNATURE: &[u8] =
+        include_bytes!("../tests/fixtures/release-trust/component-manifest.p7s");
+    const FIXTURE_ROOT: &[u8] = include_bytes!("../tests/fixtures/release-trust/test-root.der");
+
+    fn fixture_identity(bytes: &[u8]) -> ReleaseDescriptor {
+        let manifest: BuildComponentManifest =
+            serde_json::from_slice(bytes).expect("fixture manifest");
+        let hash =
+            ContentHash::new(ContentHashAlgorithm::Sha256, format!("{:x}", Sha256::digest(bytes)))
+                .expect("fixture hash");
+        ReleaseDescriptor {
+            bundle_namespace: manifest.bundle_namespace,
+            identity: aura_runtime_contract::ReleaseIdentity {
+                release_bundle_id: manifest.release_bundle_id,
+                component_manifest_hash: hash,
+            },
+        }
+    }
+
+    #[test]
+    fn accepts_exact_detached_single_signer_exclusive_chain() {
+        let descriptor = fixture_identity(FIXTURE_MANIFEST);
+        verify_release_manifest_with_root(
+            FIXTURE_MANIFEST,
+            FIXTURE_SIGNATURE,
+            FIXTURE_ROOT,
+            &descriptor,
+        )
+        .expect("valid detached fixture must verify");
+    }
+
+    #[test]
+    fn rejects_tampered_manifest_even_with_matching_release_identity_hash() {
+        let mut changed = FIXTURE_MANIFEST.to_vec();
+        changed.push(b'\n');
+        let descriptor = fixture_identity(&changed);
+        assert!(
+            verify_release_manifest_with_root(
+                &changed,
+                FIXTURE_SIGNATURE,
+                FIXTURE_ROOT,
+                &descriptor,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_nonconforming_cms_and_leaf_certificates() {
+        let descriptor = fixture_identity(FIXTURE_MANIFEST);
+        for invalid in [
+            include_bytes!("../tests/fixtures/release-trust/embedded-content.p7s").as_slice(),
+            include_bytes!("../tests/fixtures/release-trust/missing-intermediate.p7s").as_slice(),
+            include_bytes!("../tests/fixtures/release-trust/multiple-signers.p7s").as_slice(),
+            include_bytes!("../tests/fixtures/release-trust/sha384-digest.p7s").as_slice(),
+            include_bytes!("../tests/fixtures/release-trust/p384-leaf.p7s").as_slice(),
+            include_bytes!("../tests/fixtures/release-trust/wrong-eku.p7s").as_slice(),
+        ] {
+            assert!(
+                verify_release_manifest_with_root(
+                    FIXTURE_MANIFEST,
+                    invalid,
+                    FIXTURE_ROOT,
+                    &descriptor,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn production_trust_fails_closed_without_release_owner_root() {
+        let result = verify_active_release_trust(
+            Path::new(r"C:\Aura\component-manifest.json"),
+            &ReleaseDescriptor {
+                bundle_namespace: aura_runtime_contract::PRODUCTION_BUNDLE_NAMESPACE
+                    .parse()
+                    .expect("production namespace"),
+                identity: aura_runtime_contract::ReleaseIdentity {
+                    release_bundle_id: aura_domain_common::ReleaseBundleId::new(),
+                    component_manifest_hash: ContentHash::new(
+                        ContentHashAlgorithm::Sha256,
+                        "00".repeat(32),
+                    )
+                    .expect("fixture hash"),
+                },
+            },
+        );
+        assert_eq!(
+            result.expect_err("unconfigured production root must fail").kind(),
+            io::ErrorKind::Unsupported
+        );
+    }
+}

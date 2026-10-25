@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_fingerprint": {
+    "algorithm": "blake3",
+    "hex": "791b1f26d5736bf87b1ee530f32b077d4ab387cc1c43b6b364e41bf982ac4685"
+  },
+  "applied": false,
+  "already_applied": false,
+  "items": [
+    {
+      "kind": "fixture",
+      "source_key": "fixture-0",
+      "disposition": "imported",
+      "reason_code": "synthetic_coverage",
+      "record_count": 1
+    },
+    {
+      "kind": "fixture",
+      "source_key": "fixture-1",
+      "disposition": "skipped",
+      "reason_code": "synthetic_coverage",
+      "record_count": 1
+    },
+    {
+      "kind": "fixture",
+      "source_key": "fixture-2",
+      "disposition": "invalid",
+      "reason_code": "synthetic_coverage",
+      "record_count": 1
+    },
+    {
+      "kind": "fixture",
+      "source_key": "fixture-3",
+      "disposition": "requires_user_action",
+      "reason_code": "synthetic_coverage",
+      "record_count": 1
+    },
+    {
+      "kind": "fixture",
+      "source_key": "fixture-4",
+      "disposition": "conflict",
+      "reason_code": "synthetic_coverage",
+      "record_count": 1
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+[package]
+name = "aura-prompt-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+
+[dependencies]
+aura-config = { path = "../aura-config" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-network-control = { path = "../aura-network-control" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[build-dependencies]
+semver.workspace = true
+serde.workspace = true
+sha2.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

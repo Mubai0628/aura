@@ -1,0 +1,33 @@
+[package]
+name = "aura-setup"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "aura-setup"
+path = "src/main.rs"
+
+[[bin]]
+name = "aura-release-pack"
+path = "src/bin/pack.rs"
+
+[dependencies]
+anyhow.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+aura-launcher = { path = "../aura-launcher" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+zip.workspace = true
+
+[build-dependencies]
+embed-manifest.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "type": "insufficient_quota",
+    "code": "insufficient_quota",
+    "message": "Fixture account quota is exhausted."
+  }
+}

@@ -1,0 +1,189 @@
+/* Settings → 记忆; the page, cards and buttons come from styles/settings-pages.css. */
+.memory-settings h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.memory-settings .settings-card p {
+  margin: 6px 0;
+}
+
+.memory-hint {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.memory-vault header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.memory-directory {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.memory-settings li code {
+  overflow-wrap: anywhere;
+}
+
+.memory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.memory-maintenance label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.memory-maintenance input[type='number'] {
+  width: 100px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.memory-maintenance input[type='number']:focus {
+  border-color: var(--focus);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(46, 105, 115, 0.14);
+}
+
+.memory-maintenance input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.memory-repair {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  animation: settings-panel-in var(--dur-base) var(--ease-out) both;
+}
+
+.memory-repair button {
+  margin-right: 8px;
+}
+
+/* The newest three runs, one line each; everything else is in the log dialog. */
+.memory-runs > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.memory-runs > header h3 {
+  margin: 0;
+}
+
+.memory-run-preview {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory-run-preview li {
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.memory-run-preview time {
+  flex: none;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.memory-run-preview span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-dialog.maintenance-log-dialog {
+  display: flex;
+  width: min(680px, calc(100vw - 48px));
+  flex-direction: column;
+}
+
+.maintenance-log-dialog .modal-header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.maintenance-log-body {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  overflow-y: auto;
+  padding: 12px 17px 16px;
+}
+
+.maintenance-log-list {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.maintenance-log-list li {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  font-size: 12.5px;
+}
+
+.maintenance-log-list time {
+  grid-row: span 2;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.maintenance-log-list strong {
+  font-weight: 600;
+}
+
+.maintenance-log-list small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.maintenance-log-list li[data-state='failed'] strong,
+.maintenance-log-list li[data-state='interrupted'] strong {
+  color: var(--danger, #a54040);
+}
+
+.memory-settings summary {
+  padding: 8px 0;
+}
+
+/* on/off settings are switches. */
+.memory-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}

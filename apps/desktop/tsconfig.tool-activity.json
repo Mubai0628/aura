@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.renderer.json",
+  "compilerOptions": { "composite": false, "incremental": false },
+  "include": [
+    "tests/tool-activity-preview/**/*.tsx",
+    "renderer/src/aura-window.d.ts",
+    "renderer/src/vite-env.d.ts"
+  ]
+}

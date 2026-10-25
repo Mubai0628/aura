@@ -1,0 +1,217 @@
+/* The model's task list. Its heading counts what is done, a hairline bar
+   shows it, the item being worked on turns and shimmers; folded it is one line. A part of the 近期活动 card (activity-summary.css gives it the card's line and title). */
+.todo-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.todo-head .activity-section-title {
+  flex: none;
+}
+
+.todo-head .todo-head-current {
+  flex: 1 1 auto;
+  margin-left: 2px;
+}
+
+.todo-count {
+  flex: none;
+  margin-left: auto;
+  color: var(--quiet);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inside the card these are
+   icon squares, not the card's word buttons (`.activity-stack button`, padded and bordered). */
+.todo-dock .todo-icon-button {
+  display: grid;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--quiet);
+  background: transparent;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.todo-dock .todo-icon-button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-muted);
+}
+
+.todo-fold svg {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.todo-dock[data-folded] .todo-fold svg {
+  transform: rotate(180deg);
+}
+
+.todo-progress {
+  display: block;
+  height: 2px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-muted);
+}
+
+.todo-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-soft), var(--success));
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.todo-dock ul {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  margin: 2px 0 0;
+  list-style: none;
+}
+
+.todo-item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.todo-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Heard, not seen: each item's state for screen readers. */
+.todo-status-words {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.todo-item.is-completed,
+.todo-item.is-cancelled {
+  color: var(--quiet);
+}
+
+.todo-item.is-completed .todo-label,
+.todo-item.is-cancelled .todo-label {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.todo-item.is-blocked {
+  color: var(--warning);
+}
+
+/* The item being worked on: darker words with a light passing across them. */
+.todo-item.is-in_progress .todo-label {
+  font-weight: 600;
+  color: transparent;
+  background: linear-gradient(
+      100deg,
+      var(--ink) 0%,
+      var(--ink) 38%,
+      var(--success) 50%,
+      var(--ink) 62%,
+      var(--ink) 100%
+    )
+    0 0 / 250% 100%;
+  background-clip: text;
+  animation: todo-shimmer 2.6s linear infinite;
+}
+
+.todo-mark {
+  position: relative;
+  display: grid;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--surface);
+  background: var(--surface);
+}
+
+.todo-mark.is-completed {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.todo-mark.is-blocked {
+  border-color: var(--warning-line);
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.todo-mark.is-cancelled {
+  color: var(--quiet);
+}
+
+/* A ring that turns while the item is worked on. */
+.todo-mark.is-in_progress {
+  border-color: var(--accent-soft);
+}
+
+.todo-mark.is-in_progress::after {
+  position: absolute;
+  inset: -1.5px;
+  border: 1.5px solid transparent;
+  border-top-color: var(--success);
+  border-right-color: var(--success);
+  border-radius: 50%;
+  animation: todo-turn 0.9s linear infinite;
+  content: '';
+}
+
+@keyframes todo-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes todo-shimmer {
+  from {
+    background-position: 125% 0;
+  }
+
+  to {
+    background-position: -125% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .todo-mark.is-in_progress::after,
+  .todo-item.is-in_progress .todo-label {
+    animation: none;
+  }
+
+  .todo-item.is-in_progress .todo-label {
+    color: var(--ink);
+    background: none;
+  }
+
+  .todo-progress > span,
+  .todo-fold svg {
+    transition: none;
+  }
+}

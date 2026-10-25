@@ -1,0 +1,23 @@
+[package]
+name = "aura-ipc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+
+[features]
+default = []
+p08-contract-driver = []
+
+[lints]
+workspace = true

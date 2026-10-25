@@ -1,0 +1,48 @@
+packages:
+  - apps/*
+  - packages/*
+  - runtimes/*
+
+allowBuilds:
+  # P01 uses electron-builder's unpacked `dir` target, never Squirrel/WiX.
+  electron-winstaller: false
+
+catalog:
+  '@eslint/js': 10.0.1
+  '@playwright/test': 1.62.1
+  '@tailwindcss/vite': 4.3.3
+  '@testing-library/dom': 10.4.1
+  '@testing-library/react': 16.3.3
+  '@testing-library/user-event': 14.6.6
+  '@types/node': 24.13.3
+  '@types/react': 19.2.18
+  '@types/react-dom': 19.2.5
+  '@vitejs/plugin-react': 6.1.1
+  ajv: 8.20.0
+  ajv-formats: 3.0.1
+  concurrently: 10.0.5
+  cross-env: 10.1.0
+  electron: 44.0.0
+  electron-builder: 26.15.3
+  eslint: 10.9.1
+  eslint-plugin-react-hooks: 7.1.1
+  eslint-plugin-react-refresh: 0.5.5
+  globals: 17.11.0
+  jsdom: 30.0.1
+  json-schema-to-typescript: 16.0.0
+  node-gyp: 12.4.0
+  prettier: 3.9.6
+  react: 19.2.8
+  react-dom: 19.2.8
+  streamdown: 2.6.0
+  tailwindcss: 4.3.3
+  typescript: 6.0.3
+  typescript-eslint: 8.68.0
+  vite: 8.2.2
+  vitest: 4.1.11
+  wait-on: 9.1.0
+
+minimumReleaseAgeExclude:
+  - '@testing-library/react@16.3.3'
+  - '@vitejs/plugin-react@6.1.1'
+  - json-schema-to-typescript@16.0.0

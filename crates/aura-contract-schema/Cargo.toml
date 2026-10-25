@@ -1,0 +1,47 @@
+[package]
+name = "aura-contract-schema"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-memory-domain = { path = "../aura-memory-domain" }
+aura-hooks = { path = "../aura-hooks" }
+aura-mcp = { path = "../aura-mcp" }
+aura-plugins = { path = "../aura-plugins" }
+aura-skills = { path = "../aura-skills" }
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-web-domain = { path = "../aura-web-domain" }
+aura-browser-domain = { path = "../aura-browser-domain" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-ipc = { path = "../aura-ipc" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-config = { path = "../aura-config" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-context-fixtures = { path = "../aura-context-fixtures" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-package = { path = "../aura-tool-package" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+anyhow.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+jsonschema.workspace = true
+
+[lints]
+workspace = true

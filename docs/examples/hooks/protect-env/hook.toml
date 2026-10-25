@@ -1,0 +1,13 @@
+schema_version = 1
+name = "protect-env"
+version = "1.0.0"
+description = "阻止模型写入或修改 .env 文件"
+kind = "user"
+events = ["tool.before_call"]
+timeout_ms = 10000
+
+[command]
+powershell_script = "protect-env.ps1"
+
+[match]
+tools = ["fs.write", "fs.patch"]

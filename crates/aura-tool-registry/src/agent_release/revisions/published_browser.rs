@@ -1,0 +1,148 @@
+//! The built-in browser's tools, published apart from
+//! the older release facts. Append revisions and retain the existing keys.
+use super::PublishedRevision;
+
+pub const PUBLISHED_BROWSER: &[PublishedRevision] = &[
+    PublishedRevision {
+        name: "browser.open",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942024",
+        instance: "tin_01M2DG020980080021AN942024",
+        fingerprint: "05c53141a8e54ff8853c8034e1612afeb81aad9ca028d5f3f85d0d8504a37452",
+    },
+    PublishedRevision {
+        name: "browser.navigate",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942025",
+        instance: "tin_01M2DG020980080021AN942025",
+        fingerprint: "700e8370e1c03c187e06ff206054bf7da2f414894cb0d89ab0b32e4b34f74a0a",
+    },
+    PublishedRevision {
+        name: "browser.snapshot",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942026",
+        instance: "tin_01M2DG020980080021AN942026",
+        fingerprint: "bad899081985b679f6c1080d213bc0651b37c34bd376dc559722ae515a0e93b7",
+    },
+    PublishedRevision {
+        name: "browser.screenshot",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942027",
+        instance: "tin_01M2DG020980080021AN942027",
+        fingerprint: "0519e08d5c25f163108de2fd9e4fe5a232f632c8cdb4b384c5283e69031d58fb",
+    },
+    PublishedRevision {
+        name: "browser.click",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942028",
+        instance: "tin_01M2DG020980080021AN942028",
+        fingerprint: "424b29bbdea3808b721f870b1ec9937af4f2dbcd1c2e036e0b3deb87a5fbbae0",
+    },
+    PublishedRevision {
+        name: "browser.type",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942029",
+        instance: "tin_01M2DG020980080021AN942029",
+        fingerprint: "a382c013e9b885d20150300fd12c77d9fbfa03c54a3aafb9b9c34e739974ca1f",
+    },
+    PublishedRevision {
+        name: "browser.press",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202A",
+        instance: "tin_01M2DG020980080021AN94202A",
+        fingerprint: "6a7e81e8dfbae9f2bf614ab229b69cfb05cfd4bfb537d9a7bf0382c37068dc3c",
+    },
+    PublishedRevision {
+        name: "browser.scroll",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202B",
+        instance: "tin_01M2DG020980080021AN94202B",
+        fingerprint: "3ae821041d99e1e018a7c56514cea144cf780ff473edd7be95c7d166708e84c5",
+    },
+    PublishedRevision {
+        name: "browser.hover",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202C",
+        instance: "tin_01M2DG020980080021AN94202C",
+        fingerprint: "f8f7584d9d19ce0122a5b29bbd233e88da245ef21a969b008f388b99d0cdaf0d",
+    },
+    PublishedRevision {
+        name: "browser.select",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202D",
+        instance: "tin_01M2DG020980080021AN94202D",
+        fingerprint: "64b54be1602ec9ae72f5729b8116f9326c377a69f9a776fe2d7651983adb644b",
+    },
+    PublishedRevision {
+        name: "browser.wait",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202E",
+        instance: "tin_01M2DG020980080021AN94202E",
+        fingerprint: "68e841b24280a03f4c9e0e258b120bccf658a002c134d836dacf6b37b3d831f3",
+    },
+    PublishedRevision {
+        name: "browser.console",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202F",
+        instance: "tin_01M2DG020980080021AN94202F",
+        fingerprint: "5f2be0eb66681b18730651a2305b64b0e05895078b1723b654078136bb50e7e2",
+    },
+    PublishedRevision {
+        name: "browser.close",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202G",
+        instance: "tin_01M2DG020980080021AN94202G",
+        fingerprint: "d1bac74e366b303e1084c741d3bb7af2cddad35701908c1c1b2ff102b4d6e639",
+    },
+    PublishedRevision {
+        name: "browser.request_user",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202H",
+        instance: "tin_01M2DG020980080021AN94202H",
+        fingerprint: "0cfac91bdb47412390ed5f6adb1265742f2489657d0f20f8dfc5f8f78cc38fde",
+    },
+    PublishedRevision {
+        name: "browser.evaluate",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202J",
+        instance: "tin_01M2DG020980080021AN94202J",
+        fingerprint: "3c6736f17a27bfe108bbdef639556e872f43d39f9a93a32fa48afe9736e5a3f6",
+    },
+    PublishedRevision {
+        name: "browser.network",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202K",
+        instance: "tin_01M2DG020980080021AN94202K",
+        fingerprint: "eed7de28be2e99d884b336071332c0d6d9f464d708645be74379f175263d3727",
+    },
+    // Element inspection and performance counters.
+    PublishedRevision {
+        name: "browser.inspect",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202P",
+        instance: "tin_01M2DG020980080021AN94202P",
+        fingerprint: "193ea9e921142d59c654790ecbae441f391edbeec9cb6992148c3243e616f8e3",
+    },
+    PublishedRevision {
+        name: "browser.performance",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94202Q",
+        instance: "tin_01M2DG020980080021AN94202Q",
+        fingerprint: "22e891f98ce0c7621ba19df81eaf161e2150a89e49d2adc8b378540d35983f5c",
+    },
+    // The input descriptions no longer carry planning notes.
+    PublishedRevision {
+        name: "browser.inspect",
+        revision: 2,
+        tool: "tol_01M2DG020980080021AN94202P",
+        instance: "tin_01M2DG020980080021AN94SR2P",
+        fingerprint: "79a12ec94a460e2e36a2936eac269411896260fb4c78ca9e8e56feb77bda141b",
+    },
+    PublishedRevision {
+        name: "browser.performance",
+        revision: 2,
+        tool: "tol_01M2DG020980080021AN94202Q",
+        instance: "tin_01M2DG020980080021AN94SR2Q",
+        fingerprint: "437cd5cdf742543353d1bc53101eecc50bb6656f5dc5c12075166d19de36ebc5",
+    },
+];

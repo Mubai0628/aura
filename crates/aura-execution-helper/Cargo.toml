@@ -1,0 +1,18 @@
+[package]
+name = "aura-execution-helper"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-execution-maintainer = { path = "../aura-execution-maintainer" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-windows-platform = { path = "../aura-windows-platform", features = ["restricted-user-runtime", "execution-maintenance"] }
+serde_json.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

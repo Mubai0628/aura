@@ -1,0 +1,7 @@
+CREATE TABLE session_model_bindings(session_id TEXT PRIMARY KEY REFERENCES sessions(id), profile_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0)) STRICT;
+CREATE TABLE model_execution_snapshots(id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), endpoint_id TEXT NOT NULL, profile_id TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE transport_attempts(id TEXT PRIMARY KEY, snapshot_id TEXT NOT NULL REFERENCES model_execution_snapshots(id), state TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE model_outputs(snapshot_id TEXT PRIMARY KEY REFERENCES model_execution_snapshots(id), artifact_id TEXT NOT NULL REFERENCES artifacts(id), outcome TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE model_catalog_cache(cache_key TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision>0), etag TEXT, artifact_id TEXT NOT NULL REFERENCES artifacts(id)) STRICT;
+CREATE TABLE provider_continuation_refs(session_id TEXT PRIMARY KEY REFERENCES sessions(id), snapshot_id TEXT NOT NULL REFERENCES model_execution_snapshots(id), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE provider_tool_call_bindings(snapshot_id TEXT NOT NULL REFERENCES model_execution_snapshots(id), ordinal INTEGER NOT NULL CHECK(ordinal>0), payload TEXT NOT NULL CHECK(json_valid(payload)), PRIMARY KEY(snapshot_id,ordinal)) STRICT;

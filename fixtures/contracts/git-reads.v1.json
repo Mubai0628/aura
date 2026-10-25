@@ -1,0 +1,139 @@
+{
+  "requests": [
+    {
+      "query": {
+        "input": {
+          "include_branches": false,
+          "include_untracked": true,
+          "limit": 200,
+          "offset": 0
+        },
+        "kind": "status"
+      },
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "query": {
+        "input": {
+          "max_bytes": 16384,
+          "offset_bytes": 0,
+          "paths": [],
+          "target": {
+            "kind": "unstaged"
+          }
+        },
+        "kind": "diff"
+      },
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "query": {
+        "input": {
+          "commit": null,
+          "limit": 20,
+          "paths": [],
+          "start": null
+        },
+        "kind": "log"
+      },
+      "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    }
+  ],
+  "results": [
+    {
+      "kind": "status",
+      "result": {
+        "ahead": 1,
+        "behind": 0,
+        "branch": "main",
+        "branches": [],
+        "conflicts": [],
+        "detached": false,
+        "entries": [
+          {
+            "comparison_note": null,
+            "conflict": false,
+            "index_status": ".",
+            "original_path": null,
+            "path": "汉字 space.txt",
+            "submodule": false,
+            "untracked": false,
+            "worktree_status": "M"
+          }
+        ],
+        "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "next_offset": null,
+        "operation": null,
+        "submodule_contents_checked": false,
+        "total_entries": 1,
+        "truncated": false,
+        "upstream": "origin/main"
+      }
+    },
+    {
+      "kind": "diff",
+      "result": {
+        "files": [
+          {
+            "added": 1,
+            "binary": false,
+            "comparison_note": null,
+            "deleted": 1,
+            "original_path": null,
+            "path": "汉字 space.txt"
+          }
+        ],
+        "next_offset": null,
+        "offset_bytes": 0,
+        "patch": "@@ -1 +1 @@\n-old\n+new\n",
+        "total_bytes": 26,
+        "truncated": false,
+        "warnings": []
+      }
+    },
+    {
+      "kind": "log",
+      "result": {
+        "commits": [],
+        "truncated": false
+      }
+    }
+  ],
+  "runtime": [
+    {
+      "executable": null,
+      "installation_url": "https://git-scm.com/download/win",
+      "message": "状态说明",
+      "next_step": "重新检测",
+      "state": "available",
+      "version": null
+    },
+    {
+      "executable": null,
+      "installation_url": "https://git-scm.com/download/win",
+      "message": "状态说明",
+      "next_step": "重新检测",
+      "state": "missing",
+      "version": null
+    },
+    {
+      "executable": null,
+      "installation_url": "https://git-scm.com/download/win",
+      "message": "状态说明",
+      "next_step": "重新检测",
+      "state": "too_old",
+      "version": null
+    },
+    {
+      "executable": null,
+      "installation_url": "https://git-scm.com/download/win",
+      "message": "状态说明",
+      "next_step": "重新检测",
+      "state": "invalid",
+      "version": null
+    }
+  ]
+}

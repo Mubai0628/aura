@@ -1,0 +1,16 @@
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_refusal_fixture","status":"in_progress"}}
+
+event: response.refusal.delta
+data: {"type":"response.refusal.delta","sequence_number":1,"item_id":"msg_refusal_fixture","output_index":0,"content_index":0,"delta":"I cannot help "}
+
+event: response.refusal.delta
+data: {"type":"response.refusal.delta","sequence_number":2,"item_id":"msg_refusal_fixture","output_index":0,"content_index":0,"delta":"with that."}
+
+event: response.refusal.done
+data: {"type":"response.refusal.done","sequence_number":3,"item_id":"msg_refusal_fixture","output_index":0,"content_index":0,"refusal":"I cannot help with that."}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_refusal_fixture","status":"completed","usage":{"input_tokens":6,"output_tokens":5,"total_tokens":11}}}
+
+data: [DONE]

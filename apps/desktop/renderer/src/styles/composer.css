@@ -1,0 +1,295 @@
+.conversation-dock {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  padding: 0 clamp(18px, 4vw, 52px) 14px;
+  background: transparent;
+}
+
+.conversation-dock-inner {
+  width: min(900px, 100%);
+  margin: 0 auto;
+}
+
+/* The dock spans the conversation's width over its bottom. Only what it
+   holds takes the mouse, so the conversation's scrollbar beside it can be dragged all the way
+   down, and the wheel scrolls the conversation over the dock's empty sides. */
+.conversation-dock,
+.conversation-dock-inner {
+  pointer-events: none;
+}
+.conversation-dock-inner > * {
+  pointer-events: auto;
+}
+
+.composer {
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-heading-row h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.section-heading-row > span {
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.composer {
+  position: relative;
+  padding: 10px 11px 9px;
+  border-radius: 12px;
+}
+
+/* The composer is the frame; its typing area draws no focus ring of its own. */
+.composer textarea:focus-visible {
+  box-shadow: none;
+}
+
+.composer textarea {
+  display: block;
+  width: 100%;
+  height: var(--composer-editor-height);
+  padding: 3px 4px 7px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  line-height: 1.6;
+}
+
+.composer-resize-handle {
+  position: absolute;
+  top: -5px;
+  right: 0;
+  left: 0;
+  z-index: 4;
+  height: 10px;
+  outline: 0;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.composer-resize-handle::after {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 38px;
+  height: 3px;
+  border-radius: 2px;
+  content: '';
+  background: #c9cdc9;
+  transform: translateX(-50%);
+  transition: background 140ms ease-out;
+}
+
+.composer-resize-handle:hover::after,
+.composer-resize-handle:focus-visible::after {
+  background: var(--focus);
+}
+
+.composer textarea::placeholder,
+.settings-search input::placeholder,
+.settings-form-grid input::placeholder {
+  color: #858c87;
+  opacity: 1;
+}
+
+/* The row of controls stays on one line however narrow the composer is; the
+   controls have no frame or resting background and are a fifth smaller than before. Every control takes the same 28px square or 28px-high pill, its
+   glyph 16px, so they look one size without frames. */
+.composer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.composer-controls-leading,
+.composer-controls-trailing {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+
+.composer-controls-leading {
+  flex: 0 0 auto;
+}
+
+.composer-controls-trailing {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.composer-square-button,
+.composer-select,
+.send-button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+}
+
+.composer-square-button {
+  display: grid;
+  width: 28px;
+  place-items: center;
+}
+
+.composer-select {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 0 7px;
+  color: #4b524c;
+  font-size: 12px;
+}
+
+/* A long model name gives way before the row would wrap or overlap: its menu anchor is the flex
+   item, so the anchor shrinks and the button inside follows it. */
+.composer-controls-trailing > .model-menu-anchor {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.composer-select.model-select {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.composer-select.model-select > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-select:hover,
+.composer-square-button:hover {
+  background: var(--surface-muted);
+}
+
+.attachment-menu-anchor,
+.composer-menu-anchor,
+.tool-menu-anchor {
+  position: relative;
+}
+
+.attachment-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 255px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  font-size: 12px;
+}
+
+.composer-context {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+}
+
+.send-button {
+  display: grid;
+  width: 28px;
+  place-items: center;
+  color: #a2a8a4;
+}
+
+.composer-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 250px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.model-menu-anchor .composer-popover {
+  right: 0;
+  left: auto;
+  width: 280px;
+}
+
+.composer-popover > p {
+  padding: 5px 8px 7px;
+  margin: 0;
+  color: var(--quiet);
+  font-size: 10px;
+}
+
+.composer-popover button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 32px;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #454c46;
+  text-align: left;
+  background: transparent;
+}
+
+.composer-popover button:hover {
+  background: #f0f2ef;
+}
+
+.model-menu-group + .model-menu-group {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+}
+
+.model-menu-group > span {
+  display: block;
+  padding: 4px 8px;
+  color: var(--quiet);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.composer-popover .composer-menu-footer {
+  margin-top: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 7px 7px;
+  color: var(--accent-strong);
+}
+
+.composer-menu-empty {
+  display: block;
+  padding: 9px 8px;
+  color: var(--muted);
+  font-size: 11px;
+}

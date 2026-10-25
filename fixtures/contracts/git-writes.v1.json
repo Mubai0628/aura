@@ -1,0 +1,90 @@
+{
+  "branch_inputs": [
+    {
+      "kind": "create",
+      "name": "feature/汉字",
+      "start": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "switch": true
+    },
+    {
+      "kind": "create",
+      "name": "feature/local",
+      "start": null,
+      "switch": false
+    },
+    {
+      "kind": "switch",
+      "name": "main"
+    }
+  ],
+  "branch_result": {
+    "branch": "feature/汉字",
+    "created": true,
+    "execution_notice": "与在终端运行 git 相同，Aura 不隔离它的文件写入",
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "previous_branch": "main",
+    "previous_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "status": {
+      "ahead": 0,
+      "behind": 0,
+      "branch": "feature/汉字",
+      "branches": [],
+      "conflicts": [],
+      "detached": false,
+      "entries": [],
+      "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "next_offset": null,
+      "operation": null,
+      "submodule_contents_checked": false,
+      "total_entries": 0,
+      "truncated": false,
+      "upstream": null
+    },
+    "switched": true
+  },
+  "commit_inputs": [
+    {
+      "message": "选定文件\n\n完整说明",
+      "paths": [
+        "汉字 space.txt"
+      ],
+      "staged_only": false
+    },
+    {
+      "message": "仅提交索引",
+      "paths": [],
+      "staged_only": true
+    }
+  ],
+  "commit_result": {
+    "branch": "main",
+    "commit": {
+      "author": "Fixture <fixture@example.invalid>",
+      "authored_at": "2026-10-15T00:00:00Z",
+      "body": "选定文件\n\n完整说明\n",
+      "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "files": [],
+      "parents": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "subject": "选定文件"
+    },
+    "execution_notice": "与在终端运行 git 相同，Aura 不隔离它的文件写入",
+    "status": {
+      "ahead": 0,
+      "behind": 0,
+      "branch": "main",
+      "branches": [],
+      "conflicts": [],
+      "detached": false,
+      "entries": [],
+      "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "next_offset": null,
+      "operation": null,
+      "submodule_contents_checked": false,
+      "total_entries": 0,
+      "truncated": false,
+      "upstream": null
+    }
+  }
+}

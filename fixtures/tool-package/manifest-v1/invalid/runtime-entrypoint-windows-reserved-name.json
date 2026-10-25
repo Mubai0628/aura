@@ -1,0 +1,68 @@
+{
+  "files": [
+    {
+      "byte_length": 21,
+      "path": "bin/fixture.exe",
+      "role": "runtime_executable",
+      "sha256": {
+        "algorithm": "sha256",
+        "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+      }
+    }
+  ],
+  "minimum_aura_version": "0.1.0",
+  "package_key": "org.aura.fixture.stdio",
+  "package_version": "1.0.0",
+  "schema_version": 1,
+  "tools": [
+    {
+      "capability_requirements": ["process_execute"],
+      "conformance_cases": [
+        {
+          "arguments": {},
+          "name": "deterministic fixture"
+        }
+      ],
+      "execution_semantics": {
+        "automatic_retry_allowed": false,
+        "may_create_persistent_effects": false,
+        "repeat_is_idempotent": true
+      },
+      "instance_configuration": null,
+      "model": {
+        "canonical_suffix": "fixture",
+        "description": "Execute the package fixture with validated arguments.",
+        "input_schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "type": "object"
+        },
+        "result_contract": {
+          "type": "unit"
+        },
+        "strict": true,
+        "summary": "Execute a deterministic package fixture."
+      },
+      "resource_claims": [],
+      "runtime": {
+        "arguments": [],
+        "credential_slot": null,
+        "environment": [],
+        "executable": "bin/COM¹.exe",
+        "protocol_version": 1,
+        "type": "aura_stdio",
+        "working_directory": {
+          "type": "package_root"
+        }
+      },
+      "tool_key": "fixture",
+      "ui": {
+        "display_name": "Fixture Tool"
+      }
+    }
+  ],
+  "ui": {
+    "description": null,
+    "display_name": "Aura Fixture Package"
+  }
+}

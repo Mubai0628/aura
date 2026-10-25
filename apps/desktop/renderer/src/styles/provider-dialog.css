@@ -1,0 +1,475 @@
+.provider-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(820px, calc(100vw - 48px));
+}
+
+.compact-provider-dialog {
+  width: min(620px, calc(100vw - 48px));
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--line);
+}
+
+.provider-dialog-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.provider-dialog-title h2 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.provider-dialog-title p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.provider-connections,
+.provider-editor {
+  min-height: 0;
+  padding: 18px;
+  overflow: auto;
+}
+
+.connection-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.connection-list .connection-preview {
+  margin-top: 0;
+}
+
+/* A connection's place among the provider's: default, backup, or neither. */
+.connection-item {
+  display: grid;
+  gap: 6px;
+}
+
+.connection-routing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-left: 4px;
+}
+
+.connection-routing button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.connection-routing button[aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+
+/* The advanced connection fields, folded under the main ones like the model editor's
+   window correction. */
+.endpoint-advanced {
+  margin-top: 4px;
+}
+
+.endpoint-advanced > .settings-form-grid {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The fields open the editor right under its header: no second line beneath the header's. */
+.provider-editor > .provider-form-grid:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.provider-danger-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 14px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.provider-danger-row button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+}
+
+.provider-connection-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.provider-connection-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.provider-connection-heading p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* The name and its save, then
+   the connections; deleting the provider is a row of its own at the end, away from the save. */
+.provider-maintenance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.provider-maintenance-row label,
+.catalog-model-toolbar label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.provider-maintenance-row button,
+.catalog-model-toolbar button,
+.catalog-model-row button,
+.compatibility-panel button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.endpoint-operation-history,
+.compatibility-panel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafbfa;
+  font-size: 12px;
+}
+
+.endpoint-operation-history {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.endpoint-operation-history span {
+  color: var(--muted);
+}
+
+.compatibility-panel {
+  justify-content: space-between;
+}
+
+.compatibility-panel p {
+  margin: 2px 0 0;
+  color: var(--muted);
+}
+
+.compatibility-summary {
+  min-width: 0;
+}
+
+.compatibility-details {
+  display: grid;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.compatibility-details > div > span {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.compatibility-details ul {
+  display: grid;
+  gap: 3px;
+  padding: 0;
+  margin: 4px 0 0;
+  list-style: none;
+}
+
+.compatibility-details li {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.compatibility-details code {
+  color: #3e5750;
+  font-family: var(--font-mono);
+}
+
+.catalog-model-dialog {
+  width: min(900px, calc(100vw - 48px));
+}
+
+.catalog-model-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.catalog-model-toolbar {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.catalog-model-readonly-note,
+.settings-form-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.catalog-model-readonly-note {
+  align-self: center;
+  max-width: 34ch;
+}
+
+.catalog-model-search .search-field {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.catalog-model-search .search-field svg {
+  margin-left: 9px;
+  color: var(--quiet);
+}
+
+.catalog-model-search .search-field input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+}
+
+.catalog-model-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.catalog-model-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.catalog-model-row > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.catalog-model-row strong,
+.catalog-model-row small,
+.catalog-model-row p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.catalog-model-row strong {
+  font-size: 11px;
+}
+
+.catalog-model-row small,
+.catalog-model-row p {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.catalog-model-row p {
+  margin: 3px 0 0;
+  white-space: nowrap;
+}
+
+.catalog-model-row dl {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 12px;
+  margin: 0;
+}
+
+.catalog-model-row dl > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.catalog-model-row dt,
+.catalog-model-row dd {
+  margin: 0;
+  font-size: 11.5px;
+}
+
+.catalog-model-row dt {
+  color: var(--muted);
+}
+
+.provider-connection-heading button,
+.modal-actions button,
+.connection-preview,
+.credential-boundary button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  color: #424943;
+  background: var(--surface);
+}
+
+.provider-connection-heading button:hover,
+.modal-actions button:hover:not(:disabled),
+.connection-preview:hover,
+.credential-boundary button:hover:not(:disabled) {
+  background: #f0f2ef;
+}
+
+.connection-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 18px;
+  width: 100%;
+  min-height: 58px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.connection-preview > span:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.connection-preview strong {
+  font-size: 12px;
+}
+
+.connection-preview small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-empty-state {
+  display: flex;
+  align-items: center;
+  min-height: 190px;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  color: var(--quiet);
+  text-align: center;
+}
+
+.connection-empty-state strong {
+  margin-top: 9px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.connection-empty-state p {
+  max-width: 40ch;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.provider-editor-note {
+  padding: 9px 10px;
+  border: 1px solid #e6ddcd;
+  border-radius: 8px;
+  color: #695a42;
+  background: #faf6ee;
+  font-size: 11px;
+}
+
+.settings-form-grid.no-top-rule {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+
+.provider-form-grid {
+  margin-top: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 14px;
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.modal-action-spacer {
+  flex: 1;
+}
+
+.section-heading-row button,
+.credential-boundary button,
+.model-empty-state button,
+.host-actions button,
+.approval-actions button,
+.compact-list button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  color: #424943;
+  background: var(--surface);
+}
+
+.section-heading-row button:hover:not(:disabled),
+.credential-boundary button:hover:not(:disabled),
+.host-actions button:hover:not(:disabled),
+.approval-actions button:hover:not(:disabled),
+.compact-list button:hover:not(:disabled) {
+  background: #f0f2ef;
+}

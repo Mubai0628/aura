@@ -1,0 +1,89 @@
+/* Small icon buttons for a message. A finished turn's answer has them just under the line that ends the turn; a user's message has
+   its 复制 just left of it, shown while the pointer or the keyboard is on the message. */
+.agent-reply-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+}
+.agent-reply-action {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.agent-reply-action:hover,
+.agent-reply-action:focus-visible {
+  color: var(--ink);
+}
+.agent-reply-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.agent-reply-failure {
+  margin-left: 6px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* The line under the answer is the footer's; the turn draws none of its own. */
+.agent-turn:has(> .agent-turn-footer) {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.agent-turn-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 3px 0 6px;
+  border-top: 1px solid var(--line);
+}
+
+/* What the turn took, at the right of the line under its answer - a
+   completed task's own summary first, then the time. */
+.agent-turn-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 0 auto;
+  color: var(--quiet);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-turn-goal {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-user-message {
+  position: relative;
+}
+.agent-user-actions {
+  position: absolute;
+  right: calc(100% + 4px);
+  bottom: 3px;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.agent-user-message:hover .agent-user-actions,
+.agent-user-message:focus-within .agent-user-actions,
+.agent-user-actions:has([role='alert']) {
+  opacity: 1;
+}
+.agent-user-actions .agent-reply-failure {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin: 2px 0 0;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-user-actions {
+    transition: none;
+  }
+}

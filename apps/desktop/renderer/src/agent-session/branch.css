@@ -1,0 +1,119 @@
+/* The branch dialog's facts and the line between what a branch carried and its own turns. */
+.agent-branch-dialog {
+  width: min(460px, calc(100vw - 48px));
+}
+
+.agent-branch-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.agent-branch-facts li::marker {
+  color: var(--muted);
+}
+
+.agent-branch-origin {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-branch-line {
+  flex: 1;
+  min-width: 16px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.agent-branch-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 78%;
+  text-align: center;
+}
+
+.agent-branch-text .tool-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.agent-branch-source {
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.agent-branch-source:hover {
+  background: var(--accent-soft);
+}
+
+.agent-branch-gone {
+  color: var(--quiet);
+}
+
+/* While the conversation is copied, the dialog says so. */
+.agent-branch-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.agent-branch-spinner {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 25%, currentColor 100%);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  animation: aura-tool-spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-branch-spinner {
+    animation: none;
+  }
+}
+
+/* The top of a branch while its older turns are still carried — the thinking step's
+   spinner and light (turn-process.css), on one quiet line. */
+.agent-branch-copying {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 4px auto 14px;
+  padding: 5px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-branch-copying-count {
+  color: var(--quiet);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-branch-copying[data-failed] {
+  border-style: solid;
+  border-color: var(--warning-line);
+  color: var(--warning);
+  background: var(--warning-soft);
+}

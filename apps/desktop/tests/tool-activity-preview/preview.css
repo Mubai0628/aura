@@ -1,0 +1,23 @@
+.preview {
+  padding: 20px;
+  font-size: 14px;
+}
+.preview h1 {
+  font-size: 20px;
+}
+.preview h2 {
+  font-size: 14px;
+  margin-top: 24px;
+}
+.preview nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+.preview-panel {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  padding: 16px;
+  background: var(--canvas);
+}

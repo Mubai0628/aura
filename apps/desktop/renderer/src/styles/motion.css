@@ -1,0 +1,57 @@
+/*
+ * Motion for menus and panels. The frozen design (§2) keeps motion to state changes,
+ * expand/collapse, tabs, menus and dialogs at about 120–220 ms, and honours reduced motion
+ * (responsive.css turns every animation off then).
+ */
+.composer-popover {
+  transform-origin: bottom left;
+  animation: popover-rise var(--dur-base) var(--ease-out) both;
+}
+
+.model-menu-anchor .composer-popover {
+  transform-origin: bottom right;
+}
+
+.tool-picker {
+  transform-origin: top right;
+  animation: popover-drop var(--dur-base) var(--ease-out) both;
+}
+
+/* The right-hand tool area eases in when a tool is opened or switched. */
+.right-workspace > :not(.right-workspace-toolbar) {
+  animation: panel-fade var(--dur-base) var(--ease-out) both;
+}
+
+@keyframes popover-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes popover-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes panel-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

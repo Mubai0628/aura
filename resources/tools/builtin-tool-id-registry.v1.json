@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "builtin_key": "agent.activity.query",
+      "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FB0"
+    },
+    {
+      "builtin_key": "tools.describe",
+      "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    {
+      "builtin_key": "tools.list_loaded",
+      "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+    },
+    {
+      "builtin_key": "tools.load",
+      "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAX"
+    },
+    {
+      "builtin_key": "tools.search",
+      "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAY"
+    },
+    {
+      "builtin_key": "tools.unload",
+      "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+    }
+  ]
+}

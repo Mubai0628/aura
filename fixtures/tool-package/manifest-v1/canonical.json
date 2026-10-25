@@ -1,0 +1,95 @@
+{
+  "files": [
+    {
+      "byte_length": 33,
+      "path": "bin/fixture.exe",
+      "role": "runtime_executable",
+      "sha256": {
+        "algorithm": "sha256",
+        "hex": "0e06088a242800318413fe08d0ab74c07e9ee9d9fb4feb71f231f7c0abd4b7d2"
+      }
+    }
+  ],
+  "minimum_aura_version": "0.1.0",
+  "package_key": "org.aura.fixture.canonical",
+  "package_version": "1.0.0",
+  "schema_version": 1,
+  "tools": [
+    {
+      "audience": "subagent_configurable",
+      "capability_requirements": ["process_execute"],
+      "conformance_cases": [
+        {
+          "arguments": {
+            "text": "fixture"
+          },
+          "name": "echo text"
+        }
+      ],
+      "execution_semantics": {
+        "automatic_retry_allowed": false,
+        "may_create_persistent_effects": false,
+        "repeat_is_idempotent": true
+      },
+      "instance_configuration": null,
+      "model": {
+        "canonical_name": "user.org.aura.fixture.canonical.fixture",
+        "description": "Execute the package fixture with validated arguments.",
+        "input_schema": {
+          "document": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": ["text"],
+            "type": "object"
+          },
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "89bea4866e3834b02c7bbc87ebcdecdc1a52e0aab3e737e7b5954d7451a4c1bb"
+          },
+          "schema_policy_version": 1
+        },
+        "result_contract": {
+          "type": "utf8_text"
+        },
+        "strict": true,
+        "summary": "Execute a deterministic package fixture."
+      },
+      "resource_claims": [],
+      "runtime": {
+        "command": {
+          "arguments": [
+            {
+              "source": "/text",
+              "type": "scalar"
+            }
+          ],
+          "credential_slot": null,
+          "environment": [],
+          "executable": "bin/fixture.exe",
+          "success_exit_codes": [0],
+          "type": "argv",
+          "working_directory": {
+            "type": "package_root"
+          }
+        },
+        "type": "declarative_command"
+      },
+      "semantic_version": null,
+      "tool_key": "fixture",
+      "ui": {
+        "display_name": "Fixture Tool"
+      }
+    }
+  ],
+  "ui": {
+    "description": null,
+    "display_name": "Canonical Fixture Package"
+  }
+}

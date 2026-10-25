@@ -1,0 +1,19 @@
+[package]
+name = "aura-restricted-user-spike"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+anyhow.workspace = true
+aura-windows-platform = { path = "../aura-windows-platform", features = ["restricted-user-spike"] }
+getrandom.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

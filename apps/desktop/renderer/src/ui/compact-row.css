@@ -1,0 +1,42 @@
+/* A row too narrow for its buttons' words shows their icons alone, each a
+   fixed square that does not give way further; the words stay for screen readers and the
+   tooltip. What gives way first does so alone while the other words still fit. */
+[data-compact='true'] [data-adaptive],
+[data-compact='first'] [data-adaptive-first] {
+  position: relative;
+  flex: none;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+  gap: 0;
+}
+
+[data-compact='true'] [data-adaptive-label],
+[data-compact='first'] [data-adaptive-first] [data-adaptive-label] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+[data-compact='true'] [data-adaptive] .adaptive-chevron,
+[data-compact='first'] [data-adaptive-first] .adaptive-chevron {
+  display: none;
+}
+
+[data-compact='true'] .model-menu-anchor {
+  flex: none;
+}
+
+/* How wide the row is with every word shown, measured at its parts' own widths. Floating
+   menus, tooltips and the stop button's turning ring take no room in it. Set and taken back in
+   one task by useCompactRow, so it is never painted. */
+[data-measuring='true'] {
+  flex: none !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  max-width: none !important;
+}

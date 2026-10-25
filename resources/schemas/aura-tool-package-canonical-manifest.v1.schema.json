@@ -1,0 +1,2148 @@
+{
+  "$defs": {
+    "ArgumentJsonPointer": {
+      "maxLength": 4096,
+      "pattern": "^(?:|(?:/(?:[^~]|~[01])*)*)$",
+      "type": "string"
+    },
+    "ArtifactResourceAccessV1": {
+      "enum": [
+        "read",
+        "create",
+        "delete"
+      ],
+      "type": "string"
+    },
+    "CanonicalJsonSchemaDocumentV1": {
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "type": "object"
+        },
+        "schema_dialect": {
+          "const": "json_schema_draft_2020_12",
+          "type": "string"
+        },
+        "schema_hash": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm": {
+              "const": "sha256",
+              "type": "string"
+            },
+            "canonicalization_version": {
+              "const": "rfc8785_jcs_v1",
+              "type": "string"
+            },
+            "hex": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "algorithm",
+            "canonicalization_version",
+            "hex"
+          ],
+          "type": "object"
+        },
+        "schema_policy_version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_dialect",
+        "schema_policy_version",
+        "document",
+        "schema_hash"
+      ],
+      "type": "object"
+    },
+    "CanonicalSemVer": {
+      "maxLength": 128,
+      "minLength": 5,
+      "pattern": "^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:[.](?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:[+][0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*)?$",
+      "type": "string"
+    },
+    "CanonicalToolPackageDeclarativeCommandV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "arguments": {
+              "items": {
+                "$ref": "#/$defs/ToolPackageCommandArgumentV1"
+              },
+              "type": "array"
+            },
+            "credential_slot": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CommandCredentialEnvironmentSlotV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "items": {
+                "$ref": "#/$defs/CommandEnvironmentEntryV1"
+              },
+              "type": "array"
+            },
+            "executable": {
+              "$ref": "#/$defs/PackageRelativePath"
+            },
+            "success_exit_codes": {
+              "$ref": "#/$defs/ToolPackageCommandSuccessExitCodesV1"
+            },
+            "type": {
+              "const": "argv",
+              "type": "string"
+            },
+            "working_directory": {
+              "$ref": "#/$defs/CommandWorkingDirectoryV1"
+            }
+          },
+          "required": [
+            "type",
+            "executable",
+            "arguments",
+            "working_directory",
+            "environment",
+            "credential_slot",
+            "success_exit_codes"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "arguments": {
+              "items": {
+                "$ref": "#/$defs/ToolPackageCommandArgumentV1"
+              },
+              "type": "array"
+            },
+            "credential_slot": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CommandCredentialEnvironmentSlotV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "items": {
+                "$ref": "#/$defs/CommandEnvironmentEntryV1"
+              },
+              "type": "array"
+            },
+            "script": {
+              "$ref": "#/$defs/PackageRelativePath"
+            },
+            "success_exit_codes": {
+              "$ref": "#/$defs/ToolPackageCommandSuccessExitCodesV1"
+            },
+            "type": {
+              "const": "powershell_script",
+              "type": "string"
+            },
+            "working_directory": {
+              "$ref": "#/$defs/CommandWorkingDirectoryV1"
+            }
+          },
+          "required": [
+            "type",
+            "script",
+            "arguments",
+            "working_directory",
+            "environment",
+            "credential_slot",
+            "success_exit_codes"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CanonicalToolPackageDeclarativeHttpV1": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/DeclarativeHttpBodyV1"
+        },
+        "credential_slot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HttpCredentialSlotV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "headers": {
+          "items": {
+            "$ref": "#/$defs/HttpHeaderEntryV1"
+          },
+          "type": "array"
+        },
+        "method": {
+          "$ref": "#/$defs/DeclarativeHttpMethodV1"
+        },
+        "path": {
+          "items": {
+            "$ref": "#/$defs/HttpPathSegmentV1"
+          },
+          "type": "array"
+        },
+        "query": {
+          "items": {
+            "$ref": "#/$defs/HttpQueryEntryV1"
+          },
+          "type": "array"
+        },
+        "success_status_ranges": {
+          "$ref": "#/$defs/ToolPackageHttpSuccessStatusRangesV1"
+        },
+        "target": {
+          "$ref": "#/$defs/DeclarativeHttpTargetV1"
+        }
+      },
+      "required": [
+        "target",
+        "method",
+        "path",
+        "query",
+        "headers",
+        "body",
+        "credential_slot",
+        "success_status_ranges"
+      ],
+      "type": "object"
+    },
+    "CanonicalToolPackageModelContractV1": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_name": {
+          "$ref": "#/$defs/ToolCanonicalName"
+        },
+        "description": {
+          "$ref": "#/$defs/ToolPackageModelDescriptionV1"
+        },
+        "input_schema": {
+          "$ref": "#/$defs/CanonicalJsonSchemaDocumentV1"
+        },
+        "result_contract": {
+          "$ref": "#/$defs/ToolResultContractV1"
+        },
+        "strict": {
+          "type": "boolean"
+        },
+        "summary": {
+          "$ref": "#/$defs/ToolPackageModelSummaryV1"
+        }
+      },
+      "required": [
+        "canonical_name",
+        "description",
+        "summary",
+        "input_schema",
+        "strict",
+        "result_contract"
+      ],
+      "type": "object"
+    },
+    "CanonicalToolPackageRuntimeV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "$ref": "#/$defs/CanonicalToolPackageDeclarativeCommandV1"
+            },
+            "type": {
+              "const": "declarative_command",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "command"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "arguments": {
+              "items": {
+                "$ref": "#/$defs/ToolPackageCommandArgumentV1"
+              },
+              "type": "array"
+            },
+            "credential_slot": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/CommandCredentialEnvironmentSlotV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "environment": {
+              "items": {
+                "$ref": "#/$defs/CommandEnvironmentEntryV1"
+              },
+              "type": "array"
+            },
+            "executable": {
+              "$ref": "#/$defs/PackageRelativePath"
+            },
+            "protocol_version": {
+              "$ref": "#/$defs/ToolPackageStdioProtocolVersionV1"
+            },
+            "type": {
+              "const": "aura_stdio",
+              "type": "string"
+            },
+            "working_directory": {
+              "$ref": "#/$defs/CommandWorkingDirectoryV1"
+            }
+          },
+          "required": [
+            "type",
+            "protocol_version",
+            "executable",
+            "arguments",
+            "working_directory",
+            "environment",
+            "credential_slot"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "request": {
+              "$ref": "#/$defs/CanonicalToolPackageDeclarativeHttpV1"
+            },
+            "type": {
+              "const": "declarative_http",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "request"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CanonicalToolPackageToolV1": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/PackageToolAudienceV1"
+        },
+        "capability_requirements": {
+          "items": {
+            "$ref": "#/$defs/PackageCapabilityRequirementV1"
+          },
+          "type": "array"
+        },
+        "conformance_cases": {
+          "items": {
+            "$ref": "#/$defs/ToolPackageConformanceCaseV1"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "execution_semantics": {
+          "$ref": "#/$defs/ToolExecutionSemanticsV1"
+        },
+        "instance_configuration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CanonicalJsonSchemaDocumentV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "$ref": "#/$defs/CanonicalToolPackageModelContractV1"
+        },
+        "resource_claims": {
+          "items": {
+            "$ref": "#/$defs/PackageDeclaredResourceClaimV1"
+          },
+          "type": "array"
+        },
+        "runtime": {
+          "$ref": "#/$defs/CanonicalToolPackageRuntimeV1"
+        },
+        "semantic_version": {
+          "$ref": "#/$defs/CanonicalToolSemanticVersionV1"
+        },
+        "tool_key": {
+          "$ref": "#/$defs/ToolKey"
+        },
+        "ui": {
+          "$ref": "#/$defs/ToolPackageToolUiV1"
+        }
+      },
+      "required": [
+        "tool_key",
+        "semantic_version",
+        "ui",
+        "model",
+        "instance_configuration",
+        "runtime",
+        "capability_requirements",
+        "resource_claims",
+        "audience",
+        "execution_semantics",
+        "conformance_cases"
+      ],
+      "type": "object"
+    },
+    "CanonicalToolPackageUiV1": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPackageUiDescriptionV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "display_name": {
+          "$ref": "#/$defs/ToolPackageUiDisplayNameV1"
+        }
+      },
+      "required": [
+        "display_name",
+        "description"
+      ],
+      "type": "object"
+    },
+    "CanonicalToolSemanticVersionV1": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CanonicalSemVer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "CommandCredentialEnvironmentSlotV1": {
+      "additionalProperties": false,
+      "properties": {
+        "environment_variable": {
+          "$ref": "#/$defs/EnvironmentVariableNameV1"
+        },
+        "slot_key": {
+          "$ref": "#/$defs/CredentialSlotKey"
+        }
+      },
+      "required": [
+        "slot_key",
+        "environment_variable"
+      ],
+      "type": "object"
+    },
+    "CommandEnvironmentEntryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/EnvironmentVariableNameV1"
+        },
+        "value": {
+          "$ref": "#/$defs/CommandEnvironmentValueV1"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "CommandEnvironmentValueV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/EnvironmentLiteralValueV1"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "scalar",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "$ref": "#/$defs/InstanceConfigurationKeyV1"
+            },
+            "type": {
+              "const": "instance_configuration",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "key"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CommandFlagV1": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "CommandLiteralV1": {
+      "maxLength": 8192,
+      "minLength": 0,
+      "pattern": "^[^\\u0000]*$",
+      "type": "string"
+    },
+    "CommandOptionNameV1": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "CommandWorkingDirectoryV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "package_root",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "workspace_root",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "type": {
+              "const": "resolved_directory_claim",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CredentialSlotKey": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+      "type": "string"
+    },
+    "DeclarativeHttpBodyV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "none",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "template": {
+              "$ref": "#/$defs/HttpJsonTemplateV1"
+            },
+            "type": {
+              "const": "application_json",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "template"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DeclarativeHttpMethodV1": {
+      "enum": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "type": "string"
+    },
+    "DeclarativeHttpTargetV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "base_path": {
+              "$ref": "#/$defs/HttpBasePathV1"
+            },
+            "origin": {
+              "$ref": "#/$defs/FixedHttpsOriginV1"
+            },
+            "type": {
+              "const": "fixed_https",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "origin",
+            "base_path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "endpoint_slot_key": {
+              "$ref": "#/$defs/HttpEndpointSlotKeyV1"
+            },
+            "type": {
+              "const": "user_bound_endpoint",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "endpoint_slot_key"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "EnvironmentLiteralValueV1": {
+      "maxLength": 8192,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$",
+      "type": "string"
+    },
+    "EnvironmentVariableNameV1": {
+      "maxLength": 64,
+      "minLength": 1,
+      "not": {
+        "enum": [
+          "PATH",
+          "PATHEXT",
+          "PSMODULEPATH",
+          "COMSPEC",
+          "SYSTEMROOT",
+          "WINDIR",
+          "TEMP",
+          "TMP",
+          "LOCALAPPDATA",
+          "AURA_TOOL_CALL_ID",
+          "AURA_TOOL_EXECUTION_ATTEMPT_ID",
+          "AURA_TOOL_OUTPUT_ROOT"
+        ]
+      },
+      "pattern": "^[A-Z_][A-Z0-9_]{0,63}$",
+      "type": "string"
+    },
+    "FileResourceAccessV1": {
+      "enum": [
+        "read",
+        "write",
+        "create",
+        "delete",
+        "execute",
+        "observe"
+      ],
+      "type": "string"
+    },
+    "FixedHttpsOriginV1": {
+      "format": "uri",
+      "maxLength": 2048,
+      "pattern": "^https://[^/?#]+$",
+      "type": "string"
+    },
+    "GitRefResourceAccessV1": {
+      "enum": [
+        "read",
+        "write",
+        "create",
+        "delete"
+      ],
+      "type": "string"
+    },
+    "GitSequencerResourceAccessV1": {
+      "enum": [
+        "observe",
+        "control"
+      ],
+      "type": "string"
+    },
+    "HttpBasePathV1": {
+      "allOf": [
+        {
+          "pattern": "^/(?:(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-F]{2})+(?:/(?:[A-Za-z0-9._~!$&'()*+,;=:@-]|%[0-9A-F]{2})+)*/?)?$"
+        },
+        {
+          "not": {
+            "pattern": "/(?:\\.|%2E)(?:(?:\\.|%2E))?(?:/|$)"
+          }
+        },
+        {
+          "not": {
+            "pattern": "%(?:2F|5C|0[0-9A-F]|1[0-9A-F]|7F)"
+          }
+        }
+      ],
+      "maxLength": 2048,
+      "minLength": 1,
+      "type": "string"
+    },
+    "HttpCredentialSlotV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "slot_key": {
+              "$ref": "#/$defs/CredentialSlotKey"
+            },
+            "type": {
+              "const": "bearer_authorization",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "slot_key"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "header_name": {
+              "$ref": "#/$defs/HttpHeaderNameV1"
+            },
+            "slot_key": {
+              "$ref": "#/$defs/CredentialSlotKey"
+            },
+            "type": {
+              "const": "fixed_header",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "slot_key",
+            "header_name"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "HttpEndpointSlotKeyV1": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+      "type": "string"
+    },
+    "HttpHeaderEntryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/HttpHeaderNameV1"
+        },
+        "value": {
+          "$ref": "#/$defs/HttpHeaderValueSourceV1"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "HttpHeaderLiteralValueV1": {
+      "maxLength": 8192,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$",
+      "type": "string"
+    },
+    "HttpHeaderNameV1": {
+      "maxLength": 128,
+      "minLength": 1,
+      "not": {
+        "pattern": "^(?:[Hh][Oo][Ss][Tt]|[Cc][Oo][Nn][Tt][Ee][Nn][Tt]-[Ll][Ee][Nn][Gg][Tt][Hh]|[Tt][Rr][Aa][Nn][Ss][Ff][Ee][Rr]-[Ee][Nn][Cc][Oo][Dd][Ii][Nn][Gg]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt]-[Cc][Oo][Oo][Kk][Ii][Ee]|[Uu][Pp][Gg][Rr][Aa][Dd][Ee]|[Tt][Rr][Aa][Ii][Ll][Ee][Rr]|[Ee][Xx][Pp][Ee][Cc][Tt]|[Tt][Ee]|[Pp][Rr][Oo][Xx][Yy]-.*)$"
+      },
+      "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$",
+      "type": "string"
+    },
+    "HttpHeaderValueSourceV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/HttpHeaderLiteralValueV1"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "scalar",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "HttpJsonPropertyNameV1": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "HttpJsonPropertyV1": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/HttpJsonPropertyNameV1"
+        },
+        "value": {
+          "$ref": "#/$defs/HttpJsonTemplateV1"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "HttpJsonTemplateV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": true
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "items": {
+                "$ref": "#/$defs/HttpJsonTemplateV1"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "array",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "items"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "properties": {
+              "items": {
+                "$ref": "#/$defs/HttpJsonPropertyV1"
+              },
+              "type": "array"
+            },
+            "type": {
+              "const": "object",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "properties"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "HttpPathLiteralSegmentV1": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^(?!(?:\\.|\\.\\.)$)[^/\\\\\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "HttpPathSegmentV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/HttpPathLiteralSegmentV1"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "HttpQueryEntryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/HttpQueryNameV1"
+        },
+        "value": {
+          "$ref": "#/$defs/HttpValueSourceV1"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    },
+    "HttpQueryLiteralValueV1": {
+      "maxLength": 8192,
+      "minLength": 0,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$",
+      "type": "string"
+    },
+    "HttpQueryNameV1": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "HttpValueSourceV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/HttpQueryLiteralValueV1"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "scalar",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "repeated",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "InstanceConfigurationKeyV1": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+      "type": "string"
+    },
+    "NetworkResourceAccessV1": {
+      "enum": [
+        "read",
+        "write",
+        "observe"
+      ],
+      "type": "string"
+    },
+    "PackageArtifactSelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/ArtifactResourceAccessV1"
+            },
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/PackageAttemptStagingArtifactAccessV1"
+            },
+            "type": {
+              "const": "attempt_staging",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "access"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageAttemptStagingArtifactAccessV1": {
+      "enum": [
+        "create"
+      ],
+      "type": "string"
+    },
+    "PackageCapabilityRequirementV1": {
+      "enum": [
+        "workspace_file_read",
+        "workspace_file_write",
+        "workspace_file_create",
+        "workspace_file_delete",
+        "external_file_read",
+        "external_file_write",
+        "external_file_create",
+        "external_file_delete",
+        "process_execute",
+        "git_read",
+        "git_write",
+        "git_remote_read",
+        "git_remote_write",
+        "git_destructive",
+        "public_network_read",
+        "private_network_access",
+        "data_egress",
+        "download_artifact",
+        "download_windows_executable",
+        "external_service_read",
+        "external_service_mutation",
+        "external_service_destructive_mutation"
+      ],
+      "type": "string"
+    },
+    "PackageDeclaredResourceClaimV1": {
+      "description": "Package-authored resource requirements. Every variant exposes only the\nselectors and invocation contexts frozen for that resource class.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/FileResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "selector": {
+              "$ref": "#/$defs/PackageWorkspacePathSelectorV1"
+            },
+            "type": {
+              "const": "workspace_path",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/FileResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "selector": {
+              "$ref": "#/$defs/PackageExternalFileSelectorV1"
+            },
+            "type": {
+              "const": "external_file",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/NetworkResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "selector": {
+              "$ref": "#/$defs/PackageNetworkTargetSelectorV1"
+            },
+            "type": {
+              "const": "network_target",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/ProcessResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "selector": {
+              "$ref": "#/$defs/PackageProcessSelectorV1"
+            },
+            "type": {
+              "const": "process",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/TerminalResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "selector": {
+              "$ref": "#/$defs/PackageTerminalSessionSelectorV1"
+            },
+            "type": {
+              "const": "terminal_session",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/RepositoryResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "repository_selector": {
+              "$ref": "#/$defs/PackageGitRepositorySelectorV1"
+            },
+            "type": {
+              "const": "git_repository",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "repository_selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/ReadWriteResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "repository_selector": {
+              "$ref": "#/$defs/PackageGitRepositorySelectorV1"
+            },
+            "type": {
+              "const": "git_index",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "repository_selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/GitRefResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "ref_selector": {
+              "$ref": "#/$defs/PackageGitRefSelectorV1"
+            },
+            "repository_selector": {
+              "$ref": "#/$defs/PackageGitRepositorySelectorV1"
+            },
+            "type": {
+              "const": "git_ref",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "repository_selector",
+            "ref_selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "access": {
+              "$ref": "#/$defs/GitSequencerResourceAccessV1"
+            },
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "repository_selector": {
+              "$ref": "#/$defs/PackageGitRepositorySelectorV1"
+            },
+            "type": {
+              "const": "git_sequencer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "repository_selector",
+            "access"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "claim_key": {
+              "$ref": "#/$defs/PackageResourceClaimKeyV1"
+            },
+            "selector": {
+              "$ref": "#/$defs/PackageArtifactSelectorV1"
+            },
+            "type": {
+              "const": "artifact",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "claim_key",
+            "selector"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageExternalFileSelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "path_scope": {
+              "$ref": "#/$defs/PackagePathScopeV1"
+            },
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer",
+            "path_scope"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageGitRefSelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageGitRepositorySelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "workspace_root",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageKey": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$",
+      "type": "string"
+    },
+    "PackageNetworkTargetSelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "runtime_http_target",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackagePathScopeV1": {
+      "enum": [
+        "exact",
+        "subtree"
+      ],
+      "type": "string"
+    },
+    "PackageProcessSelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageRelativePath": {
+      "allOf": [
+        {
+          "not": {
+            "pattern": "[<>\"|?*]"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(?:^|/)(?:[Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm](?:[1-9¹²³])|[Ll][Pp][Tt](?:[1-9¹²³]))(?:[.]|/|$)"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(?:^|/)[^/]*[ .](?:/|$)"
+          }
+        }
+      ],
+      "maxLength": 1024,
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*:)(?!.*(?:^|/)[.]{1,2}(?:/|$))(?!.*[\\u0000-\\u001f\\u007f])[^/]{1,255}(?:/[^/]{1,255}){0,31}$",
+      "type": "string"
+    },
+    "PackageResourceClaimKeyV1": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+      "type": "string"
+    },
+    "PackageTerminalSessionSelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageToolAudienceV1": {
+      "enum": [
+        "subagent_configurable",
+        "parent_agent_only"
+      ],
+      "type": "string"
+    },
+    "PackageWorkspacePathSelectorV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "path_scope": {
+              "$ref": "#/$defs/PackagePathScopeV1"
+            },
+            "pointer": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "argument_json_pointer",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "pointer",
+            "path_scope"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "path_scope": {
+              "$ref": "#/$defs/PackageWorkspaceRootPathScopeV1"
+            },
+            "type": {
+              "const": "workspace_root",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "path_scope"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PackageWorkspaceRootPathScopeV1": {
+      "enum": [
+        "subtree"
+      ],
+      "type": "string"
+    },
+    "ProcessResourceAccessV1": {
+      "enum": [
+        "execute",
+        "observe",
+        "control"
+      ],
+      "type": "string"
+    },
+    "ReadWriteResourceAccessV1": {
+      "enum": [
+        "read",
+        "write"
+      ],
+      "type": "string"
+    },
+    "RepositoryResourceAccessV1": {
+      "enum": [
+        "read",
+        "write",
+        "observe"
+      ],
+      "type": "string"
+    },
+    "TerminalResourceAccessV1": {
+      "enum": [
+        "observe",
+        "control"
+      ],
+      "type": "string"
+    },
+    "ToolCanonicalName": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(?:[.][a-z0-9][a-z0-9_-]{0,63})*$",
+      "type": "string"
+    },
+    "ToolExecutionSemanticsV1": {
+      "additionalProperties": false,
+      "properties": {
+        "automatic_retry_allowed": {
+          "description": "The definition explicitly permits an automatic retry after all Core\nsafety gates have also passed.",
+          "type": "boolean"
+        },
+        "may_create_persistent_effects": {
+          "description": "The runtime can create a persistent effect outside its attempt-local\nstaging area. Actual SideEffectState remains Core-derived evidence.",
+          "type": "boolean"
+        },
+        "repeat_is_idempotent": {
+          "description": "Repeating the same normalized invocation is declared idempotent.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "automatic_retry_allowed",
+        "repeat_is_idempotent",
+        "may_create_persistent_effects"
+      ],
+      "type": "object"
+    },
+    "ToolKey": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+      "type": "string"
+    },
+    "ToolPackageCommandArgumentV1": {
+      "description": "Declarative argv mapping authored by a Package. `NamedOption` carries the\nfrozen omission rule explicitly instead of relying on missing-value\ncoercion in a Runtime implementation.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "literal",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/CommandLiteralV1"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "scalar",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "repeated",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "flag": {
+              "$ref": "#/$defs/CommandFlagV1"
+            },
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "conditional_flag",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "source",
+            "flag"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/CommandOptionNameV1"
+            },
+            "omit_when_missing_or_null": {
+              "type": "boolean"
+            },
+            "source": {
+              "$ref": "#/$defs/ArgumentJsonPointer"
+            },
+            "type": {
+              "const": "named_option",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "source",
+            "omit_when_missing_or_null"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ToolPackageCommandSuccessExitCodesV1": {
+      "items": {
+        "format": "int32",
+        "type": "integer"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "ToolPackageConformanceCaseNameV1": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "ToolPackageConformanceCaseV1": {
+      "additionalProperties": false,
+      "description": "A V1 Package conformance case is deliberately narrow: it supplies one\nPackage-argument object to the owning Tool. Result interpretation remains\ngoverned by that Tool's declared Result Contract; this draft does not add a\nsecond assertion language.",
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/ToolPackageJsonObjectV1"
+        },
+        "name": {
+          "$ref": "#/$defs/ToolPackageConformanceCaseNameV1"
+        }
+      },
+      "required": [
+        "name",
+        "arguments"
+      ],
+      "type": "object"
+    },
+    "ToolPackageFileEntryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_length": {
+          "format": "uint64",
+          "maximum": 67108864,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "$ref": "#/$defs/PackageRelativePath"
+        },
+        "role": {
+          "$ref": "#/$defs/ToolPackageFileRoleV1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/ToolPackageFileSha256V1"
+        }
+      },
+      "required": [
+        "path",
+        "byte_length",
+        "sha256",
+        "role"
+      ],
+      "type": "object"
+    },
+    "ToolPackageFileRoleV1": {
+      "enum": [
+        "runtime_executable",
+        "runtime_script",
+        "runtime_library",
+        "runtime_resource",
+        "conformance_fixture",
+        "documentation",
+        "license"
+      ],
+      "type": "string"
+    },
+    "ToolPackageFileSha256V1": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "sha256",
+          "type": "string"
+        },
+        "hex": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "algorithm",
+        "hex"
+      ],
+      "type": "object"
+    },
+    "ToolPackageHttpSuccessStatusRangesV1": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "maximum": 599,
+            "minimum": 100,
+            "type": "integer"
+          },
+          "start": {
+            "maximum": 599,
+            "minimum": 100,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object"
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "type": "array"
+    },
+    "ToolPackageJsonObjectV1": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "ToolPackageManifestSchemaVersionV1": {
+      "const": 1,
+      "type": "integer"
+    },
+    "ToolPackageModelDescriptionV1": {
+      "maxLength": 16384,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "ToolPackageModelSummaryV1": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "ToolPackageStdioProtocolVersionV1": {
+      "const": 1,
+      "type": "integer"
+    },
+    "ToolPackageToolDisplayNameV1": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "ToolPackageToolUiV1": {
+      "additionalProperties": false,
+      "description": "UI-only metadata. It is deliberately separate from model-visible text and\ntherefore is not reused as a Provider description.",
+      "properties": {
+        "display_name": {
+          "$ref": "#/$defs/ToolPackageToolDisplayNameV1"
+        }
+      },
+      "required": [
+        "display_name"
+      ],
+      "type": "object"
+    },
+    "ToolPackageUiDescriptionV1": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "ToolPackageUiDisplayNameV1": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "type": "string"
+    },
+    "ToolResultContractV1": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "unit",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "utf8_text",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "result_schema": {
+              "$ref": "#/$defs/CanonicalJsonSchemaDocumentV1"
+            },
+            "type": {
+              "const": "structured_json",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "result_schema"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://schemas.aura.local/contracts/v1/aura-tool-package-canonical-manifest.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Normalized contract used as the future fingerprint input. Defaults are\nexplicit and schemas are already represented by their canonical P07 forms.\nThe pure conversion method is Contract-only and is not wired to a file\nparser, Package Store, Trust, Conformance, Journal, or Eligible Registry.",
+  "properties": {
+    "files": {
+      "items": {
+        "$ref": "#/$defs/ToolPackageFileEntryV1"
+      },
+      "maxItems": 4095,
+      "type": "array"
+    },
+    "minimum_aura_version": {
+      "$ref": "#/$defs/CanonicalSemVer"
+    },
+    "package_key": {
+      "$ref": "#/$defs/PackageKey"
+    },
+    "package_version": {
+      "$ref": "#/$defs/CanonicalSemVer"
+    },
+    "schema_version": {
+      "$ref": "#/$defs/ToolPackageManifestSchemaVersionV1"
+    },
+    "tools": {
+      "items": {
+        "$ref": "#/$defs/CanonicalToolPackageToolV1"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "ui": {
+      "$ref": "#/$defs/CanonicalToolPackageUiV1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "package_key",
+    "package_version",
+    "minimum_aura_version",
+    "ui",
+    "files",
+    "tools"
+  ],
+  "title": "AuraToolPackageCanonicalManifestV1",
+  "type": "object"
+}

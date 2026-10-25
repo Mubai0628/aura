@@ -1,0 +1,51 @@
+.settings-recovery {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface-muted);
+  overflow-wrap: anywhere;
+}
+.settings-recovery h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+.settings-recovery h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.875rem;
+}
+.settings-recovery p,
+.settings-recovery li {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.settings-recovery fieldset {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.settings-recovery label {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.settings-recovery small {
+  flex-basis: 100%;
+  margin-left: 1.5rem;
+}
+.settings-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.settings-recovery button {
+  min-height: 2.25rem;
+  padding: 0.5rem 0.75rem;
+}
+/* Buttons keep the keyboard outline; fields show focus as every field does (base.css). */
+.settings-recovery button:focus-visible,
+.settings-recovery input:is([type='checkbox'], [type='radio']):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

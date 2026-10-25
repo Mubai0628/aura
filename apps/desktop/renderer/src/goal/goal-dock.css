@@ -1,0 +1,151 @@
+/* The conversation's Goal in the 近期活动 card, in the task list's language -
+   a ring that turns and a light that passes while its turn works on it, a check once it is complete,
+   and a close then. */
+.goal-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.goal-head .activity-section-title {
+  flex: none;
+}
+
+.goal-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.goal-status.is-running {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.goal-status.is-completed {
+  color: var(--success);
+}
+
+.goal-mark {
+  position: relative;
+  display: grid;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--surface);
+  background: var(--surface);
+}
+
+.goal-status.is-completed .goal-mark {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+.goal-status.is-running .goal-mark {
+  border-color: var(--accent-soft);
+}
+
+.goal-status.is-running .goal-mark::after {
+  position: absolute;
+  inset: -1.5px;
+  border: 1.5px solid transparent;
+  border-top-color: var(--success);
+  border-right-color: var(--success);
+  border-radius: 50%;
+  animation: goal-turn 0.9s linear infinite;
+  content: '';
+}
+
+/* Inside the card these are icon squares, not the card's word buttons. */
+.goal-dock .goal-icon-button {
+  display: grid;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--quiet);
+  background: transparent;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.goal-dock .goal-icon-button:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-muted);
+}
+
+/* While the turn works on the Goal: a hairline with a light passing along it. */
+.goal-progress {
+  display: block;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background:
+    linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--accent-soft) 30%,
+        var(--success) 50%,
+        var(--accent-soft) 70%,
+        transparent 100%
+      )
+      0 0 / 40% 100% no-repeat,
+    var(--surface-muted);
+  animation: goal-pass 1.8s ease-in-out infinite;
+}
+
+.goal-objective {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goal-usage {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes goal-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes goal-pass {
+  from {
+    background-position:
+      -40% 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      140% 0,
+      0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goal-status.is-running .goal-mark::after,
+  .goal-progress {
+    animation: none;
+  }
+}

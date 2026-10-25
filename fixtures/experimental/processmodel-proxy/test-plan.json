@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "sandbox_spec_version": "0.1.0",
+  "required_export": "Experimental_CreateProcessInSandbox",
+  "required_policy_field": "network_policy.proxy.url",
+  "official_documentation_verified_at": "2026-08-30",
+  "official_header_status_when_verified": "not_publicly_available",
+  "aura_audited_flatbuffer_binding_available": false,
+  "execution_policy": "Do not invoke the experimental ABI until an official or independently audited SandboxSpec.fbs binding is available.",
+  "planned_test_matrix": [
+    {
+      "id": "authorized_http_1_1_via_aura_proxy",
+      "category": "compatibility",
+      "required_result": "request reaches the authorized origin only through the Aura proxy"
+    },
+    {
+      "id": "authorized_https_connect_via_aura_proxy",
+      "category": "compatibility",
+      "required_result": "TLS destination and CONNECT target remain bound to the execution grant"
+    },
+    {
+      "id": "aura_proxy_credential_handoff",
+      "category": "compatibility",
+      "required_result": "the sandbox can authenticate without embedding a bearer secret in the proxy URL, command line, environment, or logs"
+    },
+    {
+      "id": "raw_tcp_direct_destination_bypass",
+      "category": "bypass",
+      "required_result": "direct Winsock traffic that does not use the configured proxy is denied"
+    },
+    {
+      "id": "udp_quic_and_direct_dns_bypass",
+      "category": "bypass",
+      "required_result": "UDP, QUIC, and direct DNS cannot bypass the configured proxy path"
+    },
+    {
+      "id": "proxy_override_and_no_proxy_bypass",
+      "category": "bypass",
+      "required_result": "process-local proxy overrides and bypass lists cannot weaken the OS policy"
+    },
+    {
+      "id": "child_process_inheritance",
+      "category": "bypass",
+      "required_result": "all descendants remain under the same proxy enforcement and execution Job"
+    },
+    {
+      "id": "redirect_and_dns_rebinding",
+      "category": "bypass",
+      "required_result": "redirects and hostname re-resolution cannot reach loopback, private, link-local, or cloud metadata targets"
+    },
+    {
+      "id": "proxy_failure_is_fail_closed",
+      "category": "bypass",
+      "required_result": "proxy loss or credential revocation closes active traffic and does not enable direct egress"
+    },
+    {
+      "id": "execution_cleanup",
+      "category": "cleanup",
+      "required_result": "process tree, Job, proxy state, credentials, profile state, handles, and temporary files are removed or revoked"
+    }
+  ]
+}

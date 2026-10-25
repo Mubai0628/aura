@@ -1,0 +1,21 @@
+[package]
+name = "aura-skills"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+blake3.workspace = true
+schemars.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+junction.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

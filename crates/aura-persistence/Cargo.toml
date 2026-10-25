@@ -1,0 +1,41 @@
+[package]
+name = "aura-persistence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-package = { path = "../aura-tool-package" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+aura-tool-scheduler = { path = "../aura-tool-scheduler" }
+blake3.workspace = true
+getrandom.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+ulid.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+aura-context-fixtures = { path = "../aura-context-fixtures" }
+aura-context-runtime = { path = "../aura-context-runtime" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

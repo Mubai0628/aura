@@ -1,0 +1,375 @@
+/* The Markdown body keeps the surface typography of the message it replaces.
+   Streamdown styles its own blocks and inline elements, so only the container
+   reset and this product's own links are styled here. */
+.markdown-body {
+  display: flow-root;
+  line-height: 1.7;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* A host may carry `white-space: pre-wrap` from a plain-text body; source
+     newlines inside a paragraph must not become hard breaks here. */
+  white-space: normal;
+}
+
+/* A host class that carries `pre-wrap` for plain text must not turn source
+   newlines into hard breaks inside a Markdown body. */
+.agent-message-text.markdown-body,
+.agent-final-report.markdown-body,
+.agent-reasoning.markdown-body {
+  white-space: normal;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Streamdown wraps blocks, so the direct-child reset above does not reach the
+   paragraph inside a user bubble, a final answer or a note between tools. Drop only the outer edge;
+   blocks that follow each other keep a small gap. */
+.agent-user-message
+  .markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ),
+.agent-final-report.markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ),
+.agent-interim-reply.markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ) {
+  margin-block: 0.5em;
+}
+
+.agent-user-message
+  .markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ):first-child,
+.agent-final-report.markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ):first-child,
+.agent-interim-reply.markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ):first-child {
+  margin-top: 0;
+}
+
+.agent-user-message
+  .markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ):last-child,
+.agent-final-report.markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ):last-child,
+.agent-interim-reply.markdown-body
+  :is(
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    ul,
+    ol,
+    blockquote,
+    pre,
+    [data-streamdown='paragraph'],
+    [data-streamdown='code-block'],
+    [data-streamdown='table-wrapper']
+  ):last-child {
+  margin-bottom: 0;
+}
+
+/* A link is shown, not opened: the window denies new windows and the preload
+   bridge exposes no controlled open-URL path, so the anchor is replaced by its
+   label and its readable address. */
+.markdown-link {
+  color: var(--accent-strong);
+}
+
+/* The address stays readable, copyable whole and wrapped when it is long. The
+   parentheses belong to the link component, so the gap here is the space after
+   the label only. */
+.markdown-link-url {
+  color: var(--muted);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* Streamdown emits utility classes the desktop stylesheet does not generate.
+   These rules style the stable block elements themselves: a fence keeps its
+   source text and scrolls sideways inside its own box. */
+.markdown-body pre,
+.markdown-body [data-streamdown='code-block'],
+.markdown-body [data-streamdown='table-wrapper'] {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  margin: 8px 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: #f3f3f1;
+  border: 1px solid var(--line, #e3e3df);
+  border-radius: 8px;
+}
+
+.markdown-body pre code,
+.markdown-body [data-streamdown='code-block'] code {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  white-space: pre;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+/* Streamdown puts each line of a fence in its own span and leaves the line break to a `block`
+   utility this stylesheet does not generate; without it the lines run together. */
+.markdown-body [data-streamdown='code-block'] code > span {
+  display: block;
+}
+
+/* The elements Streamdown leaves unstyled here — inline code, tables, quotes, headings and
+   rules — in the app's quiet tones. A table sits on the surface with ruled rows rather than in the
+   grey box a code block uses. */
+.markdown-body :not(pre) > code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(36, 39, 36, 0.06);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.88em;
+}
+
+/* A file path in inline code opens the file. */
+.markdown-file-link {
+  display: inline;
+  padding: 0;
+  border: 0;
+  color: var(--accent-strong, #2f524c);
+  background: none;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+/* Dotted until hovered: a path is visibly something to click, without shouting. */
+.markdown-file-link > code {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.markdown-file-link:hover > code {
+  text-decoration: underline solid;
+}
+
+.markdown-file-link:focus-visible {
+  border-radius: 5px;
+  outline: 2px solid var(--focus, #2e6973);
+  outline-offset: 1px;
+}
+
+.markdown-body [data-streamdown='table-wrapper'] {
+  padding: 0;
+  background: var(--surface, #ffffff);
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line, #e3e3df);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-body th {
+  color: var(--ink, #242724);
+  background: var(--surface-muted, #f4f5f2);
+  font-weight: 600;
+}
+
+.markdown-body tr:last-child td {
+  border-bottom: 0;
+}
+
+.markdown-body blockquote {
+  margin: 8px 0;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--line-strong, #d5d8d3);
+  color: var(--muted, #606761);
+}
+
+.markdown-body :is(h1, h2, h3, h4) {
+  margin: 1em 0 0.4em;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.markdown-body h1 {
+  font-size: 1.32em;
+}
+
+.markdown-body h2 {
+  font-size: 1.18em;
+}
+
+.markdown-body h3 {
+  font-size: 1.06em;
+}
+
+.markdown-body hr {
+  margin: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--line, #e3e3df);
+}
+
+.markdown-body :is(ul, ol) {
+  padding-left: 1.4em;
+}
+
+.markdown-body li + li {
+  margin-top: 2px;
+}
+
+/* A web link in a conversation opens in the default browser. */
+.markdown-web-link {
+  color: #2f6d57;
+  text-decoration: underline;
+  text-decoration-color: rgba(47, 109, 87, 0.45);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.markdown-web-link:hover {
+  text-decoration-color: currentColor;
+}
+
+/* A web address written as code is a link, in the link's colour. */
+.markdown-code-link > code {
+  color: inherit;
+}

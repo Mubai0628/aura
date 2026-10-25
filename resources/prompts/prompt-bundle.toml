@@ -1,0 +1,363 @@
+schema_version = 1
+bundle_version = "1.15.1"
+serializer_version = 1
+
+[[modules]]
+id = "core.identity"
+version = "1.0.0"
+path = "core/identity.md"
+required = true
+section = "core"
+activation = "always"
+order = 10
+
+[[modules]]
+id = "core.environment"
+version = "1.0.0"
+path = "core/environment.md"
+required = true
+section = "core"
+activation = "always"
+order = 15
+
+[[modules]]
+id = "core.instruction-hierarchy"
+version = "1.0.0"
+path = "core/instruction-hierarchy.md"
+required = true
+section = "core"
+activation = "always"
+order = 20
+
+[[modules]]
+id = "core.truth-and-evidence"
+version = "1.0.0"
+path = "core/truth-and-evidence.md"
+required = true
+section = "core"
+activation = "always"
+order = 30
+
+[[modules]]
+id = "core.agent-loop"
+version = "2.1.0"
+path = "core/agent-loop.md"
+required = true
+section = "core"
+activation = "always"
+order = 40
+
+[[modules]]
+id = "core.tool-protocol"
+version = "1.2.0"
+path = "core/tool-protocol.md"
+required = true
+section = "core"
+activation = "always"
+order = 50
+
+[[modules]]
+id = "core.capability-selection"
+version = "1.0.0"
+path = "core/capability-selection.md"
+required = true
+section = "core"
+activation = "always"
+order = 60
+
+[[modules]]
+id = "core.user-interaction"
+version = "1.1.0"
+path = "core/user-interaction.md"
+required = true
+section = "core"
+activation = "always"
+order = 70
+
+[[modules]]
+id = "core.turn-routing"
+version = "1.0.0"
+path = "core/turn-routing.md"
+required = true
+section = "core"
+activation = "always"
+order = 80
+
+[[modules]]
+id = "core.task-lineage"
+version = "1.3.0"
+path = "core/task-lineage.md"
+required = true
+section = "core"
+activation = "always"
+order = 90
+
+[[modules]]
+id = "core.normal-completion"
+version = "2.2.0"
+path = "core/normal-completion.md"
+required = true
+section = "core"
+activation = "always"
+order = 100
+
+[[modules]]
+id = "core.completion-and-interruption"
+version = "1.1.0"
+path = "core/completion-and-interruption.md"
+required = true
+section = "core"
+activation = "always"
+order = 110
+
+[[modules]]
+id = "core.context-and-history"
+version = "1.2.0"
+path = "core/context-and-history.md"
+required = true
+section = "core"
+activation = "always"
+order = 120
+
+[[modules]]
+id = "core.external-content"
+version = "1.0.0"
+path = "core/external-content.md"
+required = true
+section = "core"
+activation = "always"
+order = 130
+
+[[modules]]
+id = "capabilities.files"
+version = "1.2.1"
+path = "capabilities/files.md"
+required = true
+section = "core"
+activation = "always"
+order = 140
+
+[[modules]]
+id = "capabilities.shell-terminal-process"
+version = "1.3.1"
+path = "capabilities/shell-terminal-process.md"
+required = false
+section = "core"
+activation = "capability:shell_terminal_process"
+order = 150
+
+[[modules]]
+id = "capabilities.git"
+version = "1.0.0"
+path = "capabilities/git.md"
+required = false
+section = "core"
+activation = "capability:git"
+order = 160
+
+[[modules]]
+id = "capabilities.web"
+version = "1.1.0"
+path = "capabilities/web.md"
+required = false
+section = "core"
+activation = "capability:web"
+order = 170
+
+[[modules]]
+id = "capabilities.browser"
+version = "1.1.0"
+path = "capabilities/browser.md"
+required = false
+section = "core"
+activation = "capability:browser"
+order = 180
+
+[[modules]]
+id = "capabilities.memory"
+version = "1.1.0"
+path = "capabilities/memory.md"
+required = false
+section = "core"
+activation = "capability:memory"
+order = 190
+
+[[modules]]
+id = "capabilities.mcp"
+version = "1.0.0"
+path = "capabilities/mcp.md"
+required = false
+section = "core"
+activation = "capability:mcp"
+order = 200
+
+[[modules]]
+id = "capabilities.skills"
+version = "1.0.0"
+path = "capabilities/skills.md"
+required = false
+section = "core"
+activation = "capability:skills"
+order = 210
+
+[[modules]]
+id = "capabilities.tool-authoring"
+version = "1.0.0"
+path = "capabilities/tool-authoring.md"
+required = false
+section = "core"
+activation = "capability:tool_authoring"
+order = 220
+
+[[modules]]
+id = "capabilities.command-authoring"
+version = "1.1.0"
+path = "capabilities/command-authoring.md"
+required = false
+section = "core"
+activation = "capability:command_authoring"
+order = 230
+
+[[modules]]
+id = "capabilities.workspace-init"
+version = "1.1.0"
+path = "capabilities/workspace-init.md"
+required = false
+section = "core"
+activation = "capability:workspace_init"
+order = 240
+
+[[modules]]
+id = "capabilities.compaction-command"
+version = "1.1.0"
+path = "capabilities/compaction-command.md"
+required = false
+section = "task_state"
+activation = "capability:compaction_command"
+order = 60
+
+[[modules]]
+id = "mode.normal"
+version = "1.3.0"
+path = "modes/normal.md"
+required = true
+section = "agent_mode"
+activation = "agent_mode:normal"
+order = 10
+
+[[modules]]
+id = "mode.plan"
+version = "1.2.0"
+path = "modes/plan.md"
+required = true
+section = "agent_mode"
+activation = "agent_mode:plan"
+order = 20
+
+[[modules]]
+id = "mode.goal"
+version = "1.3.0"
+path = "modes/goal.md"
+required = true
+section = "agent_mode"
+activation = "agent_mode:goal"
+order = 30
+
+[[modules]]
+id = "agents.child-agent-role"
+version = "1.0.0"
+path = "agents/child-agent-role.md"
+required = false
+section = "task_state"
+activation = "child_agent"
+order = 10
+
+[[modules]]
+id = "recovery.stream-interrupted"
+version = "1.0.0"
+path = "recovery/stream-interrupted.md"
+required = false
+section = "task_state"
+activation = "recovery:stream_interrupted"
+order = 20
+
+[[modules]]
+id = "recovery.failed-retry"
+version = "1.0.0"
+path = "recovery/failed-retry.md"
+required = false
+section = "task_state"
+activation = "recovery:failed_retry"
+order = 30
+
+[[modules]]
+id = "recovery.context-rebuilt"
+version = "1.0.0"
+path = "recovery/context-rebuilt.md"
+required = false
+section = "task_state"
+activation = "recovery:context_rebuilt"
+order = 40
+
+[[modules]]
+id = "recovery.application-restarted"
+version = "1.0.0"
+path = "recovery/application-restarted.md"
+required = false
+section = "task_state"
+activation = "recovery:application_restarted"
+order = 50
+
+[[modules]]
+id = "compaction.system"
+version = "1.0.0"
+path = "compaction/system.md"
+required = true
+section = "compaction"
+activation = "compaction"
+order = 10
+
+[[modules]]
+id = "compaction.historical-snapshot"
+version = "1.1.0"
+path = "compaction/historical-snapshot.md"
+required = true
+section = "compaction"
+activation = "compaction"
+order = 20
+
+[[modules]]
+id = "compaction.active-turn-progress"
+version = "1.0.0"
+path = "compaction/active-turn-progress.md"
+required = true
+section = "compaction"
+activation = "compaction"
+order = 30
+
+[[modules]]
+id = "maintenance.memory-maintenance"
+version = "1.1.0"
+path = "maintenance/memory-maintenance.md"
+required = false
+section = "maintenance"
+activation = "maintenance:memory"
+order = 10
+
+[[modules]]
+id = "maintenance.failure-summary"
+version = "1.0.0"
+path = "maintenance/failure-summary.md"
+required = false
+section = "maintenance"
+activation = "maintenance:failure_summary"
+order = 20
+
+[[modules]]
+id = "maintenance.environment-update"
+version = "1.0.0"
+path = "maintenance/environment-update.md"
+required = false
+section = "maintenance"
+activation = "maintenance:environment_update"
+order = 30

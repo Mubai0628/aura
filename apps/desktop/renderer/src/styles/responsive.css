@@ -1,0 +1,97 @@
+/* The model's name is no
+   longer cut to 95px in a window up to 1180px wide. The composer row shows every name whole when
+   it has room and icons alone when it has not (useCompactRow). */
+
+@media (max-width: 1020px) {
+  .security-settings-grid,
+  .tool-settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .isolation-surface {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 860px) {
+  .settings-layout {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+  .settings-navigation button {
+    justify-content: center;
+  }
+
+  .settings-navigation button span,
+  .settings-navigation > p:first-child {
+    display: none;
+  }
+
+  .settings-core-status {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .conversation-scroll {
+    padding-inline: 22px;
+  }
+
+  .model-select {
+    margin-left: 0;
+  }
+
+  .settings-header p,
+  .settings-search kbd {
+    display: none;
+  }
+
+  .settings-header {
+    gap: 10px;
+  }
+
+  .settings-header-leading {
+    gap: 8px;
+  }
+
+  .settings-back-button {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .settings-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .settings-form-grid .span-two {
+    grid-column: auto;
+  }
+
+  .credential-boundary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .isolation-surface .security-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .modal-actions {
+    flex-wrap: wrap;
+  }
+
+  .modal-action-spacer {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

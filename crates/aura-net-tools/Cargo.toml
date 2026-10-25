@@ -1,0 +1,19 @@
+[package]
+name = "aura-net-tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+aura-web-domain = { path = "../aura-web-domain" }
+aura-network-control = { path = "../aura-network-control" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+anyhow.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+url.workspace = true
+
+[lints]
+workspace = true

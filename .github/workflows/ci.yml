@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Windows checks
+    runs-on: windows-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+
+      - name: Enable pinned pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.24.0 --activate
+
+      - name: Install JavaScript dependencies
+        shell: pwsh
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Configure Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1-x86_64-pc-windows-msvc --profile minimal --component clippy,rustfmt
+          rustup default 1.97.1-x86_64-pc-windows-msvc
+
+      # Architecture, formatting, contract determinism, manifests and TypeScript types.
+      - name: Fast checks
+        shell: pwsh
+        run: cargo xtask check-fast
+
+      - name: Clippy
+        shell: pwsh
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      # Some unit tests go through the named-pipe bridge, a native module built against Node's headers.
+      - name: Build the native bridge
+        shell: pwsh
+        run: |
+          corepack pnpm --filter @aura/desktop exec node-gyp install --ensure
+          corepack pnpm --filter @aura/desktop build:native
+
+      - name: Unit tests
+        shell: pwsh
+        run: corepack pnpm test
+
+      - name: Verify generated artifacts are committed
+        shell: pwsh
+        run: git diff --exit-code

@@ -1,0 +1,69 @@
+/* Settings → 命令; the page, cards, pills and panels come from styles/settings-pages.css. */
+.command-settings > h3 {
+  margin-top: 28px;
+}
+
+.command-empty {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.command-row-heading code {
+  padding: 0;
+  color: var(--accent-strong);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.command-row-location {
+  margin: 4px 0 0;
+  color: var(--quiet);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.command-remove {
+  margin-left: auto;
+}
+
+.settings-card > .settings-panel {
+  margin-top: 12px;
+}
+
+.command-list pre,
+.command-format pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.command-list.is-builtin {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.command-list.is-builtin > li {
+  padding: 10px 14px;
+  box-shadow: none;
+}
+
+.command-list.is-builtin > li p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.command-list.is-builtin .command-row-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}

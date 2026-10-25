@@ -1,0 +1,561 @@
+/* The 文件 tab — the workspace tree beside the open file, read only. */
+.files-panel {
+  container-type: inline-size;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--ink);
+  background: var(--canvas);
+}
+
+.files-panel[hidden] {
+  display: none;
+}
+
+.files-layout {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.files-layout[data-tree='open'] {
+  grid-template-columns: minmax(150px, 34%) minmax(0, 1fr);
+}
+
+/* The line between the tree and the open file moves; its own rule is the
+   border between them. */
+.files-layout[data-tree='open'][data-view='file'] {
+  grid-template-columns: var(--files-tree-width, 220px) 7px minmax(0, 1fr);
+}
+
+.files-layout[data-tree='open'][data-view='file'] > .file-tree {
+  border-right: 0;
+}
+
+.files-tree-resizer {
+  min-height: 0;
+}
+
+/* With no file open the tree has the whole page. */
+.files-layout[data-tree='open'][data-view='none'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.files-layout[data-view='none'] > .file-tree {
+  border-right: 0;
+}
+
+/* A narrow sidebar stacks the tree above the file. */
+@container (max-width: 420px) {
+  .files-layout[data-tree='open'] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(120px, 38%) minmax(0, 1fr);
+  }
+
+  .files-layout[data-tree='open'][data-view='none'] {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .files-layout[data-tree='open'] > .file-tree {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* Stacked, the tree takes its rows' share; there is no side line to move. */
+  .files-layout[data-tree='open'][data-view='file'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .files-tree-resizer {
+    display: none;
+  }
+}
+
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+
+.file-tree-filter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 7px 7px 4px;
+  padding: 0 2px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--quiet);
+  background: var(--surface);
+}
+
+.file-tree-filter input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 0;
+  border: 0;
+  outline: none;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+}
+
+.file-tree-filter .icon-button {
+  width: 24px;
+  height: 24px;
+}
+
+.file-tree-list,
+.file-tree-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-tree-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 4px 8px;
+}
+
+.file-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 3px 6px 3px calc(6px + var(--file-depth, 0) * 13px);
+  border: 0;
+  border-radius: 5px;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-tree-row:hover {
+  background: var(--surface-selected);
+}
+
+.file-tree-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.file-tree-row > svg {
+  flex: none;
+  color: var(--quiet);
+}
+
+.file-tree-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The row of the file the page shows is marked like a selection — a pale
+   accent ground, a bar of the accent on its left, its name stronger; the one asked for is marked
+   the same way and flashes twice as it comes into view. */
+.file-tree-row[data-open='true'],
+.file-tree-row[aria-current='true'] {
+  position: relative;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.file-tree-row[data-open='true']::before,
+.file-tree-row[aria-current='true']::before {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  content: '';
+}
+
+.file-tree-row[data-open='true'] > svg,
+.file-tree-row[aria-current='true'] > svg {
+  color: var(--accent);
+}
+
+.file-tree-row[aria-current='true'] {
+  animation: file-row-located 0.5s ease-in-out 2;
+}
+
+@keyframes file-row-located {
+  50% {
+    background: color-mix(in srgb, var(--accent) 28%, var(--accent-soft));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-tree-row[aria-current='true'] {
+    animation: none;
+  }
+}
+
+.file-tree-row[data-ignored='true'] {
+  color: var(--quiet);
+}
+
+.file-tree-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px calc(6px + var(--file-depth, 0) * 13px);
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.file-tree-note[role='alert'] {
+  color: var(--danger);
+}
+
+.file-tree-note button {
+  padding: 1px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.file-view {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.file-view-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.file-view-header .icon-button {
+  width: 26px;
+  height: 26px;
+}
+
+.file-view-path {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-view-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.file-text {
+  min-width: max-content;
+  padding: 6px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.file-line {
+  display: flex;
+  min-height: 1.6em;
+}
+
+.file-line-number {
+  position: sticky;
+  left: 0;
+  flex: none;
+  min-width: 5ch;
+  padding: 0 12px 0 10px;
+  color: var(--quiet);
+  background: var(--canvas);
+  text-align: right;
+  user-select: none;
+}
+
+.file-line-text {
+  padding-right: 18px;
+  white-space: pre;
+}
+
+.file-line[aria-current='true'],
+.file-line[aria-current='true'] > .file-line-number {
+  background: var(--warning-soft);
+}
+
+.file-markdown {
+  padding: 14px 18px 24px;
+}
+
+.file-view-image {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.file-view-image img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+/* A picture at its own size scrolls in its tab; a video or a sound fills the tab's width. */
+.file-view-image[data-actual] {
+  place-items: start;
+  overflow: auto;
+}
+
+.file-view-image[data-actual] img {
+  max-width: none;
+}
+
+/* The picture is a button that opens the full-window viewer. */
+.file-view-image-open {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.file-view-image[data-actual] .file-view-image-open {
+  max-width: none;
+}
+
+.file-view-image-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.file-view-media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.media-expand {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  color: #fff;
+  background: rgb(0 0 0 / 65%);
+}
+
+.file-view-media[data-expanded] {
+  position: fixed;
+  inset: auto;
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+.file-view-media[data-expanded] video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  object-fit: contain;
+}
+
+.file-view-media[data-expanded] .media-expand {
+  top: 8px;
+  right: 8px;
+}
+
+.file-view-media::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+
+.file-view-media video {
+  width: 100%;
+  max-height: calc(100vh - 160px);
+  border-radius: var(--radius-sm);
+  background: #000;
+}
+
+/* Electron can keep this native control despite controlsList="nofullscreen". */
+.file-view-media video::-webkit-media-controls-fullscreen-button {
+  display: none;
+}
+
+.file-view-media audio {
+  width: 100%;
+}
+
+.file-view-same-names {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-view-status,
+.files-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.file-view-status p,
+.files-empty p {
+  margin: 0;
+}
+
+.file-view-status[role='alert'] {
+  color: var(--danger);
+}
+
+.file-view-status button,
+.file-view-more {
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.file-view-more {
+  margin: 6px 12px 14px;
+}
+
+.file-view-facts {
+  color: var(--quiet);
+}
+
+.files-empty {
+  flex: 1;
+  justify-content: center;
+  color: var(--quiet);
+}
+
+.files-empty h3 {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* The files open in this page, as its own small tabs beside the tree. */
+.files-viewer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.files-viewer > .file-view {
+  flex: 1;
+}
+
+.files-open-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.files-open-row > .icon-button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.files-open-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.files-open-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  max-width: 180px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+
+.files-open-tab:hover {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.files-open-tab[data-shown='true'] {
+  background: var(--surface-selected);
+  color: var(--ink);
+}
+
+.files-open-tab > button[role='tab'] {
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 2px 4px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.files-open-tab > .icon-button {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 2px;
+  border-radius: 5px;
+  opacity: 0.5;
+}
+
+.files-open-tab:hover > .icon-button,
+.files-open-tab[data-shown='true'] > .icon-button,
+.files-open-tab > .icon-button:focus-visible {
+  opacity: 1;
+}

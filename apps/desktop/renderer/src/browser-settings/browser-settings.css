@@ -1,0 +1,107 @@
+/* Settings → 网络与浏览器; the page and its surfaces come from styles/settings-pages.css. */
+.browser-settings > .settings-surface + .settings-surface {
+  margin-top: 14px;
+}
+
+.browser-settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.browser-settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.browser-settings-toggle > span {
+  display: grid;
+  gap: 4px;
+}
+
+.browser-settings-toggle small {
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.browser-settings-debug .browser-settings-toggle small {
+  padding: 6px 9px;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--warning-soft);
+}
+
+.browser-settings-sites {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.browser-site-list h4 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.browser-site-list ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.browser-site-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 2px 1px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.browser-site-list code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.browser-site-list li .icon-button {
+  width: 22px;
+  height: 22px;
+}
+
+.browser-site-list form {
+  display: flex;
+  gap: 6px;
+}
+
+.browser-site-list input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.browser-site-list input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

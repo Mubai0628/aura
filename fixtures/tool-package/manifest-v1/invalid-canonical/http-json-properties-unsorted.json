@@ -1,0 +1,180 @@
+{
+  "files": [
+    {
+      "byte_length": 20,
+      "path": "runtime/http.json",
+      "role": "runtime_resource",
+      "sha256": {
+        "algorithm": "sha256",
+        "hex": "cb1b3dad93b3c27fdb854919c8e9955f2c66be87d1ff3dce9617d4e92fcaf3c2"
+      }
+    }
+  ],
+  "minimum_aura_version": "0.1.0",
+  "package_key": "org.aura.fixture.http",
+  "package_version": "1.0.0",
+  "schema_version": 1,
+  "tools": [
+    {
+      "audience": "subagent_configurable",
+      "capability_requirements": ["data_egress", "public_network_read"],
+      "conformance_cases": [
+        {
+          "arguments": {
+            "payload": null,
+            "resource": "fixture",
+            "tags": []
+          },
+          "name": "deterministic fixture"
+        }
+      ],
+      "execution_semantics": {
+        "automatic_retry_allowed": false,
+        "may_create_persistent_effects": false,
+        "repeat_is_idempotent": true
+      },
+      "instance_configuration": null,
+      "model": {
+        "canonical_name": "user.org.aura.fixture.http.fixture",
+        "description": "Execute the package fixture with validated arguments.",
+        "input_schema": {
+          "document": {
+            "additionalProperties": false,
+            "properties": {
+              "payload": {},
+              "resource": {
+                "type": "string"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": ["resource", "tags", "payload"],
+            "type": "object"
+          },
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "84ea771530bbaf8c2631030cc4de1e6af9a46bcc98e00cc92127ab5e25efbacb"
+          },
+          "schema_policy_version": 1
+        },
+        "result_contract": {
+          "result_schema": {
+            "document": {
+              "type": ["object", "null"]
+            },
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "5d4827562aefcfb1c3413607ff8ccbcce66217250c6ee5c6565bd52ef9eebc64"
+            },
+            "schema_policy_version": 1
+          },
+          "type": "structured_json"
+        },
+        "strict": true,
+        "summary": "Execute a deterministic package fixture."
+      },
+      "resource_claims": [
+        {
+          "access": "write",
+          "claim_key": "provider_target",
+          "selector": {
+            "type": "runtime_http_target"
+          },
+          "type": "network_target"
+        }
+      ],
+      "runtime": {
+        "request": {
+          "body": {
+            "template": {
+              "properties": [
+                {
+                  "name": "z",
+                  "value": {
+                    "type": "literal",
+                    "value": 1
+                  }
+                },
+                {
+                  "name": "a",
+                  "value": {
+                    "type": "literal",
+                    "value": 2
+                  }
+                }
+              ],
+              "type": "object"
+            },
+            "type": "application_json"
+          },
+          "credential_slot": {
+            "slot_key": "api_key",
+            "type": "bearer_authorization"
+          },
+          "headers": [
+            {
+              "name": "x-aura-fixture",
+              "value": {
+                "type": "literal",
+                "value": "manifest-v1"
+              }
+            }
+          ],
+          "method": "POST",
+          "path": [
+            {
+              "type": "literal",
+              "value": "echo"
+            },
+            {
+              "source": "/resource",
+              "type": "argument"
+            }
+          ],
+          "query": [
+            {
+              "name": "tag",
+              "value": {
+                "source": "/tags",
+                "type": "repeated"
+              }
+            }
+          ],
+          "success_status_ranges": [
+            {
+              "end": 204,
+              "start": 200
+            },
+            {
+              "end": 206,
+              "start": 206
+            }
+          ],
+          "target": {
+            "base_path": "/v1",
+            "origin": "https://example.invalid",
+            "type": "fixed_https"
+          }
+        },
+        "type": "declarative_http"
+      },
+      "semantic_version": null,
+      "tool_key": "fixture",
+      "ui": {
+        "display_name": "Fixture Tool"
+      }
+    }
+  ],
+  "ui": {
+    "description": null,
+    "display_name": "Aura Fixture Package"
+  }
+}

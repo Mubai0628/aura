@@ -1,0 +1,28 @@
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_fixture","status":"in_progress"}}
+
+event: response.reasoning_text.delta
+data: {"type":"response.reasoning_text.delta","sequence_number":1,"item_id":"rs_fixture","output_index":0,"content_index":0,"delta":"fixture reasoning"}
+
+event: response.reasoning_text.done
+data: {"type":"response.reasoning_text.done","sequence_number":2,"item_id":"rs_fixture","output_index":0,"content_index":0,"text":"fixture reasoning"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":3,"output_index":0,"item":{"id":"rs_fixture","type":"reasoning","encrypted_content":"opaque-fixture","summary":[]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":4,"output_index":1,"item":{"id":"fc_fixture","type":"function_call","status":"in_progress"}}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":5,"item_id":"fc_fixture","output_index":1,"delta":"{\"path\":"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":6,"item_id":"fc_fixture","output_index":1,"delta":"\"README.md\"}"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":7,"output_index":1,"item":{"id":"fc_fixture","type":"function_call","status":"completed","call_id":"Call_Response_ExactCase","name":"workspace_read__01arz3ndektsv4rrffq69g5fav","arguments":"{\"path\":\"README.md\"}"}}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":8,"response":{"id":"resp_fixture","status":"completed","usage":{"input_tokens":18,"output_tokens":7,"total_tokens":25,"output_tokens_details":{"reasoning_tokens":3}}}}
+
+data: [DONE]

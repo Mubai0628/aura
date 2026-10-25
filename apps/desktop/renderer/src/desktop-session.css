@@ -1,0 +1,450 @@
+.sidebar-heading {
+  min-height: 57px;
+  padding: 12px 14px;
+}
+.sidebar-add-workspace,
+.sidebar-item-menu {
+  position: relative;
+}
+.sidebar-heading .icon-button {
+  width: 30px;
+  height: 30px;
+  color: var(--ink);
+  border: 1px solid transparent;
+}
+.sidebar-heading .icon-button:hover {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.workspace-navigation {
+  padding-top: 4px;
+}
+.workspace-row {
+  padding-right: 3px;
+}
+.workspace-select {
+  font-size: 12px;
+  font-weight: 550;
+}
+.workspace-new-session {
+  color: var(--ink);
+}
+.session-nav-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  border-radius: 7px;
+}
+.session-nav-item:has([aria-current='page']) {
+  background: var(--surface-selected);
+}
+.session-nav-item .session-row {
+  background: transparent;
+  font-size: 12px;
+}
+.session-nav-item > .sidebar-item-menu {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.session-nav-item:hover > .sidebar-item-menu,
+.session-nav-item:focus-within > .sidebar-item-menu {
+  opacity: 1;
+}
+.sidebar-popover {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  z-index: 60;
+  width: 168px;
+  padding: 5px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  animation: sidebar-menu-enter 130ms ease-out;
+}
+.sidebar-popover > button {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 12px;
+  background: transparent;
+}
+.sidebar-popover > button:hover {
+  background: var(--surface-muted);
+}
+.sidebar-edit-dialog {
+  width: min(410px, calc(100vw - 48px));
+}
+.sidebar-edit-dialog h2 {
+  font-size: 17px;
+}
+.sidebar-dialog-body {
+  padding: 20px 24px 24px;
+}
+.sidebar-dialog-body label {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sidebar-dialog-body input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.sidebar-dialog-actions {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.sidebar-dialog-actions button {
+  padding: 8px 17px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 12px;
+}
+.sidebar-dialog-actions button:last-child {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+.sidebar-field-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+.workspace-directory-value {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.new-session-workspace {
+  min-width: 0;
+  height: 100%;
+}
+.new-session-body {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: clamp(20px, 4vw, 54px);
+}
+/* The title and the composer above the ocean (ocean/ocean.css). */
+.new-session-welcome,
+.new-session-composer {
+  position: relative;
+  z-index: 1;
+}
+.new-session-welcome {
+  pointer-events: none;
+}
+.new-session-welcome {
+  margin: auto;
+  text-align: center;
+  padding: 32px 0;
+}
+.new-session-welcome > span {
+  letter-spacing: 0.22em;
+  color: var(--quiet);
+  font-size: 10px;
+}
+.new-session-welcome h1 {
+  margin: 14px 0 8px;
+  font-family: var(--font-serif);
+  font-size: clamp(22px, 2.2vw, 29px);
+  font-weight: 700;
+}
+.new-session-composer {
+  width: min(900px, 100%);
+  margin: 20px auto 0;
+}
+.draft-inspect {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  font-size: 12px;
+}
+.mode-popover {
+  left: 0;
+  right: auto;
+  width: 265px;
+  padding: 7px;
+}
+.mode-popover button {
+  align-items: center;
+}
+.mode-popover small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.composer-mode-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+/* The × that leaves Plan or Goal shows on hover or keyboard focus, in the chip's place. */
+.composer-mode-chip > .composer-mode-chip-close {
+  display: grid;
+  width: 0;
+  height: 14px;
+  padding: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    width var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+.composer-mode-chip:hover > .composer-mode-chip-close,
+.composer-mode-chip:focus-within > .composer-mode-chip-close {
+  width: 14px;
+  opacity: 1;
+}
+.composer-mode-chip > .composer-mode-chip-close:hover,
+.composer-mode-chip > .composer-mode-chip-close:focus-visible {
+  background: rgba(47, 82, 76, 0.12);
+}
+/* Goal's budgets open above its chip. */
+.composer-mode-chip-label {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.goal-budget-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: 240px;
+  padding: 2px 6px 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.goal-budget-popover .goal-budget-fields {
+  border-top: 0;
+}
+.goal-budget-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px 7px 7px;
+  border-top: 1px solid var(--line);
+}
+.goal-budget-fields label {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.goal-budget-fields input {
+  width: 100%;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.model-choice-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--quiet);
+}
+.composer-popover {
+  border-radius: 13px;
+  box-shadow:
+    0 8px 28px rgba(37, 43, 39, 0.1),
+    0 1px 3px rgba(37, 43, 39, 0.04);
+}
+.model-menu-group button[aria-checked='true'] {
+  background: var(--surface-selected);
+}
+.model-menu-group button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.composer-select {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.composer-select[aria-expanded='true'] {
+  background: var(--surface-muted);
+}
+/* With a task running and nothing typed, the send button stops the task. Send and stop are one round button — a quiet disc while
+   there is nothing to send, ink with a white arrow when there is, and ink with a white square and
+   a slow ring going round while a task runs. The disc
+   is 24px inside the same 28px square as the other controls, and the ring goes round inside that
+   square instead of growing out of it. */
+.composer .send-button {
+  --send-disc: var(--surface-muted);
+  position: relative;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle closest-side,
+    var(--send-disc) calc(100% - 2.5px),
+    transparent calc(100% - 2px)
+  );
+  color: #a2a8a4;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.composer .send-button:not(:disabled),
+.composer .send-button.is-stop {
+  --send-disc: var(--ink);
+  color: #fff;
+}
+.composer .send-button:not(:disabled):hover {
+  --send-disc: #3b403b;
+}
+.composer .send-button:not(:disabled):active {
+  transform: scale(0.94);
+}
+.composer .send-button.is-stop::before {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 58%, rgba(36, 39, 36, 0.55) 100%);
+  content: '';
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1px));
+  animation: send-stop-orbit 1.2s linear infinite;
+}
+.send-stop-square {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+}
+@keyframes send-stop-orbit {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer .send-button.is-stop::before {
+    animation: none;
+  }
+}
+.runtime-readiness-card {
+  width: min(860px, calc(100% - 48px));
+  margin: 8px auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.runtime-readiness-card summary {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.runtime-readiness-card summary::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background: currentColor;
+}
+.runtime-readiness-card summary > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.runtime-readiness-card summary strong {
+  font-weight: 500;
+}
+.runtime-readiness-card summary p {
+  margin: 0;
+  color: var(--quiet);
+}
+.runtime-readiness-card[open] {
+  padding: 4px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.runtime-readiness-card:not([open]) summary:hover {
+  background: var(--surface-muted);
+}
+.readiness-refresh {
+  padding: 5px 8px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 11px;
+}
+.composer > p[role='alert'] {
+  margin: 0 4px 10px;
+  font-size: 12px;
+  color: var(--danger);
+}
+dialog.modal-backdrop::backdrop {
+  background: transparent;
+}
+@keyframes sidebar-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+@media (max-width: 760px) {
+  .new-session-body {
+    padding: 18px;
+  }
+  .runtime-readiness-card {
+    width: calc(100% - 24px);
+  }
+  .model-select {
+    max-width: 150px;
+  }
+  .session-nav-item > .sidebar-item-menu {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-nav-item > .sidebar-item-menu,
+  .composer-select {
+    transition: none;
+  }
+  .sidebar-popover {
+    animation: none;
+  }
+}

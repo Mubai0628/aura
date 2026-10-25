@@ -1,0 +1,9 @@
+CREATE TABLE authorization_grants(id TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision>0), operation_hash TEXT NOT NULL, revoked INTEGER NOT NULL CHECK(revoked IN(0,1)), consumed INTEGER NOT NULL CHECK(consumed IN(0,1)), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE approval_requests(id TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision>0), state TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE permission_snapshots(id TEXT PRIMARY KEY, session_id TEXT REFERENCES sessions(id), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE external_grants(id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id), revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE source_trust(source_hash TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision>0), state TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE credential_records(id TEXT PRIMARY KEY, authority TEXT NOT NULL, owner_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), state TEXT NOT NULL CHECK(state IN('unbound','ready','revoked','deleted')), binding_hash TEXT, UNIQUE(authority,owner_id)) STRICT;
+CREATE TABLE backend_setup_records(backend_id TEXT PRIMARY KEY, revision INTEGER NOT NULL CHECK(revision>0), state TEXT NOT NULL, resources TEXT NOT NULL CHECK(json_valid(resources))) STRICT;
+CREATE TABLE native_session_consents(grant_id TEXT PRIMARY KEY REFERENCES authorization_grants(id), approval_id TEXT NOT NULL UNIQUE, session_id TEXT NOT NULL, runtime_instance TEXT NOT NULL, permission_revision INTEGER NOT NULL CHECK(permission_revision>0), source_scope TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE INDEX native_session_consents_by_session ON native_session_consents(session_id);

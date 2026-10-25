@@ -1,0 +1,74 @@
+/* Skills chosen in the composer: the chips above the editor and the picker. */
+.composer-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 12px 0;
+}
+
+.composer-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--accent-soft);
+}
+
+.composer-skill-chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.composer-skill-picker {
+  left: 12px;
+  width: min(420px, calc(100% - 24px));
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.composer-skill-picker header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-skill-picker ul {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-skill-picker li button {
+  display: grid;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 7px;
+  text-align: left;
+  background: transparent;
+}
+
+.composer-skill-picker li button:disabled {
+  opacity: 0.55;
+}
+
+.composer-skill-picker li small,
+.composer-skill-picker-note,
+.chosen-skills-line {
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.composer-skill-picker-note,
+.chosen-skills-line {
+  margin: 4px 0;
+}

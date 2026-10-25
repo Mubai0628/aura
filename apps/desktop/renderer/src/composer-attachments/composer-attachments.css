@@ -1,0 +1,240 @@
+/* Pictures and files added to a message: thumbnails in a row, files as cards below. */
+.composer-attachments,
+.message-attachments {
+  display: grid;
+  gap: 8px;
+}
+
+.composer-attachments {
+  margin: 10px 12px 0;
+}
+
+.attachment-pictures,
+.attachment-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachment-picture {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.attachment-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-file-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 260px;
+  padding: 8px 30px 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+}
+
+.attachment-file-text {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.attachment-file-name {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-file-meta {
+  font-size: 11px;
+  color: var(--quiet);
+}
+
+.attachment-file-icon {
+  --file-colour: #8b918c;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: var(--file-colour);
+}
+
+.attachment-file-icon .attachment-file-page {
+  fill: var(--file-colour);
+}
+
+.attachment-file-icon .attachment-file-fold {
+  fill: rgba(255, 255, 255, 0.35);
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+
+.attachment-file-icon .attachment-file-mark {
+  stroke: #fff;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.attachment-file-icon[data-kind='pdf'] {
+  --file-colour: #d9534f;
+}
+.attachment-file-icon[data-kind='doc'] {
+  --file-colour: #2f6fd6;
+}
+.attachment-file-icon[data-kind='sheet'] {
+  --file-colour: #1f8f55;
+}
+.attachment-file-icon[data-kind='slides'] {
+  --file-colour: #df7a35;
+}
+.attachment-file-icon[data-kind='archive'] {
+  --file-colour: #8a6bd8;
+}
+.attachment-file-icon[data-kind='code'] {
+  --file-colour: #2f7f86;
+}
+.attachment-file-icon[data-kind='text'] {
+  --file-colour: #6f7772;
+}
+.attachment-file-icon[data-kind='image'] {
+  --file-colour: #3f8fc4;
+}
+.attachment-file-icon[data-kind='audio'] {
+  --file-colour: #c4508c;
+}
+.attachment-file-icon[data-kind='video'] {
+  --file-colour: #6a55c9;
+}
+
+.attachment-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.attachment-picture:hover .attachment-remove,
+.attachment-file-card:hover .attachment-remove,
+.attachment-remove:focus-visible {
+  opacity: 1;
+}
+
+.attachment-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+/* In the conversation, under what the user typed. */
+.message-attachments {
+  margin-top: 8px;
+  justify-items: end;
+}
+
+.message-attachments .attachment-pictures,
+.message-attachments .attachment-files {
+  justify-content: flex-end;
+}
+
+.message-attachments .attachment-picture {
+  width: auto;
+  height: auto;
+  max-width: 220px;
+  max-height: 180px;
+}
+
+.message-attachments .attachment-picture img {
+  width: auto;
+  max-width: 220px;
+  height: auto;
+  max-height: 180px;
+  object-fit: contain;
+}
+
+.message-attachments .attachment-file-card {
+  padding-right: 10px;
+}
+
+.attachment-picture-missing {
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 64px;
+  font-size: 11px;
+  color: var(--quiet);
+}
+
+.conversation-workspace.is-file-drop-target {
+  position: relative;
+}
+
+.is-file-drop-target::after {
+  position: absolute;
+  z-index: 20;
+  inset: 4px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  pointer-events: none;
+  content: '';
+}
+
+/* A message's file card opens its file; its menu is on the same button. */
+.message-attachments .attachment-file-card:has(.attachment-file-open) {
+  padding: 0;
+}
+
+.attachment-file-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px 8px 8px;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.attachment-file-open:hover {
+  background: var(--surface-muted);
+}
+
+.attachment-file-open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

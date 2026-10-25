@@ -1,0 +1,634 @@
+[
+  {
+    "handler": {
+      "handler": "file_write"
+    },
+    "definition": {
+      "tool_id": "tol_01M2DG020980080021AN942003",
+      "tool_version": {
+        "semantic_version": null,
+        "definition_revision": "6"
+      },
+      "tool_package_id": null,
+      "package_key": null,
+      "tool_key": null,
+      "canonical_name": "fs.write",
+      "display_name": "Write a workspace file",
+      "model_description": "Write a whole UTF-8 file. expected is absent for a new file, or the logical_hash from your latest read of an existing one; if the file changed since, nothing is written, so read it again. A path outside the workspace needs an authorization the user attached to this session.",
+      "model_summary": "Write a workspace file",
+      "input_schema": {
+        "schema_dialect": "json_schema_draft_2020_12",
+        "schema_policy_version": 1,
+        "document": {
+          "$defs": {
+            "AgentWorkspacePath": {
+              "description": "A path relative to the workspace root (\".\" is the root). An absolute path inside the workspace names the same file.",
+              "type": "string"
+            },
+            "ContentHash": {
+              "additionalProperties": false,
+              "properties": {
+                "algorithm": {
+                  "$ref": "#/$defs/ContentHashAlgorithm"
+                },
+                "hex": {
+                  "type": "string"
+                }
+              },
+              "required": ["algorithm", "hex"],
+              "type": "object"
+            },
+            "ContentHashAlgorithm": {
+              "enum": ["blake3", "sha256"],
+              "type": "string"
+            },
+            "FsExpectedState": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expected_kind": {
+                      "const": "absent",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["expected_kind"],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expected_kind": {
+                      "const": "file_hash",
+                      "type": "string"
+                    },
+                    "hash": {
+                      "$ref": "#/$defs/ContentHash"
+                    }
+                  },
+                  "required": ["expected_kind", "hash"],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "expected_kind": {
+                      "const": "directory",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["expected_kind"],
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "expected": {
+              "$ref": "#/$defs/FsExpectedState"
+            },
+            "path": {
+              "$ref": "#/$defs/AgentWorkspacePath"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": ["path", "text", "expected"],
+          "type": "object"
+        },
+        "schema_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "8ecd4b4ff1e6eb2aa43eef50de7182664d385e5bfb7ad40e006f959ae8f6137c"
+        }
+      },
+      "strict": true,
+      "result_contract": {
+        "type": "structured_json",
+        "result_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "ContentHash": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "$ref": "#/$defs/ContentHashAlgorithm"
+                  },
+                  "hex": {
+                    "type": "string"
+                  }
+                },
+                "required": ["algorithm", "hex"],
+                "type": "object"
+              },
+              "ContentHashAlgorithm": {
+                "enum": ["blake3", "sha256"],
+                "type": "string"
+              },
+              "DeferredMutationId": {
+                "type": "string"
+              },
+              "ExternalGrantId": {
+                "type": "string"
+              },
+              "FsExternalWriteTarget": {
+                "additionalProperties": false,
+                "description": "The authorized external file one mutation wrote.",
+                "properties": {
+                  "bytes_written": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "created": {
+                    "description": "True when this call created the file instead of replacing one.",
+                    "type": "boolean"
+                  },
+                  "display_path": {
+                    "description": "The absolute path as the user sees it.",
+                    "type": "string"
+                  },
+                  "encoding": {
+                    "$ref": "#/$defs/TextEncoding"
+                  },
+                  "grant_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ExternalGrantId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "line_ending": {
+                    "$ref": "#/$defs/LineEnding"
+                  },
+                  "logical_hash": {
+                    "$ref": "#/$defs/ContentHash",
+                    "description": "Hash of the bytes this mutation wrote."
+                  },
+                  "previous_hash": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ContentHash"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Hash the file had before the write. Absent for a create."
+                  }
+                },
+                "required": [
+                  "display_path",
+                  "created",
+                  "encoding",
+                  "line_ending",
+                  "logical_hash",
+                  "bytes_written"
+                ],
+                "type": "object"
+              },
+              "FsMutationDisposition": {
+                "enum": ["applied", "deferred_by_editor_activity"],
+                "type": "string"
+              },
+              "LineEnding": {
+                "enum": ["lf", "cr_lf", "cr", "mixed", "none"],
+                "type": "string"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "TextEncoding": {
+                "enum": ["utf8", "utf8_bom", "utf16_le", "utf16_be", "windows1252"],
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "affected_paths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "catalog_refresh_pending": {
+                "type": "boolean"
+              },
+              "deferred_mutation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/DeferredMutationId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "disposition": {
+                "$ref": "#/$defs/FsMutationDisposition"
+              },
+              "external": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FsExternalWriteTarget"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Present when this mutation wrote through an authorized external target, so a\ncaller can tell an external file from a workspace file without guessing from\nthe path. `affected_paths` then holds the path relative to the grant root."
+              },
+              "requires_reread": {
+                "type": "boolean"
+              },
+              "workspace_revision": {
+                "$ref": "#/$defs/Revision",
+                "description": "The workspace revision at the time of the mutation. A mutation of an\nauthorized external file does not change it: that file is not indexed and\nhas no workspace revision of its own."
+              }
+            },
+            "required": [
+              "disposition",
+              "workspace_revision",
+              "affected_paths",
+              "requires_reread",
+              "catalog_refresh_pending"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "a48a697c9ff799e0bf01f21125afbe6ea44548aadabdcbf83ac184f389dfe1dc"
+          }
+        }
+      },
+      "runtime": {
+        "type": "external_source",
+        "source_contract_key": "aura.builtin.fs.write.v1"
+      },
+      "capabilities": ["workspace_file_write", "workspace_file_create"],
+      "resource_claims": [
+        {
+          "type": "workspace_path",
+          "selector": {
+            "type": "argument_json_pointer",
+            "pointer": "/path"
+          },
+          "access": "write"
+        }
+      ],
+      "audience": "subagent_configurable",
+      "source_kind": "built_in",
+      "execution_semantics": {
+        "automatic_retry_allowed": false,
+        "repeat_is_idempotent": false,
+        "may_create_persistent_effects": true
+      },
+      "runtime_file_closure_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "c44b0fce1f36292d28989d12cb9d4954e0596285b8c01113d5facae00968a51b"
+      },
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "b7d7e1f9116932784a285a537c24859126cf7196869fe6305e1cc985c19ab2d4"
+      },
+      "entity_revision": "1",
+      "created_at": "2026-09-09T00:00:00Z"
+    },
+    "instance": {
+      "tool_instance_id": "tin_01M2DG020980080021AN94S903",
+      "tool_id": "tol_01M2DG020980080021AN942003",
+      "tool_version": {
+        "semantic_version": null,
+        "definition_revision": "6"
+      },
+      "source_kind": "built_in",
+      "source_contract_fingerprint": {
+        "source_kind": "built_in",
+        "signed_builtin_tool_contract_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "d5d5b5395a724f38a3ab734e1d30d72b96c28257d9ac9f1dcc855ec1e4736a83"
+        }
+      },
+      "enabled": true,
+      "runtime_health": "healthy",
+      "overrides": {
+        "timeout_ms": null,
+        "max_retries": null,
+        "max_concurrent_attempts": null,
+        "subagent_enabled": null
+      },
+      "entity_revision": "1",
+      "created_at": "2026-09-09T00:00:00Z",
+      "updated_at": "2026-09-09T00:00:00Z"
+    }
+  },
+  {
+    "handler": {
+      "handler": "file_patch"
+    },
+    "definition": {
+      "tool_id": "tol_01M2DG020980080021AN942004",
+      "tool_version": {
+        "semantic_version": null,
+        "definition_revision": "6"
+      },
+      "tool_package_id": null,
+      "package_key": null,
+      "tool_key": null,
+      "canonical_name": "fs.patch",
+      "display_name": "Patch a workspace file",
+      "model_description": "Apply a unified diff to a file. expected_hash is the logical_hash from your latest read; if the file changed since, nothing is written, so read it again.",
+      "model_summary": "Patch a workspace file",
+      "input_schema": {
+        "schema_dialect": "json_schema_draft_2020_12",
+        "schema_policy_version": 1,
+        "document": {
+          "$defs": {
+            "AgentWorkspacePath": {
+              "description": "A path relative to the workspace root (\".\" is the root). An absolute path inside the workspace names the same file.",
+              "type": "string"
+            },
+            "ContentHash": {
+              "additionalProperties": false,
+              "properties": {
+                "algorithm": {
+                  "$ref": "#/$defs/ContentHashAlgorithm"
+                },
+                "hex": {
+                  "type": "string"
+                }
+              },
+              "required": ["algorithm", "hex"],
+              "type": "object"
+            },
+            "ContentHashAlgorithm": {
+              "enum": ["blake3", "sha256"],
+              "type": "string"
+            }
+          },
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "expected_hash": {
+              "$ref": "#/$defs/ContentHash"
+            },
+            "path": {
+              "$ref": "#/$defs/AgentWorkspacePath"
+            },
+            "unified_diff": {
+              "type": "string"
+            }
+          },
+          "required": ["path", "unified_diff", "expected_hash"],
+          "type": "object"
+        },
+        "schema_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "d41bd3ed01393ac66f115559722c455c27244fe6d198eb1259dcad5eec25fd5b"
+        }
+      },
+      "strict": true,
+      "result_contract": {
+        "type": "structured_json",
+        "result_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "ContentHash": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "$ref": "#/$defs/ContentHashAlgorithm"
+                  },
+                  "hex": {
+                    "type": "string"
+                  }
+                },
+                "required": ["algorithm", "hex"],
+                "type": "object"
+              },
+              "ContentHashAlgorithm": {
+                "enum": ["blake3", "sha256"],
+                "type": "string"
+              },
+              "DeferredMutationId": {
+                "type": "string"
+              },
+              "ExternalGrantId": {
+                "type": "string"
+              },
+              "FsExternalWriteTarget": {
+                "additionalProperties": false,
+                "description": "The authorized external file one mutation wrote.",
+                "properties": {
+                  "bytes_written": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "created": {
+                    "description": "True when this call created the file instead of replacing one.",
+                    "type": "boolean"
+                  },
+                  "display_path": {
+                    "description": "The absolute path as the user sees it.",
+                    "type": "string"
+                  },
+                  "encoding": {
+                    "$ref": "#/$defs/TextEncoding"
+                  },
+                  "grant_id": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ExternalGrantId"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "line_ending": {
+                    "$ref": "#/$defs/LineEnding"
+                  },
+                  "logical_hash": {
+                    "$ref": "#/$defs/ContentHash",
+                    "description": "Hash of the bytes this mutation wrote."
+                  },
+                  "previous_hash": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/ContentHash"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Hash the file had before the write. Absent for a create."
+                  }
+                },
+                "required": [
+                  "display_path",
+                  "created",
+                  "encoding",
+                  "line_ending",
+                  "logical_hash",
+                  "bytes_written"
+                ],
+                "type": "object"
+              },
+              "FsMutationDisposition": {
+                "enum": ["applied", "deferred_by_editor_activity"],
+                "type": "string"
+              },
+              "LineEnding": {
+                "enum": ["lf", "cr_lf", "cr", "mixed", "none"],
+                "type": "string"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "TextEncoding": {
+                "enum": ["utf8", "utf8_bom", "utf16_le", "utf16_be", "windows1252"],
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "affected_paths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "catalog_refresh_pending": {
+                "type": "boolean"
+              },
+              "deferred_mutation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/DeferredMutationId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "disposition": {
+                "$ref": "#/$defs/FsMutationDisposition"
+              },
+              "external": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FsExternalWriteTarget"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Present when this mutation wrote through an authorized external target, so a\ncaller can tell an external file from a workspace file without guessing from\nthe path. `affected_paths` then holds the path relative to the grant root."
+              },
+              "requires_reread": {
+                "type": "boolean"
+              },
+              "workspace_revision": {
+                "$ref": "#/$defs/Revision",
+                "description": "The workspace revision at the time of the mutation. A mutation of an\nauthorized external file does not change it: that file is not indexed and\nhas no workspace revision of its own."
+              }
+            },
+            "required": [
+              "disposition",
+              "workspace_revision",
+              "affected_paths",
+              "requires_reread",
+              "catalog_refresh_pending"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "a48a697c9ff799e0bf01f21125afbe6ea44548aadabdcbf83ac184f389dfe1dc"
+          }
+        }
+      },
+      "runtime": {
+        "type": "external_source",
+        "source_contract_key": "aura.builtin.fs.patch.v1"
+      },
+      "capabilities": ["workspace_file_write"],
+      "resource_claims": [
+        {
+          "type": "workspace_path",
+          "selector": {
+            "type": "argument_json_pointer",
+            "pointer": "/path"
+          },
+          "access": "write"
+        }
+      ],
+      "audience": "subagent_configurable",
+      "source_kind": "built_in",
+      "execution_semantics": {
+        "automatic_retry_allowed": false,
+        "repeat_is_idempotent": false,
+        "may_create_persistent_effects": true
+      },
+      "runtime_file_closure_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "0b513d8fc6412e6757482f05e7c4216391fb398fd1e8445e3d2f9c2a14af0da2"
+      },
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "a390486ec3a55ef61526ef3be33a57d139cfccda6cc786ba88d1b69d56fc2a4a"
+      },
+      "entity_revision": "1",
+      "created_at": "2026-09-09T00:00:00Z"
+    },
+    "instance": {
+      "tool_instance_id": "tin_01M2DG020980080021AN94S904",
+      "tool_id": "tol_01M2DG020980080021AN942004",
+      "tool_version": {
+        "semantic_version": null,
+        "definition_revision": "6"
+      },
+      "source_kind": "built_in",
+      "source_contract_fingerprint": {
+        "source_kind": "built_in",
+        "signed_builtin_tool_contract_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "5d49ee40c00830ba351ead121666667977082a3668230096103d1925e5767fa3"
+        }
+      },
+      "enabled": true,
+      "runtime_health": "healthy",
+      "overrides": {
+        "timeout_ms": null,
+        "max_retries": null,
+        "max_concurrent_attempts": null,
+        "subagent_enabled": null
+      },
+      "entity_revision": "1",
+      "created_at": "2026-09-09T00:00:00Z",
+      "updated_at": "2026-09-09T00:00:00Z"
+    }
+  }
+]

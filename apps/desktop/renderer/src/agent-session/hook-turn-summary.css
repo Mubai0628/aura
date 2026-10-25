@@ -1,0 +1,11 @@
+/* The Hook line under an ended turn. */
+.agent-hook-summary {
+  margin: 6px 0 0;
+  color: var(--quiet);
+  font-size: 12px;
+}
+
+.agent-hook-summary p {
+  margin: 0 0 2px;
+  color: var(--ink);
+}

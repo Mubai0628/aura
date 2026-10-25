@@ -1,0 +1,268 @@
+{
+  "$defs": {
+    "ErrorCategory": {
+      "enum": [
+        "validation",
+        "compatibility",
+        "not_found",
+        "conflict",
+        "permission",
+        "unavailable",
+        "cancelled",
+        "transport",
+        "protocol",
+        "internal"
+      ],
+      "type": "string"
+    },
+    "ErrorCode": {
+      "enum": [
+        "tool.batch.atomic_group_invalid",
+        "tool.batch.completion_batch_invalid",
+        "tool.batch.content_hash_mismatch",
+        "tool.batch.control_state_mismatch",
+        "tool.batch.dependency_cycle",
+        "tool.batch.identity_mismatch",
+        "tool.batch.invocation_boundary_invalid",
+        "tool.batch.plan_invalidated",
+        "tool.batch.provider_mapping_ambiguous",
+        "tool.batch.registry_snapshot_mismatch",
+        "tool.batch.rejected",
+        "tool.batch.tool_call_identity_conflict",
+        "tool.conformance.case_invalid",
+        "tool.conformance.case_missing",
+        "tool.conformance.evidence_invalid",
+        "tool.conformance.isolation_unavailable",
+        "tool.conformance.run_failed",
+        "tool.draft.apply_failed",
+        "tool.draft.approval_mismatch",
+        "tool.draft.approval_required",
+        "tool.draft.authentication_required",
+        "tool.draft.idempotency_conflict",
+        "tool.draft.identity_mismatch",
+        "tool.draft.invalid_transition",
+        "tool.draft.journal_failed",
+        "tool.draft.not_found",
+        "tool.draft.preview_stale",
+        "tool.draft.revision_conflict",
+        "tool.draft.snapshot_conflict",
+        "tool.draft.test_required",
+        "tool.draft.validation_failed",
+        "tool.hook.blocked",
+        "tool.package.archive_too_large",
+        "tool.package.case_collision",
+        "tool.package.closed_file_set_mismatch",
+        "tool.package.compression_ratio_exceeded",
+        "tool.package.corrupted",
+        "tool.package.deletion_approval_invalid",
+        "tool.package.deletion_impact_changed",
+        "tool.package.deletion_journal_failed",
+        "tool.package.deletion_pending",
+        "tool.package.encrypted_archive_denied",
+        "tool.package.entry_count_exceeded",
+        "tool.package.expanded_size_exceeded",
+        "tool.package.file_hash_mismatch",
+        "tool.package.file_size_exceeded",
+        "tool.package.fingerprint_mismatch",
+        "tool.package.import_journal_failed",
+        "tool.package.invalid_path",
+        "tool.package.manifest_invalid",
+        "tool.package.manifest_missing",
+        "tool.package.manifest_too_large",
+        "tool.package.package_key_mismatch",
+        "tool.package.path_depth_exceeded",
+        "tool.package.payload_unavailable",
+        "tool.package.runtime_closure_invalid",
+        "tool.package.source_unavailable",
+        "tool.package.special_file_denied",
+        "tool.package.unsupported_compression",
+        "tool.package.version_content_conflict",
+        "tool.registry.audience_denied",
+        "tool.registry.capacity_exceeded",
+        "tool.registry.cursor_expired",
+        "tool.registry.cursor_mismatch",
+        "tool.registry.cursor_unavailable",
+        "tool.registry.disabled",
+        "tool.registry.dynamic_schema_limit_below_pinned_count",
+        "tool.registry.pin_degraded",
+        "tool.registry.pin_unresolved",
+        "tool.registry.search_request_invalid",
+        "tool.registry.settings_invalid",
+        "tool.registry.snapshot_corrupted",
+        "tool.registry.snapshot_not_found",
+        "tool.registry.snapshot_unavailable",
+        "tool.registry.snapshot_version_mismatch",
+        "tool.registry.tool_not_found",
+        "tool.registry.trust_required",
+        "tool.registry.version_mismatch",
+        "tool.resource.canonicalization_failed",
+        "tool.resource.http_credential_origin_denied",
+        "tool.resource.http_credential_rebind_required",
+        "tool.resource.http_credential_unavailable",
+        "tool.resource.http_model_authentication_forbidden",
+        "tool.resource.http_request_invalid",
+        "tool.resource.identity_resolution_failed",
+        "tool.resource.lock_key_invalid",
+        "tool.resource.resolver_unavailable",
+        "tool.resource.scope_resolution_failed",
+        "tool.resource.selector_missing",
+        "tool.resource.selector_type_mismatch",
+        "tool.resource.unsupported_claim",
+        "tool.result.artifact_missing",
+        "tool.result.evidence_invalid",
+        "tool.result.json_invalid",
+        "tool.result.outcome_state_invalid",
+        "tool.result.reconciliation_inconclusive",
+        "tool.result.schema_validation_failed",
+        "tool.result.side_effect_evidence_insufficient",
+        "tool.result.utf8_invalid",
+        "tool.runtime.artifact_invalid",
+        "tool.runtime.credential_binding_invalid",
+        "tool.runtime.dispatch_failed",
+        "tool.runtime.dispatch_outcome_unknown",
+        "tool.runtime.http_control_endpoint_denied",
+        "tool.runtime.http_credential_reflection_blocked",
+        "tool.runtime.http_gateway_failed",
+        "tool.runtime.http_model_authentication_forbidden",
+        "tool.runtime.http_redirect_denied",
+        "tool.runtime.http_request_invalid",
+        "tool.runtime.io_limit_exceeded",
+        "tool.runtime.persistence_outcome_unknown",
+        "tool.runtime.process_launch_failed",
+        "tool.runtime.process_tree_termination_unknown",
+        "tool.runtime.protocol_frame_invalid",
+        "tool.runtime.protocol_handshake_invalid",
+        "tool.runtime.protocol_sequence_invalid",
+        "tool.runtime.protocol_terminal_conflict",
+        "tool.runtime.protocol_terminal_missing",
+        "tool.runtime.timeout",
+        "tool.runtime.unavailable",
+        "tool.scheduler.concurrency_limit_invalid",
+        "tool.scheduler.dispatch_state_invalid",
+        "tool.scheduler.execution_plan_hash_mismatch",
+        "tool.scheduler.execution_plan_invalid",
+        "tool.scheduler.operation_already_terminal",
+        "tool.scheduler.operation_not_cancellable",
+        "tool.scheduler.resource_wait_cancelled",
+        "tool.scheduler.retry_limit_invalid",
+        "tool.scheduler.timeout_invalid",
+        "tool.schema.arguments_invalid",
+        "tool.schema.arguments_too_large",
+        "tool.schema.complexity_limit_exceeded",
+        "tool.schema.external_reference_denied",
+        "tool.schema.hash_mismatch",
+        "tool.schema.input_root_not_object",
+        "tool.schema.invalid_pattern",
+        "tool.schema.meta_schema_invalid",
+        "tool.schema.reserved_provider_metadata_property",
+        "tool.schema.result_root_type_invalid",
+        "tool.schema.unsupported_dialect",
+        "tool.schema.unsupported_format",
+        "tool.schema.unsupported_keyword",
+        "tool.schema.validator_compilation_failed"
+      ],
+      "type": "string"
+    },
+    "ToolErrorCatalogEntryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/ErrorCategory"
+        },
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "retry_class": {
+          "$ref": "#/$defs/ToolErrorRetryClassV1"
+        },
+        "safe_message_key": {
+          "type": "string"
+        },
+        "suggested_not_executed_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolNotExecutedReasonV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "visibility": {
+          "$ref": "#/$defs/ToolErrorVisibilityV1"
+        }
+      },
+      "required": [
+        "code",
+        "category",
+        "visibility",
+        "retry_class",
+        "safe_message_key"
+      ],
+      "type": "object"
+    },
+    "ToolErrorRetryClassV1": {
+      "enum": [
+        "never",
+        "conditional",
+        "retryable"
+      ],
+      "type": "string"
+    },
+    "ToolErrorVisibilityV1": {
+      "enum": [
+        "internal_only",
+        "renderer_safe",
+        "model_safe",
+        "renderer_and_model_safe"
+      ],
+      "type": "string"
+    },
+    "ToolNotExecutedReasonV1": {
+      "enum": [
+        "schema_validation_failed",
+        "tool_not_found",
+        "version_mismatch",
+        "not_loaded",
+        "disabled",
+        "trust_required",
+        "audience_denied",
+        "purpose_required",
+        "permission_denied",
+        "approval_denied",
+        "runtime_unavailable",
+        "dependency_not_executed",
+        "atomic_group_not_executed",
+        "lineage_reconciliation",
+        "completion_review",
+        "cancelled_before_dispatch",
+        "batch_rejected",
+        "resource_claim_resolution_failed"
+      ],
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.aura.local/contracts/v1/tool-error-catalog.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "catalog_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/ToolErrorCatalogEntryV1"
+      },
+      "maxItems": 143,
+      "minItems": 143,
+      "type": "array"
+    }
+  },
+  "required": [
+    "catalog_version",
+    "entries"
+  ],
+  "title": "AuraToolErrorCatalogV1",
+  "type": "object"
+}

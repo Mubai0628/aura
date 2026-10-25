@@ -1,0 +1,42 @@
+[package]
+name = "aura-fs-tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+acceptance-barrier = []
+# Test-only fault injection for the search engine's disk stage. Off in every
+# normal build, so no injection code exists in a release artifact; it exists so a
+# crate that drives the real engine (for example aura-core's IPC lifecycle tests)
+# can hold one file's scan open instead of re-implementing the engine.
+search-test-faults = []
+
+[dependencies]
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-persistence = { path = "../aura-persistence" }
+aura-workspace = { path = "../aura-workspace" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+base64.workspace = true
+blake3.workspace = true
+diffy.workspace = true
+encoding_rs.workspace = true
+globset.workspace = true
+grep-matcher.workspace = true
+grep-regex.workspace = true
+grep-searcher.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ulid.workspace = true
+
+[dev-dependencies]
+aura-windows-platform = { path = "../aura-windows-platform" }
+junction.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

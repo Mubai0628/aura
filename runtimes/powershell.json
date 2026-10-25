@@ -1,0 +1,16 @@
+{
+  "schema": "aura-managed-powershell-v1",
+  "id": "powershell-7.6.5-win-x64",
+  "version": "7.6.5",
+  "architecture": "x64",
+  "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.5/PowerShell-7.6.5-win-x64.zip",
+  "archive_sha256": "32eb8f6cdce08f86e987d625a2733e54ac3e289ae7e1621b14c0b5bcec2434ea",
+  "archive_bytes": 106319290,
+  "files_sha256": "dbfa42590a00c73cbf1a4f2bbb177a90b7707f36663545d2749255b2416a2161",
+  "max_expanded_bytes": 400000000,
+  "max_entries": 2000,
+  "executable": "pwsh.exe",
+  "license": "LICENSE.txt",
+  "notices": "ThirdPartyNotices.txt",
+  "default_mode": "MTA"
+}

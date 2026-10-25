@@ -1,0 +1,27 @@
+[package]
+name = "aura-sandbox-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+anyhow.workspace = true
+aura-config = { path = "../aura-config" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-ipc = { path = "../aura-ipc" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-persistence = { path = "../aura-persistence" }
+aura-sandbox = { path = "../aura-sandbox" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-runtime = { path = "../aura-tool-runtime" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+blake3.workspace = true
+sha2.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true

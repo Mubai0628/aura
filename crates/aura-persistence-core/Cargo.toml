@@ -1,0 +1,20 @@
+[package]
+name = "aura-persistence-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+blake3.workspace = true
+rusqlite.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

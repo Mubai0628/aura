@@ -1,0 +1,28 @@
+/* The ocean fills the empty conversation behind its title and composer; the haze in the
+   middle keeps the title clear while the sharks pass under it. */
+.ocean-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.ocean-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ocean-haze {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 46% 42% at 50% 50%,
+    rgba(251, 251, 250, 0.94),
+    rgba(251, 251, 250, 0.62) 52%,
+    rgba(251, 251, 250, 0) 78%
+  );
+}

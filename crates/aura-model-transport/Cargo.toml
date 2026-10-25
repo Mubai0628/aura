@@ -1,0 +1,32 @@
+[package]
+name = "aura-model-transport"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-security-contract = { path = "../aura-security-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+base64.workspace = true
+getrandom.workspace = true
+httpdate.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+# The three connected adapters' final wire bodies are measured from one place, so the
+# comparison across them cannot drift into three incompatible harnesses.
+aura-model-adapter-openai-chat = { path = "../aura-model-adapter-openai-chat" }
+aura-model-adapter-openai-responses = { path = "../aura-model-adapter-openai-responses" }
+aura-model-adapter-anthropic = { path = "../aura-model-adapter-anthropic" }
+
+[lints]
+workspace = true

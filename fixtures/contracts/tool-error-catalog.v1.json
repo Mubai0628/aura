@@ -1,0 +1,1149 @@
+{
+  "catalog_version": 1,
+  "entries": [
+    {
+      "code": "tool.batch.atomic_group_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_atomic_group_invalid",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.completion_batch_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_completion_batch_invalid",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.content_hash_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_content_hash_mismatch",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.control_state_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_control_state_mismatch",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.dependency_cycle",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_dependency_cycle",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.identity_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_identity_mismatch",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.invocation_boundary_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_invocation_boundary_invalid",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.plan_invalidated",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_plan_invalidated",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.provider_mapping_ambiguous",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_provider_mapping_ambiguous",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.registry_snapshot_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_registry_snapshot_mismatch",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.rejected",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_rejected",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.batch.tool_call_identity_conflict",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_batch_tool_call_identity_conflict",
+      "suggested_not_executed_reason": "batch_rejected"
+    },
+    {
+      "code": "tool.conformance.case_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_conformance_case_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.conformance.case_missing",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_conformance_case_missing",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.conformance.evidence_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_conformance_evidence_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.conformance.isolation_unavailable",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_conformance_isolation_unavailable",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.conformance.run_failed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_conformance_run_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.apply_failed",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_apply_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.approval_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_approval_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.approval_required",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_approval_required",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.authentication_required",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_authentication_required",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.idempotency_conflict",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_idempotency_conflict",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.identity_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_identity_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.invalid_transition",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_invalid_transition",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.journal_failed",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_journal_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.not_found",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_not_found",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.preview_stale",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_preview_stale",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.revision_conflict",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_revision_conflict",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.snapshot_conflict",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_snapshot_conflict",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.test_required",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_test_required",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.draft.validation_failed",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_draft_validation_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.hook.blocked",
+      "category": "permission",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_hook_blocked",
+      "suggested_not_executed_reason": "permission_denied"
+    },
+    {
+      "code": "tool.package.archive_too_large",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_archive_too_large",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.case_collision",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_case_collision",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.closed_file_set_mismatch",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_closed_file_set_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.compression_ratio_exceeded",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_compression_ratio_exceeded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.corrupted",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_corrupted",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.deletion_approval_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_deletion_approval_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.deletion_impact_changed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_deletion_impact_changed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.deletion_journal_failed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_deletion_journal_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.deletion_pending",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_deletion_pending",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.encrypted_archive_denied",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_encrypted_archive_denied",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.entry_count_exceeded",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_entry_count_exceeded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.expanded_size_exceeded",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_expanded_size_exceeded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.file_hash_mismatch",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_file_hash_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.file_size_exceeded",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_file_size_exceeded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.fingerprint_mismatch",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_fingerprint_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.import_journal_failed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_import_journal_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.invalid_path",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_invalid_path",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.manifest_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_manifest_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.manifest_missing",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_manifest_missing",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.manifest_too_large",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_manifest_too_large",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.package_key_mismatch",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_package_key_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.path_depth_exceeded",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_path_depth_exceeded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.payload_unavailable",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_payload_unavailable",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.runtime_closure_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_runtime_closure_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.source_unavailable",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_source_unavailable",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.special_file_denied",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_special_file_denied",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.unsupported_compression",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_unsupported_compression",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.package.version_content_conflict",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_package_version_content_conflict",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.audience_denied",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_audience_denied",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.capacity_exceeded",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_capacity_exceeded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.cursor_expired",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_cursor_expired",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.cursor_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_cursor_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.cursor_unavailable",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_cursor_unavailable",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.disabled",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_disabled",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.dynamic_schema_limit_below_pinned_count",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_dynamic_schema_limit_below_pinned_count",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.pin_degraded",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_pin_degraded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.pin_unresolved",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_pin_unresolved",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.search_request_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_search_request_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.settings_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_settings_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.snapshot_corrupted",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_snapshot_corrupted",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.snapshot_not_found",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_snapshot_not_found",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.snapshot_unavailable",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_snapshot_unavailable",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.snapshot_version_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_snapshot_version_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.tool_not_found",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_tool_not_found",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.trust_required",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_trust_required",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.registry.version_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_registry_version_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.resource.canonicalization_failed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_canonicalization_failed",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.http_credential_origin_denied",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_http_credential_origin_denied",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.http_credential_rebind_required",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_http_credential_rebind_required",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.http_credential_unavailable",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_http_credential_unavailable",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.http_model_authentication_forbidden",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_http_model_authentication_forbidden",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.http_request_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_http_request_invalid",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.identity_resolution_failed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_identity_resolution_failed",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.lock_key_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_lock_key_invalid",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.resolver_unavailable",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_resolver_unavailable",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.scope_resolution_failed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_scope_resolution_failed",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.selector_missing",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_selector_missing",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.selector_type_mismatch",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_selector_type_mismatch",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.resource.unsupported_claim",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_resource_unsupported_claim",
+      "suggested_not_executed_reason": "resource_claim_resolution_failed"
+    },
+    {
+      "code": "tool.result.artifact_missing",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_artifact_missing",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.evidence_invalid",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_evidence_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.json_invalid",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_json_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.outcome_state_invalid",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_outcome_state_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.reconciliation_inconclusive",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_reconciliation_inconclusive",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.schema_validation_failed",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_schema_validation_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.side_effect_evidence_insufficient",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_side_effect_evidence_insufficient",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.utf8_invalid",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_utf8_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.artifact_invalid",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_artifact_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.credential_binding_invalid",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_credential_binding_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.dispatch_failed",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_dispatch_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.dispatch_outcome_unknown",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_dispatch_outcome_unknown",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.http_control_endpoint_denied",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_http_control_endpoint_denied",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.http_credential_reflection_blocked",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_http_credential_reflection_blocked",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.http_gateway_failed",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_http_gateway_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.http_model_authentication_forbidden",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_http_model_authentication_forbidden",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.http_redirect_denied",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_http_redirect_denied",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.http_request_invalid",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_http_request_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.io_limit_exceeded",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_io_limit_exceeded",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.persistence_outcome_unknown",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_persistence_outcome_unknown",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.process_launch_failed",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_process_launch_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.process_tree_termination_unknown",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_process_tree_termination_unknown",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.protocol_frame_invalid",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_protocol_frame_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.protocol_handshake_invalid",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_protocol_handshake_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.protocol_sequence_invalid",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_protocol_sequence_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.protocol_terminal_conflict",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_protocol_terminal_conflict",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.protocol_terminal_missing",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_protocol_terminal_missing",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.timeout",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_timeout",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.runtime.unavailable",
+      "category": "unavailable",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_runtime_unavailable",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.concurrency_limit_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_concurrency_limit_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.dispatch_state_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_dispatch_state_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.execution_plan_hash_mismatch",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_execution_plan_hash_mismatch",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.execution_plan_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_execution_plan_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.operation_already_terminal",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_operation_already_terminal",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.operation_not_cancellable",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_operation_not_cancellable",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.resource_wait_cancelled",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_resource_wait_cancelled",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.retry_limit_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_retry_limit_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.scheduler.timeout_invalid",
+      "category": "conflict",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_scheduler_timeout_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.schema.arguments_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_arguments_invalid",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.arguments_too_large",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_arguments_too_large",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.complexity_limit_exceeded",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_complexity_limit_exceeded",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.external_reference_denied",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_external_reference_denied",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.hash_mismatch",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_hash_mismatch",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.input_root_not_object",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_input_root_not_object",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.invalid_pattern",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_invalid_pattern",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.meta_schema_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_meta_schema_invalid",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.reserved_provider_metadata_property",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_reserved_provider_metadata_property",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.result_root_type_invalid",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_result_root_type_invalid",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.unsupported_dialect",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_unsupported_dialect",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.unsupported_format",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_unsupported_format",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.unsupported_keyword",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_unsupported_keyword",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    },
+    {
+      "code": "tool.schema.validator_compilation_failed",
+      "category": "validation",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_schema_validator_compilation_failed",
+      "suggested_not_executed_reason": "schema_validation_failed"
+    }
+  ]
+}

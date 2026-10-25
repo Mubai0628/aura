@@ -1,0 +1,2762 @@
+{
+  "schema_version": 1,
+  "release_revision": "1",
+  "entries": [
+    {
+      "definition": {
+        "builtin_key": "agent.activity.query",
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FB0",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "model_summary": "Ask which real activities the runtime is running right now.",
+        "model_description": "Answers a question about what real executors are running, from the runtime's own in-memory activity facts. Use by=resource with a verified target to find another writer of a file you just operated on - including one in another session or workspace that really touches the same physical object. Use by=unknown_write_set to find a Shell whose write set cannot be proven. Use by=group or by=session to list your own running tools, and by=exact to look one up by the id a previous answer gave you. It is read-only: it takes no file protection, starts and stops nothing, cannot change any tool's outcome, and cannot widen what your session may see. A matching target query echoes your own known spelling; it does not disclose another session's private paths or parameters. The result always reports its coverage, so zero rows with complete coverage (nothing is running) is never the same answer as an index that could not be read.",
+        "strict": true,
+        "source": "built_in",
+        "audience": "child_runtime_required",
+        "capabilities": ["tool_registry_read"],
+        "scope_requirements": [
+          {
+            "type": "tool_registry_snapshot"
+          }
+        ],
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "ActivityId": {
+                "maxLength": 32,
+                "minLength": 32,
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              "ActivityResourceTarget": {
+                "description": "The physical resource a relation applies to.\n\nThese are A's already-verified facts, republished by the real owner. The\npublication path copies them; it does not re-open the path, re-resolve the\nidentity or consult the journal to learn them.",
+                "oneOf": [
+                  {
+                    "additionalProperties": false,
+                    "description": "The full identity and verified ancestry copied from the execution boundary.",
+                    "properties": {
+                      "ancestors": {
+                        "items": {
+                          "$ref": "#/$defs/FileIdentity"
+                        },
+                        "type": "array"
+                      },
+                      "identity": {
+                        "$ref": "#/$defs/FileIdentity"
+                      },
+                      "kind": {
+                        "const": "verified_object",
+                        "type": "string"
+                      },
+                      "subtree": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["kind", "identity", "subtree"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "An existing or prospective entry below an already verified parent.",
+                    "properties": {
+                      "ancestors": {
+                        "items": {
+                          "$ref": "#/$defs/FileIdentity"
+                        },
+                        "type": "array"
+                      },
+                      "case_insensitive": {
+                        "type": "boolean"
+                      },
+                      "comparison_keys": {
+                        "description": "One-to-one name keys from the held-directory boundary. Raw names stay in `pending`.\nMissing facts on an insensitive target are unproven, never language-folded guesses.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": ["array", "null"]
+                      },
+                      "kind": {
+                        "const": "verified_entry",
+                        "type": "string"
+                      },
+                      "parent": {
+                        "$ref": "#/$defs/FileIdentity"
+                      },
+                      "pending": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": ["kind", "parent", "pending", "case_insensitive"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "An existing object, identified by volume and file identity.",
+                    "properties": {
+                      "file_id128": {
+                        "description": "The 128-bit file id, when the volume reports one.",
+                        "items": {
+                          "maximum": 255,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "maxItems": 16,
+                        "minItems": 16,
+                        "type": ["array", "null"]
+                      },
+                      "file_index": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "kind": {
+                        "const": "existing_object",
+                        "type": "string"
+                      },
+                      "volume_serial": {
+                        "maximum": 4294967295,
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": ["kind", "volume_serial", "file_index"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A directory entry, identified by its already-verified parent object and the\nreal leaf name with the volume's actual casing rule applied.",
+                    "properties": {
+                      "case_insensitive": {
+                        "type": "boolean"
+                      },
+                      "comparison_key": {
+                        "type": ["string", "null"]
+                      },
+                      "kind": {
+                        "const": "directory_entry",
+                        "type": "string"
+                      },
+                      "leaf": {
+                        "type": "string"
+                      },
+                      "parent_file_index": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "parent_volume_serial": {
+                        "maximum": 4294967295,
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "parent_volume_serial",
+                      "parent_file_index",
+                      "leaf",
+                      "case_insensitive"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A directory scope: the object plus the subtree beneath it.",
+                    "properties": {
+                      "file_index": {
+                        "maximum": 9007199254740991,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "inclusive": {
+                        "type": "boolean"
+                      },
+                      "kind": {
+                        "const": "subtree",
+                        "type": "string"
+                      },
+                      "volume_serial": {
+                        "maximum": 4294967295,
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": ["kind", "volume_serial", "file_index", "inclusive"],
+                    "type": "object"
+                  },
+                  {
+                    "additionalProperties": false,
+                    "description": "A target whose physical identity could not be proven. It is reported as\nunknown rather than being folded into \"unrelated\".",
+                    "properties": {
+                      "hint": {
+                        "description": "A bounded, human-readable hint. Never a credential or a payload.",
+                        "type": "string"
+                      },
+                      "kind": {
+                        "const": "unproven",
+                        "type": "string"
+                      }
+                    },
+                    "required": ["kind", "hint"],
+                    "type": "object"
+                  }
+                ]
+              },
+              "ActivityToolGroup": {
+                "description": "The tool group. Groups fail independently: one broken group cannot take\nanother group's rows out of the index.",
+                "enum": ["file_read", "file_write", "shell", "web", "other"],
+                "type": "string"
+              },
+              "AgentActivityQueryBy": {
+                "description": "Which question the model is asking (R4).",
+                "oneOf": [
+                  {
+                    "const": "session",
+                    "description": "Every activity this step's own session is running.",
+                    "type": "string"
+                  },
+                  {
+                    "const": "resource",
+                    "description": "Every activity touching one physical target.",
+                    "type": "string"
+                  },
+                  {
+                    "const": "group",
+                    "description": "Every activity in one tool group.",
+                    "type": "string"
+                  },
+                  {
+                    "const": "exact",
+                    "description": "One activity by its exact identity.",
+                    "type": "string"
+                  },
+                  {
+                    "const": "unknown_write_set",
+                    "description": "Every activity whose write set is not provable - the honest \"a Shell may be writing\nsomewhere I cannot name\" question.",
+                    "type": "string"
+                  }
+                ]
+              },
+              "FileIdentity": {
+                "additionalProperties": false,
+                "properties": {
+                  "file_id": {
+                    "type": "string"
+                  },
+                  "volume_serial_number": {
+                    "type": "string"
+                  }
+                },
+                "required": ["volume_serial_number", "file_id"],
+                "type": "object"
+              },
+              "Revision": {
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "description": "S04.5 B/R4: the **model-facing** input of the run-information query.\n\nWHY IT LIVES HERE AND NOT IN THE TOOL CONTRACT\nThe query's own contract already lives in this crate (`ActivityQueryRequestV1`), and this is the\nsame question asked by a different caller. Putting it in `aura-tool-contract` would make that\nlow-level crate depend on this one and invert the dependency direction the design fixes; here it\nsits beside the wire shape it mirrors, so the two cannot drift.\n\nWHY IT IS THIS SMALL, AND WHAT IT DELIBERATELY CANNOT SAY\nThe model may name **what it is looking for** and nothing else. It cannot name a session, a\nworkspace or a grant: those are resolved from the step's own authenticated position exactly as\nthe IPC route resolves them. A model that could name its own session would widen its own\nvisibility by asking, which is the defect R4 names. `target` is a **lookup hint, not a grant** -\nit names an already-verified object the caller is asking about, and it can only ever match a fact\na real publisher recorded.",
+            "properties": {
+              "activity_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "One exact activity id, for `by = \"exact\"`."
+              },
+              "by": {
+                "$ref": "#/$defs/AgentActivityQueryBy",
+                "description": "The question shape."
+              },
+              "expected_revision": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Zero-based row offset within the queried set."
+              },
+              "group": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityToolGroup"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "One tool group, for `by = \"group\"`."
+              },
+              "limit": {
+                "description": "Rows requested. Zero means the contract's default page.",
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "offset": {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ActivityResourceTarget"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The physical target, for `by = \"resource\"`."
+              }
+            },
+            "required": ["by"],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "a7e582573209bc9f2d3954bdb44e3f9b806f0681d5993981ef08432fb559fa96"
+          }
+        },
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "ActivityCoverage": {
+                  "additionalProperties": false,
+                  "description": "The coverage block every snapshot and query result carries.",
+                  "properties": {
+                    "capacity_dropped": {
+                      "description": "Rows dropped at publication because the index was full.",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "omission_reasons": {
+                      "description": "Why rows were omitted, in a deterministic order.",
+                      "items": {
+                        "$ref": "#/$defs/ActivityOmissionReason"
+                      },
+                      "type": "array"
+                    },
+                    "omitted_by_limit": {
+                      "description": "Rows omitted from this particular rendering by a cap.",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "description": "Facts refused as malformed.",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "state": {
+                      "$ref": "#/$defs/ActivityCoverageState"
+                    },
+                    "total_in_scope": {
+                      "description": "Total rows the index held for the reader's scope before any cap.",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "truncated": {
+                      "description": "True when a body was cut to fit its byte bound.",
+                      "type": "boolean"
+                    },
+                    "unavailable_dropped": {
+                      "description": "Facts dropped because the index was unavailable.",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "visibility_filtered": {
+                      "description": "Rows the reader was not permitted to see. Present, not silently zero.",
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "total_in_scope",
+                    "visibility_filtered",
+                    "capacity_dropped",
+                    "unavailable_dropped",
+                    "rejected",
+                    "omitted_by_limit",
+                    "omission_reasons",
+                    "truncated"
+                  ],
+                  "type": "object"
+                },
+                "ActivityCoverageState": {
+                  "description": "Why the index is reporting less than everything.",
+                  "oneOf": [
+                    {
+                      "const": "complete",
+                      "description": "Every fact the publishers offered was recorded.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "partial",
+                      "description": "Some facts were dropped, refused or truncated. The exact counts are beside\nthis state and are never zero.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "unavailable",
+                      "description": "The index could not answer at all. This is not \"nothing is running\".",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "ActivityExecutionRef": {
+                  "description": "The real execution reference an activity is derived from.\n\nEvery variant names identities the publishing owner really holds. The Agent\nvariants carry the real `ToolCall`/`Operation`/`Attempt`; the non-Agent\nvariants carry the identity that owner actually has, so no Agent identity is\nfabricated for Main, a buffer commit or a managed background process.",
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "description": "The Agent's own tool call, bound to its real operation and attempt.",
+                      "properties": {
+                        "attempt_ordinal": {
+                          "maximum": 4294967295,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "operation_id": {
+                          "$ref": "#/$defs/SecurityOperationId"
+                        },
+                        "owner": {
+                          "const": "agent_tool_call",
+                          "type": "string"
+                        },
+                        "tool_call_id": {
+                          "$ref": "#/$defs/ToolCallId"
+                        }
+                      },
+                      "required": ["owner", "tool_call_id", "operation_id", "attempt_ordinal"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A file command owned by Main's filesystem service.\n\nR1: the operation identity is the real one the broker minted for this dispatch, and the\ncommand invocation is carried only when the request genuinely has one. An earlier version\nbyte-converted a `CommandInvocationId` into a `MutationJournalId` and presented it as a\njournal identity Main never owned; that field is gone rather than re-typed, because a\nfabricated identity is worse than an absent one.",
+                      "properties": {
+                        "command_invocation_id": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/CommandInvocationId"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "operation_id": {
+                          "$ref": "#/$defs/SecurityOperationId"
+                        },
+                        "owner": {
+                          "const": "main_file_mutation",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["owner", "operation_id"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A buffer commit identified by its own editor reservation and revision.",
+                      "properties": {
+                        "buffer_revision": {
+                          "$ref": "#/$defs/Revision"
+                        },
+                        "owner": {
+                          "const": "buffer_commit",
+                          "type": "string"
+                        },
+                        "reservation_id": {
+                          "$ref": "#/$defs/EditorReservationId"
+                        }
+                      },
+                      "required": ["owner", "reservation_id", "buffer_revision"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A P04 workspace publication identified by Main's lifecycle operation.",
+                      "properties": {
+                        "lifecycle_operation_id": {
+                          "$ref": "#/$defs/WorkspaceLifecycleOperationId"
+                        },
+                        "owner": {
+                          "const": "p04_publication",
+                          "type": "string"
+                        },
+                        "publication_id": {
+                          "$ref": "#/$defs/DeferredMutationId"
+                        }
+                      },
+                      "required": ["owner", "lifecycle_operation_id", "publication_id"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A real P04 file publication; a correlation is not a lifecycle or deferred-mutation ID.",
+                      "properties": {
+                        "correlation_id": {
+                          "$ref": "#/$defs/CorrelationId"
+                        },
+                        "operation_id": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/SecurityOperationId"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "owner": {
+                          "const": "p04_file_publication",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["owner", "correlation_id"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A managed Shell execution identified by its real reserved attempt.",
+                      "properties": {
+                        "attempt_ordinal": {
+                          "maximum": 4294967295,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "operation_id": {
+                          "$ref": "#/$defs/SecurityOperationId"
+                        },
+                        "owner": {
+                          "const": "shell_execution",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["owner", "operation_id", "attempt_ordinal"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A Shell invocation owned by the Agent's command execution service.",
+                      "properties": {
+                        "command_id": {
+                          "$ref": "#/$defs/CommandId"
+                        },
+                        "invocation_id": {
+                          "$ref": "#/$defs/CommandInvocationId"
+                        },
+                        "owner": {
+                          "const": "shell_invocation",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["owner", "invocation_id", "command_id"],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "ActivityId": {
+                  "maxLength": 32,
+                  "minLength": 32,
+                  "pattern": "^[0-9a-f]{32}$",
+                  "type": "string"
+                },
+                "ActivityKind": {
+                  "description": "Which real executor published this activity.\n\nThe set is closed on purpose. A new publisher is a real new owner of a real\nside effect, and it has to be named here before it can publish.",
+                  "oneOf": [
+                    {
+                      "const": "agent_tool",
+                      "description": "A tool call executed by the Agent's own tool backend.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "main_fs",
+                      "description": "A file mutation published by Main's filesystem service.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "buffer_commit",
+                      "description": "A buffer commit that really wrote bytes to disk.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "p04_publication",
+                      "description": "A P04 workspace publication reaching its real commit point.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "shell_foreground",
+                      "description": "A Shell command the Agent runs in the foreground of its own call.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "shell_managed_background",
+                      "description": "A Shell process the managed background owner still holds.",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "ActivityOmissionReason": {
+                  "description": "How a snapshot got shorter than what exists.",
+                  "oneOf": [
+                    {
+                      "const": "summary_row_limit",
+                      "description": "Rows were cut by the summary row cap.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "summary_byte_limit",
+                      "description": "The rendered body hit the byte cap.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "capacity_dropped",
+                      "description": "Facts were dropped because the index was at capacity.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "index_unavailable",
+                      "description": "Facts were dropped because the index was unavailable.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "rejected_fact",
+                      "description": "Facts were refused as malformed.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "visibility_filtered",
+                      "description": "Rows exist that this reader may not see under its visibility.",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "ActivityParameter": {
+                  "additionalProperties": false,
+                  "description": "One allow-listed key parameter. The list is closed per tool group.",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["key", "value", "truncated"],
+                  "type": "object"
+                },
+                "ActivityPrivateSource": {
+                  "description": "One row of a query or a summary.\nInformational source classification, independent of resource and permission descriptors.",
+                  "enum": ["workspace_metadata", "personal_data"],
+                  "type": "string"
+                },
+                "ActivityQuery": {
+                  "description": "What a caller is looking for.",
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "description": "Every activity currently recorded for one session.",
+                      "properties": {
+                        "by": {
+                          "const": "session",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["by"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "Every activity touching one physical target.",
+                      "properties": {
+                        "by": {
+                          "const": "resource",
+                          "type": "string"
+                        },
+                        "target": {
+                          "$ref": "#/$defs/ActivityResourceTarget"
+                        }
+                      },
+                      "required": ["by", "target"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "Every activity in one tool group.",
+                      "properties": {
+                        "by": {
+                          "const": "group",
+                          "type": "string"
+                        },
+                        "group": {
+                          "$ref": "#/$defs/ActivityToolGroup"
+                        }
+                      },
+                      "required": ["by", "group"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "One activity by its exact identity.",
+                      "properties": {
+                        "by": {
+                          "const": "exact",
+                          "type": "string"
+                        },
+                        "id": {
+                          "$ref": "#/$defs/ActivityId"
+                        }
+                      },
+                      "required": ["by", "id"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "Every activity whose write set is not provable.",
+                      "properties": {
+                        "by": {
+                          "const": "unknown_write_set",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["by"],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "ActivityQueryResult": {
+                  "additionalProperties": false,
+                  "description": "One page of a precise query, bound to the snapshot it was read from.",
+                  "properties": {
+                    "has_more": {
+                      "description": "True when `offset + rows.len()` is still short of the matching total.",
+                      "type": "boolean"
+                    },
+                    "header": {
+                      "$ref": "#/$defs/ActivitySnapshotHeader"
+                    },
+                    "limit": {
+                      "description": "How many rows this page requested.",
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Zero-based offset of the first row in this page.",
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "query": {
+                      "$ref": "#/$defs/ActivityQuery",
+                      "description": "The query this page answers, echoed so a page is self-describing."
+                    },
+                    "rows": {
+                      "items": {
+                        "$ref": "#/$defs/ActivityRow"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": ["header", "query", "offset", "limit", "rows", "has_more"],
+                  "type": "object"
+                },
+                "ActivityResource": {
+                  "additionalProperties": false,
+                  "description": "One resource relation inside a published activity.",
+                  "properties": {
+                    "display_name": {
+                      "description": "The display name the owner already had. It is display only: two different\nstrings may name the same physical target, and the identity above decides.",
+                      "type": "string"
+                    },
+                    "display_name_truncated": {
+                      "description": "True when the display name was cut to fit the bound.",
+                      "type": "boolean"
+                    },
+                    "relation": {
+                      "$ref": "#/$defs/ActivityResourceRelation"
+                    },
+                    "target": {
+                      "$ref": "#/$defs/ActivityResourceTarget"
+                    }
+                  },
+                  "required": ["target", "relation", "display_name", "display_name_truncated"],
+                  "type": "object"
+                },
+                "ActivityResourceRelation": {
+                  "description": "What kind of access the executor has against one real target.\n\n`UnknownWriteSet` is not a placeholder for \"we did not look\": it is the honest\nanswer for a Shell whose write set cannot be proven. It never serialises\nglobally and it never disables Shell.",
+                  "enum": ["read", "write", "unknown_write_set"],
+                  "type": "string"
+                },
+                "ActivityResourceTarget": {
+                  "description": "The physical resource a relation applies to.\n\nThese are A's already-verified facts, republished by the real owner. The\npublication path copies them; it does not re-open the path, re-resolve the\nidentity or consult the journal to learn them.",
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "description": "The full identity and verified ancestry copied from the execution boundary.",
+                      "properties": {
+                        "ancestors": {
+                          "items": {
+                            "$ref": "#/$defs/FileIdentity"
+                          },
+                          "type": "array"
+                        },
+                        "identity": {
+                          "$ref": "#/$defs/FileIdentity"
+                        },
+                        "kind": {
+                          "const": "verified_object",
+                          "type": "string"
+                        },
+                        "subtree": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["kind", "identity", "subtree"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "An existing or prospective entry below an already verified parent.",
+                      "properties": {
+                        "ancestors": {
+                          "items": {
+                            "$ref": "#/$defs/FileIdentity"
+                          },
+                          "type": "array"
+                        },
+                        "case_insensitive": {
+                          "type": "boolean"
+                        },
+                        "comparison_keys": {
+                          "description": "One-to-one name keys from the held-directory boundary. Raw names stay in `pending`.\nMissing facts on an insensitive target are unproven, never language-folded guesses.",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": ["array", "null"]
+                        },
+                        "kind": {
+                          "const": "verified_entry",
+                          "type": "string"
+                        },
+                        "parent": {
+                          "$ref": "#/$defs/FileIdentity"
+                        },
+                        "pending": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": ["kind", "parent", "pending", "case_insensitive"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "An existing object, identified by volume and file identity.",
+                      "properties": {
+                        "file_id128": {
+                          "description": "The 128-bit file id, when the volume reports one.",
+                          "items": {
+                            "maximum": 255,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "maxItems": 16,
+                          "minItems": 16,
+                          "type": ["array", "null"]
+                        },
+                        "file_index": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "kind": {
+                          "const": "existing_object",
+                          "type": "string"
+                        },
+                        "volume_serial": {
+                          "maximum": 4294967295,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": ["kind", "volume_serial", "file_index"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A directory entry, identified by its already-verified parent object and the\nreal leaf name with the volume's actual casing rule applied.",
+                      "properties": {
+                        "case_insensitive": {
+                          "type": "boolean"
+                        },
+                        "comparison_key": {
+                          "type": ["string", "null"]
+                        },
+                        "kind": {
+                          "const": "directory_entry",
+                          "type": "string"
+                        },
+                        "leaf": {
+                          "type": "string"
+                        },
+                        "parent_file_index": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "parent_volume_serial": {
+                          "maximum": 4294967295,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "parent_volume_serial",
+                        "parent_file_index",
+                        "leaf",
+                        "case_insensitive"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A directory scope: the object plus the subtree beneath it.",
+                      "properties": {
+                        "file_index": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "inclusive": {
+                          "type": "boolean"
+                        },
+                        "kind": {
+                          "const": "subtree",
+                          "type": "string"
+                        },
+                        "volume_serial": {
+                          "maximum": 4294967295,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": ["kind", "volume_serial", "file_index", "inclusive"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "description": "A target whose physical identity could not be proven. It is reported as\nunknown rather than being folded into \"unrelated\".",
+                      "properties": {
+                        "hint": {
+                          "description": "A bounded, human-readable hint. Never a credential or a payload.",
+                          "type": "string"
+                        },
+                        "kind": {
+                          "const": "unproven",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["kind", "hint"],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "ActivityRow": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "agent_run_id": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/AgentRunId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Present only when the publisher really has one."
+                    },
+                    "execution": {
+                      "$ref": "#/$defs/ActivityExecutionRef",
+                      "description": "The real execution reference, echoed so a reader can name the execution."
+                    },
+                    "id": {
+                      "$ref": "#/$defs/ActivityId"
+                    },
+                    "kind": {
+                      "$ref": "#/$defs/ActivityKind"
+                    },
+                    "parameters": {
+                      "items": {
+                        "$ref": "#/$defs/ActivityParameter"
+                      },
+                      "type": "array"
+                    },
+                    "private_source": {
+                      "$ref": "#/$defs/ActivityPrivateSource",
+                      "description": "Original source class of private paths and allowlisted parameters. Metadata stays separate."
+                    },
+                    "resources": {
+                      "items": {
+                        "$ref": "#/$defs/ActivityResource"
+                      },
+                      "type": "array"
+                    },
+                    "session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    },
+                    "started_at": {
+                      "$ref": "#/$defs/UtcTimestamp"
+                    },
+                    "tool_group": {
+                      "$ref": "#/$defs/ActivityToolGroup"
+                    },
+                    "tool_id": {
+                      "$ref": "#/$defs/ToolId"
+                    },
+                    "tool_name": {
+                      "type": "string"
+                    },
+                    "workspace_id": {
+                      "$ref": "#/$defs/WorkspaceId"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "tool_id",
+                    "tool_group",
+                    "session_id",
+                    "workspace_id",
+                    "execution",
+                    "resources",
+                    "parameters",
+                    "started_at"
+                  ],
+                  "type": "object"
+                },
+                "ActivitySnapshotHeader": {
+                  "additionalProperties": false,
+                  "description": "The exact picture every reader shares for one sampling instant.\n\nA precise query, a page of one and the model summary are all projections of\n*one* of these. They are never mixed, which is what makes \"the page is\nconsistent\" checkable rather than hopeful.",
+                  "properties": {
+                    "coverage": {
+                      "$ref": "#/$defs/ActivityCoverage",
+                      "description": "Coverage of this snapshot against the reader's scope."
+                    },
+                    "revision": {
+                      "$ref": "#/$defs/Revision",
+                      "description": "The index revision at that instant."
+                    },
+                    "runtime_instance_id": {
+                      "$ref": "#/$defs/RuntimeInstanceId",
+                      "description": "The runtime this snapshot was taken from."
+                    },
+                    "sampled_at": {
+                      "$ref": "#/$defs/UtcTimestamp",
+                      "description": "The instant the index was actually sampled."
+                    },
+                    "stale": {
+                      "description": "True when the sampled revision is not the current one, so a caller knows\nthe world moved on after the picture it is holding.",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "sampled_at",
+                    "runtime_instance_id",
+                    "revision",
+                    "coverage",
+                    "stale"
+                  ],
+                  "type": "object"
+                },
+                "ActivityToolGroup": {
+                  "description": "The tool group. Groups fail independently: one broken group cannot take\nanother group's rows out of the index.",
+                  "enum": ["file_read", "file_write", "shell", "web", "other"],
+                  "type": "string"
+                },
+                "AgentRunId": {
+                  "type": "string"
+                },
+                "CommandId": {
+                  "type": "string"
+                },
+                "CommandInvocationId": {
+                  "type": "string"
+                },
+                "CorrelationId": {
+                  "type": "string"
+                },
+                "DeferredMutationId": {
+                  "type": "string"
+                },
+                "EditorReservationId": {
+                  "type": "string"
+                },
+                "FileIdentity": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "file_id": {
+                      "type": "string"
+                    },
+                    "volume_serial_number": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["volume_serial_number", "file_id"],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "RuntimeInstanceId": {
+                  "type": "string"
+                },
+                "SecurityOperationId": {
+                  "type": "string"
+                },
+                "SessionId": {
+                  "type": "string"
+                },
+                "ToolCallId": {
+                  "type": "string"
+                },
+                "ToolId": {
+                  "type": "string"
+                },
+                "UtcTimestamp": {
+                  "type": "string"
+                },
+                "WorkspaceId": {
+                  "type": "string"
+                },
+                "WorkspaceLifecycleOperationId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "description": "R4: the result of the model-executable run-information query.\n\nIt is the wire response's own page, reused verbatim rather than re-shaped: a model, the\nInspector and a Renderer that read the same query must not be able to disagree about what it\nsaid. Nothing here is a permission decision - the page carries only rows the caller was already\nallowed to see.",
+              "properties": {
+                "contract_version": {
+                  "description": "The versioned contract this result is written under, so a reader can tell the shapes apart.",
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "page": {
+                  "$ref": "#/$defs/ActivityQueryResult",
+                  "description": "The page, bound to the snapshot it was read from."
+                }
+              },
+              "required": ["contract_version", "page"],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "450d4b886d397aac57b0bb01601030844a1feef8d198e7b78b9f008c0deddb46"
+            }
+          }
+        }
+      },
+      "tool_instance_id": "tin_01ARZ3NDEKTSV4RRFFQ69G5FB5",
+      "tool_instance_revision": "1",
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "65077fc14274c089ce097ca935706de23958700e1e3ff817471f420d80bdf1f5"
+      },
+      "source_contract_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "1cc767d62f463066a3d9324bb0311dc36dd136b8e8a8eb8cac7397784a93ca2b"
+      },
+      "execution_binding": {
+        "type": "built_in_core_handler",
+        "handler": "activity_query"
+      }
+    },
+    {
+      "definition": {
+        "builtin_key": "tools.describe",
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "model_summary": "Describe an exact tool version from an exact registry snapshot.",
+        "model_description": "Returns the complete model-visible contract for one exact ToolId and ToolVersion from the supplied immutable Tool Registry Snapshot. It never substitutes a newer version. The result describes the frozen schema, result contract, source, audience, capabilities, resource requirements, and current loadability.",
+        "strict": true,
+        "source": "built_in",
+        "audience": "child_runtime_required",
+        "capabilities": ["tool_registry_read"],
+        "scope_requirements": [
+          {
+            "type": "tool_registry_snapshot"
+          }
+        ],
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "CanonicalSemVer": {
+                "maxLength": 128,
+                "minLength": 5,
+                "pattern": "^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:[.](?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:[+][0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*)?$",
+                "type": "string"
+              },
+              "CanonicalSha256HashV1": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "const": "sha256",
+                    "type": "string"
+                  },
+                  "canonicalization_version": {
+                    "const": "rfc8785_jcs_v1",
+                    "type": "string"
+                  },
+                  "hex": {
+                    "maxLength": 64,
+                    "minLength": 64,
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": ["algorithm", "canonicalization_version", "hex"],
+                "type": "object"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "ToolDefinitionSnapshotRef": {
+                "additionalProperties": false,
+                "properties": {
+                  "registry_snapshot_ref": {
+                    "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                  },
+                  "tool_id": {
+                    "$ref": "#/$defs/ToolId"
+                  },
+                  "tool_version": {
+                    "$ref": "#/$defs/ToolVersion"
+                  }
+                },
+                "required": ["tool_id", "tool_version", "registry_snapshot_ref"],
+                "type": "object"
+              },
+              "ToolId": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotId": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotRef": {
+                "additionalProperties": false,
+                "properties": {
+                  "content_hash": {
+                    "$ref": "#/$defs/CanonicalSha256HashV1"
+                  },
+                  "registry_revision": {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  "tool_registry_snapshot_id": {
+                    "$ref": "#/$defs/ToolRegistrySnapshotId"
+                  }
+                },
+                "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                "type": "object"
+              },
+              "ToolVersion": {
+                "additionalProperties": false,
+                "properties": {
+                  "definition_revision": {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  "semantic_version": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/CanonicalSemVer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["definition_revision"],
+                "type": "object"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "definition_ref": {
+                "$ref": "#/$defs/ToolDefinitionSnapshotRef"
+              }
+            },
+            "required": ["definition_ref"],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "46bee3992e4123672ddd1eb7a97c94bf3e5155f379d18202553a2b5a78f652d2"
+          }
+        },
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "CanonicalJsonSchemaDocumentV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "document": {
+                      "type": "object"
+                    },
+                    "schema_dialect": {
+                      "const": "json_schema_draft_2020_12",
+                      "type": "string"
+                    },
+                    "schema_hash": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "algorithm": {
+                          "const": "sha256",
+                          "type": "string"
+                        },
+                        "canonicalization_version": {
+                          "const": "rfc8785_jcs_v1",
+                          "type": "string"
+                        },
+                        "hex": {
+                          "maxLength": 64,
+                          "minLength": 64,
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["algorithm", "canonicalization_version", "hex"],
+                      "type": "object"
+                    },
+                    "schema_policy_version": {
+                      "const": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "schema_dialect",
+                    "schema_policy_version",
+                    "document",
+                    "schema_hash"
+                  ],
+                  "type": "object"
+                },
+                "CanonicalSemVer": {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:[.](?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:[+][0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*)?$",
+                  "type": "string"
+                },
+                "CanonicalSha256HashV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "const": "sha256",
+                      "type": "string"
+                    },
+                    "canonicalization_version": {
+                      "const": "rfc8785_jcs_v1",
+                      "type": "string"
+                    },
+                    "hex": {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["algorithm", "canonicalization_version", "hex"],
+                  "type": "object"
+                },
+                "ErrorCategory": {
+                  "enum": [
+                    "validation",
+                    "compatibility",
+                    "not_found",
+                    "conflict",
+                    "permission",
+                    "unavailable",
+                    "cancelled",
+                    "transport",
+                    "protocol",
+                    "internal"
+                  ],
+                  "type": "string"
+                },
+                "ErrorCode": {
+                  "type": "string"
+                },
+                "PackageResourceClaimKeyV1": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                  "type": "string"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "ToolAudienceV1": {
+                  "enum": ["child_runtime_required", "subagent_configurable", "parent_agent_only"],
+                  "type": "string"
+                },
+                "ToolCanonicalName": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(?:[.][a-z0-9][a-z0-9_-]{0,63})*$",
+                  "type": "string"
+                },
+                "ToolCapabilitySummaryV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "capability": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["capability", "summary"],
+                  "type": "object"
+                },
+                "ToolDefinitionSnapshotRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "registry_snapshot_ref": {
+                      "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                    },
+                    "tool_id": {
+                      "$ref": "#/$defs/ToolId"
+                    },
+                    "tool_version": {
+                      "$ref": "#/$defs/ToolVersion"
+                    }
+                  },
+                  "required": ["tool_id", "tool_version", "registry_snapshot_ref"],
+                  "type": "object"
+                },
+                "ToolId": {
+                  "type": "string"
+                },
+                "ToolLoadStateV1": {
+                  "enum": ["core", "pinned", "ephemeral", "discoverable"],
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotId": {
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/CanonicalSha256HashV1"
+                    },
+                    "registry_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "tool_registry_snapshot_id": {
+                      "$ref": "#/$defs/ToolRegistrySnapshotId"
+                    }
+                  },
+                  "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                  "type": "object"
+                },
+                "ToolResourceClaimSummaryV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "access": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "claim_key": {
+                      "$ref": "#/$defs/PackageResourceClaimKeyV1"
+                    },
+                    "resource_kind": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["claim_key", "resource_kind", "access"],
+                  "type": "object"
+                },
+                "ToolResultContractV1": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "unit",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": {
+                          "const": "utf8_text",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type"],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "result_schema": {
+                          "$ref": "#/$defs/CanonicalJsonSchemaDocumentV1"
+                        },
+                        "type": {
+                          "const": "structured_json",
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type", "result_schema"],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "ToolSafeIssueViewV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "category": {
+                      "$ref": "#/$defs/ErrorCategory"
+                    },
+                    "code": {
+                      "$ref": "#/$defs/ErrorCode"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["code", "category", "message", "retryable"],
+                  "type": "object"
+                },
+                "ToolSchemaDialect": {
+                  "enum": ["json_schema_draft_2020_12"],
+                  "type": "string"
+                },
+                "ToolSchemaSnapshotV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "canonical_name": {
+                      "$ref": "#/$defs/ToolCanonicalName"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "input_schema": true,
+                    "schema_dialect": {
+                      "$ref": "#/$defs/ToolSchemaDialect"
+                    },
+                    "schema_hash": {
+                      "$ref": "#/$defs/CanonicalSha256HashV1"
+                    },
+                    "schema_policy_version": {
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "strict": {
+                      "type": "boolean"
+                    },
+                    "tool_id": {
+                      "$ref": "#/$defs/ToolId"
+                    },
+                    "tool_schema_snapshot_hash": {
+                      "$ref": "#/$defs/CanonicalSha256HashV1"
+                    },
+                    "tool_version": {
+                      "$ref": "#/$defs/ToolVersion"
+                    }
+                  },
+                  "required": [
+                    "tool_id",
+                    "tool_version",
+                    "canonical_name",
+                    "description",
+                    "input_schema",
+                    "schema_hash",
+                    "schema_dialect",
+                    "schema_policy_version",
+                    "strict",
+                    "tool_schema_snapshot_hash"
+                  ],
+                  "type": "object"
+                },
+                "ToolSourceKindV1": {
+                  "enum": [
+                    "built_in",
+                    "user_created",
+                    "model_created",
+                    "imported",
+                    "mcp",
+                    "plugin"
+                  ],
+                  "type": "string"
+                },
+                "ToolVersion": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "definition_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "semantic_version": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/CanonicalSemVer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["definition_revision"],
+                  "type": "object"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "audience": {
+                  "$ref": "#/$defs/ToolAudienceV1"
+                },
+                "canonical_name": {
+                  "$ref": "#/$defs/ToolCanonicalName"
+                },
+                "capability_summary": {
+                  "items": {
+                    "$ref": "#/$defs/ToolCapabilitySummaryV1"
+                  },
+                  "type": "array"
+                },
+                "currently_loadable": {
+                  "type": "boolean"
+                },
+                "definition_ref": {
+                  "$ref": "#/$defs/ToolDefinitionSnapshotRef"
+                },
+                "display_name": {
+                  "type": "string"
+                },
+                "load_state": {
+                  "$ref": "#/$defs/ToolLoadStateV1"
+                },
+                "model_description": {
+                  "type": "string"
+                },
+                "model_summary": {
+                  "type": "string"
+                },
+                "resource_claim_summary": {
+                  "items": {
+                    "$ref": "#/$defs/ToolResourceClaimSummaryV1"
+                  },
+                  "type": "array"
+                },
+                "result_contract": {
+                  "$ref": "#/$defs/ToolResultContractV1"
+                },
+                "safe_unavailability_reason": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ToolSafeIssueViewV1"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/$defs/ToolSchemaSnapshotV1"
+                },
+                "source": {
+                  "$ref": "#/$defs/ToolSourceKindV1"
+                }
+              },
+              "required": [
+                "definition_ref",
+                "canonical_name",
+                "display_name",
+                "model_summary",
+                "model_description",
+                "schema",
+                "result_contract",
+                "source",
+                "audience",
+                "capability_summary",
+                "resource_claim_summary",
+                "load_state",
+                "currently_loadable"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "7790d480bd1175c89e6d76e4fd0f098fe2e1e108b18d26d5e2504e2ccb398554"
+            }
+          }
+        }
+      },
+      "tool_instance_id": "tin_01ARZ3NDEKTSV4RRFFQ69G5FB0",
+      "tool_instance_revision": "1",
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "371d2f9f5b56ed168d9a5b9c4169f1805976df6a136297570c42739e966bc28a"
+      },
+      "source_contract_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "e39edf53472b80ec1512df092fc48c2aafc4a98517e996de252660eb19f2ed0d"
+      },
+      "execution_binding": {
+        "type": "built_in_core_handler",
+        "handler": "tools_describe"
+      }
+    },
+    {
+      "definition": {
+        "builtin_key": "tools.list_loaded",
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "model_summary": "List the exact tools exposed in the supplied registry snapshot.",
+        "model_description": "Lists the Core, pinned, and TurnTask-ephemeral tools exposed by one exact immutable Tool Registry Snapshot. It does not search the global registry, modify exposure, or substitute a newer snapshot.",
+        "strict": true,
+        "source": "built_in",
+        "audience": "child_runtime_required",
+        "capabilities": ["tool_registry_read"],
+        "scope_requirements": [
+          {
+            "type": "tool_registry_snapshot"
+          }
+        ],
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "CanonicalSha256HashV1": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "const": "sha256",
+                    "type": "string"
+                  },
+                  "canonicalization_version": {
+                    "const": "rfc8785_jcs_v1",
+                    "type": "string"
+                  },
+                  "hex": {
+                    "maxLength": 64,
+                    "minLength": 64,
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": ["algorithm", "canonicalization_version", "hex"],
+                "type": "object"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotId": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotRef": {
+                "additionalProperties": false,
+                "properties": {
+                  "content_hash": {
+                    "$ref": "#/$defs/CanonicalSha256HashV1"
+                  },
+                  "registry_revision": {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  "tool_registry_snapshot_id": {
+                    "$ref": "#/$defs/ToolRegistrySnapshotId"
+                  }
+                },
+                "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                "type": "object"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "registry_snapshot_ref": {
+                "$ref": "#/$defs/ToolRegistrySnapshotRef"
+              }
+            },
+            "required": ["registry_snapshot_ref"],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "487f2622a4ce81f95a224f054fa466818172cdfec806ee6f3f376618143b079a"
+          }
+        },
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "CanonicalSemVer": {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:[.](?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:[+][0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*)?$",
+                  "type": "string"
+                },
+                "CanonicalSha256HashV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "const": "sha256",
+                      "type": "string"
+                    },
+                    "canonicalization_version": {
+                      "const": "rfc8785_jcs_v1",
+                      "type": "string"
+                    },
+                    "hex": {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["algorithm", "canonicalization_version", "hex"],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "ToolAudienceV1": {
+                  "enum": ["child_runtime_required", "subagent_configurable", "parent_agent_only"],
+                  "type": "string"
+                },
+                "ToolCanonicalName": {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9][a-z0-9_-]{0,63}(?:[.][a-z0-9][a-z0-9_-]{0,63})*$",
+                  "type": "string"
+                },
+                "ToolDefinitionSnapshotRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "registry_snapshot_ref": {
+                      "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                    },
+                    "tool_id": {
+                      "$ref": "#/$defs/ToolId"
+                    },
+                    "tool_version": {
+                      "$ref": "#/$defs/ToolVersion"
+                    }
+                  },
+                  "required": ["tool_id", "tool_version", "registry_snapshot_ref"],
+                  "type": "object"
+                },
+                "ToolId": {
+                  "type": "string"
+                },
+                "ToolInstanceId": {
+                  "type": "string"
+                },
+                "ToolLoadStateV1": {
+                  "enum": ["core", "pinned", "ephemeral", "discoverable"],
+                  "type": "string"
+                },
+                "ToolLoadedEntryV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "audience": {
+                      "$ref": "#/$defs/ToolAudienceV1"
+                    },
+                    "canonical_name": {
+                      "$ref": "#/$defs/ToolCanonicalName"
+                    },
+                    "definition_ref": {
+                      "$ref": "#/$defs/ToolDefinitionSnapshotRef"
+                    },
+                    "display_name": {
+                      "type": "string"
+                    },
+                    "load_state": {
+                      "$ref": "#/$defs/ToolLoadStateV1"
+                    },
+                    "model_summary": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "$ref": "#/$defs/ToolSourceKindV1"
+                    },
+                    "tool_instance_id": {
+                      "$ref": "#/$defs/ToolInstanceId"
+                    }
+                  },
+                  "required": [
+                    "definition_ref",
+                    "tool_instance_id",
+                    "canonical_name",
+                    "display_name",
+                    "model_summary",
+                    "source",
+                    "audience",
+                    "load_state"
+                  ],
+                  "type": "object"
+                },
+                "ToolRegistrySnapshotId": {
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/CanonicalSha256HashV1"
+                    },
+                    "registry_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "tool_registry_snapshot_id": {
+                      "$ref": "#/$defs/ToolRegistrySnapshotId"
+                    }
+                  },
+                  "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                  "type": "object"
+                },
+                "ToolSourceKindV1": {
+                  "enum": [
+                    "built_in",
+                    "user_created",
+                    "model_created",
+                    "imported",
+                    "mcp",
+                    "plugin"
+                  ],
+                  "type": "string"
+                },
+                "ToolVersion": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "definition_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "semantic_version": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/CanonicalSemVer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["definition_revision"],
+                  "type": "object"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "registry_snapshot_ref": {
+                  "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                },
+                "tools": {
+                  "items": {
+                    "$ref": "#/$defs/ToolLoadedEntryV1"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": ["registry_snapshot_ref", "tools"],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "e06214f44458da2a1d4f7c940744c213fb3c297a2e65c6d1e46089fc24657448"
+            }
+          }
+        }
+      },
+      "tool_instance_id": "tin_01ARZ3NDEKTSV4RRFFQ69G5FB1",
+      "tool_instance_revision": "1",
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "4064f2eb24219313c395c9b8983c5d6d4fdf7a58ddb4e04fe5d32b94c123963c"
+      },
+      "source_contract_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "20f10a67a83386fab9c62aaeb71a41dac5d7a2851614c9a8e27869f211a1e091"
+      },
+      "execution_binding": {
+        "type": "built_in_core_handler",
+        "handler": "tools_list_loaded"
+      }
+    },
+    {
+      "definition": {
+        "builtin_key": "tools.load",
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "model_summary": "Atomically load exact tool versions for later model steps in this TurnTask.",
+        "model_description": "Atomically exposes one or more exact tool versions as TurnTask-scoped ephemeral tools. All targets are validated before any change is committed. The operation does not install, trust, enable, or pin tools. Successfully loaded tools become available only in a newly created registry snapshot for a later model step.",
+        "strict": true,
+        "source": "built_in",
+        "audience": "child_runtime_required",
+        "capabilities": ["tool_registry_read", "tool_ephemeral_exposure_write"],
+        "scope_requirements": [
+          {
+            "type": "tool_registry_snapshot"
+          },
+          {
+            "type": "turn_task_tool_exposure"
+          }
+        ],
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "CanonicalSemVer": {
+                "maxLength": 128,
+                "minLength": 5,
+                "pattern": "^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:[.](?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:[+][0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*)?$",
+                "type": "string"
+              },
+              "CanonicalSha256HashV1": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "const": "sha256",
+                    "type": "string"
+                  },
+                  "canonicalization_version": {
+                    "const": "rfc8785_jcs_v1",
+                    "type": "string"
+                  },
+                  "hex": {
+                    "maxLength": 64,
+                    "minLength": 64,
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": ["algorithm", "canonicalization_version", "hex"],
+                "type": "object"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "ToolDefinitionSnapshotRef": {
+                "additionalProperties": false,
+                "properties": {
+                  "registry_snapshot_ref": {
+                    "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                  },
+                  "tool_id": {
+                    "$ref": "#/$defs/ToolId"
+                  },
+                  "tool_version": {
+                    "$ref": "#/$defs/ToolVersion"
+                  }
+                },
+                "required": ["tool_id", "tool_version", "registry_snapshot_ref"],
+                "type": "object"
+              },
+              "ToolId": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotId": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotRef": {
+                "additionalProperties": false,
+                "properties": {
+                  "content_hash": {
+                    "$ref": "#/$defs/CanonicalSha256HashV1"
+                  },
+                  "registry_revision": {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  "tool_registry_snapshot_id": {
+                    "$ref": "#/$defs/ToolRegistrySnapshotId"
+                  }
+                },
+                "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                "type": "object"
+              },
+              "ToolVersion": {
+                "additionalProperties": false,
+                "properties": {
+                  "definition_revision": {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  "semantic_version": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/CanonicalSemVer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["definition_revision"],
+                "type": "object"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "definitions": {
+                "items": {
+                  "$ref": "#/$defs/ToolDefinitionSnapshotRef"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": ["definitions"],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3123a25b285e14e4cd282852700ed4cdd5ef1e296d4c95b15fdea48020dad5c7"
+          }
+        },
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "CanonicalSha256HashV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "const": "sha256",
+                      "type": "string"
+                    },
+                    "canonicalization_version": {
+                      "const": "rfc8785_jcs_v1",
+                      "type": "string"
+                    },
+                    "hex": {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["algorithm", "canonicalization_version", "hex"],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotId": {
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/CanonicalSha256HashV1"
+                    },
+                    "registry_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "tool_registry_snapshot_id": {
+                      "$ref": "#/$defs/ToolRegistrySnapshotId"
+                    }
+                  },
+                  "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                  "type": "object"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "changed": {
+                  "type": "boolean"
+                },
+                "resulting_registry_snapshot_ref": {
+                  "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                }
+              },
+              "required": ["changed", "resulting_registry_snapshot_ref"],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "1d79a656b6663829a55ffae9f89fc133b883cc0b7ab137b55c148fc4fe0e7759"
+            }
+          }
+        }
+      },
+      "tool_instance_id": "tin_01ARZ3NDEKTSV4RRFFQ69G5FB2",
+      "tool_instance_revision": "1",
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "5ab5cb2b6efdf24f90ebba053992ab2ff48c480df5f4bd677f2a99725af7de06"
+      },
+      "source_contract_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "f6b77f90dd2d3b820e695afb919494e0185c2c094e8ebd3b58908ab1bfcdbaed"
+      },
+      "execution_binding": {
+        "type": "built_in_core_handler",
+        "handler": "tools_load"
+      }
+    },
+    {
+      "definition": {
+        "builtin_key": "tools.search",
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAY",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "model_summary": "Search discoverable tools in the caller's exact registry snapshot.",
+        "model_description": "Searches the immutable Tool Registry Snapshot available to the current agent by canonical name, display name, summary, and model description. Returns exact ToolId and ToolVersion references and an opaque cursor. It does not install, trust, pin, load, unload, or execute a tool. Use tools.describe to inspect an exact result and tools.load to expose selected tools to a later model step.",
+        "strict": true,
+        "source": "built_in",
+        "audience": "child_runtime_required",
+        "capabilities": ["tool_registry_read"],
+        "scope_requirements": [
+          {
+            "type": "tool_registry_snapshot"
+          }
+        ],
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "ToolSearchCursorV1": {
+                "type": "string"
+              },
+              "ToolSearchQueryV1": {
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "cursor": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ToolSearchCursorV1"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "limit": {
+                "maximum": 50,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "query": {
+                "$ref": "#/$defs/ToolSearchQueryV1"
+              }
+            },
+            "required": ["query", "limit"],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "539e26cf6174ca4425a7b6a6e9f7fffe1878eb0dff6fe68029df8e413b6f6255"
+          }
+        },
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "CanonicalSemVer": {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:[.](?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:[+][0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*)?$",
+                  "type": "string"
+                },
+                "CanonicalSha256HashV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "const": "sha256",
+                      "type": "string"
+                    },
+                    "canonicalization_version": {
+                      "const": "rfc8785_jcs_v1",
+                      "type": "string"
+                    },
+                    "hex": {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["algorithm", "canonicalization_version", "hex"],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "ToolId": {
+                  "type": "string"
+                },
+                "ToolLoadStateV1": {
+                  "enum": ["core", "pinned", "ephemeral", "discoverable"],
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotId": {
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/CanonicalSha256HashV1"
+                    },
+                    "registry_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "tool_registry_snapshot_id": {
+                      "$ref": "#/$defs/ToolRegistrySnapshotId"
+                    }
+                  },
+                  "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                  "type": "object"
+                },
+                "ToolSearchCursorV1": {
+                  "type": "string"
+                },
+                "ToolSearchHitV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "canonical_name": {
+                      "type": "string"
+                    },
+                    "display_name": {
+                      "type": "string"
+                    },
+                    "load_state": {
+                      "$ref": "#/$defs/ToolLoadStateV1"
+                    },
+                    "source": {
+                      "$ref": "#/$defs/ToolSourceKindV1"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "tool_id": {
+                      "$ref": "#/$defs/ToolId"
+                    },
+                    "tool_version": {
+                      "$ref": "#/$defs/ToolVersion"
+                    }
+                  },
+                  "required": [
+                    "tool_id",
+                    "tool_version",
+                    "canonical_name",
+                    "display_name",
+                    "summary",
+                    "source",
+                    "load_state"
+                  ],
+                  "type": "object"
+                },
+                "ToolSourceKindV1": {
+                  "enum": [
+                    "built_in",
+                    "user_created",
+                    "model_created",
+                    "imported",
+                    "mcp",
+                    "plugin"
+                  ],
+                  "type": "string"
+                },
+                "ToolVersion": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "definition_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "semantic_version": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/CanonicalSemVer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["definition_revision"],
+                  "type": "object"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "next_cursor": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ToolSearchCursorV1"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "registry_snapshot": {
+                  "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                },
+                "results": {
+                  "items": {
+                    "$ref": "#/$defs/ToolSearchHitV1"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": ["registry_snapshot", "results"],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "e34bad9a7a30fc2bd5282e618dc8a880abaadf2d3ebb9255a2a7801d2bceade1"
+            }
+          }
+        }
+      },
+      "tool_instance_id": "tin_01ARZ3NDEKTSV4RRFFQ69G5FB3",
+      "tool_instance_revision": "1",
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "a31f701c7e6ad6857ae081dd3bf46a4ca8d36015eb240f7f1e2a38a88d75c32c"
+      },
+      "source_contract_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "ffad41ead6bf8d7a720735154d67059ef661729ca7fb7f379e5957ee6407d6a9"
+      },
+      "execution_binding": {
+        "type": "built_in_core_handler",
+        "handler": "tools_search"
+      }
+    },
+    {
+      "definition": {
+        "builtin_key": "tools.unload",
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "model_summary": "Atomically unload TurnTask-scoped ephemeral tools for later model steps.",
+        "model_description": "Atomically removes one or more exact TurnTask-scoped ephemeral tool exposures. It cannot remove Core tools, Workspace pins, or Session pins. A target that is already not ephemerally loaded is an idempotent no-op. Any real change creates a new immutable registry snapshot.",
+        "strict": true,
+        "source": "built_in",
+        "audience": "child_runtime_required",
+        "capabilities": ["tool_registry_read", "tool_ephemeral_exposure_write"],
+        "scope_requirements": [
+          {
+            "type": "tool_registry_snapshot"
+          },
+          {
+            "type": "turn_task_tool_exposure"
+          }
+        ],
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "CanonicalSemVer": {
+                "maxLength": 128,
+                "minLength": 5,
+                "pattern": "^(0|[1-9][0-9]*)[.](0|[1-9][0-9]*)[.](0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:[.](?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:[+][0-9A-Za-z-]+(?:[.][0-9A-Za-z-]+)*)?$",
+                "type": "string"
+              },
+              "CanonicalSha256HashV1": {
+                "additionalProperties": false,
+                "properties": {
+                  "algorithm": {
+                    "const": "sha256",
+                    "type": "string"
+                  },
+                  "canonicalization_version": {
+                    "const": "rfc8785_jcs_v1",
+                    "type": "string"
+                  },
+                  "hex": {
+                    "maxLength": 64,
+                    "minLength": 64,
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": ["algorithm", "canonicalization_version", "hex"],
+                "type": "object"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "ToolDefinitionSnapshotRef": {
+                "additionalProperties": false,
+                "properties": {
+                  "registry_snapshot_ref": {
+                    "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                  },
+                  "tool_id": {
+                    "$ref": "#/$defs/ToolId"
+                  },
+                  "tool_version": {
+                    "$ref": "#/$defs/ToolVersion"
+                  }
+                },
+                "required": ["tool_id", "tool_version", "registry_snapshot_ref"],
+                "type": "object"
+              },
+              "ToolId": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotId": {
+                "type": "string"
+              },
+              "ToolRegistrySnapshotRef": {
+                "additionalProperties": false,
+                "properties": {
+                  "content_hash": {
+                    "$ref": "#/$defs/CanonicalSha256HashV1"
+                  },
+                  "registry_revision": {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  "tool_registry_snapshot_id": {
+                    "$ref": "#/$defs/ToolRegistrySnapshotId"
+                  }
+                },
+                "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                "type": "object"
+              },
+              "ToolVersion": {
+                "additionalProperties": false,
+                "properties": {
+                  "definition_revision": {
+                    "$ref": "#/$defs/Revision"
+                  },
+                  "semantic_version": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/CanonicalSemVer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["definition_revision"],
+                "type": "object"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "definitions": {
+                "items": {
+                  "$ref": "#/$defs/ToolDefinitionSnapshotRef"
+                },
+                "maxItems": 50,
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "required": ["definitions"],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3123a25b285e14e4cd282852700ed4cdd5ef1e296d4c95b15fdea48020dad5c7"
+          }
+        },
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "CanonicalSha256HashV1": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "const": "sha256",
+                      "type": "string"
+                    },
+                    "canonicalization_version": {
+                      "const": "rfc8785_jcs_v1",
+                      "type": "string"
+                    },
+                    "hex": {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["algorithm", "canonicalization_version", "hex"],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotId": {
+                  "type": "string"
+                },
+                "ToolRegistrySnapshotRef": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/CanonicalSha256HashV1"
+                    },
+                    "registry_revision": {
+                      "$ref": "#/$defs/Revision"
+                    },
+                    "tool_registry_snapshot_id": {
+                      "$ref": "#/$defs/ToolRegistrySnapshotId"
+                    }
+                  },
+                  "required": ["tool_registry_snapshot_id", "registry_revision", "content_hash"],
+                  "type": "object"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "changed": {
+                  "type": "boolean"
+                },
+                "resulting_registry_snapshot_ref": {
+                  "$ref": "#/$defs/ToolRegistrySnapshotRef"
+                }
+              },
+              "required": ["changed", "resulting_registry_snapshot_ref"],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "1d79a656b6663829a55ffae9f89fc133b883cc0b7ab137b55c148fc4fe0e7759"
+            }
+          }
+        }
+      },
+      "tool_instance_id": "tin_01ARZ3NDEKTSV4RRFFQ69G5FB4",
+      "tool_instance_revision": "1",
+      "definition_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "803fcab2256f4187bbc9dd2d1af48fbc5e5b871991fb57edb01f3114014d26bf"
+      },
+      "source_contract_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "806430f8877fc08224989c1e44d5126a8d54197ad65474f515d70b127a252829"
+      },
+      "execution_binding": {
+        "type": "built_in_core_handler",
+        "handler": "tools_unload"
+      }
+    }
+  ]
+}

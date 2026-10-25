@@ -1,0 +1,30 @@
+[package]
+name = "aura-v2-importer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-model-config = { path = "../aura-model-config" }
+aura-config = { path = "../aura-config" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+rusqlite.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+blake3.workspace = true
+tempfile.workspace = true
+url.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+aura-contract-schema = { path = "../aura-contract-schema" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-model-fixtures = { path = "../aura-model-fixtures" }
+
+[lints]
+workspace = true

@@ -1,0 +1,379 @@
+/* The prompt inspector
+   in squares - square corners, stepped shadows, bars of squares, the code font for numbers. The four
+   parts of a request keep the colours the context bar gives them. */
+:root {
+  --pixel-system: #36c7ff;
+  --pixel-tools: #996bff;
+  --pixel-conversation: #8fc832;
+  --pixel-background: #ffa63b;
+  --pixel-output: #e5bf73;
+}
+
+.pixel-stack,
+.pixel-inspector {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+  color: var(--ink);
+}
+
+.pixel-head {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pixel-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.pixel-chips {
+  display: inline-flex;
+  min-width: 0;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.pixel-chip {
+  overflow: hidden;
+  padding: 1px 6px;
+  border: 1px solid var(--accent-strong);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  box-shadow: 2px 2px 0 var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pixel-chip.is-quiet {
+  border-color: var(--line-strong);
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: 2px 2px 0 var(--line-strong);
+}
+
+.pixel-card {
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+  box-shadow: 4px 4px 0 var(--surface-selected);
+}
+
+.pixel-card h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.pixel-mark {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: var(--accent);
+  box-shadow: 2px 2px 0 var(--accent-soft);
+}
+
+.pixel-figure {
+  margin-left: auto;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.pixel-total {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 0 0 7px;
+  font-family: var(--font-mono);
+}
+
+.pixel-total strong {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pixel-total span {
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.pixel-bar {
+  display: flex;
+  min-width: 0;
+  gap: 2px;
+}
+
+.pixel-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  aspect-ratio: 1;
+  background: var(--surface-muted);
+  box-shadow: inset -1px -1px 0 rgba(31, 38, 33, 0.12);
+}
+
+.pixel-cell.is-system_and_rules {
+  background: var(--pixel-system);
+}
+
+.pixel-cell.is-tools_and_results {
+  background: var(--pixel-tools);
+}
+
+.pixel-cell.is-conversation {
+  background: var(--pixel-conversation);
+}
+
+.pixel-cell.is-background_and_compaction {
+  background: var(--pixel-background);
+}
+
+.pixel-cell.is-used,
+.pixel-cell.is-part,
+.pixel-cell.is-tool {
+  background: var(--accent);
+}
+
+.pixel-cell.is-input {
+  background: var(--accent-soft);
+}
+
+.pixel-cell.is-output {
+  background: var(--pixel-output);
+}
+
+.pixel-cell.is-safety {
+  background: var(--line-strong);
+}
+
+.pixel-cell.is-cached {
+  background: var(--success);
+}
+
+.pixel-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  margin: 9px 0 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  list-style: none;
+}
+
+.pixel-legend li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.pixel-legend li > span:not(.pixel-swatch) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pixel-legend b,
+.pixel-rows b {
+  margin-left: auto;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.pixel-swatch {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  background: var(--surface-muted);
+}
+
+.pixel-legend .is-system_and_rules .pixel-swatch {
+  background: var(--pixel-system);
+}
+
+.pixel-legend .is-tools_and_results .pixel-swatch {
+  background: var(--pixel-tools);
+}
+
+.pixel-legend .is-conversation .pixel-swatch {
+  background: var(--pixel-conversation);
+}
+
+.pixel-legend .is-background_and_compaction .pixel-swatch {
+  background: var(--pixel-background);
+}
+
+.pixel-legend .is-input .pixel-swatch {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.pixel-legend .is-output .pixel-swatch {
+  background: var(--pixel-output);
+}
+
+.pixel-legend .is-safety .pixel-swatch {
+  background: var(--line-strong);
+}
+
+.pixel-rows {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pixel-rows li {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+/* Tool names are longer than part names; their bars give them the room. */
+.pixel-rows.is-tools li {
+  grid-template-columns: minmax(0, 11em) minmax(0, 1fr) auto;
+}
+
+.pixel-rows .pixel-cell {
+  aspect-ratio: auto;
+  height: 8px;
+}
+
+.pixel-row-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pixel-row-name.is-code {
+  display: block;
+  font-family: var(--font-mono);
+}
+
+.pixel-changed {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  background: var(--warning);
+}
+
+.pixel-caption {
+  margin: 7px 0 0;
+  color: var(--quiet);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.pixel-muted {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 12px;
+}
+
+.pixel-details {
+  padding: 6px 10px;
+  border: 2px dashed var(--line-strong);
+  font-size: 11px;
+}
+
+.pixel-details summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pixel-details dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 8px 0;
+}
+
+.pixel-details dt {
+  color: var(--quiet);
+}
+
+.pixel-details dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* The snapshot's JSON, a row at a time: only the rows on screen are drawn. */
+.snapshot-json .pixel-caption {
+  margin: 0 0 4px;
+}
+
+.snapshot-json-view {
+  max-height: 320px;
+  overflow: auto;
+  border: 2px solid var(--line);
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.snapshot-json-space {
+  position: relative;
+  min-width: 100%;
+}
+
+.snapshot-json-row {
+  position: absolute;
+  left: 0;
+  height: 16px;
+  padding: 0 8px;
+  line-height: 16px;
+  white-space: pre;
+}
+
+.snapshot-json-row.is-loading {
+  right: 0;
+  display: flex;
+  align-items: center;
+}
+
+.snapshot-json-skeleton {
+  display: block;
+  height: 6px;
+  background: linear-gradient(90deg, var(--line) 0%, var(--surface) 50%, var(--line) 100%);
+  background-size: 200% 100%;
+  animation: snapshot-json-shimmer 1.2s linear infinite;
+}
+
+@keyframes snapshot-json-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snapshot-json-skeleton {
+    animation: none;
+  }
+}

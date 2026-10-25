@@ -1,0 +1,16 @@
+/* The irreversible actions read as such, in the menu and in their dialog. */
+.sidebar-popover > button.is-destructive {
+  color: var(--danger);
+}
+.sidebar-popover > button.is-destructive:hover {
+  background: var(--danger-soft);
+}
+/* Above the dialog's own "last button is dark" rule, which has the same specificity. */
+.sidebar-edit-dialog .sidebar-dialog-actions button.is-destructive {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+.sidebar-edit-dialog .sidebar-dialog-actions button.is-destructive:disabled {
+  opacity: 0.6;
+}

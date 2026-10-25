@@ -1,0 +1,21 @@
+//! Drives the real admission, permission, journal and network boundaries.
+use super::*;
+mod approval_lifetimes;
+mod consent_boundaries;
+mod credentials;
+mod destinations;
+mod dns_preflight;
+mod document_read;
+mod download_boundaries;
+mod downloads;
+mod fixture;
+mod live_authority;
+mod model_authentication;
+mod outcomes;
+mod partial_approvals;
+mod publication_recheck;
+mod s09_credential_upgrade;
+mod s09_saved_enablement;
+mod transfer_failures;
+mod worker_lifetime;
+use fixture::{Server, approve, fixture, no_attempt};

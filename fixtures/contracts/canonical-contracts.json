@@ -1,0 +1,4004 @@
+{
+  "contract_version": {
+    "major": 1,
+    "minor": 7
+  },
+  "ids": {
+    "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "browser_share_id": "bsh_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "attachment_grant_id": "atg_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "provider_id": "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "model_profile_id": "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "model_execution_snapshot_id": "mex_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "transport_attempt_id": "tat_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "model_content_block_id": "mcb_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "model_failure_id": "mfl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "context_projection_snapshot_id": "cps_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "prompt_bundle_snapshot_id": "pbs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "model_discovery_run_id": "mdr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "model_availability_test_id": "mav_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "turn_task_id": "trn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "task_lineage_id": "lin_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "agent_run_id": "agt_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "model_step_id": "stp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_call_id": "tcl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_instance_id": "tin_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_package_id": "tpk_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_draft_id": "tdr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_batch_id": "tbt_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_execution_attempt_id": "tea_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_conformance_run_id": "tcr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "tool_registry_snapshot_id": "trs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "artifact_id": "art_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "memory_id": "mem_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "skill_instance_id": "skl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "command_id": "cmd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "command_invocation_id": "civ_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "stream_id": "str_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "ipc_channel_id": "chn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "causation_id": "cau_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "event_id": "evt_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "file_reference_id": "fre_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "external_grant_id": "xgr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "deferred_mutation_id": "dfm_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "mutation_journal_id": "jnl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "workspace_lifecycle_operation_id": "wlo_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "editor_reservation_id": "ers_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "renderer_instance_id": "rnd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "delete_confirmation_id": "dcn_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  },
+  "revision": "42",
+  "expected_revision": "41",
+  "content_hash": {
+    "algorithm": "blake3",
+    "hex": "abababababababababababababababababababababababababababababababab"
+  },
+  "timestamp": "2026-08-28T00:00:00Z",
+  "error": {
+    "contract_version": {
+      "major": 1,
+      "minor": 7
+    },
+    "code": "contract.example_error",
+    "category": "validation",
+    "message": "Example typed contract error.",
+    "retryable": false,
+    "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "causation_id": "cau_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "details": {
+      "field": "example"
+    }
+  },
+  "component_manifest": {
+    "manifest_version": {
+      "major": 1,
+      "minor": 7
+    },
+    "bundle_namespace": "aura.desktop.test.contracts",
+    "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "release_channel": "Nightly",
+    "product_version": "0.1.0",
+    "build_commit": "0000000000000000000000000000000000000000",
+    "target_triple": "x86_64-pc-windows-msvc",
+    "components": [
+      {
+        "component_id": "aura-desktop",
+        "kind": "desktop",
+        "version": "0.1.0",
+        "relative_path": "Aura.exe",
+        "content_hash": {
+          "algorithm": "sha256",
+          "hex": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        }
+      },
+      {
+        "component_id": "aura-core",
+        "kind": "core",
+        "version": "0.1.0",
+        "relative_path": "aura-core.exe",
+        "content_hash": {
+          "algorithm": "sha256",
+          "hex": "2222222222222222222222222222222222222222222222222222222222222222"
+        },
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        }
+      },
+      {
+        "component_id": "aura-main-pipe",
+        "kind": "main_pipe_bridge",
+        "version": "0.1.0",
+        "relative_path": "resources/native/aura-main-pipe.node",
+        "content_hash": {
+          "algorithm": "sha256",
+          "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+        },
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        }
+      },
+      {
+        "component_id": "aura-sandbox-host",
+        "kind": "sandbox_host",
+        "version": "0.1.0",
+        "relative_path": "aura-sandbox-host.exe",
+        "content_hash": {
+          "algorithm": "sha256",
+          "hex": "3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        }
+      },
+      {
+        "component_id": "aura-egress-proxy",
+        "kind": "egress_proxy",
+        "version": "0.1.0",
+        "relative_path": "aura-egress-proxy.exe",
+        "content_hash": {
+          "algorithm": "sha256",
+          "hex": "4444444444444444444444444444444444444444444444444444444444444444"
+        },
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        }
+      },
+      {
+        "component_id": "aura-elevated-helper",
+        "kind": "elevated_helper",
+        "version": "0.1.0",
+        "relative_path": "aura-elevated-helper.exe",
+        "content_hash": {
+          "algorithm": "sha256",
+          "hex": "5555555555555555555555555555555555555555555555555555555555555555"
+        },
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        }
+      }
+    ]
+  },
+  "projection_contract": {
+    "projection_key": {
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "projection_kind": "core_health",
+      "projection_scope": {
+        "type": "global"
+      }
+    },
+    "projection_subscription": {
+      "projection_kind": "core_health",
+      "projection_scope": {
+        "type": "global"
+      },
+      "known_runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "after_revision": "41"
+    },
+    "projection_snapshot_request": {
+      "projection_kind": "core_health",
+      "projection_scope": {
+        "type": "global"
+      },
+      "known_runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    "projection_unsubscribe_request": {
+      "projection_kind": "core_health",
+      "projection_scope": {
+        "type": "global"
+      }
+    },
+    "projection_change": {
+      "projection_kind": "core_health",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "projection_scope": {
+        "type": "global"
+      },
+      "revision": "42",
+      "payload": {
+        "state": "ready",
+        "read_only": false,
+        "safe_mode": false,
+        "restart_attempt": 0,
+        "status_code": "core.ready",
+        "status_message": "Aura Core is ready."
+      }
+    },
+    "compatibility_snapshot": {
+      "contract_version": 1,
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "revision": "1",
+      "paused_projections": []
+    }
+  },
+  "runtime": {
+    "frame_header": {
+      "channel_id": "chn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "connection_epoch": 1,
+      "sequence": 2
+    },
+    "handshake_request": {
+      "handshake_kind": "initial",
+      "handshake": {
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        },
+        "process_kind": "electron_main",
+        "component_version": "0.1.0",
+        "build_commit": "0000000000000000000000000000000000000000",
+        "release_descriptor": {
+          "bundle_namespace": "aura.desktop.test.contracts",
+          "identity": {
+            "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "component_manifest_hash": {
+              "algorithm": "sha256",
+              "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+            }
+          }
+        },
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "parent_runtime_instance_id": null,
+        "supported_features": [
+          "aura.ipc.v1",
+          "aura.projection.core-health.v1",
+          "aura.security-control-plane.v1"
+        ]
+      },
+      "channel_id": "chn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "connection_epoch": 1,
+      "client_nonce": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "handshake_response": {
+      "handshake_kind": "initial",
+      "handshake": {
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        },
+        "process_kind": "core",
+        "component_version": "0.1.0",
+        "build_commit": "0000000000000000000000000000000000000000",
+        "release_descriptor": {
+          "bundle_namespace": "aura.desktop.test.contracts",
+          "identity": {
+            "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "component_manifest_hash": {
+              "algorithm": "sha256",
+              "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+            }
+          }
+        },
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "parent_runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "supported_features": [
+          "aura.ipc.v1",
+          "aura.ipc.authenticated-channel.v1",
+          "aura.runtime.command-outcome.v1"
+        ]
+      },
+      "channel_id": "chn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "connection_epoch": 1,
+      "client_nonce": "1111111111111111111111111111111111111111111111111111111111111111",
+      "server_nonce": "2222222222222222222222222222222222222222222222222222222222222222",
+      "negotiated_protocol_version": {
+        "major": 1,
+        "minor": 7
+      },
+      "transcript_hash": {
+        "algorithm": "sha256",
+        "hex": "6ad931de9fe28d6350be5fca14f313be9ee5579c6ad3d7762da8c1d67b26d5b9"
+      }
+    },
+    "handshake_transcript": {
+      "handshake_kind": "initial",
+      "channel_id": "chn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "connection_epoch": 1,
+      "client_nonce": "1111111111111111111111111111111111111111111111111111111111111111",
+      "server_nonce": "2222222222222222222222222222222222222222222222222222222222222222",
+      "client_handshake": {
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        },
+        "process_kind": "electron_main",
+        "component_version": "0.1.0",
+        "build_commit": "0000000000000000000000000000000000000000",
+        "release_descriptor": {
+          "bundle_namespace": "aura.desktop.test.contracts",
+          "identity": {
+            "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "component_manifest_hash": {
+              "algorithm": "sha256",
+              "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+            }
+          }
+        },
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "parent_runtime_instance_id": null,
+        "supported_features": [
+          "aura.ipc.v1",
+          "aura.projection.core-health.v1",
+          "aura.security-control-plane.v1"
+        ]
+      },
+      "server_handshake": {
+        "protocol_version": {
+          "major": 1,
+          "minor": 7
+        },
+        "process_kind": "core",
+        "component_version": "0.1.0",
+        "build_commit": "0000000000000000000000000000000000000000",
+        "release_descriptor": {
+          "bundle_namespace": "aura.desktop.test.contracts",
+          "identity": {
+            "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "component_manifest_hash": {
+              "algorithm": "sha256",
+              "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+            }
+          }
+        },
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "parent_runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "supported_features": [
+          "aura.ipc.v1",
+          "aura.ipc.authenticated-channel.v1",
+          "aura.runtime.command-outcome.v1"
+        ]
+      },
+      "negotiated_protocol_version": {
+        "major": 1,
+        "minor": 7
+      }
+    },
+    "handshake_finish": {
+      "handshake_kind": "initial",
+      "channel_id": "chn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "connection_epoch": 1,
+      "transcript_hash": {
+        "algorithm": "sha256",
+        "hex": "6ad931de9fe28d6350be5fca14f313be9ee5579c6ad3d7762da8c1d67b26d5b9"
+      },
+      "bootstrap_proof": "b4dedcf8ab8ad8f84b3154989d582068195cafff93f232e7dcde2b8f4eca2b95"
+    },
+    "handshake_complete": {
+      "handshake_kind": "initial",
+      "channel_id": "chn_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "connection_epoch": 1,
+      "transcript_hash": {
+        "algorithm": "sha256",
+        "hex": "6ad931de9fe28d6350be5fca14f313be9ee5579c6ad3d7762da8c1d67b26d5b9"
+      }
+    },
+    "authenticated_peer_identity": {
+      "process_id": 4242,
+      "process_creation_time_100ns": 133700000,
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+      "release_descriptor": {
+        "bundle_namespace": "aura.desktop.test.contracts",
+        "identity": {
+          "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "component_manifest_hash": {
+            "algorithm": "sha256",
+            "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+          }
+        }
+      },
+      "windows_session_id": 1
+    },
+    "command_outcome": {
+      "outcome": "unknown",
+      "command_invocation_id": "civ_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "reason": "not_recorded_or_incomplete"
+    },
+    "startup_progress": {
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "sequence": 3,
+      "phase": "ready",
+      "message": "core.ready",
+      "occurred_at": "2026-08-29T00:00:00Z"
+    },
+    "heartbeat": {
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "sequence": 7,
+      "sent_at": "2026-08-29T00:00:02Z"
+    },
+    "projection_subscription": {
+      "projection_kind": "core_health",
+      "projection_scope": {
+        "type": "global"
+      },
+      "known_runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "after_revision": "41"
+    },
+    "projection_unsubscribe_request": {
+      "projection_kind": "core_health",
+      "projection_scope": {
+        "type": "global"
+      }
+    },
+    "projection_snapshot_request": {
+      "projection_kind": "core_health",
+      "projection_scope": {
+        "type": "global"
+      },
+      "known_runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    "projection_change": {
+      "projection_kind": "core_health",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "projection_scope": {
+        "type": "global"
+      },
+      "revision": "42",
+      "payload": {
+        "state": "ready",
+        "read_only": false,
+        "safe_mode": false,
+        "restart_attempt": 0,
+        "status_code": "core.ready",
+        "status_message": "Aura Core is ready."
+      }
+    },
+    "projection_keys": [
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "core_health",
+        "projection_scope": {
+          "type": "global"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "workspace_session",
+        "projection_scope": {
+          "type": "global"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "workspace_files",
+        "projection_scope": {
+          "type": "global"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "model_settings",
+        "projection_scope": {
+          "type": "global"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "provider_catalog",
+        "projection_scope": {
+          "type": "global"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "endpoint_detail",
+        "projection_scope": {
+          "type": "endpoint",
+          "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "model_profile",
+        "projection_scope": {
+          "type": "model_profile",
+          "model_profile_id": "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "session_model_selector",
+        "projection_scope": {
+          "type": "session",
+          "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "model_availability_test",
+        "projection_scope": {
+          "type": "model_availability_test",
+          "model_availability_test_id": "mav_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        }
+      },
+      {
+        "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "projection_kind": "context_window_correction",
+        "projection_scope": {
+          "type": "session",
+          "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        }
+      }
+    ],
+    "binary_stream_frame": {
+      "stream_id": "str_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "chunk_sequence": 0,
+      "end_of_message": true,
+      "data_length": 262144
+    },
+    "ipc_error": {
+      "code": "ipc.transport_lost",
+      "category": "transport",
+      "message": "The Core transport disconnected.",
+      "retryable": true,
+      "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "terminal": "transport_lost",
+      "details": {
+        "transport": "named_pipe"
+      }
+    },
+    "cancellation": {
+      "request_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    "active_install": {
+      "active": "0.1.0",
+      "release_descriptor": {
+        "bundle_namespace": "aura.desktop.test.contracts",
+        "identity": {
+          "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "component_manifest_hash": {
+            "algorithm": "sha256",
+            "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+          }
+        }
+      },
+      "previous": null,
+      "pending": null,
+      "last_known_good": "0.1.0"
+    }
+  },
+  "persistence": {
+    "credential_ref": "wincred://aura/model/main",
+    "artifact_record": {
+      "artifact_id": "art_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "owner": {
+        "type": "session",
+        "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+      },
+      "scope": "session",
+      "media_type": "text/plain",
+      "access": 3,
+      "byte_length": 12,
+      "content_hash": {
+        "algorithm": "blake3",
+        "hex": "3f38d325ccba23dc21c73b6d973ae6ed1d7493b5e73363bd3b42ee60e269b852"
+      },
+      "inline": true,
+      "created_at": "2026-08-29T00:00:03Z"
+    },
+    "workspace_session_projection_change": {
+      "projection_kind": "workspace_session",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "projection_scope": {
+        "type": "global"
+      },
+      "revision": "1",
+      "payload": {
+        "workspaces": [
+          {
+            "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "display_name": "Aura Workspace",
+            "selected_root": "C:\\Users\\测试用户\\Aura Workspace",
+            "canonical_root": "C:\\Users\\测试用户\\Aura Workspace",
+            "root_identity": null,
+            "state": "online",
+            "revision": "1",
+            "catalog_freshness": "fresh",
+            "authorization_epoch": "1"
+          }
+        ],
+        "sessions": [
+          {
+            "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "title": "Architecture review",
+            "state": "idle"
+          }
+        ]
+      }
+    }
+  },
+  "workspace_files": {
+    "internal_file_target": {
+      "target_kind": "workspace",
+      "path": "src/main.rs"
+    },
+    "model_visible_workspace_target": {
+      "path": "src/main.rs"
+    },
+    "workspace_files_projection_change": {
+      "projection_kind": "workspace_files",
+      "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "projection_scope": {
+        "type": "global"
+      },
+      "revision": "1",
+      "payload": {
+        "workspaces": [],
+        "lifecycle_operations": []
+      }
+    },
+    "logical_file_snapshot": null,
+    "workspace_create": null,
+    "workspace_create_result": null,
+    "workspace_restore": null,
+    "workspace_relocate": null,
+    "workspace_archive": null,
+    "workspace_delete": null,
+    "workspace_delete_result": null,
+    "path_search": null,
+    "path_search_result": null,
+    "buffer_open": null,
+    "buffer_edit": null,
+    "buffer_edit_result": null,
+    "buffer_save": null,
+    "lifecycle_begin": null,
+    "lifecycle_begin_result": null,
+    "lifecycle_prepare": null,
+    "lifecycle_prepare_delivered": null,
+    "lifecycle_query": null,
+    "lifecycle_ack": null,
+    "lifecycle_issue_discard_confirmation": null,
+    "lifecycle_discard_confirmation": null,
+    "lifecycle_resolve": null,
+    "lifecycle_renderer_unavailable": null,
+    "fs_stat": null,
+    "fs_stat_result": null,
+    "fs_list": null,
+    "fs_list_result": null,
+    "fs_find_paths": null,
+    "fs_glob": null,
+    "fs_glob_result": null,
+    "fs_read_text": null,
+    "fs_read_text_result": null,
+    "fs_search_text": null,
+    "fs_search_text_result": null,
+    "fs_hash": null,
+    "fs_hash_result": null,
+    "fs_inspect": null,
+    "fs_inspect_result": null,
+    "fs_read_binary_range": null,
+    "fs_read_binary_range_result": null,
+    "fs_write_file": null,
+    "fs_apply_patch": null,
+    "fs_create_directory": null,
+    "fs_copy": null,
+    "fs_move": null,
+    "fs_delete": null,
+    "fs_apply_changeset": null,
+    "fs_apply_changeset_result": null,
+    "fs_mutation_result": null,
+    "artifact_capture_workspace_file": null,
+    "artifact_capture_workspace_file_result": null,
+    "artifact_export": null,
+    "artifact_export_result": null
+  },
+  "security": {
+    "model_channel_data_disposition": "always_denied",
+    "model_egress_policy_version": 2,
+    "operation_security_plan": null,
+    "permission_snapshot": null,
+    "permission_decision": null,
+    "permission_grant": null,
+    "get_session_state": null,
+    "set_session_mode": null,
+    "permission_defaults": null,
+    "set_permission_defaults": null,
+    "list_grants": null,
+    "revoke_grant": null,
+    "approval_request": null,
+    "approval_resolve": null,
+    "approval_resolution": null,
+    "approval_details": null,
+    "trust_fingerprint": null,
+    "trust_record": null,
+    "external_extension_risk": null,
+    "sandbox_execution_plan": null,
+    "w7_tool_operation": null,
+    "tool_sandbox_dispatch_binding": null,
+    "tool_conformance_source": null,
+    "tool_conformance_runtime_scope": null,
+    "conformance_sandbox_profile": null,
+    "credential_reflection_scan": null,
+    "authorized_tool_sandbox_execution": null,
+    "external_process_launch_plan": null,
+    "sandbox_host_event": null,
+    "sandbox_network_policy_error": null,
+    "host_preparation_status": null,
+    "host_preparation_begin": null,
+    "host_preparation_mutation": null,
+    "host_preparation_resolve": null,
+    "external_grant_record": null,
+    "external_grant_view": null,
+    "file_session_consent_view": null,
+    "file_session_consent_list": null,
+    "file_session_consent_revoke": null,
+    "native_session_consent_view": null,
+    "native_session_consent_scope": null,
+    "native_session_consent_list": null,
+    "native_session_consent_revoke": null,
+    "external_grant_attach_read_only": null,
+    "external_grant_derive_workspace": null,
+    "external_grant_list": null,
+    "external_grant_revalidate": null,
+    "external_grant_revoke": null,
+    "network_request_plan": null,
+    "authorized_network_request": null,
+    "network_grant": null,
+    "network_audit": null,
+    "quarantine_record": null,
+    "quarantine_prepare_release": null,
+    "quarantine_prepare_release_result": null,
+    "quarantine_release": null,
+    "quarantine_issue_discard_confirmation": null,
+    "quarantine_discard_confirmation": null,
+    "quarantine_discard": null,
+    "projection_change": null
+  },
+  "models": {
+    "tool_versions": [
+      {
+        "semantic_version": "1.2.3-alpha.1+contract.5",
+        "definition_revision": "4"
+      },
+      {
+        "semantic_version": null,
+        "definition_revision": "1"
+      }
+    ],
+    "credential_revision": "4",
+    "logical_request": {
+      "model_step_id": "stp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "execution_snapshot_id": "mex_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "context_snapshot_id": "cps_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "instruction_envelope": {
+        "serializer_version": 1,
+        "ordered_blocks": [
+          {
+            "kind": "core",
+            "content": "contract Core",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "b7eb9a4339ee2e2d99d0a05e2547bca0acc435464ab8ebaabcb0a6e616276d08"
+            },
+            "source_event_ids": []
+          },
+          {
+            "kind": "permission",
+            "content": "contract Permission",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "7c44b651e95cfb8dc18967a13975732cd6920f507e5eb9a58bdd847d05fae65d"
+            },
+            "source_event_ids": []
+          },
+          {
+            "kind": "tool_summary",
+            "content": "contract ToolSummary",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "236e95fcd30a9c8639c54f69c3dc53420f6fc9ef125ee49b468b9f752e3ae9d9"
+            },
+            "source_event_ids": []
+          },
+          {
+            "kind": "workspace_agents",
+            "content": "contract WorkspaceAgents",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "d818a19854864733e17745aa00e08da9cddd44fd39cbd0657530bd8e5a531132"
+            },
+            "source_event_ids": []
+          },
+          {
+            "kind": "historical_snapshot",
+            "content": "contract HistoricalSnapshot",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "499aed5c84e1046b15556f2ea058612bb25eafee81afaa35fdfeab10bebb328b"
+            },
+            "source_event_ids": []
+          },
+          {
+            "kind": "agent_mode",
+            "content": "contract AgentMode",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "208477d3afc5f81b644b9e9e478a030df9a2458897bb848d6cdeb719313d99d5"
+            },
+            "source_event_ids": []
+          },
+          {
+            "kind": "hook",
+            "content": "contract Hook",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "819b5b51ca347768dbb6337d17fe599978ab9b37d31c301e59fc0b8aad4834b9"
+            },
+            "source_event_ids": []
+          },
+          {
+            "kind": "task_state",
+            "content": "contract TaskState",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "35db448e54e9f0ca3274018e581b91aa240babec2fadbe357bc4c76d88e8d427"
+            },
+            "source_event_ids": []
+          }
+        ],
+        "canonical_text": "contract Core\ncontract Permission\ncontract ToolSummary\ncontract WorkspaceAgents\ncontract HistoricalSnapshot\ncontract AgentMode\ncontract Hook\ncontract TaskState",
+        "instruction_hash": {
+          "algorithm": "sha256",
+          "hex": "9c4ff356422a56be21862d390cba87e3c12be108bb8bbe4339ffbf51d9f85c14"
+        }
+      },
+      "conversation_items": [],
+      "tool_schema_set": {
+        "registry_snapshot_ref": {
+          "tool_registry_snapshot_id": "trs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "registry_revision": "11",
+          "content_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "78c50b16b160aee7a5053662717775e36772f0a1cd0ee7602e9c2560f2e99b47"
+          }
+        },
+        "tools": [
+          {
+            "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tool_version": {
+              "semantic_version": "1.2.3-alpha.1+contract.5",
+              "definition_revision": "4"
+            },
+            "canonical_name": "fs.read_text",
+            "description": "Read UTF-8 text from an authorized workspace file.",
+            "input_schema": {
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "39b714704935190561ed407980480b9a4a0b346b97346e0bff71fb9ace820194"
+            },
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "strict": true,
+            "tool_schema_snapshot_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "986878c1fe37533cabd9196d142cdd8a105aa5cc355c3fb3bebb7f8cbbd99596"
+            }
+          }
+        ],
+        "tool_set_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "1ac8b69b55f8b83b7f9be326140a80789f3d8ced5ca589585bf068acd9b97b6f"
+        }
+      },
+      "attachments": [],
+      "provider_continuation": null,
+      "output_request": {
+        "format": {
+          "type": "text"
+        },
+        "effective_max_output_tokens": 512
+      }
+    },
+    "provider_request_evidence": {
+      "body_sha256": {
+        "algorithm": "sha256",
+        "hex": "8888888888888888888888888888888888888888888888888888888888888888"
+      },
+      "body_byte_length": 2,
+      "target": {
+        "method": "POST",
+        "origin": {
+          "scheme": "https",
+          "host": "api.openai.example",
+          "port": 443
+        },
+        "path": "/v1/responses",
+        "query_parameter_names": []
+      },
+      "headers": [
+        {
+          "name": "authorization",
+          "class": "credential_injected",
+          "non_secret_value": null
+        },
+        {
+          "name": "content-type",
+          "class": "content_metadata",
+          "non_secret_value": "application/json"
+        }
+      ],
+      "compatibility_removals": [],
+      "applied_output_token_field_alias": null,
+      "adapter": {
+        "api_format": "open_ai_responses",
+        "contract_version": {
+          "major": 1,
+          "minor": 0
+        }
+      },
+      "operation_context": {
+        "type": "agent_model_attempt",
+        "model_step_id": "stp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "model_execution_snapshot_id": "mex_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "context_snapshot_id": "cps_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "prompt_bundle_snapshot_id": "pbs_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+      },
+      "tool_registry_snapshot_ref": {
+        "tool_registry_snapshot_id": "trs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "registry_revision": "11",
+        "content_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "78c50b16b160aee7a5053662717775e36772f0a1cd0ee7602e9c2560f2e99b47"
+        }
+      },
+      "tool_name_bindings": [
+        {
+          "tool_definition": {
+            "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "tool_version": {
+              "semantic_version": "1.2.3-alpha.1+contract.5",
+              "definition_revision": "4"
+            },
+            "registry_snapshot_ref": {
+              "tool_registry_snapshot_id": "trs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+              "registry_revision": "11",
+              "content_hash": {
+                "algorithm": "sha256",
+                "canonicalization_version": "rfc8785_jcs_v1",
+                "hex": "78c50b16b160aee7a5053662717775e36772f0a1cd0ee7602e9c2560f2e99b47"
+              }
+            }
+          },
+          "canonical_name": "fs.read_text",
+          "provider_wire_name": "fs_read_text__01arz3ndektsv4rrffq69g5fav",
+          "package_schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "39b714704935190561ed407980480b9a4a0b346b97346e0bff71fb9ace820194"
+          },
+          "provider_wrapped_schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "c5f314f42a6d255ba7e9b2cd26e0c2ad1a38fbbcb1dd77d117c6257eaddbf6d6"
+          },
+          "provider_arguments_envelope_version": 3
+        }
+      ],
+      "historical_tool_call_wire_bindings": [],
+      "canonical_body_artifact_id": null
+    },
+    "credential_configured_event": {
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "active_credential_revision": "4",
+      "row_revision": "7",
+      "credential_binding_fingerprint": {
+        "algorithm": "sha256",
+        "hex": "8f96a557ac1b9cd8cbdc8ba3a61f78e4a91081ea7e61d1568928a95e45db935e"
+      },
+      "models_revision": "3"
+    },
+    "credential_cleared_event": {
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "last_committed_credential_revision": "4",
+      "row_revision": "8",
+      "previous_credential_binding_fingerprint": {
+        "algorithm": "sha256",
+        "hex": "8f96a557ac1b9cd8cbdc8ba3a61f78e4a91081ea7e61d1568928a95e45db935e"
+      },
+      "models_revision": "3"
+    },
+    "configure_credential_request": {
+      "expected_models_revision": "3",
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "credential_slot": "api-key",
+      "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "expected_row_revision": "7"
+    },
+    "clear_credential_request": {
+      "expected_models_revision": "3",
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "credential_slot": "api-key",
+      "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "expected_row_revision": "7"
+    },
+    "credential_mutation_result": {
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "changed": true,
+      "models_revision": "3",
+      "credential_status": {
+        "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "slot_name": "api-key",
+        "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "state": "configured",
+        "active_credential_revision": "4",
+        "last_committed_credential_revision": "4",
+        "row_revision": "7",
+        "error_code": null
+      }
+    },
+    "dormant_credential_summary": {
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "slot_name": "api-key",
+      "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "retained_state": "configured",
+      "last_committed_credential_revision": "4",
+      "row_revision": "8",
+      "error_code": null
+    },
+    "provider_tool_call_id": "Call_Contract_ExactCase",
+    "provider_tool_call_protocol_binding": null,
+    "registry": {
+      "provider_order": [
+        "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+      ],
+      "providers": {
+        "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV": {
+          "id": "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "display_name": "OpenAI Contract Provider",
+          "slug": "openai-contract",
+          "source": {
+            "type": "models_dev",
+            "catalog_provider_id": "openai"
+          },
+          "endpoint_order": [
+            "end_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          ],
+          "created_at": "2026-08-29T00:00:04Z",
+          "updated_at": "2026-08-29T00:00:05Z"
+        }
+      },
+      "endpoints": {
+        "end_01ARZ3NDEKTSV4RRFFQ69G5FAV": {
+          "id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "revision": "1",
+          "provider_id": "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "display_name": "Responses API",
+          "slug": "responses",
+          "api_format": "open_ai_responses",
+          "base_url": "https://api.openai.example/v1",
+          "discovery_mode": {
+            "type": "automatic"
+          },
+          "chat_output_token_field": null,
+          "chat_instruction_role": null,
+          "auth_scheme": "open_ai_bearer_api_key",
+          "openai_organization_id": "org_contract",
+          "openai_project_id": "proj_contract",
+          "anthropic_workspace_id": null,
+          "timeouts": {
+            "connect_ms": 10000,
+            "first_event_ms": 30000,
+            "stream_idle_ms": 60000,
+            "total_ms": 300000
+          },
+          "max_parallel_model_requests": 2,
+          "model_order": [
+            "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          ],
+          "compatibility": {
+            "endpoint_fingerprint": {
+              "algorithm": "blake3",
+              "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+            },
+            "unsupported_parameters": [],
+            "unsupported_features": [
+              "streaming_unsupported"
+            ],
+            "output_token_field_aliases": [],
+            "learned_at": "2026-08-29T00:00:05Z"
+          },
+          "created_at": "2026-08-29T00:00:04Z",
+          "updated_at": "2026-08-29T00:00:05Z"
+        }
+      },
+      "models": {
+        "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV": {
+          "id": "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "revision": "1",
+          "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "provider_model_name": "gpt-contract",
+          "display_name": "GPT Contract",
+          "notes": null,
+          "origin": "discovered",
+          "enabled": true,
+          "available_for_subagents": false,
+          "catalog": {
+            "catalog_provider_id": "openai",
+            "catalog_model_id": "gpt-contract",
+            "catalog_revision": "1",
+            "catalog_content_hash": {
+              "algorithm": "blake3",
+              "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+            },
+            "catalog_object_hash": {
+              "algorithm": "blake3",
+              "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+            },
+            "snapshot": {
+              "catalog_model_id": "gpt-contract",
+              "display_name": "GPT Contract",
+              "family": "gpt",
+              "description": "Contract fixture model",
+              "aliases": [],
+              "context_window_tokens": 128000,
+              "input_limit_tokens": null,
+              "output_limit_tokens": 4096,
+              "input_modalities": [
+                "text"
+              ],
+              "output_modalities": [
+                "text"
+              ],
+              "capabilities": {
+                "attachment": false,
+                "reasoning": false,
+                "tool_call": true,
+                "structured_output": true,
+                "temperature": true,
+                "interleaved": null
+              },
+              "reasoning_options": [],
+              "knowledge_cutoff": null,
+              "release_date": null,
+              "last_updated": null,
+              "open_weights": false,
+              "status": null,
+              "price": null
+            },
+            "matched_at": "2026-08-29T00:00:05Z",
+            "match_state": "matched"
+          },
+          "context": {
+            "catalog_window_tokens": 128000,
+            "user_override_window_tokens": null,
+            "user_override_revision": 0,
+            "runtime_corrected_window_tokens": null,
+            "runtime_correction_basis": null,
+            "runtime_effective_window_tokens": 128000,
+            "historical_snapshot_max_tokens": 1024
+          },
+          "request_defaults": {
+            "max_output_tokens": 4096,
+            "temperature": 0.2,
+            "top_p": null,
+            "chat_output_token_field": null,
+            "chat_instruction_role": null
+          },
+          "created_at": "2026-08-29T00:00:04Z",
+          "updated_at": "2026-08-29T00:00:05Z"
+        }
+      }
+    },
+    "execution_snapshot": {
+      "id": "mex_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "model_step_id": "stp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "provider_id": "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "model_profile_id": "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "provider_display_name": "OpenAI Contract Provider",
+      "endpoint_display_name": "Responses API",
+      "model_name": "gpt-contract",
+      "readable_ref": "OpenAI Contract Provider / Responses API / gpt-contract",
+      "api_format": "open_ai_responses",
+      "auth_scheme": "open_ai_bearer_api_key",
+      "base_url": "https://api.openai.example/v1",
+      "resolved_request_url": "https://api.openai.example/v1/responses",
+      "openai_organization_id": "org_contract",
+      "openai_project_id": "proj_contract",
+      "anthropic_workspace_id": null,
+      "chat_output_token_field": null,
+      "chat_instruction_role": null,
+      "endpoint_config_revision": 2,
+      "model_config_revision": 3,
+      "runtime_effective_window_tokens": 128000,
+      "historical_snapshot_max_tokens": 1024,
+      "request_options": {
+        "effective_max_output_tokens": 4096,
+        "temperature": 0.2,
+        "top_p": null
+      },
+      "historical_tool_call_wire_bindings": [],
+      "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "credential_revision": "4",
+      "credential_binding_fingerprint": {
+        "algorithm": "sha256",
+        "hex": "8f96a557ac1b9cd8cbdc8ba3a61f78e4a91081ea7e61d1568928a95e45db935e"
+      },
+      "context_snapshot_id": "cps_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "prompt_bundle_snapshot_id": "pbs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "endpoint_fingerprint": {
+        "algorithm": "blake3",
+        "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+      },
+      "created_at": "2026-08-29T00:00:05Z"
+    },
+    "transport_attempt": {
+      "id": "tat_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "attempt_number": 2,
+      "attempt_kind": "transparent_retry",
+      "client_request_id": "net_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "provider_request_id": "resp_Contract_ExactCase",
+      "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "endpoint_fingerprint": {
+        "algorithm": "blake3",
+        "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+      },
+      "request_evidence": {
+        "body_sha256": {
+          "algorithm": "sha256",
+          "hex": "8888888888888888888888888888888888888888888888888888888888888888"
+        },
+        "body_byte_length": 2,
+        "target": {
+          "method": "POST",
+          "origin": {
+            "scheme": "https",
+            "host": "api.openai.example",
+            "port": 443
+          },
+          "path": "/v1/responses",
+          "query_parameter_names": []
+        },
+        "headers": [
+          {
+            "name": "authorization",
+            "class": "credential_injected",
+            "non_secret_value": null
+          },
+          {
+            "name": "content-type",
+            "class": "content_metadata",
+            "non_secret_value": "application/json"
+          }
+        ],
+        "compatibility_removals": [],
+        "applied_output_token_field_alias": null,
+        "adapter": {
+          "api_format": "open_ai_responses",
+          "contract_version": {
+            "major": 1,
+            "minor": 0
+          }
+        },
+        "operation_context": {
+          "type": "agent_model_attempt",
+          "model_step_id": "stp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "model_execution_snapshot_id": "mex_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "context_snapshot_id": "cps_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "prompt_bundle_snapshot_id": "pbs_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        },
+        "tool_registry_snapshot_ref": {
+          "tool_registry_snapshot_id": "trs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "registry_revision": "11",
+          "content_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "78c50b16b160aee7a5053662717775e36772f0a1cd0ee7602e9c2560f2e99b47"
+          }
+        },
+        "tool_name_bindings": [
+          {
+            "tool_definition": {
+              "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+              "tool_version": {
+                "semantic_version": "1.2.3-alpha.1+contract.5",
+                "definition_revision": "4"
+              },
+              "registry_snapshot_ref": {
+                "tool_registry_snapshot_id": "trs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+                "registry_revision": "11",
+                "content_hash": {
+                  "algorithm": "sha256",
+                  "canonicalization_version": "rfc8785_jcs_v1",
+                  "hex": "78c50b16b160aee7a5053662717775e36772f0a1cd0ee7602e9c2560f2e99b47"
+                }
+              }
+            },
+            "canonical_name": "fs.read_text",
+            "provider_wire_name": "fs_read_text__01arz3ndektsv4rrffq69g5fav",
+            "package_schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "39b714704935190561ed407980480b9a4a0b346b97346e0bff71fb9ace820194"
+            },
+            "provider_wrapped_schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "c5f314f42a6d255ba7e9b2cd26e0c2ad1a38fbbcb1dd77d117c6257eaddbf6d6"
+            },
+            "provider_arguments_envelope_version": 3
+          }
+        ],
+        "historical_tool_call_wire_bindings": [],
+        "canonical_body_artifact_id": null
+      },
+      "state": "completed",
+      "started_at": "2026-08-29T00:00:05Z",
+      "first_byte_at": "2026-08-29T00:00:06Z",
+      "first_model_event_at": "2026-08-29T00:00:07Z",
+      "finished_at": "2026-08-29T00:00:08Z",
+      "raw_stream_artifact_id": "art_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+      "failure_id": null
+    },
+    "stream_event": {
+      "model_step_id": "stp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "transport_attempt_id": "tat_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "sequence": 3,
+      "received_at": "2026-08-29T00:00:07Z",
+      "event": {
+        "type": "tool_call_started",
+        "provider_call_id": "Call_Contract_ExactCase",
+        "tool_name": "workspace.read",
+        "position": 0
+      }
+    },
+    "output": {
+      "model_step_id": "stp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "assistant_blocks": [
+        {
+          "block_id": "mcb_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "text": "I will inspect the requested file.",
+          "provider_reference": {
+            "item_id": "msg_Contract_ExactCase",
+            "block_id": null,
+            "index": 0
+          }
+        }
+      ],
+      "reasoning_blocks": [
+        {
+          "block_id": "mcb_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+          "text": "Inspect the file before answering.",
+          "summary": "File inspection required.",
+          "provider_reference": {
+            "item_id": "rs_Contract_ExactCase",
+            "block_id": null,
+            "index": 0
+          }
+        }
+      ],
+      "tool_calls": [
+        {
+          "tool_call_id": "tcl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "provider_call_id": "Call_Contract_ExactCase",
+          "tool_name": "workspace.read",
+          "arguments_json": "{\"path\":\"README.md\"}",
+          "position": 0
+        }
+      ],
+      "refusal": null,
+      "stop_reason": "tool_calls",
+      "usage": {
+        "input_tokens": 120,
+        "output_tokens": 24,
+        "total_tokens": 144,
+        "reasoning_tokens": 8,
+        "cached_input_tokens": 32,
+        "cache_write_tokens": null,
+        "source": "provider_reported"
+      },
+      "provider_continuation": {
+        "type": "open_ai_responses",
+        "state_ref": "art_01ARZ3NDEKTSV4RRFFQ69G5FAW"
+      },
+      "provider_request_id": "resp_Contract_ExactCase",
+      "raw_response_ref": "art_01ARZ3NDEKTSV4RRFFQ69G5FAX"
+    },
+    "failure": {
+      "category": "context_window_exceeded",
+      "code": "context_length_exceeded",
+      "message": "The canonical request exceeds the model context window.",
+      "retry_class": {
+        "type": "not_retryable"
+      },
+      "provider_status": 400,
+      "provider_request_id": "resp_Failure_ExactCase",
+      "provider_error_ref": "art_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+      "partial_output_ref": null,
+      "transport_attempt_id": "tat_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+    },
+    "persisted_failure": {
+      "id": "mfl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "fingerprint": {
+        "algorithm": "blake3",
+        "hex": "7046282ee7653b87d75ff7d3ced4a83a0b0002cd624d41ee3cf8cb4edf5d5dad"
+      },
+      "failure": {
+        "category": "context_window_exceeded",
+        "code": "context_length_exceeded",
+        "message": "The canonical request exceeds the model context window.",
+        "retry_class": {
+          "type": "not_retryable"
+        },
+        "provider_status": 400,
+        "provider_request_id": "resp_Failure_ExactCase",
+        "provider_error_ref": "art_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+        "partial_output_ref": null,
+        "transport_attempt_id": "tat_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+      },
+      "created_at": "2026-08-29T00:00:09Z"
+    },
+    "runtime_capabilities": {
+      "api_format": "open_ai_responses",
+      "native_tool_channel_exposed": true,
+      "native_attachment_parts_present": false,
+      "reasoning_channel_observed": true,
+      "native_capability_names": [
+        "function_call"
+      ]
+    },
+    "settings_get_snapshot_request": null,
+    "catalog_get_request": null,
+    "catalog_ensure_fresh_request": null,
+    "catalog_refresh_request": null,
+    "catalog_provider_get_request": null,
+    "catalog_provider_get_result": null,
+    "provider_icon_read_request": null,
+    "provider_icon_read_result": null,
+    "provider_create_request": null,
+    "provider_rename_request": null,
+    "provider_delete_request": null,
+    "provider_mutation_result": null,
+    "provider_bulk_availability_result": null,
+    "endpoint_create_request": null,
+    "endpoint_create_with_credential_request": null,
+    "endpoint_create_with_credential_result": {
+      "models_revision": "3",
+      "endpoint_projection": {
+        "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "models_revision": "3",
+        "provider": {
+          "id": "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "display_name": "OpenAI Contract Provider",
+          "slug": "openai-contract",
+          "source": {
+            "type": "models_dev",
+            "catalog_provider_id": "openai"
+          },
+          "endpoint_order": [
+            "end_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          ],
+          "created_at": "2026-08-29T00:00:04Z",
+          "updated_at": "2026-08-29T00:00:05Z"
+        },
+        "endpoint": {
+          "id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "revision": "1",
+          "provider_id": "prv_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "display_name": "Responses API",
+          "slug": "responses",
+          "api_format": "open_ai_responses",
+          "base_url": "https://api.openai.example/v1",
+          "discovery_mode": {
+            "type": "automatic"
+          },
+          "chat_output_token_field": null,
+          "chat_instruction_role": null,
+          "auth_scheme": "open_ai_bearer_api_key",
+          "openai_organization_id": "org_contract",
+          "openai_project_id": "proj_contract",
+          "anthropic_workspace_id": null,
+          "timeouts": {
+            "connect_ms": 10000,
+            "first_event_ms": 30000,
+            "stream_idle_ms": 60000,
+            "total_ms": 300000
+          },
+          "max_parallel_model_requests": 2,
+          "model_order": [
+            "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          ],
+          "compatibility": {
+            "endpoint_fingerprint": {
+              "algorithm": "blake3",
+              "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+            },
+            "unsupported_parameters": [],
+            "unsupported_features": [
+              "streaming_unsupported"
+            ],
+            "output_token_field_aliases": [],
+            "learned_at": "2026-08-29T00:00:05Z"
+          },
+          "created_at": "2026-08-29T00:00:04Z",
+          "updated_at": "2026-08-29T00:00:05Z"
+        },
+        "authentication": {
+          "auth_kind": "secret",
+          "active_credential": {
+            "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "slot_name": "api-key",
+            "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "state": "configured",
+            "active_credential_revision": "4",
+            "last_committed_credential_revision": "4",
+            "row_revision": "7",
+            "error_code": null
+          },
+          "dormant_credential": null
+        },
+        "models": [
+          {
+            "id": "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "revision": "1",
+            "endpoint_id": "end_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "provider_model_name": "gpt-contract",
+            "display_name": "GPT Contract",
+            "notes": null,
+            "origin": "discovered",
+            "enabled": true,
+            "available_for_subagents": false,
+            "catalog": {
+              "catalog_provider_id": "openai",
+              "catalog_model_id": "gpt-contract",
+              "catalog_revision": "1",
+              "catalog_content_hash": {
+                "algorithm": "blake3",
+                "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+              },
+              "catalog_object_hash": {
+                "algorithm": "blake3",
+                "hex": "8a40d832ad6cac1cfb1019ee81836cdf9f2570caee5e7be5cf11c594df97b130"
+              },
+              "snapshot": {
+                "catalog_model_id": "gpt-contract",
+                "display_name": "GPT Contract",
+                "family": "gpt",
+                "description": "Contract fixture model",
+                "aliases": [],
+                "context_window_tokens": 128000,
+                "input_limit_tokens": null,
+                "output_limit_tokens": 4096,
+                "input_modalities": [
+                  "text"
+                ],
+                "output_modalities": [
+                  "text"
+                ],
+                "capabilities": {
+                  "attachment": false,
+                  "reasoning": false,
+                  "tool_call": true,
+                  "structured_output": true,
+                  "temperature": true,
+                  "interleaved": null
+                },
+                "reasoning_options": [],
+                "knowledge_cutoff": null,
+                "release_date": null,
+                "last_updated": null,
+                "open_weights": false,
+                "status": null,
+                "price": null
+              },
+              "matched_at": "2026-08-29T00:00:05Z",
+              "match_state": "matched"
+            },
+            "context": {
+              "catalog_window_tokens": 128000,
+              "user_override_window_tokens": null,
+              "user_override_revision": 0,
+              "runtime_corrected_window_tokens": null,
+              "runtime_correction_basis": null,
+              "runtime_effective_window_tokens": 128000,
+              "historical_snapshot_max_tokens": 1024
+            },
+            "request_defaults": {
+              "max_output_tokens": 4096,
+              "temperature": 0.2,
+              "top_p": null,
+              "chat_output_token_field": null,
+              "chat_instruction_role": null
+            },
+            "created_at": "2026-08-29T00:00:04Z",
+            "updated_at": "2026-08-29T00:00:05Z"
+          }
+        ],
+        "latest_discovery_run": null
+      }
+    },
+    "endpoint_update_request": null,
+    "endpoint_delete_request": null,
+    "endpoint_replace_credential_request": null,
+    "discovery_start_request": null,
+    "discovery_start_accepted": null,
+    "discovery_cancel_request": null,
+    "discovery_cancel_result": null,
+    "endpoint_mutation_result": null,
+    "availability_test_start_request": null,
+    "availability_test_start_accepted": null,
+    "availability_test_cancel_request": null,
+    "availability_test_cancel_result": null,
+    "availability_prerequisite_failure": null,
+    "profile_create_manual_request": null,
+    "profile_create_from_catalog_request": null,
+    "profile_apply_catalog_update_request": null,
+    "profile_update_request": null,
+    "profile_delete_request": null,
+    "profile_set_subagent_availability_request": null,
+    "profile_mutation_result": null,
+    "provider_set_all_current_models_subagent_availability_request": null,
+    "deletion_mutation_result": {
+      "changed": true,
+      "revision": "4",
+      "value": {
+        "deleted": {
+          "deleted_provider_ids": [],
+          "deleted_endpoint_ids": [
+            "end_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          ],
+          "deleted_model_profile_ids": [
+            "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          ]
+        },
+        "default_model_cleared": true,
+        "credential_cleanup_pending": true
+      }
+    },
+    "default_set_request": null,
+    "default_mutation_result": null,
+    "session_set_binding_request": null,
+    "session_binding_mutation_result": null,
+    "context_window_correct_request": null,
+    "context_window_clear_user_override_request": null,
+    "context_window_reset_runtime_correction_request": null,
+    "context_window_mutation_result": null,
+    "compatibility_get_request": null,
+    "compatibility_snapshot": null,
+    "compatibility_reset_request": null,
+    "compatibility_reset_result": null
+  },
+  "context": {
+    "prompt_settings_snapshot": {
+      "revision": 3,
+      "custom_system_addendum": "Preserve exact user-authored constraints."
+    },
+    "prompt_bundle_snapshot": null,
+    "context_projection_snapshot": null,
+    "budget_snapshot": {
+      "policy": "context_budget_policy_v1",
+      "runtime_effective_window_tokens": 256000,
+      "estimated_input_tokens": 31,
+      "effective_max_output_tokens": 512,
+      "output_reserve_tokens": 512,
+      "safety_reserve_tokens": 12800,
+      "request_input_budget_tokens": 242688,
+      "item_estimates": [
+        {
+          "ordinal": 1,
+          "content_hash": {
+            "algorithm": "sha256",
+            "hex": "29cb45371a8355bc1500a910762c4c0ef9a7e0a3cad8d980e5d02bea451db367"
+          },
+          "byte_length": 31,
+          "estimated_tokens": 31,
+          "estimator": {
+            "estimator_id": "utf8_byte_upper_bound_v1",
+            "estimator_version": 1,
+            "exactness": "upper_bound"
+          }
+        }
+      ]
+    },
+    "model_egress_manifest": {
+      "policy_version": 2,
+      "context_snapshot_id": "cps_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "items": [
+        {
+          "ordinal": 1,
+          "source_ref": {
+            "type": "prompt_module",
+            "module_id": "core.identity",
+            "content_hash": {
+              "algorithm": "sha256",
+              "hex": "29cb45371a8355bc1500a910762c4c0ef9a7e0a3cad8d980e5d02bea451db367"
+            }
+          },
+          "source_kind": "aura_core",
+          "data_class": "public_content",
+          "content_hash": {
+            "algorithm": "sha256",
+            "hex": "29cb45371a8355bc1500a910762c4c0ef9a7e0a3cad8d980e5d02bea451db367"
+          },
+          "byte_length": 31,
+          "authorization_basis": {
+            "type": "model_channel_policy"
+          }
+        }
+      ],
+      "manifest_hash": {
+        "algorithm": "sha256",
+        "hex": "a7506fd7d17e7d5a7a03484a0406d176045348cd0299965d1734a6ec5cf1a10a"
+      }
+    },
+    "preparation_outcome": null,
+    "context_search_input": null,
+    "context_read_events_input": null,
+    "context_read_tool_result_input": null,
+    "compaction": null,
+    "compaction_anchor_manifest": null,
+    "compaction_model_attempt": null,
+    "manual_compaction_request": null,
+    "prompt_inspector_projection": null,
+    "history_atomic_group_preimage": null,
+    "history_atomic_group_ref": null,
+    "preparation_trigger": null,
+    "provider_continuation_binding": null,
+    "tool_result_context_projection": null,
+    "p07_context_tool_schema_set": {
+      "registry_snapshot_ref": {
+        "tool_registry_snapshot_id": "trs_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "registry_revision": "1",
+        "content_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "e77a0ba937bc7ba3fd62caaa6955909ef9d40408126cffd70aeea75a21546159"
+        }
+      },
+      "tools": [
+        {
+          "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "tool_version": {
+            "semantic_version": "1.0.0",
+            "definition_revision": "1"
+          },
+          "canonical_name": "context.status",
+          "description": "Read the current immutable Context status for this Session and AgentRun.",
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "agent_run_id": {
+                "pattern": "^agt_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              },
+              "session_id": {
+                "pattern": "^ses_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "agent_run_id",
+              "session_id"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "22e58eb7fb41b512e4928a931966ef54c1feb844b70543abe50a9b2f2a99a516"
+          },
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "strict": true,
+          "tool_schema_snapshot_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "af0e8095e79970f4be3c13676b983d7760bcdddba044594624433a064df83f37"
+          }
+        },
+        {
+          "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+          "tool_version": {
+            "semantic_version": "1.0.0",
+            "definition_revision": "1"
+          },
+          "canonical_name": "context.search",
+          "description": "Search model-visible indexed Context using Natural or ExactPhrase mode.",
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "agent_run_id": {
+                "pattern": "^agt_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              },
+              "cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "filters": {
+                "type": "object"
+              },
+              "limit": {
+                "maximum": 50,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "mode": {
+                "enum": [
+                  "natural",
+                  "exact_phrase"
+                ]
+              },
+              "query": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "session_id": {
+                "pattern": "^ses_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "agent_run_id",
+              "cursor",
+              "filters",
+              "limit",
+              "mode",
+              "query",
+              "session_id"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "52c3fb3a7d248663c7e6255b6f6b99527777d61240d69a4d5b19f1888f50839f"
+          },
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "strict": true,
+          "tool_schema_snapshot_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "0d9fa9427182f02809f9fe43d641338e0db5b26a524e703e8f2e8fa067892a83"
+          }
+        },
+        {
+          "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+          "tool_version": {
+            "semantic_version": "1.0.0",
+            "definition_revision": "1"
+          },
+          "canonical_name": "context.read_events",
+          "description": "Read model-visible Event facts with Atomic Group expansion.",
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "agent_run_id": {
+                "pattern": "^agt_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              },
+              "character_limit": {
+                "maximum": 262144,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "selectors": {
+                "maxItems": 32,
+                "minItems": 1,
+                "type": "array"
+              },
+              "session_id": {
+                "pattern": "^ses_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "agent_run_id",
+              "character_limit",
+              "cursor",
+              "selectors",
+              "session_id"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "65f964a528e203dde875a7f11cc934dd05ebb5b8d7c0f9288cf2f8b06096ca95"
+          },
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "strict": true,
+          "tool_schema_snapshot_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "949befc32e8108872abee97682aae35535de7b8da74a8ae10778a1c0f3155a92"
+          }
+        },
+        {
+          "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAY",
+          "tool_version": {
+            "semantic_version": "1.0.0",
+            "definition_revision": "1"
+          },
+          "canonical_name": "context.read_tool_result",
+          "description": "Read the exact model-visible Tool Result and optional original model Tool input.",
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "agent_run_id": {
+                "pattern": "^agt_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              },
+              "cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "include_input": {
+                "type": "boolean"
+              },
+              "session_id": {
+                "pattern": "^ses_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              },
+              "tool_call_id": {
+                "pattern": "^tcl_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "agent_run_id",
+              "cursor",
+              "include_input",
+              "session_id",
+              "tool_call_id"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "8efa79021c85d1a5630c2ed18999788fad07ed60291775fd6a5e97eab854c58e"
+          },
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "strict": true,
+          "tool_schema_snapshot_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "5b4660b9e604a75cc955674a04ebdf66781943552c4a93c27f5ec24fd623b6b4"
+          }
+        },
+        {
+          "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+          "tool_version": {
+            "semantic_version": "1.0.0",
+            "definition_revision": "1"
+          },
+          "canonical_name": "context.read_compaction",
+          "description": "Read a validated historical Context compaction and its source anchors.",
+          "input_schema": {
+            "additionalProperties": false,
+            "properties": {
+              "agent_run_id": {
+                "pattern": "^agt_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "session_id": {
+                "pattern": "^ses_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              },
+              "source_context_snapshot_id": {
+                "pattern": "^cps_[0-9A-HJKMNP-TV-Z]{26}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "agent_run_id",
+              "sequence",
+              "session_id",
+              "source_context_snapshot_id"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "5f2251dca309353c3ce76f16bf98f55dd02e9a9de418b4e0ad700baafc848e7d"
+          },
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "strict": true,
+          "tool_schema_snapshot_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "d95bfc3e7dc7e8d14501cb68886c3b2c806bcbb4ee5c293c6dbb575d6c3ace5b"
+          }
+        }
+      ],
+      "tool_set_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "0dcde5a87cb1ab128d59d9846ae69298767a47b725c4b0a43a87f19674613a88"
+      }
+    },
+    "p07_context_effective_tool_bindings": [
+      {
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "tool_version": {
+          "semantic_version": "1.0.0",
+          "definition_revision": "1"
+        },
+        "tool_instance_id": "tin_01040G2081040G2081040G2081",
+        "source_kind": "built_in",
+        "exposure": "core",
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "2185ea9b3e0e4a5194080fff46a62bda141b215d3c9c2f5e3c03e630a94d885e"
+        },
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3e1e7b67b96aa2581fb390f1159dc465152dd8454a285ceb43fdf58c37efea44"
+          }
+        }
+      },
+      {
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        "tool_version": {
+          "semantic_version": "1.0.0",
+          "definition_revision": "1"
+        },
+        "tool_instance_id": "tin_02081040G2081040G2081040G2",
+        "source_kind": "built_in",
+        "exposure": "core",
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "39b7f3484aeec76e35a74485ab728d76362b82d674e0c5166b3ea8850f736f20"
+        },
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3e1e7b67b96aa2581fb390f1159dc465152dd8454a285ceb43fdf58c37efea44"
+          }
+        }
+      },
+      {
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAX",
+        "tool_version": {
+          "semantic_version": "1.0.0",
+          "definition_revision": "1"
+        },
+        "tool_instance_id": "tin_030C1G60R30C1G60R30C1G60R3",
+        "source_kind": "built_in",
+        "exposure": "core",
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "94d0a0add036451e2350d7add1b75c26262d15ebc566d3de1c47acade79b9af0"
+        },
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3e1e7b67b96aa2581fb390f1159dc465152dd8454a285ceb43fdf58c37efea44"
+          }
+        }
+      },
+      {
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAY",
+        "tool_version": {
+          "semantic_version": "1.0.0",
+          "definition_revision": "1"
+        },
+        "tool_instance_id": "tin_040G2081040G2081040G208104",
+        "source_kind": "built_in",
+        "exposure": "core",
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "ad641c2221d63597aa0a9d1987cd205e287de032e2885d51c9d1993807419fd2"
+        },
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3e1e7b67b96aa2581fb390f1159dc465152dd8454a285ceb43fdf58c37efea44"
+          }
+        }
+      },
+      {
+        "tool_id": "tol_01ARZ3NDEKTSV4RRFFQ69G5FAZ",
+        "tool_version": {
+          "semantic_version": "1.0.0",
+          "definition_revision": "1"
+        },
+        "tool_instance_id": "tin_050M2GA1850M2GA1850M2GA185",
+        "source_kind": "built_in",
+        "exposure": "core",
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "1fa3a3b3e0f321310f830577ce9584fbb91af5a85381c5b894db8e6874f326c5"
+        },
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3e1e7b67b96aa2581fb390f1159dc465152dd8454a285ceb43fdf58c37efea44"
+          }
+        }
+      }
+    ],
+    "p08_active_task_lineage": {
+      "lineage_id": "lin_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "revision": "7",
+      "state": "active",
+      "source_count": 2,
+      "completion_policy": "all_sources_satisfied",
+      "completion_gate": "source_recheck_required",
+      "source_recheck_required": true,
+      "preview_characters": 122,
+      "preview_estimated_tokens": 122
+    }
+  },
+  "tools": {
+    "canonical_hash": null,
+    "tool_contract_fingerprint_preimage": {
+      "kind": "aura.p07.tool_contract_fingerprint",
+      "package_key": "org.aura.fixture.stdio",
+      "preimage_version": 1,
+      "runtime_closure_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+      },
+      "tool_contract": {
+        "audience": "subagent_configurable",
+        "capability_requirements": [
+          "process_execute"
+        ],
+        "conformance_cases": [
+          {
+            "arguments": {},
+            "name": "deterministic fixture"
+          }
+        ],
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "may_create_persistent_effects": false,
+          "repeat_is_idempotent": true
+        },
+        "instance_configuration": null,
+        "model": {
+          "canonical_name": "user.org.aura.fixture.stdio.fixture",
+          "description": "Execute the package fixture with validated arguments.",
+          "input_schema": {
+            "document": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "type": "object"
+            },
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+            },
+            "schema_policy_version": 1
+          },
+          "result_contract": {
+            "type": "unit"
+          },
+          "strict": true,
+          "summary": "Execute a deterministic package fixture."
+        },
+        "resource_claims": [],
+        "runtime": {
+          "arguments": [],
+          "credential_slot": null,
+          "environment": [],
+          "executable": "bin/fixture.exe",
+          "protocol_version": 1,
+          "type": "aura_stdio",
+          "working_directory": {
+            "type": "package_root"
+          }
+        },
+        "semantic_version": null,
+        "tool_key": "fixture",
+        "ui": {
+          "display_name": "Fixture Tool"
+        }
+      },
+      "tool_key": "fixture"
+    },
+    "tool_contract_fingerprint": {
+      "package_runtime_closure_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+      },
+      "fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "07c3071222ae72b2b8e6c63f5354e31995829f184a61ba279619b05ce53f49e0"
+      }
+    },
+    "package_fingerprint_preimage": {
+      "canonical_manifest": {
+        "files": [
+          {
+            "byte_length": 21,
+            "path": "bin/fixture.exe",
+            "role": "runtime_executable",
+            "sha256": {
+              "algorithm": "sha256",
+              "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+            }
+          }
+        ],
+        "minimum_aura_version": "0.1.0",
+        "package_key": "org.aura.fixture.stdio",
+        "package_version": "1.0.0",
+        "schema_version": 1,
+        "tools": [
+          {
+            "audience": "subagent_configurable",
+            "capability_requirements": [
+              "process_execute"
+            ],
+            "conformance_cases": [
+              {
+                "arguments": {},
+                "name": "deterministic fixture"
+              }
+            ],
+            "execution_semantics": {
+              "automatic_retry_allowed": false,
+              "may_create_persistent_effects": false,
+              "repeat_is_idempotent": true
+            },
+            "instance_configuration": null,
+            "model": {
+              "canonical_name": "user.org.aura.fixture.stdio.fixture",
+              "description": "Execute the package fixture with validated arguments.",
+              "input_schema": {
+                "document": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "type": "object"
+                },
+                "schema_dialect": "json_schema_draft_2020_12",
+                "schema_hash": {
+                  "algorithm": "sha256",
+                  "canonicalization_version": "rfc8785_jcs_v1",
+                  "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+                },
+                "schema_policy_version": 1
+              },
+              "result_contract": {
+                "type": "unit"
+              },
+              "strict": true,
+              "summary": "Execute a deterministic package fixture."
+            },
+            "resource_claims": [],
+            "runtime": {
+              "arguments": [],
+              "credential_slot": null,
+              "environment": [],
+              "executable": "bin/fixture.exe",
+              "protocol_version": 1,
+              "type": "aura_stdio",
+              "working_directory": {
+                "type": "package_root"
+              }
+            },
+            "semantic_version": null,
+            "tool_key": "fixture",
+            "ui": {
+              "display_name": "Fixture Tool"
+            }
+          }
+        ],
+        "ui": {
+          "description": null,
+          "display_name": "Aura Fixture Package"
+        }
+      },
+      "kind": "aura.p07.package_fingerprint",
+      "package_key": "org.aura.fixture.stdio",
+      "package_version": "1.0.0",
+      "preimage_version": 1,
+      "runtime_closure": {
+        "canonical_manifest_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "8c0b06754a75334b05c3bc7919d9058875adba7c308c0cb5b82f5c8030e3129b"
+        },
+        "files": [
+          {
+            "byte_length": 21,
+            "path": "bin/fixture.exe",
+            "raw_file_sha256": {
+              "algorithm": "sha256",
+              "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+            },
+            "role": "runtime_executable"
+          }
+        ],
+        "policy_version": 1
+      },
+      "tool_contract_fingerprints": [
+        {
+          "fingerprint": {
+            "fingerprint": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "07c3071222ae72b2b8e6c63f5354e31995829f184a61ba279619b05ce53f49e0"
+            },
+            "package_runtime_closure_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+            }
+          },
+          "tool_key": "fixture"
+        }
+      ]
+    },
+    "package_fingerprint": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "532c4590e3b93bcdf7dfdd70a86dcc4530ede84bcf4772855824249931909f9e"
+    },
+    "package_security_fingerprint_preimage": {
+      "canonical_manifest": {
+        "files": [
+          {
+            "byte_length": 21,
+            "path": "bin/fixture.exe",
+            "role": "runtime_executable",
+            "sha256": {
+              "algorithm": "sha256",
+              "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+            }
+          }
+        ],
+        "minimum_aura_version": "0.1.0",
+        "package_key": "org.aura.fixture.stdio",
+        "package_version": "1.0.0",
+        "schema_version": 1,
+        "tools": [
+          {
+            "audience": "subagent_configurable",
+            "capability_requirements": [
+              "process_execute"
+            ],
+            "conformance_cases": [
+              {
+                "arguments": {},
+                "name": "deterministic fixture"
+              }
+            ],
+            "execution_semantics": {
+              "automatic_retry_allowed": false,
+              "may_create_persistent_effects": false,
+              "repeat_is_idempotent": true
+            },
+            "instance_configuration": null,
+            "model": {
+              "canonical_name": "user.org.aura.fixture.stdio.fixture",
+              "description": "Execute the package fixture with validated arguments.",
+              "input_schema": {
+                "document": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "additionalProperties": false,
+                  "type": "object"
+                },
+                "schema_dialect": "json_schema_draft_2020_12",
+                "schema_hash": {
+                  "algorithm": "sha256",
+                  "canonicalization_version": "rfc8785_jcs_v1",
+                  "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+                },
+                "schema_policy_version": 1
+              },
+              "result_contract": {
+                "type": "unit"
+              },
+              "strict": true,
+              "summary": "Execute a deterministic package fixture."
+            },
+            "resource_claims": [],
+            "runtime": {
+              "arguments": [],
+              "credential_slot": null,
+              "environment": [],
+              "executable": "bin/fixture.exe",
+              "protocol_version": 1,
+              "type": "aura_stdio",
+              "working_directory": {
+                "type": "package_root"
+              }
+            },
+            "semantic_version": null,
+            "tool_key": "fixture",
+            "ui": {
+              "display_name": "Fixture Tool"
+            }
+          }
+        ],
+        "ui": {
+          "description": null,
+          "display_name": "Aura Fixture Package"
+        }
+      },
+      "kind": "aura.p07.package_security_fingerprint",
+      "package_key": "org.aura.fixture.stdio",
+      "package_version": "1.0.0",
+      "preimage_version": 1,
+      "runtime_closure": {
+        "canonical_manifest_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "8c0b06754a75334b05c3bc7919d9058875adba7c308c0cb5b82f5c8030e3129b"
+        },
+        "files": [
+          {
+            "byte_length": 21,
+            "path": "bin/fixture.exe",
+            "raw_file_sha256": {
+              "algorithm": "sha256",
+              "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+            },
+            "role": "runtime_executable"
+          }
+        ],
+        "policy_version": 1
+      },
+      "tool_contract_fingerprints": [
+        {
+          "fingerprint": {
+            "fingerprint": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "07c3071222ae72b2b8e6c63f5354e31995829f184a61ba279619b05ce53f49e0"
+            },
+            "package_runtime_closure_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+            }
+          },
+          "tool_key": "fixture"
+        }
+      ]
+    },
+    "package_security_fingerprint": {
+      "algorithm": "blake3",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "62eef53a317755e0114541cc5accaa8009e3c7606ab94a4c16d204c099200143"
+    },
+    "input_schema": null,
+    "structured_result_schema": null,
+    "schema_snapshot": null,
+    "schema_set_snapshot": null,
+    "effective_binding": null,
+    "package_file": null,
+    "package_version": null,
+    "package_manifest": null,
+    "canonical_package_manifest": {
+      "schema_version": 1,
+      "package_key": "org.aura.fixture.stdio",
+      "package_version": "1.0.0",
+      "minimum_aura_version": "0.1.0",
+      "ui": {
+        "display_name": "Aura Fixture Package",
+        "description": null
+      },
+      "files": [
+        {
+          "path": "bin/fixture.exe",
+          "byte_length": 21,
+          "sha256": {
+            "algorithm": "sha256",
+            "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+          },
+          "role": "runtime_executable"
+        }
+      ],
+      "tools": [
+        {
+          "tool_key": "fixture",
+          "semantic_version": null,
+          "ui": {
+            "display_name": "Fixture Tool"
+          },
+          "model": {
+            "canonical_name": "user.org.aura.fixture.stdio.fixture",
+            "description": "Execute the package fixture with validated arguments.",
+            "summary": "Execute a deterministic package fixture.",
+            "input_schema": {
+              "schema_dialect": "json_schema_draft_2020_12",
+              "schema_policy_version": 1,
+              "document": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "type": "object"
+              },
+              "schema_hash": {
+                "algorithm": "sha256",
+                "canonicalization_version": "rfc8785_jcs_v1",
+                "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+              }
+            },
+            "strict": true,
+            "result_contract": {
+              "type": "unit"
+            }
+          },
+          "instance_configuration": null,
+          "runtime": {
+            "type": "aura_stdio",
+            "protocol_version": 1,
+            "executable": "bin/fixture.exe",
+            "arguments": [],
+            "working_directory": {
+              "type": "package_root"
+            },
+            "environment": [],
+            "credential_slot": null
+          },
+          "capability_requirements": [
+            "process_execute"
+          ],
+          "resource_claims": [],
+          "audience": "subagent_configurable",
+          "execution_semantics": {
+            "automatic_retry_allowed": false,
+            "repeat_is_idempotent": true,
+            "may_create_persistent_effects": false
+          },
+          "conformance_cases": [
+            {
+              "name": "deterministic fixture",
+              "arguments": {}
+            }
+          ]
+        }
+      ]
+    },
+    "package_runtime_visibility_policy": "full_package",
+    "package_runtime_closure": {
+      "canonical_manifest_hash": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "8c0b06754a75334b05c3bc7919d9058875adba7c308c0cb5b82f5c8030e3129b"
+      },
+      "files": [
+        {
+          "byte_length": 21,
+          "path": "bin/fixture.exe",
+          "raw_file_sha256": {
+            "algorithm": "sha256",
+            "hex": "0490260c5d222af129fed18947234110e88caf0f7561e5f8d5d9289957d17ce5"
+          },
+          "role": "runtime_executable"
+        }
+      ],
+      "policy_version": 1
+    },
+    "package_runtime_closure_hash": {
+      "algorithm": "sha256",
+      "canonicalization_version": "rfc8785_jcs_v1",
+      "hex": "d6f675a7ab7417ca85b396fde21522616238473e7839de388593370ffbbd860e"
+    },
+    "settings_snapshot": null,
+    "registry_snapshot": null,
+    "search_request": null,
+    "search_page": null,
+    "builtin_definition": null,
+    "describe_request": null,
+    "describe_result": null,
+    "load_request": null,
+    "load_result": null,
+    "list_loaded_request": null,
+    "list_loaded_result": null,
+    "activity_cursor_binding": null,
+    "activity_page_request": null,
+    "activity_page": null,
+    "definition_current_selection": null,
+    "batch_request": null,
+    "execution_plan": null,
+    "execution_attempt": null,
+    "batch_result": null,
+    "result": null,
+    "model_visible_result": null,
+    "user_audit_result": null,
+    "verified_attempt_side_effect": null,
+    "resource_claim": null,
+    "resolved_resource_claim": null,
+    "runtime": null,
+    "runtime_output_authorization": null,
+    "stdio_frame": {
+      "message_type": "hello",
+      "protocol_version": 1,
+      "tool_call_id": "tcl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "tool_execution_attempt_id": "tea_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "sequence": 1,
+      "payload": {
+        "runtime_name": "aura-tool-contract-fixture",
+        "runtime_version": "1.0.0"
+      }
+    },
+    "lifecycle_event": null,
+    "draft_kind": null,
+    "draft_snapshot_transfer": null,
+    "package_delete_draft_snapshot": null,
+    "package_delete_approval": null,
+    "mutation_contract": null,
+    "read_contract": null,
+    "credential_candidates": null,
+    "schema_error_codes": [
+      "tool.schema.unsupported_dialect",
+      "tool.schema.unsupported_keyword",
+      "tool.schema.external_reference_denied",
+      "tool.schema.unsupported_format",
+      "tool.schema.invalid_pattern",
+      "tool.schema.complexity_limit_exceeded",
+      "tool.schema.meta_schema_invalid",
+      "tool.schema.validator_compilation_failed",
+      "tool.schema.input_root_not_object",
+      "tool.schema.reserved_provider_metadata_property",
+      "tool.schema.result_root_type_invalid",
+      "tool.schema.hash_mismatch",
+      "tool.schema.arguments_too_large",
+      "tool.schema.arguments_invalid"
+    ],
+    "registry_error_codes": [
+      "tool.registry.settings_invalid",
+      "tool.registry.snapshot_not_found",
+      "tool.registry.snapshot_unavailable",
+      "tool.registry.snapshot_corrupted",
+      "tool.registry.snapshot_version_mismatch",
+      "tool.registry.pin_unresolved",
+      "tool.registry.pin_degraded",
+      "tool.registry.dynamic_schema_limit_below_pinned_count",
+      "tool.registry.cursor_expired",
+      "tool.registry.cursor_unavailable",
+      "tool.registry.cursor_mismatch",
+      "tool.registry.search_request_invalid",
+      "tool.registry.tool_not_found",
+      "tool.registry.version_mismatch",
+      "tool.registry.trust_required",
+      "tool.registry.disabled",
+      "tool.registry.audience_denied",
+      "tool.registry.capacity_exceeded"
+    ],
+    "package_error_codes": [
+      "tool.package.manifest_missing",
+      "tool.package.manifest_invalid",
+      "tool.package.manifest_too_large",
+      "tool.package.package_key_mismatch",
+      "tool.package.version_content_conflict",
+      "tool.package.archive_too_large",
+      "tool.package.expanded_size_exceeded",
+      "tool.package.entry_count_exceeded",
+      "tool.package.file_size_exceeded",
+      "tool.package.compression_ratio_exceeded",
+      "tool.package.path_depth_exceeded",
+      "tool.package.invalid_path",
+      "tool.package.case_collision",
+      "tool.package.special_file_denied",
+      "tool.package.encrypted_archive_denied",
+      "tool.package.unsupported_compression",
+      "tool.package.closed_file_set_mismatch",
+      "tool.package.file_hash_mismatch",
+      "tool.package.runtime_closure_invalid",
+      "tool.package.fingerprint_mismatch",
+      "tool.package.corrupted",
+      "tool.package.payload_unavailable",
+      "tool.package.import_journal_failed",
+      "tool.package.deletion_approval_invalid",
+      "tool.package.deletion_impact_changed",
+      "tool.package.deletion_pending",
+      "tool.package.deletion_journal_failed",
+      "tool.package.source_unavailable"
+    ],
+    "batch_error_codes": [
+      "tool.batch.tool_call_identity_conflict",
+      "tool.batch.identity_mismatch",
+      "tool.batch.content_hash_mismatch",
+      "tool.batch.invocation_boundary_invalid",
+      "tool.batch.registry_snapshot_mismatch",
+      "tool.batch.control_state_mismatch",
+      "tool.batch.dependency_cycle",
+      "tool.batch.atomic_group_invalid",
+      "tool.batch.provider_mapping_ambiguous",
+      "tool.batch.completion_batch_invalid",
+      "tool.batch.plan_invalidated",
+      "tool.batch.rejected"
+    ],
+    "resource_error_codes": [
+      "tool.resource.http_model_authentication_forbidden",
+      "tool.resource.http_request_invalid",
+      "tool.resource.http_credential_unavailable",
+      "tool.resource.http_credential_rebind_required",
+      "tool.resource.http_credential_origin_denied",
+      "tool.resource.selector_missing",
+      "tool.resource.selector_type_mismatch",
+      "tool.resource.canonicalization_failed",
+      "tool.resource.identity_resolution_failed",
+      "tool.resource.scope_resolution_failed",
+      "tool.resource.lock_key_invalid",
+      "tool.resource.unsupported_claim",
+      "tool.resource.resolver_unavailable"
+    ],
+    "scheduler_error_codes": [
+      "tool.scheduler.concurrency_limit_invalid",
+      "tool.scheduler.timeout_invalid",
+      "tool.scheduler.retry_limit_invalid",
+      "tool.scheduler.resource_wait_cancelled",
+      "tool.scheduler.execution_plan_invalid",
+      "tool.scheduler.execution_plan_hash_mismatch",
+      "tool.scheduler.dispatch_state_invalid",
+      "tool.scheduler.operation_already_terminal",
+      "tool.scheduler.operation_not_cancellable"
+    ],
+    "runtime_error_codes": [
+      "tool.runtime.http_model_authentication_forbidden",
+      "tool.runtime.http_control_endpoint_denied",
+      "tool.runtime.http_credential_reflection_blocked",
+      "tool.runtime.unavailable",
+      "tool.runtime.dispatch_outcome_unknown",
+      "tool.runtime.dispatch_failed",
+      "tool.runtime.timeout",
+      "tool.runtime.io_limit_exceeded",
+      "tool.runtime.process_launch_failed",
+      "tool.runtime.process_tree_termination_unknown",
+      "tool.runtime.protocol_frame_invalid",
+      "tool.runtime.protocol_sequence_invalid",
+      "tool.runtime.protocol_handshake_invalid",
+      "tool.runtime.protocol_terminal_missing",
+      "tool.runtime.protocol_terminal_conflict",
+      "tool.runtime.artifact_invalid",
+      "tool.runtime.http_request_invalid",
+      "tool.runtime.http_redirect_denied",
+      "tool.runtime.http_gateway_failed",
+      "tool.runtime.credential_binding_invalid",
+      "tool.runtime.persistence_outcome_unknown"
+    ],
+    "result_error_codes": [
+      "tool.result.utf8_invalid",
+      "tool.result.json_invalid",
+      "tool.result.schema_validation_failed",
+      "tool.result.artifact_missing",
+      "tool.result.evidence_invalid",
+      "tool.result.side_effect_evidence_insufficient",
+      "tool.result.outcome_state_invalid",
+      "tool.result.reconciliation_inconclusive"
+    ],
+    "conformance_error_codes": [
+      "tool.conformance.case_missing",
+      "tool.conformance.case_invalid",
+      "tool.conformance.isolation_unavailable",
+      "tool.conformance.run_failed",
+      "tool.conformance.evidence_invalid"
+    ],
+    "draft_error_codes": [
+      "tool.draft.not_found",
+      "tool.draft.revision_conflict",
+      "tool.draft.validation_failed",
+      "tool.draft.test_required",
+      "tool.draft.apply_failed",
+      "tool.draft.journal_failed",
+      "tool.draft.authentication_required",
+      "tool.draft.identity_mismatch",
+      "tool.draft.snapshot_conflict",
+      "tool.draft.preview_stale",
+      "tool.draft.idempotency_conflict",
+      "tool.draft.invalid_transition",
+      "tool.draft.approval_required",
+      "tool.draft.approval_mismatch"
+    ],
+    "error_catalog": {
+      "catalog_version": 1,
+      "entries": [
+        {
+          "code": "tool.batch.atomic_group_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_atomic_group_invalid",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.completion_batch_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_completion_batch_invalid",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.content_hash_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_content_hash_mismatch",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.control_state_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_control_state_mismatch",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.dependency_cycle",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_dependency_cycle",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.identity_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_identity_mismatch",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.invocation_boundary_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_invocation_boundary_invalid",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.plan_invalidated",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_plan_invalidated",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.provider_mapping_ambiguous",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_provider_mapping_ambiguous",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.registry_snapshot_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_registry_snapshot_mismatch",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.rejected",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_rejected",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.batch.tool_call_identity_conflict",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_batch_tool_call_identity_conflict",
+          "suggested_not_executed_reason": "batch_rejected"
+        },
+        {
+          "code": "tool.conformance.case_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_conformance_case_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.conformance.case_missing",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_conformance_case_missing",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.conformance.evidence_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_conformance_evidence_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.conformance.isolation_unavailable",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_conformance_isolation_unavailable",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.conformance.run_failed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_conformance_run_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.apply_failed",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_apply_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.approval_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_approval_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.approval_required",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_approval_required",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.authentication_required",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_authentication_required",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.idempotency_conflict",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_idempotency_conflict",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.identity_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_identity_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.invalid_transition",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_invalid_transition",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.journal_failed",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_journal_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.not_found",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_not_found",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.preview_stale",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_preview_stale",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.revision_conflict",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_revision_conflict",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.snapshot_conflict",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_snapshot_conflict",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.test_required",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_test_required",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.draft.validation_failed",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_draft_validation_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.hook.blocked",
+          "category": "permission",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_hook_blocked",
+          "suggested_not_executed_reason": "permission_denied"
+        },
+        {
+          "code": "tool.package.archive_too_large",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_archive_too_large",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.case_collision",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_case_collision",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.closed_file_set_mismatch",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_closed_file_set_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.compression_ratio_exceeded",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_compression_ratio_exceeded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.corrupted",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_corrupted",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.deletion_approval_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_deletion_approval_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.deletion_impact_changed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_deletion_impact_changed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.deletion_journal_failed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_deletion_journal_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.deletion_pending",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_deletion_pending",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.encrypted_archive_denied",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_encrypted_archive_denied",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.entry_count_exceeded",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_entry_count_exceeded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.expanded_size_exceeded",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_expanded_size_exceeded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.file_hash_mismatch",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_file_hash_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.file_size_exceeded",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_file_size_exceeded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.fingerprint_mismatch",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_fingerprint_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.import_journal_failed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_import_journal_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.invalid_path",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_invalid_path",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.manifest_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_manifest_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.manifest_missing",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_manifest_missing",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.manifest_too_large",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_manifest_too_large",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.package_key_mismatch",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_package_key_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.path_depth_exceeded",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_path_depth_exceeded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.payload_unavailable",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_payload_unavailable",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.runtime_closure_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_runtime_closure_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.source_unavailable",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_source_unavailable",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.special_file_denied",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_special_file_denied",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.unsupported_compression",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_unsupported_compression",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.package.version_content_conflict",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_package_version_content_conflict",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.audience_denied",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_audience_denied",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.capacity_exceeded",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_capacity_exceeded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.cursor_expired",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_cursor_expired",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.cursor_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_cursor_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.cursor_unavailable",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_cursor_unavailable",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.disabled",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_disabled",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.dynamic_schema_limit_below_pinned_count",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_dynamic_schema_limit_below_pinned_count",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.pin_degraded",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_pin_degraded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.pin_unresolved",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_pin_unresolved",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.search_request_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_search_request_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.settings_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_settings_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.snapshot_corrupted",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_snapshot_corrupted",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.snapshot_not_found",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_snapshot_not_found",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.snapshot_unavailable",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_snapshot_unavailable",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.snapshot_version_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_snapshot_version_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.tool_not_found",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_tool_not_found",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.trust_required",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_trust_required",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.registry.version_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_registry_version_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.resource.canonicalization_failed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_canonicalization_failed",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.http_credential_origin_denied",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_http_credential_origin_denied",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.http_credential_rebind_required",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_http_credential_rebind_required",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.http_credential_unavailable",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_http_credential_unavailable",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.http_model_authentication_forbidden",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_http_model_authentication_forbidden",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.http_request_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_http_request_invalid",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.identity_resolution_failed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_identity_resolution_failed",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.lock_key_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_lock_key_invalid",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.resolver_unavailable",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_resolver_unavailable",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.scope_resolution_failed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_scope_resolution_failed",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.selector_missing",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_selector_missing",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.selector_type_mismatch",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_selector_type_mismatch",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.resource.unsupported_claim",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_resource_unsupported_claim",
+          "suggested_not_executed_reason": "resource_claim_resolution_failed"
+        },
+        {
+          "code": "tool.result.artifact_missing",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_artifact_missing",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.result.evidence_invalid",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_evidence_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.result.json_invalid",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_json_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.result.outcome_state_invalid",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_outcome_state_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.result.reconciliation_inconclusive",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_reconciliation_inconclusive",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.result.schema_validation_failed",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_schema_validation_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.result.side_effect_evidence_insufficient",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_side_effect_evidence_insufficient",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.result.utf8_invalid",
+          "category": "protocol",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_result_utf8_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.artifact_invalid",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_artifact_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.credential_binding_invalid",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_credential_binding_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.dispatch_failed",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_dispatch_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.dispatch_outcome_unknown",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_dispatch_outcome_unknown",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.http_control_endpoint_denied",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_http_control_endpoint_denied",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.http_credential_reflection_blocked",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_http_credential_reflection_blocked",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.http_gateway_failed",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_http_gateway_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.http_model_authentication_forbidden",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_http_model_authentication_forbidden",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.http_redirect_denied",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_http_redirect_denied",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.http_request_invalid",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_http_request_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.io_limit_exceeded",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_io_limit_exceeded",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.persistence_outcome_unknown",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_persistence_outcome_unknown",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.process_launch_failed",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_process_launch_failed",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.process_tree_termination_unknown",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_process_tree_termination_unknown",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.protocol_frame_invalid",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_protocol_frame_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.protocol_handshake_invalid",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_protocol_handshake_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.protocol_sequence_invalid",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_protocol_sequence_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.protocol_terminal_conflict",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_protocol_terminal_conflict",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.protocol_terminal_missing",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_protocol_terminal_missing",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.timeout",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_timeout",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.runtime.unavailable",
+          "category": "unavailable",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_runtime_unavailable",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.concurrency_limit_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_concurrency_limit_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.dispatch_state_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_dispatch_state_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.execution_plan_hash_mismatch",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_execution_plan_hash_mismatch",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.execution_plan_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_execution_plan_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.operation_already_terminal",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_operation_already_terminal",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.operation_not_cancellable",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_operation_not_cancellable",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.resource_wait_cancelled",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_resource_wait_cancelled",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.retry_limit_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_retry_limit_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.scheduler.timeout_invalid",
+          "category": "conflict",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "conditional",
+          "safe_message_key": "tool_scheduler_timeout_invalid",
+          "suggested_not_executed_reason": null
+        },
+        {
+          "code": "tool.schema.arguments_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_arguments_invalid",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.arguments_too_large",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_arguments_too_large",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.complexity_limit_exceeded",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_complexity_limit_exceeded",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.external_reference_denied",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_external_reference_denied",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.hash_mismatch",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_hash_mismatch",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.input_root_not_object",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_input_root_not_object",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.invalid_pattern",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_invalid_pattern",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.meta_schema_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_meta_schema_invalid",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.reserved_provider_metadata_property",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_reserved_provider_metadata_property",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.result_root_type_invalid",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_result_root_type_invalid",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.unsupported_dialect",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_unsupported_dialect",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.unsupported_format",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_unsupported_format",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.unsupported_keyword",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_unsupported_keyword",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        },
+        {
+          "code": "tool.schema.validator_compilation_failed",
+          "category": "validation",
+          "visibility": "renderer_and_model_safe",
+          "retry_class": "never",
+          "safe_message_key": "tool_schema_validator_compilation_failed",
+          "suggested_not_executed_reason": "schema_validation_failed"
+        }
+      ]
+    }
+  },
+  "windows_path": "C:\\Users\\测试用户\\Aura Workspace\\src\\main.rs"
+}

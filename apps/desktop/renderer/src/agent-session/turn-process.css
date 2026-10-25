@@ -1,0 +1,491 @@
+.agent-process {
+  margin: 13px 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.agent-turn-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 28px;
+  margin-bottom: 12px;
+}
+/* A finished turn's status line opens and closes its process. */
+.agent-turn-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 6px 2px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.agent-turn-toggle:hover .tool-icon-expand,
+.agent-turn-toggle:focus-visible .tool-icon-expand {
+  color: var(--ink);
+}
+.agent-turn-toggle .tool-icon-expand {
+  color: var(--quiet);
+}
+.agent-turn-status [role='status'] {
+  color: var(--ink);
+  font-weight: 500;
+}
+.agent-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.agent-turn-symbol {
+  display: inline-flex;
+  width: 16px;
+  align-items: center;
+  justify-content: center;
+}
+.agent-turn-status[data-state='completed'] .agent-turn-symbol {
+  color: #39765b;
+}
+.agent-turn-status:not([data-state='completed']) .agent-turn-symbol {
+  color: var(--muted);
+}
+/* The turn under way shows a thin arc going round, its tail fading — the
+   kind of ring the stop button wears — instead of the square of dots. */
+.agent-turn-spinner {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 25%, currentColor 100%);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  animation: aura-tool-spin 0.9s linear infinite;
+}
+.agent-turn-status[data-state='running'] .agent-turn-symbol {
+  color: var(--ink);
+}
+.tool-icon[data-icon='loader-circle'] {
+  transform-origin: center;
+  animation: aura-tool-spin 0.9s linear infinite;
+}
+
+@keyframes aura-tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.agent-process-toggle {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  padding: 4px 0;
+  color: var(--muted);
+  font: inherit;
+}
+.agent-process-toggle > span:last-child:not(.agent-chevron) {
+  margin-left: 5px;
+  font-size: 12px;
+}
+/* One fixed slot per icon role: expansion, Tool type and state never share a
+   character stand-in, and none of them shrinks when a long target wraps. */
+.tool-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  vertical-align: -0.18em;
+}
+.tool-icon-expand {
+  display: inline-block;
+}
+.agent-tool-chevron {
+  display: inline-flex;
+  width: 14px;
+  align-items: center;
+  color: var(--quiet);
+}
+.agent-tool-kind {
+  color: var(--muted);
+}
+.agent-chevron {
+  display: inline-block;
+  width: 12px;
+  font-size: 16px;
+  line-height: 1;
+}
+/* The turn reads in order. Sections of reasoning and calls close to one line; what the
+   model writes between them, and what the user adds, read as messages. Calls line up with
+   思考过程, close to the section's line. */
+.agent-process-section {
+  margin: 2px 0;
+}
+.agent-steps {
+  margin: 6px 0 8px 6px;
+  padding: 0 0 0 13px;
+  border-left: 1px solid var(--line);
+  list-style: none;
+}
+.agent-process-step {
+  padding: 0 0 6px;
+}
+/* A note between tools sits close to what is above and below it — a third of the space it had
+   (19 and 18 px between the words, now about 6). Its margins take back the 2px of the sections
+   around it; after the turn's status line, the line keeps no space of its own below. */
+.agent-interim-reply {
+  margin: -2px 0;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.65;
+}
+/* The process sits in its own body, which a finished turn folds. */
+.agent-turn-status:has(+ .agent-process-body > .agent-interim-reply:first-child) {
+  margin-bottom: 0;
+}
+.agent-steer-message {
+  margin: 10px 0;
+}
+.agent-steer-message small {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--quiet);
+  font-size: 11px;
+}
+.agent-reasoning-preview {
+  min-width: 0;
+  max-width: min(520px, 55vw);
+  overflow: hidden;
+  color: var(--quiet);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-process summary {
+  cursor: pointer;
+  list-style: none;
+}
+.agent-process summary::-webkit-details-marker {
+  display: none;
+}
+.agent-reasoning-trace > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.agent-reasoning-trace > summary:hover,
+.agent-reasoning-trace > summary:focus-visible {
+  background: transparent;
+  color: var(--ink);
+}
+.agent-reasoning-trace .agent-reasoning {
+  border-left: 1px solid var(--line);
+  margin: 10px 0 10px 13px;
+  padding: 0 0 0 16px;
+  line-height: 1.75;
+  font-size: 14px;
+}
+.agent-tool-activity {
+  margin: 9px 0;
+}
+/* One deterministic row: the leading slot spans both lines, the first line
+   centres every child so titles line up across rows, and the optional brief
+   wraps onto a controlled second line that starts under the title. */
+.agent-tool-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+.agent-tool-leading {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: center;
+  height: 20px;
+}
+.agent-tool-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: center;
+  min-width: 0;
+}
+.agent-tool-brief {
+  /* The controlled second line: it starts under the title, never under the
+     chevron, because the leading slot is outside this column. */
+  flex: 1 1 100%;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.agent-tool-title {
+  color: var(--ink);
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+.agent-file-label {
+  /* Shrinkable and ellipsized: the row never overflows, and `title` keeps the
+     full target discoverable on hover. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(340px, 60vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+}
+.agent-tool-state {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+.agent-tool-state[data-tone='succeeded'] {
+  color: #39765b;
+}
+.agent-tool-activity[data-outcome='succeeded'] .agent-tool-state {
+  color: #39765b;
+}
+.agent-tool-activity[data-outcome='failed'] .agent-tool-state,
+.agent-tool-activity[data-outcome='operation_rejected'] .agent-tool-state {
+  color: #a54040;
+}
+.agent-tool-facts {
+  border-left: 1px solid var(--line);
+  margin: 6px 0 8px 5px;
+  padding-left: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.agent-tool-group > summary {
+  cursor: pointer;
+}
+.agent-tool-group-members {
+  border-left: 1px solid var(--line);
+  margin: 6px 0 8px 6px;
+  padding-left: 15px;
+}
+.agent-tool-group-members .agent-tool-activity {
+  margin: 6px 0;
+}
+.agent-tool-facts p {
+  margin: 4px 0;
+}
+/* The page a browser call photographed, at most a short column's height. */
+.agent-tool-screenshot {
+  margin: 6px 0;
+}
+.agent-tool-screenshot img {
+  display: block;
+  max-width: min(100%, 640px);
+  max-height: 360px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.agent-tool-facts ul {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0;
+}
+/* A command keeps its own lines. */
+.agent-tool-facts li {
+  white-space: pre-wrap;
+}
+/* Details read in a framed box need no second rule beside it. */
+.agent-tool-facts:has(> .scroll-box[data-overflowing='true']) {
+  padding-left: 9px;
+  border-left-color: transparent;
+}
+.agent-tool-pending {
+  font-size: 12px;
+}
+/* The file a file tool names opens from its row; it keeps the label's chip. */
+.agent-file-link {
+  color: inherit;
+  background: none;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.agent-file-link:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+/* 查看终端 under the call that opened the model's terminal, in line with its title
+   (the leading icon is 16px, then the row's 8px gap). */
+.agent-tool-terminal {
+  margin: -6px 0 9px 24px;
+}
+.agent-tool-terminal button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.agent-tool-terminal button:hover {
+  text-decoration: underline;
+}
+.agent-final-report {
+  line-height: 1.65;
+  padding: 5px 0 4px;
+  font-size: 15px;
+  min-width: 0;
+  max-width: 100%;
+}
+.agent-process button:focus-visible,
+.agent-process summary:focus-visible {
+  outline: 2px solid var(--muted);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-turn-spinner {
+    animation: none;
+  }
+}
+
+/* A step still under way — 思考过程, 运行命令, 写入文件 … — carries a dim,
+   slanted band of light that sweeps from left to right, as a loading skeleton does, and stops the
+   moment the step ends. A closed section with such a step inside sweeps too. The light passes through the words
+   themselves; icons, the file's chip and the row stay as they are. */
+.agent-tool-row[data-running='true'] :is(.agent-tool-title, .agent-tool-state, .agent-tool-brief),
+.agent-reasoning-trace
+  > summary[data-running='true']
+  :is(.agent-thinking-label, .agent-reasoning-preview),
+.agent-process-toggle[data-running='true'] :is(.agent-process-label, .agent-process-count),
+.agent-turn-status[data-state='running'] [role='status'],
+.agent-branch-copying-label,
+.agent-step-activity {
+  background-image: linear-gradient(
+    105deg,
+    currentColor 0 40%,
+    color-mix(in srgb, currentColor 30%, #fff) 50%,
+    currentColor 60% 100%
+  );
+  background-size: 300% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: step-sweep 2s linear infinite;
+}
+@keyframes step-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-tool-row[data-running='true'] :is(.agent-tool-title, .agent-tool-state, .agent-tool-brief),
+  .agent-reasoning-trace
+    > summary[data-running='true']
+    :is(.agent-thinking-label, .agent-reasoning-preview),
+  .agent-process-toggle[data-running='true'] :is(.agent-process-label, .agent-process-count),
+  .agent-turn-status[data-state='running'] [role='status'],
+  .agent-branch-copying-label,
+  .agent-step-activity {
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+    animation: none;
+  }
+}
+
+/* A long thought was hard to close. Open, its title stays at the top of the
+   conversation while the thought scrolls by, and the thought ends with 收起思考过程. */
+.agent-reasoning-trace[open] > summary {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  background: var(--canvas);
+}
+.agent-reasoning-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px 13px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.agent-reasoning-collapse:hover,
+.agent-reasoning-collapse:focus-visible {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+/* What the running turn is doing, at its end — the tool call it is writing,
+   or how long it has been thinking; its words carry the same dim light. */
+.agent-step-activity {
+  width: fit-content;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Where the context was compacted inside a turn: one quiet line across the process. */
+.agent-context-compacted {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  color: var(--quiet);
+  font-size: 12px;
+}
+.agent-context-compacted-line {
+  flex: 1 1 24px;
+  height: 0;
+  border-top: 1px dashed var(--line-strong);
+}
+.agent-context-compacted-text {
+  flex: 0 1 auto;
+  text-align: center;
+}
+
+/* What the user can do about a call that did not run, under its row. */
+.tool-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 6px 28px;
+}
+
+.tool-offer p,
+.tool-offer-status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--quiet);
+}
+
+.tool-offer-status {
+  margin: 4px 0 6px 28px;
+}

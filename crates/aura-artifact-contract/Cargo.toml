@@ -1,0 +1,17 @@
+[package]
+name = "aura-artifact-contract"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-domain-common = { path = "../aura-domain-common" }
+schemars.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

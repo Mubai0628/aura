@@ -1,0 +1,370 @@
+{
+  "registry_version": 1,
+  "entries": [
+    {
+      "prefix": "acl",
+      "owner_crate": "aura-domain-common",
+      "type_name": "SandboxAclJournalId"
+    },
+    {
+      "prefix": "agt",
+      "owner_crate": "aura-domain-common",
+      "type_name": "AgentRunId"
+    },
+    {
+      "prefix": "apd",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ApprovalDecisionId"
+    },
+    {
+      "prefix": "apr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ApprovalRequestId"
+    },
+    {
+      "prefix": "art",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ArtifactId"
+    },
+    {
+      "prefix": "atg",
+      "owner_crate": "aura-domain-common",
+      "type_name": "AttachmentGrantId"
+    },
+    {
+      "prefix": "bsh",
+      "owner_crate": "aura-domain-common",
+      "type_name": "BrowserShareId"
+    },
+    {
+      "prefix": "can",
+      "owner_crate": "aura-domain-common",
+      "type_name": "CancellationId"
+    },
+    {
+      "prefix": "cau",
+      "owner_crate": "aura-domain-common",
+      "type_name": "CausationId"
+    },
+    {
+      "prefix": "chn",
+      "owner_crate": "aura-domain-common",
+      "type_name": "IpcChannelId"
+    },
+    {
+      "prefix": "civ",
+      "owner_crate": "aura-domain-common",
+      "type_name": "CommandInvocationId"
+    },
+    {
+      "prefix": "cmd",
+      "owner_crate": "aura-domain-common",
+      "type_name": "CommandId"
+    },
+    {
+      "prefix": "cor",
+      "owner_crate": "aura-domain-common",
+      "type_name": "CorrelationId"
+    },
+    {
+      "prefix": "cps",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ContextProjectionSnapshotId"
+    },
+    {
+      "prefix": "crd",
+      "owner_crate": "aura-domain-common",
+      "type_name": "CredentialId"
+    },
+    {
+      "prefix": "crv",
+      "owner_crate": "aura-domain-common",
+      "type_name": "CompletionReviewId"
+    },
+    {
+      "prefix": "dcn",
+      "owner_crate": "aura-domain-common",
+      "type_name": "DeleteConfirmationId"
+    },
+    {
+      "prefix": "dfm",
+      "owner_crate": "aura-domain-common",
+      "type_name": "DeferredMutationId"
+    },
+    {
+      "prefix": "elt",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ElevationLaunchTicketId"
+    },
+    {
+      "prefix": "end",
+      "owner_crate": "aura-domain-common",
+      "type_name": "EndpointId"
+    },
+    {
+      "prefix": "ers",
+      "owner_crate": "aura-domain-common",
+      "type_name": "EditorReservationId"
+    },
+    {
+      "prefix": "etr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "TrustRecordId"
+    },
+    {
+      "prefix": "evt",
+      "owner_crate": "aura-domain-common",
+      "type_name": "EventId"
+    },
+    {
+      "prefix": "fre",
+      "owner_crate": "aura-domain-common",
+      "type_name": "FileReferenceId"
+    },
+    {
+      "prefix": "hki",
+      "owner_crate": "aura-domain-common",
+      "type_name": "HookInvocationId"
+    },
+    {
+      "prefix": "hpo",
+      "owner_crate": "aura-domain-common",
+      "type_name": "HostPreparationOperationId"
+    },
+    {
+      "prefix": "jnl",
+      "owner_crate": "aura-domain-common",
+      "type_name": "MutationJournalId"
+    },
+    {
+      "prefix": "lea",
+      "owner_crate": "aura-domain-common",
+      "type_name": "RuntimeLeaseId"
+    },
+    {
+      "prefix": "lin",
+      "owner_crate": "aura-domain-common",
+      "type_name": "TaskLineageId"
+    },
+    {
+      "prefix": "lrl",
+      "owner_crate": "aura-domain-common",
+      "type_name": "TaskLineageRelationId"
+    },
+    {
+      "prefix": "mav",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ModelAvailabilityTestId"
+    },
+    {
+      "prefix": "mcb",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ModelContentBlockId"
+    },
+    {
+      "prefix": "mdl",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ModelProfileId"
+    },
+    {
+      "prefix": "mdr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ModelDiscoveryRunId"
+    },
+    {
+      "prefix": "mem",
+      "owner_crate": "aura-domain-common",
+      "type_name": "MemoryId"
+    },
+    {
+      "prefix": "mex",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ModelExecutionSnapshotId"
+    },
+    {
+      "prefix": "mfl",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ModelFailureId"
+    },
+    {
+      "prefix": "ncp",
+      "owner_crate": "aura-domain-common",
+      "type_name": "NormalCompletionRecordId"
+    },
+    {
+      "prefix": "ncr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "NaturalCompletionRecordId"
+    },
+    {
+      "prefix": "ngr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "NetworkGrantId"
+    },
+    {
+      "prefix": "nwr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "NetworkRequestId"
+    },
+    {
+      "prefix": "pbs",
+      "owner_crate": "aura-domain-common",
+      "type_name": "PromptBundleSnapshotId"
+    },
+    {
+      "prefix": "pgr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "PermissionGrantId"
+    },
+    {
+      "prefix": "pri",
+      "owner_crate": "aura-domain-common",
+      "type_name": "PrincipalId"
+    },
+    {
+      "prefix": "prv",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ProviderId"
+    },
+    {
+      "prefix": "psn",
+      "owner_crate": "aura-domain-common",
+      "type_name": "PermissionSnapshotId"
+    },
+    {
+      "prefix": "qnr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "QuarantineRecordId"
+    },
+    {
+      "prefix": "rel",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ReleaseBundleId"
+    },
+    {
+      "prefix": "rnd",
+      "owner_crate": "aura-domain-common",
+      "type_name": "RendererInstanceId"
+    },
+    {
+      "prefix": "run",
+      "owner_crate": "aura-domain-common",
+      "type_name": "RuntimeInstanceId"
+    },
+    {
+      "prefix": "sbx",
+      "owner_crate": "aura-domain-common",
+      "type_name": "SandboxExecutionId"
+    },
+    {
+      "prefix": "ses",
+      "owner_crate": "aura-domain-common",
+      "type_name": "SessionId"
+    },
+    {
+      "prefix": "skl",
+      "owner_crate": "aura-domain-common",
+      "type_name": "SkillInstanceId"
+    },
+    {
+      "prefix": "sop",
+      "owner_crate": "aura-domain-common",
+      "type_name": "SecurityOperationId"
+    },
+    {
+      "prefix": "srr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "SourceReadReceiptId"
+    },
+    {
+      "prefix": "stp",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ModelStepId"
+    },
+    {
+      "prefix": "str",
+      "owner_crate": "aura-domain-common",
+      "type_name": "StreamId"
+    },
+    {
+      "prefix": "tat",
+      "owner_crate": "aura-domain-common",
+      "type_name": "TransportAttemptId"
+    },
+    {
+      "prefix": "tbt",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolBatchId"
+    },
+    {
+      "prefix": "tcl",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolCallId"
+    },
+    {
+      "prefix": "tcr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolConformanceRunId"
+    },
+    {
+      "prefix": "tdo",
+      "owner_crate": "aura-domain-common",
+      "type_name": "TodoItemId"
+    },
+    {
+      "prefix": "tdr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolDraftId"
+    },
+    {
+      "prefix": "tea",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolExecutionAttemptId"
+    },
+    {
+      "prefix": "tin",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolInstanceId"
+    },
+    {
+      "prefix": "tol",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolId"
+    },
+    {
+      "prefix": "tpk",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolPackageId"
+    },
+    {
+      "prefix": "trn",
+      "owner_crate": "aura-domain-common",
+      "type_name": "TurnTaskId"
+    },
+    {
+      "prefix": "trs",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ToolRegistrySnapshotId"
+    },
+    {
+      "prefix": "uqr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "UserQueryId"
+    },
+    {
+      "prefix": "wlo",
+      "owner_crate": "aura-domain-common",
+      "type_name": "WorkspaceLifecycleOperationId"
+    },
+    {
+      "prefix": "wsp",
+      "owner_crate": "aura-domain-common",
+      "type_name": "WorkspaceId"
+    },
+    {
+      "prefix": "xgr",
+      "owner_crate": "aura-domain-common",
+      "type_name": "ExternalGrantId"
+    }
+  ]
+}

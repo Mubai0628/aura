@@ -1,0 +1,295 @@
+/* The question card, a sibling of the approval card — a header, questions
+   that scroll, and actions that stay in view. Each reply is a full-width row; the user's own words
+   are one of them. */
+.agent-query {
+  display: flex;
+  flex-direction: column;
+  max-height: min(56vh, 520px);
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid #d3e0d9;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow-wrap: anywhere;
+  animation: approval-in var(--dur-base) var(--ease-out) both;
+}
+
+.agent-query-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #f5f9f7;
+}
+
+.agent-query-mark {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.agent-query-header strong {
+  font-size: 13px;
+}
+
+.agent-query-kind {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-query-countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  padding: 3px 10px 3px 4px;
+  border: 1px solid var(--warning-line);
+  border-radius: 999px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: approval-in var(--dur-base) var(--ease-out) both;
+}
+
+.agent-query-countdown[data-ending] {
+  border-color: var(--danger-line);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* The ring empties as the countdown goes; `--left` is the share of time left. */
+.agent-query-countdown-ring {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: conic-gradient(currentColor calc(var(--left, 1) * 360deg), rgba(0, 0, 0, 0.08) 0);
+  -webkit-mask: radial-gradient(circle, transparent 4.5px, #000 5px);
+  mask: radial-gradient(circle, transparent 4.5px, #000 5px);
+  transition: background 480ms linear;
+}
+
+.agent-query-body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 4px;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 14px 10px;
+  overflow-y: auto;
+  border: 0;
+}
+
+.agent-query-question {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 0 6px;
+  border: 0;
+}
+
+.agent-query-question + .agent-query-question {
+  border-top: 1px dashed var(--line);
+}
+
+.agent-query-question legend {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  float: left;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.agent-query-question legend + * {
+  clear: both;
+}
+
+.agent-query-index {
+  display: grid;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.agent-query-options {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-query-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.agent-query-option:hover {
+  border-color: #c4ccc6;
+  background: var(--surface-muted);
+}
+
+.agent-query-option[data-checked] {
+  border-color: #9fbcb3;
+  background: #f1f7f4;
+}
+
+.agent-query-option input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+}
+
+.agent-query-textarea {
+  width: 100%;
+  min-height: 64px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.agent-query-textarea:focus-visible {
+  border-color: var(--focus);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.agent-query-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.agent-query-field {
+  display: grid;
+  flex: 1 1 220px;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-query-field input {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.agent-query-file-status:empty {
+  display: none;
+}
+
+.agent-query-file-status {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-query-error {
+  flex: none;
+  margin: 0;
+  padding: 8px 14px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  font-size: 12px;
+}
+
+.agent-query-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  background: #fcfcfb;
+}
+
+/* The answer in the conversation: the questions and what was replied, never raw JSON. */
+.agent-query-reply {
+  display: grid;
+  gap: 6px;
+}
+
+.agent-query-reply ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-query-reply li {
+  display: grid;
+  gap: 2px;
+}
+
+.agent-query-reply-question {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-query-reply-answer {
+  font-size: 13px;
+}
+
+.agent-query-reply-custom {
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 11px;
+}
+
+.agent-query-reply-note {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}

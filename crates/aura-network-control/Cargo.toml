@@ -1,0 +1,58 @@
+[package]
+name = "aura-network-control"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Contract-test fixtures may trust one process-local CA and relax only the
+# certificate hostname check for an exact loopback destination. Production
+# builds do not enable or expose this path.
+test-fixture-tls = []
+# Per-gateway deterministic DNS classification with loopback-only actual connections.
+test-fixture-dns = []
+
+[dependencies]
+aura-secret-scanner = { path = "../aura-secret-scanner" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-persistence = { path = "../aura-persistence" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+async-compression.workspace = true
+base64.workspace = true
+blake3.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+getrandom.workspace = true
+httpdate.workspace = true
+http-body-util = "0.1.5"
+hyper = { version = "1.11.1", features = ["client", "http1", "http2"] }
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+regex.workspace = true
+reqwest.workspace = true
+rustls-platform-verifier = "0.7.0"
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+tokio-rustls = "0.26.4"
+tokio-util.workspace = true
+url.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+hyper = { version = "1.11.1", features = ["server"] }
+flate2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

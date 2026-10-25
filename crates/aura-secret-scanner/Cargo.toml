@@ -1,0 +1,11 @@
+[package]
+name = "aura-secret-scanner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+regex.workspace = true
+
+[lints]
+workspace = true

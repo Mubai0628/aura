@@ -1,0 +1,119 @@
+/* The main area while Core starts: the sea and what Core is doing, centred. */
+.app-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  max-width: 560px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 40px 24px;
+  text-align: center;
+  animation: app-empty-in 280ms var(--ease-out) both;
+}
+
+/* The page with no conversation is the new conversation's page (desktop-session.css); its
+   notices sit above the sea, and its title block passes the pointer through except on the
+   one action under the title. */
+.app-empty-notices {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.new-session-welcome .app-empty-action {
+  margin-top: 18px;
+  pointer-events: auto;
+}
+
+.app-empty-lead {
+  margin: 4px 0 16px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.app-empty-action {
+  min-height: 36px;
+  padding: 0 16px;
+}
+
+.app-empty-result {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.app-empty-result[role='alert'] {
+  color: var(--danger);
+}
+
+.app-empty-notice {
+  max-width: 520px;
+  margin: 0 0 22px;
+  padding: 10px 14px;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-lg);
+  color: #6b5121;
+  background: var(--warning-soft);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.app-empty-notice[data-tone='danger'] {
+  border-color: var(--danger-line);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.app-empty-notice[data-tone='muted'] {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--surface-muted);
+}
+
+@keyframes app-empty-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* While Core starts, the empty conversation's sea and one plain line. */
+.app-empty.is-starting {
+  position: relative;
+  max-width: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.app-starting {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  letter-spacing: 0.01em;
+  animation: app-starting 1.8s var(--ease-in-out) infinite;
+}
+
+@keyframes app-starting {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-starting {
+    animation: none;
+  }
+}

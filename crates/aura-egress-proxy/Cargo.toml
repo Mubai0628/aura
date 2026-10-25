@@ -1,0 +1,22 @@
+[package]
+name = "aura-egress-proxy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+anyhow.workspace = true
+blake3.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+aura-ipc = { path = "../aura-ipc" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+sha2.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,27 @@
+[package]
+name = "aura-tool-package"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-runtime = { path = "../aura-tool-runtime" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+getrandom.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

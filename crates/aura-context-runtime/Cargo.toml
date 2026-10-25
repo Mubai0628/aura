@@ -1,0 +1,24 @@
+[package]
+name = "aura-context-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-security-contract = { path = "../aura-security-contract" }
+aura-config = { path = "../aura-config" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-prompt-runtime = { path = "../aura-prompt-runtime" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-workspace = { path = "../aura-workspace" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

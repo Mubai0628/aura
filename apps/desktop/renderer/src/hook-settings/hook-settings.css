@@ -1,0 +1,131 @@
+/* Settings → Hook; the page, cards, pills and panels come from styles/settings-pages.css. */
+.hook-row-order {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.hook-row-version {
+  color: var(--quiet);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.hook-row-kind,
+.hook-row-events {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hook-row-heading .hook-row-kind {
+  margin: 0;
+}
+
+.hook-row-location {
+  margin: 4px 0 0;
+  color: var(--quiet);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.hook-remove {
+  margin-left: auto;
+}
+
+.settings-card > .settings-panel,
+.settings-card > .hook-invocations {
+  margin-top: 12px;
+}
+
+.hook-preview p {
+  margin: 4px 0;
+}
+
+.hook-preview h3 {
+  margin: 0 0 4px;
+}
+
+.hook-preview .hook-warning {
+  margin: 10px 0;
+}
+
+.hook-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 8px 0;
+}
+
+.hook-facts dt {
+  color: var(--quiet);
+}
+
+.hook-facts dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.hook-problems {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.hook-files ul,
+.hook-invocations ol {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.hook-invocations {
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  animation: settings-panel-in var(--dur-base) var(--ease-out) both;
+}
+
+.hook-invocations-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hook-invocations-heading h4 {
+  margin: 0;
+  font-size: 12px;
+}
+
+.hook-invocation-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.hook-invocations li[data-outcome='blocked'] strong,
+.hook-invocations li[data-outcome='failed'] strong {
+  color: var(--danger);
+}
+
+.hook-invocations pre,
+.hook-format pre {
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.hook-format {
+  margin-top: 24px;
+}

@@ -1,0 +1,78 @@
+/* Slash commands: the menu above the composer and the command block. */
+.composer-command-menu {
+  left: 12px;
+  width: min(420px, calc(100% - 24px));
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.composer-command-menu ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-command-menu li {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  column-gap: 8px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.composer-command-menu li small {
+  grid-column: 1 / -1;
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.composer-command-menu li[aria-selected='true'] {
+  background: var(--surface-selected, #f0f2ef);
+}
+
+.composer-command-menu li[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.composer-command-menu .command-name,
+.composer-command-block .command-name {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--accent-strong);
+}
+
+.composer-command-menu .command-source {
+  justify-self: end;
+  color: var(--quiet);
+  font-size: 10px;
+}
+
+.composer-command-menu .command-menu-hint {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+
+.composer-command-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 0;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--accent-soft);
+}
+
+.composer-command-block button {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 4px;
+  background: transparent;
+}

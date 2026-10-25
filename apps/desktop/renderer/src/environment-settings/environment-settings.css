@@ -1,0 +1,98 @@
+/* Settings → 环境; the page and its surfaces come from styles/settings-pages.css. */
+.environment-settings > .settings-surface + .settings-surface {
+  margin-top: 14px;
+}
+
+.environment-shells h3 {
+  margin: 0 0 10px;
+}
+
+.environment-shells dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 18px;
+  margin: 0;
+}
+
+.environment-shells dt {
+  grid-column: 1;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.environment-shells dd {
+  grid-column: 2;
+  margin: 0;
+}
+
+.environment-shell-detail {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* The default terminal is a row of pills; the debugging switch is one line. */
+.environment-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-bottom: 14px;
+}
+
+.environment-choice > span {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.environment-choice [role='radiogroup'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.environment-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.environment-choice label:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.environment-choice label:has(input:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.environment-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.environment-toggle > span {
+  display: grid;
+  gap: 2px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.environment-toggle small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}

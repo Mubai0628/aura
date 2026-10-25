@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "address": "127.1.2.3",
+      "expected_classes": ["loopback"]
+    },
+    {
+      "address": "10.0.0.1",
+      "expected_classes": ["private"]
+    },
+    {
+      "address": "169.254.169.254",
+      "expected_classes": ["link_local", "metadata"]
+    },
+    {
+      "address": "::ffff:127.0.0.1",
+      "expected_classes": ["loopback"]
+    },
+    {
+      "address": "fd00:ec2::254",
+      "expected_classes": ["private", "metadata"]
+    },
+    {
+      "address": "8.8.8.8",
+      "expected_classes": ["public"]
+    }
+  ]
+}

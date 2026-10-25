@@ -1,0 +1,17 @@
+[package]
+name = "aura-web-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+base64.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+aura-web-domain = { path = "../aura-web-domain" }
+html5ever = "=0.38.0"
+encoding_rs.workspace = true
+url.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

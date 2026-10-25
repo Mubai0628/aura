@@ -1,0 +1,31 @@
+{
+  "schema_version": 2,
+  "workspace_file_write": [
+    {
+      "mode": "read_only",
+      "expected_decision": "ask"
+    },
+    {
+      "mode": "workspace_read_write",
+      "expected_decision": "allow"
+    },
+    {
+      "mode": "full_access",
+      "expected_decision": "allow"
+    }
+  ],
+  "full_access_high_risk": [
+    {
+      "risk": "elevation",
+      "expected_decision": "ask"
+    },
+    {
+      "risk": "executable_artifact",
+      "expected_decision": "ask"
+    },
+    {
+      "risk": "destructive_remote_mutation",
+      "expected_decision": "ask"
+    }
+  ]
+}

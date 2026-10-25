@@ -1,0 +1,19 @@
+[package]
+name = "aura-activity-runtime"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-domain-common = { path = "../aura-domain-common" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

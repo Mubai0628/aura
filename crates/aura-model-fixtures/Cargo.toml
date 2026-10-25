@@ -1,0 +1,27 @@
+[package]
+name = "aura-model-fixtures"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-security-contract = { path = "../aura-security-contract" }
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-adapter-anthropic = { path = "../aura-model-adapter-anthropic" }
+aura-model-adapter-openai-chat = { path = "../aura-model-adapter-openai-chat" }
+aura-model-adapter-openai-responses = { path = "../aura-model-adapter-openai-responses" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-model-transport = { path = "../aura-model-transport" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+serde_json.workspace = true
+time.workspace = true
+url.workspace = true
+
+[lints]
+workspace = true

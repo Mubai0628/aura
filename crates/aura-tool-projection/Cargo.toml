@@ -1,0 +1,21 @@
+[package]
+name = "aura-tool-projection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-security-contract = { path = "../aura-security-contract" }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+
+[lints]
+workspace = true

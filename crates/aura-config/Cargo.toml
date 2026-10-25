@@ -1,0 +1,30 @@
+[package]
+name = "aura-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-browser-domain = { path = "../aura-browser-domain" }
+aura-mcp = { path = "../aura-mcp" }
+aura-plugins = { path = "../aura-plugins" }
+aura-skills = { path = "../aura-skills" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+blake3.workspace = true
+notify.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+toml.workspace = true
+ulid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,66 @@
+/* The model's request for the user's help on its browser page, on top
+   of the composer; a sibling of the question card, smaller, since the composer stays usable. */
+.browser-assist {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid #d3e0d9;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow-wrap: anywhere;
+  animation: approval-in var(--dur-base) var(--ease-out) both;
+}
+
+.browser-assist-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #f5f9f7;
+}
+
+.browser-assist-header strong {
+  font-size: 13px;
+}
+
+.browser-assist-mark {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.browser-assist-time {
+  margin-left: auto;
+  padding: 2px 10px;
+  border: 1px solid var(--warning-line);
+  border-radius: 999px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.browser-assist-reason {
+  margin: 0;
+  padding: 10px 14px 4px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.browser-assist-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 14px 10px;
+}

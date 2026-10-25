@@ -1,0 +1,98 @@
+{
+  "manifest_version": {
+    "major": 1,
+    "minor": 7
+  },
+  "bundle_namespace": "aura.desktop.test.contracts",
+  "release_bundle_id": "rel_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "release_channel": "Nightly",
+  "product_version": "0.1.0",
+  "build_commit": "0000000000000000000000000000000000000000",
+  "target_triple": "x86_64-pc-windows-msvc",
+  "components": [
+    {
+      "component_id": "aura-desktop",
+      "kind": "desktop",
+      "version": "0.1.0",
+      "relative_path": "Aura.exe",
+      "content_hash": {
+        "algorithm": "sha256",
+        "hex": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "protocol_version": {
+        "major": 1,
+        "minor": 7
+      }
+    },
+    {
+      "component_id": "aura-core",
+      "kind": "core",
+      "version": "0.1.0",
+      "relative_path": "aura-core.exe",
+      "content_hash": {
+        "algorithm": "sha256",
+        "hex": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "protocol_version": {
+        "major": 1,
+        "minor": 7
+      }
+    },
+    {
+      "component_id": "aura-main-pipe",
+      "kind": "main_pipe_bridge",
+      "version": "0.1.0",
+      "relative_path": "resources/native/aura-main-pipe.node",
+      "content_hash": {
+        "algorithm": "sha256",
+        "hex": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "protocol_version": {
+        "major": 1,
+        "minor": 7
+      }
+    },
+    {
+      "component_id": "aura-sandbox-host",
+      "kind": "sandbox_host",
+      "version": "0.1.0",
+      "relative_path": "aura-sandbox-host.exe",
+      "content_hash": {
+        "algorithm": "sha256",
+        "hex": "3333333333333333333333333333333333333333333333333333333333333333"
+      },
+      "protocol_version": {
+        "major": 1,
+        "minor": 7
+      }
+    },
+    {
+      "component_id": "aura-egress-proxy",
+      "kind": "egress_proxy",
+      "version": "0.1.0",
+      "relative_path": "aura-egress-proxy.exe",
+      "content_hash": {
+        "algorithm": "sha256",
+        "hex": "4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "protocol_version": {
+        "major": 1,
+        "minor": 7
+      }
+    },
+    {
+      "component_id": "aura-elevated-helper",
+      "kind": "elevated_helper",
+      "version": "0.1.0",
+      "relative_path": "aura-elevated-helper.exe",
+      "content_hash": {
+        "algorithm": "sha256",
+        "hex": "5555555555555555555555555555555555555555555555555555555555555555"
+      },
+      "protocol_version": {
+        "major": 1,
+        "minor": 7
+      }
+    }
+  ]
+}

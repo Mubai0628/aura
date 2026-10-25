@@ -1,0 +1,102 @@
+.terminal-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--ink);
+  background: var(--canvas);
+}
+.terminal-panel[hidden],
+.terminal-view[hidden] {
+  display: none;
+}
+.terminal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  border-bottom: 1px solid var(--line);
+  padding: 4px;
+}
+.terminal-toolbar button,
+.terminal-toolbar select {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  cursor: pointer;
+  padding: 4px;
+}
+.terminal-toolbar select {
+  max-width: 112px;
+}
+.terminal-tabs {
+  display: flex;
+  overflow: auto;
+  flex: 1;
+  gap: 4px;
+}
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.terminal-tab [aria-selected='true'] {
+  background: var(--surface-selected);
+}
+.terminal-tab button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.terminal-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.terminal-status {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 4px 8px;
+}
+.terminal-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px;
+}
+.terminal-screen {
+  height: 100%;
+  width: 100%;
+}
+.terminal-error {
+  font-size: 12px;
+  color: var(--danger);
+  padding: 8px;
+  margin: 0;
+}
+.terminal-origin {
+  color: var(--muted);
+  font-size: 11px;
+}
+.terminal-status button {
+  margin-left: 10px;
+}
+.terminal-empty {
+  padding: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+/* The shell picker shows focus as every field does (base.css). */
+.terminal-toolbar button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* xterm types through a hidden field; it never shows the fields' focus ring. */
+.xterm textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}

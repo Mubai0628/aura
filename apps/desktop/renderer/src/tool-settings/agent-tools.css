@@ -1,0 +1,199 @@
+/* The default-tool list. */
+.agent-tool-settings-heading {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.agent-tool-settings h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.agent-tool-settings p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 4px 0;
+}
+
+.agent-tool-settings-controls {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 18px 0 8px;
+}
+
+.agent-tool-settings-controls label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.agent-tool-settings-controls input {
+  width: 280px;
+}
+
+.agent-tool-settings-note {
+  font-size: 12px;
+}
+
+.agent-tool-families {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0 4px;
+}
+
+.agent-tool-family {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 12px;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.agent-tool-family span {
+  color: var(--quiet);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-tool-family:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.agent-tool-family[aria-pressed='true'] {
+  border-color: var(--accent-strong);
+  color: #ffffff;
+  background: var(--accent);
+}
+
+.agent-tool-family[aria-pressed='true'] span {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.agent-tool-group {
+  margin-top: 18px;
+}
+
+.agent-tool-group h4 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.agent-tool-group h4 span {
+  color: var(--quiet);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.agent-tool-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-tool-list > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+  animation: settings-item-in var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(min(var(--item, 0), 12) * 18ms);
+}
+
+.agent-tool-list > li:hover {
+  border-color: var(--line-strong);
+}
+
+.agent-tool-list > li[data-loaded='true'] {
+  border-color: #cfe0d6;
+  background: #f7fbf8;
+}
+
+.agent-tool-list > li[data-wide='true'] {
+  grid-column: 1 / -1;
+}
+
+.agent-tool-list > li > div {
+  min-width: 0;
+}
+
+.agent-tool-list strong {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.agent-tool-list p {
+  overflow: hidden;
+  margin: 2px 0;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-tool-list > li[data-wide='true'] p {
+  white-space: normal;
+}
+
+.agent-tool-list small {
+  font-size: 11px;
+  color: var(--quiet);
+}
+
+.agent-tool-list label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-tool-list input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 720px) {
+  .agent-tool-settings-heading {
+    flex-direction: column;
+  }
+}
+
+/* on/off settings are switches. */
+.agent-tool-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}

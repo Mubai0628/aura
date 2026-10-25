@@ -1,0 +1,15 @@
+[package]
+name = "aura-model-adapter-anthropic"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-model-transport = { path = "../aura-model-transport" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+serde_json.workspace = true
+
+[lints]
+workspace = true

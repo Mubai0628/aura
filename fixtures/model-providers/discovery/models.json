@@ -1,0 +1,15 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "fixture-model-a",
+      "object": "model",
+      "owned_by": "fixture-provider"
+    },
+    {
+      "id": "fixture-model-b",
+      "object": "model",
+      "owned_by": "fixture-provider"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+[package]
+name = "aura-execution-orchestrator"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-backend-api = { path = "../aura-backend-api" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-permission-engine = { path = "../aura-permission-engine" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-tool-scheduler = { path = "../aura-tool-scheduler" }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+aura-contract-schema = { path = "../aura-contract-schema" }
+
+[lints]
+workspace = true

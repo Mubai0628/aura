@@ -1,0 +1,19 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-runtime-contract = { path = "../crates/aura-runtime-contract" }
+anyhow.workspace = true
+aura-contract-schema = { path = "../crates/aura-contract-schema" }
+aura-domain-common = { path = "../crates/aura-domain-common" }
+aura-secret-scanner = { path = "../crates/aura-secret-scanner" }
+blake3.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

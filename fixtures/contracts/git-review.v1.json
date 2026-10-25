@@ -1,0 +1,35 @@
+{
+  "request": {
+    "query": {
+      "input": {
+        "max_bytes": 16384,
+        "offset_bytes": 0,
+        "path": "新增 文件.txt"
+      },
+      "kind": "untracked_diff"
+    },
+    "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  },
+  "result": {
+    "kind": "diff",
+    "result": {
+      "files": [
+        {
+          "added": 1,
+          "binary": false,
+          "comparison_note": null,
+          "deleted": 0,
+          "original_path": null,
+          "path": "新增 文件.txt"
+        }
+      ],
+      "next_offset": null,
+      "offset_bytes": 0,
+      "patch": "diff --git a/新增 文件.txt b/新增 文件.txt\n+new\n",
+      "total_bytes": 56,
+      "truncated": false,
+      "warnings": []
+    }
+  }
+}

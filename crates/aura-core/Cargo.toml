@@ -1,0 +1,129 @@
+[package]
+name = "aura-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# The S02-E acceptance boundary: a controlled hold at a real dispatch/reply boundary, used only to
+# produce isolation evidence. No product build enables it - the execution image build passes it
+# only when it is asked for explicitly, and `pnpm dev` never does - so a default build compiles no
+# boundary code at all. See src/acceptance_barrier.rs.
+acceptance-barrier = ["aura-fs-tools/acceptance-barrier"]
+# Only for offline Git fixtures, including optimized Shell performance checks.
+# Ordinary builds have neither this environment override nor its marker.
+git-test-profile = ["aura-backend-windows-user/git-test-profile"]
+memory-test-profile = []
+p08-contract-driver = [
+    "memory-test-profile",
+    "git-test-profile",
+    "aura-backend-windows-user/terminal-test-profile",
+    "aura-ipc/p08-contract-driver",
+    "dep:aura-context-fixtures",
+    "dep:aura-sandbox-host",
+    "dep:flate2",
+    "dep:rusqlite",
+    "dep:tokio-rustls",
+    "aura-network-control/test-fixture-tls",
+    "aura-network-control/test-fixture-dns",
+]
+
+[dependencies]
+aura-memory = { path = "../aura-memory" }
+aura-memory-domain = { path = "../aura-memory-domain" }
+aura-net-tools = { path = "../aura-net-tools" }
+aura-execution-orchestrator = { path = "../aura-execution-orchestrator" }
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-activity-runtime = { path = "../aura-activity-runtime" }
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-web-domain = { path = "../aura-web-domain" }
+aura-browser-domain = { path = "../aura-browser-domain" }
+aura-web-runtime = { path = "../aura-web-runtime" }
+aura-backend-api = { path = "../aura-backend-api" }
+aura-backend-core = { path = "../aura-backend-core" }
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-commands = { path = "../aura-commands" }
+aura-hooks = { path = "../aura-hooks" }
+aura-mcp = { path = "../aura-mcp" }
+aura-plugins = { path = "../aura-plugins" }
+aura-skills = { path = "../aura-skills" }
+aura-secret-scanner = { path = "../aura-secret-scanner" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+anyhow.workspace = true
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-config = { path = "../aura-config" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-context-tools = { path = "../aura-context-tools" }
+aura-context-fixtures = { path = "../aura-context-fixtures", optional = true }
+aura-context-runtime = { path = "../aura-context-runtime" }
+aura-prompt-runtime = { path = "../aura-prompt-runtime" }
+aura-approval = { path = "../aura-approval" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-fs-tools = { path = "../aura-fs-tools" }
+aura-ipc = { path = "../aura-ipc" }
+ aura-model-adapter-anthropic = { path = "../aura-model-adapter-anthropic" }
+ aura-model-adapter-openai-chat = { path = "../aura-model-adapter-openai-chat" }
+ aura-model-adapter-openai-responses = { path = "../aura-model-adapter-openai-responses" }
+ aura-model-catalog = { path = "../aura-model-catalog" }
+aura-model-config = { path = "../aura-model-config" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-model-transport = { path = "../aura-model-transport" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-permission-engine = { path = "../aura-permission-engine" }
+aura-persistence = { path = "../aura-persistence" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-sandbox = { path = "../aura-sandbox" }
+aura-sandbox-host = { path = "../aura-sandbox-host", optional = true }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-package = { path = "../aura-tool-package" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+aura-tool-scheduler = { path = "../aura-tool-scheduler" }
+aura-tool-runtime = { path = "../aura-tool-runtime" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-workspace = { path = "../aura-workspace" }
+blake3.workspace = true
+base64.workspace = true
+getrandom.workspace = true
+flate2 = { workspace = true, optional = true }
+regex.workspace = true
+resvg.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+rusqlite = { workspace = true, optional = true }
+tempfile.workspace = true
+tokio.workspace = true
+tokio-rustls = { version = "0.26.4", optional = true }
+thiserror.workspace = true
+time.workspace = true
+url.workspace = true
+zeroize.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+junction.workspace = true
+# Test-only: hold one file's real scan open, so the IPC lifecycle tests drive the
+# real search worker through a real disconnect instead of a stand-in. The feature
+# exists only in `aura-fs-tools`; no product build enables it.
+aura-fs-tools = { path = "../aura-fs-tools", features = ["search-test-faults"] }
+aura-contract-schema = { path = "../aura-contract-schema" }
+aura-context-fixtures = { path = "../aura-context-fixtures" }
+aura-network-control = { path = "../aura-network-control", features = ["test-fixture-tls", "test-fixture-dns"] }
+aura-sandbox-host = { path = "../aura-sandbox-host" }
+flate2.workspace = true
+rusqlite.workspace = true
+tokio-rustls = "0.26.4"
+
+[lints]
+workspace = true

@@ -1,0 +1,146 @@
+{
+  "files": [
+    {
+      "byte_length": 23,
+      "path": "scripts/fixture.ps1",
+      "role": "runtime_script",
+      "sha256": {
+        "algorithm": "sha256",
+        "hex": "3945798118ba168af41d640a892cb79cb74c28046cb0f6a1a2386c7dc6ce59c2"
+      }
+    }
+  ],
+  "minimum_aura_version": "0.1.0",
+  "package_key": "org.aura.fixture.command",
+  "package_version": "1.0.0",
+  "schema_version": 1,
+  "tools": [
+    {
+      "audience": "parent_agent_only",
+      "capability_requirements": ["process_execute"],
+      "conformance_cases": [
+        {
+          "arguments": {
+            "label": "fixture",
+            "values": ["one", "two"],
+            "verbose": false
+          },
+          "name": "deterministic fixture"
+        }
+      ],
+      "execution_semantics": {
+        "automatic_retry_allowed": false,
+        "may_create_persistent_effects": false,
+        "repeat_is_idempotent": true
+      },
+      "instance_configuration": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "output_mode": {
+            "enum": ["compact", "expanded"],
+            "maxLength": 16,
+            "minLength": 1,
+            "pattern": "^[a-z_]+$",
+            "type": "string"
+          }
+        },
+        "required": ["output_mode"],
+        "type": "object"
+      },
+      "model": {
+        "canonical_suffix": "fixture",
+        "description": "Execute the package fixture with validated arguments.",
+        "input_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "optional": {
+              "type": ["string", "null"]
+            },
+            "values": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "verbose": {
+              "type": "boolean"
+            }
+          },
+          "required": ["label", "values", "verbose"],
+          "type": "object"
+        },
+        "result_contract": {
+          "type": "utf8_text"
+        },
+        "strict": true,
+        "summary": "Execute a deterministic package fixture."
+      },
+      "resource_claims": [],
+      "runtime": {
+        "command": {
+          "arguments": [
+            {
+              "type": "literal",
+              "value": "--label"
+            },
+            {
+              "source": "/label",
+              "type": "scalar"
+            },
+            {
+              "source": "/values",
+              "type": "repeated"
+            },
+            {
+              "flag": "--verbose",
+              "source": "/verbose",
+              "type": "conditional_flag"
+            },
+            {
+              "name": "--optional",
+              "omit_when_missing_or_null": true,
+              "source": "/optional",
+              "type": "named_option"
+            }
+          ],
+          "credential_slot": null,
+          "environment": [
+            {
+              "name": "AURA_LABEL",
+              "value": {
+                "type": "literal",
+                "value": "contains\nnewline"
+              }
+            },
+            {
+              "name": "AURA_OUTPUT_MODE",
+              "value": {
+                "key": "output_mode",
+                "type": "instance_configuration"
+              }
+            }
+          ],
+          "script": "scripts/fixture.ps1",
+          "type": "powershell_script",
+          "working_directory": {
+            "type": "workspace_root"
+          }
+        },
+        "type": "declarative_command"
+      },
+      "semantic_version": "1.2.3",
+      "tool_key": "fixture",
+      "ui": {
+        "display_name": "Fixture Tool"
+      }
+    }
+  ],
+  "ui": {
+    "description": null,
+    "display_name": "Aura Fixture Package"
+  }
+}

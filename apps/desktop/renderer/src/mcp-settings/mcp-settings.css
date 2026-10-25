@@ -1,0 +1,186 @@
+/* Settings → MCP; the page, cards, pills and panels come from styles/settings-pages.css. */
+.mcp-row-heading code {
+  padding: 0;
+  background: none;
+  color: var(--quiet);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.mcp-row-transport {
+  margin: 6px 0 0;
+  color: var(--quiet);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.mcp-row-transport code {
+  padding: 0;
+  background: none;
+}
+
+.mcp-remove {
+  margin-left: auto;
+}
+
+/* A plugin's server is labelled, and its secrets are entered in its row. */
+.mcp-row-note {
+  margin: 8px 0 0;
+  color: var(--quiet);
+  font-size: 12px;
+}
+
+.mcp-plugin-secrets {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.mcp-plugin-secret {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 6px;
+}
+
+.settings-card > .settings-panel,
+.settings-card > .mcp-detail {
+  margin-top: 12px;
+}
+
+.mcp-form {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid #c9dbd3;
+  border-radius: var(--radius-lg);
+  background: #f6faf8;
+  animation: settings-panel-in var(--dur-base) var(--ease-out) both;
+}
+
+.mcp-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.mcp-form input,
+.mcp-form textarea,
+.mcp-form select {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.mcp-form textarea {
+  padding: 8px 10px;
+}
+
+.mcp-form input:focus,
+.mcp-form textarea:focus,
+.mcp-form select:focus {
+  border-color: var(--focus);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(46, 105, 115, 0.14);
+}
+
+.mcp-form small {
+  color: var(--quiet);
+}
+
+/* A group of choices is one row of pills; the fields a choice needs are rows below it (every
+   choice and field used to share one squeezed line). */
+.mcp-form fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.mcp-form legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 12.5px;
+}
+
+.mcp-form fieldset > button {
+  justify-self: start;
+}
+
+.mcp-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mcp-form .mcp-choices label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.mcp-form .mcp-choices label:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.mcp-form .mcp-choices input {
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.mcp-auth-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 14px;
+}
+
+.mcp-auth-fields > small {
+  grid-column: 1 / -1;
+}
+
+.mcp-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.mcp-trust pre,
+.mcp-detail pre {
+  max-height: 220px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.mcp-detail {
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  animation: settings-panel-in var(--dur-base) var(--ease-out) both;
+}
+
+.mcp-detail ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}

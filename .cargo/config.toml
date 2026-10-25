@@ -1,0 +1,20 @@
+[alias]
+xtask = "run --package xtask --"
+
+[build]
+target-dir = "target"
+# Cargo in this repository runs six jobs, short of every core of a usual development machine,
+# so a build started by a model in Aura (or by anyone) leaves room. xtask runs its cargo
+# commands with the same six; CARGO_BUILD_JOBS overrides this anywhere.
+jobs = 6
+
+# Builds link with the toolchain's own rust-lld, which links
+# Aura's large test programs much faster than MSVC link.exe and keeps /Brepro reproducible.
+# Release builds keep link.exe through scripts/cargo-release.mjs until their output has been
+# checked with rust-lld.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+
+[term]
+color = "always"
+progress.when = "auto"

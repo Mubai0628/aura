@@ -1,0 +1,83 @@
+[package]
+name = "aura-windows-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+compat-adoption = []
+git-read-test-profile = []
+experimental-processmodel-proxy = []
+restricted-user-runtime = ["windows-sys/Win32_System_StationsAndDesktops", "windows-sys/Win32_Graphics_Gdi", "windows-sys/Win32_NetworkManagement_WindowsFilteringPlatform", "windows-sys/Win32_System_Diagnostics_Debug", "windows-sys/Win32_System_Rpc", "windows-sys/Wdk_System_SystemInformation"]
+execution-maintenance = ["restricted-user-runtime", "windows-sys/Win32_System_Services", "windows-sys/Wdk_System_SystemInformation"]
+restricted-user-spike = ["restricted-user-runtime", "windows-sys/Win32_System_Rpc"]
+
+[dependencies]
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+blake3.workspace = true
+dunce.workspace = true
+getrandom.workspace = true
+notify.workspace = true
+sha2.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+windows-sys = { workspace = true, features = [
+    "Wdk_Foundation",
+    "Wdk_Storage_FileSystem",
+    "Wdk_System_SystemServices",
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_NetworkManagement_Dns",
+    "Win32_Security",
+    "Win32_Security_Cryptography",
+    "Win32_Security_Cryptography_Catalog",
+    "Win32_Security_Cryptography_Sip",
+    "Win32_Security_WinTrust",
+    "Win32_Security_Authorization",
+    "Win32_Security_Credentials",
+    "Win32_Security_Isolation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_JobObjects",
+    "Win32_System_Com",
+    "Win32_System_Console",
+    "Win32_System_IO",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Environment",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Pipes",
+    "Win32_System_ProcessStatus",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Controls",
+    "Win32_UI_Controls_Dialogs",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[lints.rust]
+unsafe_code = "allow"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+
+[build-dependencies]
+x509-parser = { version = "0.18.1", default-features = false, features = ["verify"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+x509-parser = { version = "0.18.1", default-features = false, features = ["verify"] }

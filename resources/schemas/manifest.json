@@ -1,0 +1,40 @@
+{
+  "manifest_version": {
+    "major": 1,
+    "minor": 7
+  },
+  "schemas": [
+    {
+      "id": "aura.contracts",
+      "path": "aura-contracts.schema.json",
+      "content_hash": {
+        "algorithm": "blake3",
+        "hex": "5b2c615be271b0ffe9e04eee34d404d719a45f435ce64a8258623df6b37e2746"
+      }
+    },
+    {
+      "id": "aura.tool-error-catalog.v1",
+      "path": "tool-error-catalog.v1.schema.json",
+      "content_hash": {
+        "algorithm": "blake3",
+        "hex": "3299e41e704366a9699bbb9942b14220103958ccd84d3b449ae040d2df7a1392"
+      }
+    },
+    {
+      "id": "aura.tool-package-manifest.v1",
+      "path": "aura-tool-package-manifest.v1.schema.json",
+      "content_hash": {
+        "algorithm": "blake3",
+        "hex": "71e615d5c58a451aefa34a54be7cf44bec2cdb71bfabe995d2953a6ce056927a"
+      }
+    },
+    {
+      "id": "aura.tool-package-canonical-manifest.v1",
+      "path": "aura-tool-package-canonical-manifest.v1.schema.json",
+      "content_hash": {
+        "algorithm": "blake3",
+        "hex": "5871db706dabc0f66de713e744633bc0dc266a01278e0bb1044da9ab92daee6d"
+      }
+    }
+  ]
+}

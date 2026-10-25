@@ -1,0 +1,23 @@
+[package]
+name = "aura-elevated-helper"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+anyhow.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+aura-ipc = { path = "../aura-ipc" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-sandbox = { path = "../aura-sandbox" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+windows-sys.workspace = true
+
+[lints]
+workspace = true

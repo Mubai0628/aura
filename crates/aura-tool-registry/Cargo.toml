@@ -1,0 +1,27 @@
+[package]
+name = "aura-tool-registry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-memory-domain = { path = "../aura-memory-domain" }
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-web-domain = { path = "../aura-web-domain" }
+aura-browser-domain = { path = "../aura-browser-domain" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

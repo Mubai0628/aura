@@ -1,0 +1,417 @@
+.conversation-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: var(--canvas);
+}
+
+.conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  padding: 9px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.conversation-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+}
+
+.conversation-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.compact-tools-button {
+  display: none;
+}
+
+.workspace-main[data-sidebar-open='false'] .compact-tools-button {
+  display: inline-grid;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+/* Beside the reopen button (10 px from the edge, 28 px wide; shell.css), one header gap
+   (7 px) apart. */
+.workspace-main[data-sidebar-open='false'] .conversation-header-actions {
+  margin-right: 23px;
+}
+
+.workspace-shell[data-left-sidebar-open='false'] .conversation-header {
+  padding-left: 50px;
+}
+
+.conversation-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.conversation-scroll {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  padding: 20px clamp(24px, 4vw, 56px) calc(var(--conversation-dock-clearance, 190px) + 28px);
+  overflow-y: auto;
+  background: var(--canvas);
+}
+
+.runtime-notice {
+  display: flex;
+  align-items: flex-start;
+  max-width: 900px;
+  gap: 9px;
+  padding: 10px 12px;
+  margin: 0 auto 10px;
+  border: 1px solid #dfd2b9;
+  border-radius: 9px;
+  color: #6d5733;
+  background: #faf6ed;
+  font-size: 12px;
+}
+
+.runtime-notice > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.runtime-notice span {
+  display: flex;
+  flex-direction: column;
+}
+
+.runtime-notice strong {
+  color: #564324;
+}
+
+.runtime-notice.notice-danger {
+  color: #7b3838;
+  border-color: #e3bebe;
+  background: #fbefef;
+}
+
+.runtime-notice.notice-danger strong {
+  color: #682d2d;
+}
+
+.conversation-column {
+  width: min(900px, 100%);
+  margin: 0 auto;
+}
+
+.message {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.message + .message {
+  margin-top: 28px;
+}
+
+.message-user {
+  width: min(720px, 100%);
+  grid-template-columns: minmax(0, 1fr) 34px;
+  margin-left: auto;
+}
+
+.message-user .message-avatar {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.message-user .message-body {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.message-avatar {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: #4f5550;
+  background: #f1f2ef;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.message-avatar.aura-avatar {
+  color: var(--accent-strong);
+  background: #edf2ef;
+}
+
+.message-body {
+  min-width: 0;
+  text-align: left;
+}
+
+.message-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 5px;
+}
+
+.message-meta strong {
+  font-size: 13px;
+}
+.message-meta time {
+  color: var(--quiet);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.message-content {
+  min-width: 0;
+  max-width: 72ch;
+  color: #343934;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.message-content > :first-child {
+  margin-top: 0;
+}
+
+.message-content > :last-child {
+  margin-bottom: 0;
+}
+
+.tool-result-card {
+  max-width: 620px;
+  padding: 11px 13px 12px;
+  margin-top: 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.tool-result-heading {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-result-heading > span:last-child {
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.tool-result-icon {
+  display: grid;
+  width: 21px;
+  height: 21px;
+  place-items: center;
+  border-radius: 50%;
+  color: #2f6948;
+  background: #dcebdd;
+}
+
+.tool-result-card ul {
+  padding-left: 41px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tool-result-card li + li {
+  margin-top: 3px;
+}
+
+/* The card sizes itself from the measured available space (see
+   ActivityNoteStack), so the three live modes no longer pin it to 76px. */
+.activity-stack[data-mode='plan'],
+.activity-stack[data-mode='goal'],
+.activity-stack[data-mode='normal'] {
+  min-width: 280px;
+  max-width: 320px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+
+.activity-stack[data-mode='plan'] .activity-mode-actions,
+.activity-stack[data-mode='goal'] .activity-mode-actions {
+  flex-wrap: wrap;
+}
+
+/* A narrow window keeps a compact entry that still states the current mode; the
+   card it opens stays inside the window and scrolls its own content. The entry is
+   a labelled pill, not an icon-only button: it must size to the icon plus the
+   whole mode word instead of inheriting the 28px icon slot. */
+.activity-compact-entry {
+  position: absolute;
+  top: 18px;
+  right: 12px;
+  z-index: 5;
+  display: inline-flex;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 6px 18px rgba(41, 47, 43, 0.08);
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* In a narrow window the entry sits in the conversation's
+   header beside its title, and the card drops down from there. */
+.activity-entry-slot {
+  display: contents;
+}
+.conversation-header .activity-compact-entry {
+  position: static;
+  padding: 4px 9px;
+  box-shadow: none;
+}
+.activity-stack[data-display='compact'] {
+  top: 6px;
+}
+.activity-compact-entry svg {
+  flex: 0 0 auto;
+}
+.activity-compact-mode {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.activity-stack[data-display='compact'] {
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+.activity-collapse {
+  color: var(--muted);
+}
+
+.activity-stack {
+  position: absolute;
+  top: 18px;
+  right: 12px;
+  z-index: 4;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 10px 26px rgba(41, 47, 43, 0.09);
+  transform-origin: right 30px;
+  animation: activity-bubble-detach 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes activity-bubble-detach {
+  from {
+    opacity: 0.35;
+    clip-path: inset(0 0 0 22% round 20px);
+    box-shadow: 0 3px 8px rgba(41, 47, 43, 0.04);
+    transform: translateX(32px) scale(0.84);
+  }
+
+  to {
+    opacity: 1;
+    clip-path: inset(0 round 11px);
+    box-shadow: 0 10px 26px rgba(41, 47, 43, 0.09);
+    transform: translateX(0) scale(1);
+  }
+}
+
+.activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.activity-mode {
+  margin-top: 10px;
+  color: #4e554f;
+  font-size: 12px;
+}
+
+/* The mode is one of the card's rows (activity-summary.css). */
+.activity-mode-name {
+  margin: 0;
+}
+
+.activity-mode-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.activity-stack button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: #3d443f;
+  font-size: 11px;
+}
+
+.activity-stack button:hover:not(:disabled) {
+  border-color: #c5ccc5;
+  background: #f6f7f5;
+}
+
+/* The card's own buttons are padded for words; its close icon is a square
+   with the icon in its middle, not a 13 px icon pushed out of an 8 px box. */
+.activity-stack .activity-collapse {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0;
+}
+
+.activity-mode-edit {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.activity-mode-edit label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.activity-mode-edit input {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+/* The collapsed card's entry also says how far the task list has got. */
+.activity-compact-todo {
+  padding-left: 7px;
+  border-left: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -1,0 +1,28 @@
+[package]
+name = "aura-memory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+aura-memory-domain = { path = "../aura-memory-domain" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-fs-tools = { path = "../aura-fs-tools" }
+aura-secret-scanner = { path = "../aura-secret-scanner" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+blake3.workspace = true
+notify.workspace = true
+serde.workspace = true
+schemars.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+junction.workspace = true
+
+[lints]
+workspace = true

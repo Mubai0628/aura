@@ -1,0 +1,6 @@
+CREATE TABLE workspaces(id TEXT PRIMARY KEY, display_name TEXT NOT NULL, canonical_root TEXT NOT NULL UNIQUE, state TEXT NOT NULL CHECK(state IN('online','offline','archived','reconciliation_required')), revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE TABLE sessions(id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL REFERENCES workspaces(id), title TEXT NOT NULL, state TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL) STRICT;
+CREATE INDEX sessions_workspace ON sessions(workspace_id,created_at);
+CREATE TABLE file_references(workspace_id TEXT NOT NULL REFERENCES workspaces(id), path TEXT NOT NULL, identity TEXT NOT NULL CHECK(json_valid(identity)), revision INTEGER NOT NULL CHECK(revision>0), PRIMARY KEY(workspace_id,path)) STRICT;
+CREATE TABLE workspace_mutation_receipts(operation_id TEXT PRIMARY KEY REFERENCES operations(id), workspace_id TEXT NOT NULL REFERENCES workspaces(id), receipt_artifact_id TEXT NOT NULL REFERENCES artifacts(id), payload TEXT NOT NULL CHECK(json_valid(payload))) STRICT;
+CREATE VIRTUAL TABLE workspace_search_fts USING fts5(workspace_id UNINDEXED,path UNINDEXED,content,tokenize='unicode61');

@@ -1,0 +1,209 @@
+{
+  "dispatch": {
+    "operation": {
+      "schema_version": 1,
+      "operation_id": "sop_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "content": {
+        "compatibility": [],
+        "network": "none",
+        "identity": {
+          "principal_id": "pri_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "actor": "user",
+          "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "session_id": "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "turn_task_id": null,
+          "agent_run_id": null,
+          "parent_agent_run_id": null,
+          "correlation_id": "cor_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "permission_snapshot_id": null
+        },
+        "source": {
+          "source_kind": "user_interface"
+        },
+        "source_revision_fingerprint": null,
+        "capabilities": [
+          "workspace_file_read"
+        ],
+        "resources": [
+          {
+            "scope_kind": "workspace_root",
+            "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          }
+        ],
+        "risks": [],
+        "credentials": [
+          {
+            "credential_id": "crd_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "credential_revision": "1",
+            "authority": {
+              "source_kind": "system_component",
+              "component_id": "fixture-authority"
+            },
+            "use_fingerprint": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "cd4d17d7a139c99f0f40acc39df6c375b2e6264da070dd8972f92ec50349c7cd"
+            }
+          }
+        ],
+        "purpose": "Verify V2 contract bindings",
+        "action_kind": "fixture.read",
+        "action_revision": "1",
+        "action": {
+          "path": "fixture.txt"
+        }
+      },
+      "fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "37ab2b63386af4ebf5d7a673038956fd2353e68169fd0f4a3a258ef2c1c88385"
+      }
+    },
+    "plan": {
+      "prepared": {
+        "operation_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "37ab2b63386af4ebf5d7a673038956fd2353e68169fd0f4a3a258ef2c1c88385"
+        },
+        "backend": {
+          "known_limitations": [],
+          "compatibility": [],
+          "id": "fixture.broker",
+          "revision": "1",
+          "runtime_instance_id": "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "class": "core_broker",
+          "capabilities": [
+            "workspace_file_read"
+          ],
+          "guarantees": [
+            "authorized_writes_only"
+          ],
+          "readiness": {
+            "readiness": "ready"
+          },
+          "protocol_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "ac9d9f5ff7623a24eee17c5a72f526263e469b68c08543adec81cbb4cc3870b0"
+          }
+        },
+        "preparation": {
+          "resolved_file_identity": "synthetic-file-1"
+        }
+      },
+      "fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "e26445a84be6b6677001c2fc3ace89a1270faffea2f7dab46b36604d9c2481ec"
+      }
+    },
+    "binding": {
+      "attempt": {
+        "operation_id": "sop_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "ordinal": 1
+      },
+      "operation_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "37ab2b63386af4ebf5d7a673038956fd2353e68169fd0f4a3a258ef2c1c88385"
+      },
+      "authorization_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "67beb5a5340f039555d67483fb80e1f3f4d8a6d89329fc176256477f5f1215cf"
+      },
+      "plan_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "e26445a84be6b6677001c2fc3ace89a1270faffea2f7dab46b36604d9c2481ec"
+      },
+      "cancellation_revision": "1"
+    }
+  },
+  "authority": {
+    "basis": {
+      "basis": "grant",
+      "grant_id": "pgr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "revision": "1"
+    },
+    "scope": {
+      "operation_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "37ab2b63386af4ebf5d7a673038956fd2353e68169fd0f4a3a258ef2c1c88385"
+      },
+      "profile": "balanced",
+      "backend_requirement": {
+        "allowed_classes": [
+          "core_broker",
+          "restricted_user_offline"
+        ],
+        "guarantees": [
+          "authorized_writes_only"
+        ]
+      },
+      "lifetime": {
+        "lifetime": "once",
+        "operation_id": "sop_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+      }
+    },
+    "decided_at": "2026-09-07T00:00:00Z",
+    "expires_at": "2026-09-07T01:00:00Z"
+  },
+  "cancellation": {
+    "revision": "1",
+    "requested": false
+  },
+  "result": {
+    "outcome": "succeeded",
+    "side_effect": "unknown",
+    "receipt": {
+      "attempt": {
+        "operation_id": "sop_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        "ordinal": 1
+      },
+      "evidence_ref": "art_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "postcondition_fingerprint": null,
+      "rollback": {
+        "rollback": "unavailable"
+      }
+    },
+    "termination": {
+      "termination": "unknown"
+    },
+    "completed_at": "2026-09-07T00:00:00Z",
+    "warnings": [
+      "tool.side_effect.unverified"
+    ]
+  },
+  "grant": {
+    "grant_id": "pgr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "revision": "1",
+    "scope": {
+      "operation_fingerprint": {
+        "algorithm": "sha256",
+        "canonicalization_version": "rfc8785_jcs_v1",
+        "hex": "37ab2b63386af4ebf5d7a673038956fd2353e68169fd0f4a3a258ef2c1c88385"
+      },
+      "profile": "balanced",
+      "backend_requirement": {
+        "allowed_classes": [
+          "core_broker",
+          "restricted_user_offline"
+        ],
+        "guarantees": [
+          "authorized_writes_only"
+        ]
+      },
+      "lifetime": {
+        "lifetime": "once",
+        "operation_id": "sop_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+      }
+    },
+    "issued_at": "2026-09-07T00:00:00Z",
+    "expires_at": "2026-09-07T01:00:00Z",
+    "revoked_at": null,
+    "consumed_at": null
+  }
+}

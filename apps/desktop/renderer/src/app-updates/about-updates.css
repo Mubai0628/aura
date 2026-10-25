@@ -1,0 +1,86 @@
+.about-updates .update-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 32px;
+  margin: 20px 0 4px;
+}
+
+.update-facts > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.update-facts dt,
+.update-progress span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.update-facts dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.update-progress {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.update-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
+.update-error {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.update-release-notes {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.update-release-notes summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.update-release-notes p,
+.update-notice p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.update-rollback-options {
+  padding: 0 24px 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.update-restore-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.update-restore-choice input {
+  accent-color: var(--accent);
+}
+
+.update-restart-dialog .confirmation-copy > p {
+  grid-column: 2;
+}

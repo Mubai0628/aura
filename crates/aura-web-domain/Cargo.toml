@@ -1,0 +1,14 @@
+[package]
+name = "aura-web-domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+aura-domain-common = { path = "../aura-domain-common" }
+schemars.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

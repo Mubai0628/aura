@@ -1,0 +1,132 @@
+/* A plan reads as
+   written — labelled parts, steps with their ids, checks and waits in a quieter voice — and its main
+   action is a real button. */
+.agent-plan {
+  margin: 12px 0;
+  padding: 16px 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.agent-plan-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+.agent-plan-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.agent-plan-label {
+  flex: none;
+  margin-right: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.agent-plan-goal {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.agent-plan-part {
+  margin-top: 14px;
+}
+.agent-plan-part > .agent-plan-label {
+  display: block;
+  margin-bottom: 4px;
+}
+.agent-plan-text {
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.agent-plan-text p {
+  margin: 0;
+}
+.agent-plan-text p + p {
+  margin-top: 6px;
+}
+.agent-plan-requirements {
+  margin: 0;
+  padding-left: 18px;
+}
+.agent-plan-requirements li {
+  margin: 3px 0;
+}
+.agent-plan-steps {
+  display: grid;
+  gap: 12px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.agent-plan-steps > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.agent-plan-step-id {
+  min-width: 28px;
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.7;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.agent-plan-check,
+.agent-plan-deps {
+  display: flex;
+  align-items: baseline;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.agent-plan-check .agent-plan-text {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.agent-plan-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.agent-plan-implement {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.agent-plan-implement:hover:not(:disabled) {
+  background: #3b403b;
+}
+.agent-plan-implement:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* A carried plan says why it has no button. */
+.agent-plan-carried {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}

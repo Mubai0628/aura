@@ -1,0 +1,33 @@
+[package]
+name = "aura-workspace"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-persistence = { path = "../aura-persistence" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+blake3.workspace = true
+encoding_rs.workspace = true
+globset.workspace = true
+getrandom.workspace = true
+ignore.workspace = true
+notify.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+ulid.workspace = true
+
+[dev-dependencies]
+junction.workspace = true
+# The index tests make one persistent write fail on purpose, which needs a handle
+# on the same database the workspace uses.
+rusqlite.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

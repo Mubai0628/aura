@@ -1,0 +1,419 @@
+/*
+ * The shared shape of a Settings page — width and rhythm, the callout that says what a
+ * page's programs can do, cards, status pills, disclosures, empty states and paths — so every
+ * page reads as one product. Pages keep their own class for what is theirs alone.
+ */
+.settings-page {
+  width: min(1260px, 100%);
+  margin: 0 auto;
+  padding: 24px clamp(22px, 3vw, 38px) 48px;
+  animation: settings-page-in var(--dur-base) var(--ease-out) both;
+}
+
+.model-settings,
+.tool-settings,
+.security-settings {
+  animation: settings-page-in var(--dur-base) var(--ease-out) both;
+}
+
+.settings-page > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.settings-page > * + * {
+  margin-top: 16px;
+}
+
+:where(.settings-page) h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.settings-page-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings-page > .settings-content-heading p {
+  max-width: 64em;
+}
+
+.settings-callout {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 11px 14px;
+  border: 1px solid #d8e2dd;
+  border-radius: var(--radius-lg);
+  color: #3f5d53;
+  background: #f1f6f3;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.settings-callout.is-warning {
+  border-color: var(--warning-line);
+  color: #6b5121;
+  background: var(--warning-soft);
+}
+
+.settings-callout > svg {
+  margin-top: 2px;
+}
+
+.settings-callout > p,
+.settings-callout > div {
+  margin: 0;
+}
+
+.settings-card-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.settings-card {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+  animation: settings-item-in var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(min(var(--item, 0), 8) * 24ms);
+}
+
+.settings-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-card[data-tone='warning'] {
+  border-color: var(--warning-line);
+}
+
+.settings-card[data-tone='danger'] {
+  border-color: var(--danger-line);
+}
+
+.settings-card[data-tone='muted'] {
+  background: #fcfcfb;
+}
+
+.settings-card > p {
+  margin: 6px 0 0;
+}
+
+.settings-card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.settings-card-heading strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.settings-card-heading .status-pill {
+  margin-left: auto;
+}
+
+.settings-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.settings-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 11.5px;
+  font-weight: 560;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface-muted);
+  font-size: 11.5px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.status-pill::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+
+.status-pill[data-tone='success'] {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.status-pill[data-tone='warning'] {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.status-pill[data-tone='danger'] {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.status-pill[data-tone='active']::before {
+  animation: status-pulse 1.6s var(--ease-in-out) infinite;
+}
+
+.status-pill[data-tone='active'] {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.settings-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 40px 24px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-xl);
+  color: var(--muted);
+  text-align: center;
+  animation: settings-item-in var(--dur-base) var(--ease-out) both;
+}
+
+.settings-empty-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  place-items: center;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+
+.settings-empty strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.settings-empty p {
+  max-width: 52ch;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.settings-empty .settings-page-actions {
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.settings-inline-alert {
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: 12.5px;
+}
+
+.settings-status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.settings-status-line[role='alert'] {
+  padding: 9px 12px;
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.settings-status-line.is-done {
+  padding: 9px 12px;
+  border: 1px solid #cfe0d6;
+  border-radius: var(--radius-md);
+  color: var(--success);
+  background: var(--success-soft);
+  animation: settings-item-in var(--dur-base) var(--ease-out) both;
+}
+
+.settings-page :where(details) > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.settings-page :where(details) > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-page :where(details) > summary::before {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: '';
+  transform: rotate(-45deg);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.settings-page :where(details)[open] > summary::before {
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.settings-page :where(details) > summary:hover {
+  color: var(--ink);
+}
+
+.settings-page :where(details)[open] > :not(summary) {
+  animation: settings-item-in var(--dur-base) var(--ease-out) both;
+}
+
+:where(.settings-page) code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+:where(.settings-page) code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-muted);
+}
+
+.settings-panel {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: #fcfcfb;
+  animation: settings-panel-in var(--dur-base) var(--ease-out) both;
+}
+
+.settings-panel.is-accent {
+  border-color: #c9dbd3;
+  background: #f6faf8;
+}
+
+.settings-panel.is-danger {
+  border-color: var(--danger-line);
+  background: #fdf8f8;
+}
+
+/* Form controls a page did not style itself get one look; :where keeps them easy to override. */
+:where(.settings-page)
+  :where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']), select) {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+:where(.settings-page) :where(textarea) {
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+
+:where(.settings-page) :where(input, select, textarea):hover:not(:disabled) {
+  border-color: #c4c9c3;
+}
+
+:where(.settings-page) :where(input, select, textarea):focus {
+  border-color: var(--focus);
+}
+
+:where(.settings-page) :where(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--accent);
+}
+
+@keyframes settings-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes settings-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes settings-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}

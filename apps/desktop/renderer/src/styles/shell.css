@@ -1,0 +1,392 @@
+.workspace-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    var(--left-panel-width) var(--left-divider-width)
+    minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  transition: grid-template-columns 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.workspace-shell[data-resizing='true'],
+.workspace-main[data-resizing='true'] {
+  transition: none;
+}
+
+.left-pane-slot,
+.right-pane-slot {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.left-pane-slot > *,
+.right-pane-slot > * {
+  width: 100%;
+  height: 100%;
+}
+
+/* The review page fills the main area; the conversation keeps its layout underneath. */
+.workspace-main[data-right-expanded='true'] > .right-pane-slot {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+}
+
+.workspace-main[data-right-expanded='true'] > .conversation-workspace,
+.workspace-main[data-right-expanded='true'] > .right-panel-resizer {
+  visibility: hidden;
+}
+
+.workspace-shell[data-left-sidebar-open='false'] .left-pane-slot,
+.workspace-shell[data-temporarily-collapsed='true'] .left-pane-slot,
+.workspace-main[data-sidebar-open='false'] .right-pane-slot,
+.workspace-main[data-temporarily-collapsed='true'] .right-pane-slot {
+  opacity: 0;
+}
+
+.state-success {
+  color: var(--success);
+}
+.state-warning {
+  color: var(--warning);
+}
+.state-danger {
+  color: var(--danger);
+}
+.state-muted {
+  color: var(--quiet);
+}
+
+.app-sidebar {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  background: #f5f6f3;
+}
+
+.sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 15px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.demo-chip,
+.draft-state,
+.mock-inline-note {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.demo-chip,
+.draft-state,
+.mock-inline-note {
+  padding: 4px 7px;
+  color: #765729;
+  background: var(--sand-soft);
+}
+
+.workspace-navigation {
+  min-height: 0;
+  padding: 2px 8px 14px;
+  overflow-y: auto;
+}
+
+.workspace-tree + .workspace-tree {
+  margin-top: 5px;
+}
+
+.workspace-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 28px 28px;
+  align-items: center;
+  min-height: 36px;
+  border-radius: 8px;
+}
+
+.workspace-row.is-active {
+  background: var(--surface-selected);
+}
+
+.tree-toggle,
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+}
+
+.tree-toggle {
+  width: 26px;
+  height: 30px;
+}
+
+.icon-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.icon-button:hover,
+.tree-toggle:hover {
+  color: var(--ink);
+  background: #e7e9e6;
+}
+
+.workspace-select {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  padding: 8px 2px;
+  text-align: left;
+  background: transparent;
+}
+
+.workspace-select span,
+.session-row span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-list {
+  padding: 3px 0 3px 27px;
+  margin: 0;
+  list-style: none;
+}
+
+.session-row {
+  display: grid;
+  grid-template-columns: 7px 17px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  gap: 7px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #505751;
+  text-align: left;
+  background: transparent;
+}
+
+.session-row:hover,
+.session-row.is-active {
+  color: var(--ink);
+  background: #e9ebe8;
+}
+
+.session-state {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a6aaa7;
+}
+
+.session-state.state-active,
+.session-state.state-running,
+.session-state.state-ready {
+  background: #5a9667;
+}
+.session-state.state-paused {
+  background: #b38848;
+}
+
+/* A conversation whose turn really runs turns a small ring in place of its
+   dot; one waiting for the user (an approval, a question) is a steady amber dot. */
+.session-state.is-running {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  margin: -2px;
+  border: 1.5px solid rgba(59, 118, 87, 0.22);
+  background: transparent;
+}
+
+.session-state.is-running::after {
+  position: absolute;
+  inset: -1.5px;
+  border: 1.5px solid transparent;
+  border-top-color: var(--success);
+  border-right-color: var(--success);
+  border-radius: 50%;
+  animation: session-running 0.9s linear infinite;
+  content: '';
+}
+
+.session-state.is-waiting {
+  background: #c08a3e;
+  box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.16);
+}
+
+@keyframes session-running {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-state.is-running::after {
+    animation: none;
+  }
+}
+
+.session-empty {
+  padding: 7px 9px;
+  color: var(--quiet);
+  font-size: 12px;
+}
+
+.sidebar-footer {
+  padding: 10px 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 38px;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #4e554f;
+  text-align: left;
+  background: transparent;
+}
+
+.settings-link:hover,
+.settings-link.is-active {
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+
+.local-only-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 0;
+  margin: 0;
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.core-footer-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px 0;
+  margin: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.core-footer-status > span:first-child,
+.settings-core-status > span:first-child {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.workspace-main {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr) var(--right-divider-width)
+    var(--right-panel-width);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  transition: grid-template-columns 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pane-resizer {
+  position: relative;
+  z-index: 12;
+  width: 100%;
+  min-width: 0;
+  outline: 0;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.pane-resizer[aria-disabled='true'] {
+  min-width: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.pane-resizer::before {
+  position: absolute;
+  inset: 0 3px;
+  content: '';
+  background: var(--line);
+  transition: background 140ms ease-out;
+}
+
+.pane-resizer:hover::before,
+.pane-resizer:focus-visible::before {
+  background: var(--focus);
+}
+
+.pane-resizer[data-collapse-armed='true']::before {
+  inset-inline: 1px;
+  background: var(--warning);
+}
+
+.pane-resizer:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.left-panel-resizer,
+.right-panel-resizer {
+  min-height: 0;
+}
+
+/* The reopen buttons stay at the window's edges
+   but sit on the conversation header's own line, the size and look of its icon buttons. */
+.left-sidebar-reopen,
+.right-sidebar-reopen {
+  position: absolute;
+  top: 14px;
+  z-index: 20;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.left-sidebar-reopen {
+  left: 10px;
+}
+
+.right-sidebar-reopen {
+  right: 10px;
+}
+
+.left-sidebar-reopen:hover,
+.right-sidebar-reopen:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-selected);
+}

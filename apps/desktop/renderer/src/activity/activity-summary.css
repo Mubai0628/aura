@@ -1,0 +1,118 @@
+/* The 近期活动 card in parts — the conversation, what is uncommitted, what
+   was done last ("不同类别的内容通过分区划分开") — each under a thin line and a small title; in each, a
+   label on the left, the fact on the right, one action where there is something to look at. */
+.activity-section {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.activity-section-title {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+.activity-section .activity-mode {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+/* "新增行用绿色、删除行用红色". */
+.activity-added {
+  color: var(--success);
+}
+.activity-deleted {
+  color: var(--danger);
+}
+.activity-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.activity-label {
+  flex: none;
+  width: 4em;
+  color: var(--muted);
+  font-size: 12px;
+}
+.activity-value {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.activity-value[data-running='true']::before {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  vertical-align: 1px;
+  content: '';
+  animation: activity-running 1.4s ease-in-out infinite;
+}
+@keyframes activity-running {
+  50% {
+    opacity: 0.35;
+  }
+}
+.activity-link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font-size: 12px;
+  cursor: pointer;
+}
+.activity-link:hover {
+  text-decoration: underline;
+}
+.activity-section ol {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.activity-section li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+.activity-recent-title {
+  flex: none;
+  color: var(--ink);
+}
+.activity-section li[data-failed='true'] .activity-recent-title {
+  color: var(--danger);
+}
+.activity-recent-target {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-section li time {
+  flex: none;
+  margin-left: auto;
+  color: var(--quiet);
+  font-size: 11.5px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-value[data-running='true']::before {
+    animation: none;
+  }
+}

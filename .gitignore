@@ -1,0 +1,40 @@
+# Rust
+/target/
+
+# Node and package-manager state
+/node_modules/
+**/node_modules/
+.pnpm-store/
+*.tsbuildinfo
+
+# Build, test, and coverage output
+**/dist/
+**/test-results/
+**/playwright-report/
+**/coverage/
+**/.vite/
+**/.vitest/
+/apps/desktop/native/aura-main-pipe/build/
+.nyc_output/
+*.lcov
+junit*.xml
+
+# Local runtime state
+.aura/
+.aura-dev/
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp

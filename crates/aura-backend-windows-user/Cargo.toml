@@ -1,0 +1,49 @@
+[package]
+name = "aura-backend-windows-user"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+compat-adoption = ["aura-windows-platform/compat-adoption"]
+terminal-test-profile = []
+git-test-profile = ["aura-windows-platform/git-read-test-profile"]
+
+[[bin]]
+name = "aura-git-version-fixture"
+path = "src/bin/git_version_fixture.rs"
+required-features = ["git-test-profile"]
+
+[[bin]]
+name = "aura-compat-fixture"
+path = "src/bin/compat_fixture/main.rs"
+required-features = ["compat-adoption"]
+
+[[bin]]
+name = "aura-compat-probe"
+path = "src/bin/compat_probe/main.rs"
+required-features = ["compat-adoption"]
+
+[dependencies]
+anyhow.workspace = true
+aura-backend-api = { path = "../aura-backend-api" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-windows-platform = { path = "../aura-windows-platform", features = ["execution-maintenance"] }
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+time.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+aura-contract-schema = { path = "../aura-contract-schema" }
+aura-windows-platform = { path = "../aura-windows-platform", features = ["compat-adoption"] }

@@ -1,0 +1,19 @@
+/* An expanded step's content stays inside a bounded box; content longer than the box is
+   framed with a dashed line and scrolls by itself. */
+.scroll-box {
+  max-height: min(360px, 46vh);
+  overflow: auto;
+  border: 1px dashed transparent;
+  border-radius: 8px;
+}
+
+.scroll-box[data-overflowing='true'] {
+  padding: 6px 10px;
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.scroll-box[data-overflowing='true']:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

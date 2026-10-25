@@ -1,0 +1,70 @@
+{
+  "push_inputs": [
+    {
+      "branch": null,
+      "force_with_lease": null,
+      "remote": null,
+      "remote_branch": null,
+      "set_upstream": false
+    },
+    {
+      "branch": "main",
+      "force_with_lease": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "remote": "origin",
+      "remote_branch": "review",
+      "set_upstream": true
+    }
+  ],
+  "result": {
+    "execution_notice": "与在终端运行 git 相同，Aura 不隔离它的文件写入",
+    "kind": "push",
+    "local_branch": "main",
+    "refs": [
+      {
+        "after": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "before": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "reference": "refs/heads/main",
+        "result": "pushed"
+      }
+    ],
+    "remote": "origin",
+    "remote_branch": "main",
+    "remote_url": "https://fixture.invalid/repo.git",
+    "status": {
+      "ahead": 0,
+      "behind": 0,
+      "branch": "main",
+      "branches": [],
+      "conflicts": [],
+      "detached": false,
+      "entries": [],
+      "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "next_offset": null,
+      "operation": null,
+      "submodule_contents_checked": false,
+      "total_entries": 0,
+      "truncated": false,
+      "upstream": "origin/main"
+    }
+  },
+  "sync_inputs": [
+    {
+      "kind": "fetch",
+      "remote": null
+    },
+    {
+      "kind": "fetch",
+      "remote": "origin"
+    },
+    {
+      "branch": null,
+      "kind": "pull",
+      "remote": null
+    },
+    {
+      "branch": "review",
+      "kind": "pull",
+      "remote": "origin"
+    }
+  ]
+}

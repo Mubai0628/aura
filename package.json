@@ -1,0 +1,38 @@
+{
+  "name": "aura",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aura Windows 11 desktop coding agent",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": "24.18.0",
+    "pnpm": "11.24.0"
+  },
+  "scripts": {
+    "build": "corepack pnpm -r --if-present build",
+    "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm build && corepack pnpm test && corepack pnpm test:e2e && corepack pnpm manifests:check",
+    "check:no-e2e": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm build && corepack pnpm test && corepack pnpm manifests:check",
+    "contracts:check": "cargo xtask contracts --check",
+    "contracts:generate": "cargo xtask generate-contracts",
+    "dev": "node scripts/dev-v2.mjs",
+    "dev:installed": "corepack pnpm dev:install && target\\aura-dev-install\\AuraLauncher.exe",
+    "dev:install": "node scripts/cargo-release.mjs build --release -p aura-core -p aura-launcher -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper && corepack pnpm --filter @aura/desktop build && corepack pnpm --filter @aura/desktop package:dir && node scripts/create-dev-install.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "manifests:check": "node scripts/validate-manifests.mjs",
+    "test": "corepack pnpm -r --if-present test:unit",
+    "test:e2e": "corepack pnpm --filter @aura/desktop test:e2e",
+    "typecheck": "corepack pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "eslint-plugin-react-refresh": "catalog:",
+    "globals": "catalog:",
+    "json-schema-to-typescript": "catalog:",
+    "prettier": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

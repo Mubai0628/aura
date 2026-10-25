@@ -1,0 +1,18 @@
+[package]
+name = "aura-context-fixtures"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-security-contract = { path = "../aura-security-contract" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-context-runtime = { path = "../aura-context-runtime" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
