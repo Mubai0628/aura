@@ -22,10 +22,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      # Its own package-manager cache looks for pnpm, which corepack only enables in the next step.
       - name: Configure Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 24.18.0
+          package-manager-cache: false
 
       - name: Enable pinned pnpm
         shell: pwsh
