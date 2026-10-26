@@ -123,15 +123,20 @@ impl McpOAuth {
         )?;
         let metadata =
             discovery::authorization_server(&network, &proxy, &resource.authorization_server)?;
+        if let Some(refusal) = discovery::sign_in_refusal(
+            &metadata.authorization_endpoint,
+            metadata.registration_endpoint.as_deref(),
+            client_id.as_deref(),
+        ) {
+            return Err(refusal.into());
+        }
         let callback = flow::Callback::open()?;
         let redirect_uri = callback.redirect_uri();
         let client_id = match client_id {
             Some(id) => id.clone(),
             None => {
-                let endpoint = metadata
-                    .registration_endpoint
-                    .as_deref()
-                    .ok_or("授权服务器不支持自动注册，请在服务器设置里填写客户端 ID")?;
+                let endpoint =
+                    metadata.registration_endpoint.as_deref().ok_or(discovery::CLIENT_ID_NEEDED)?;
                 flow::register(&network, &proxy, endpoint, &redirect_uri)?
             }
         };

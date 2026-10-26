@@ -874,4 +874,78 @@ pub const PUBLISHED: &[PublishedRevision] = &[
         instance: "tin_01M2DG020980080021AN94SR0K",
         fingerprint: "ac3ab4f5ba4200e2085bc7ccd27dfa13f77b0721353a6cb9088dfb4437d13ae7",
     },
+    // Workspace read-write asks before a session's first command, as read-only does.
+    PublishedRevision {
+        name: "shell.powershell",
+        revision: 6,
+        tool: "tol_01M2DG020980080021AN942005",
+        instance: "tin_01M2DG020980080021AN94ST05",
+        fingerprint: "d63ca6575816a6fd3585ed199eb2c40282ed3be45257322f5e89ec7ad4c9718d",
+    },
+    PublishedRevision {
+        name: "terminal.open",
+        revision: 2,
+        tool: "tol_01M2DG020980080021AN942011",
+        instance: "tin_01M2DG020980080021AN94ST11",
+        fingerprint: "9312bc49e8c6df5a2c679f356c9286ddd367c2a57c29c2132990d849a21547a9",
+    },
+    PublishedRevision {
+        name: "terminal.write",
+        revision: 3,
+        tool: "tol_01M2DG020980080021AN942012",
+        instance: "tin_01M2DG020980080021AN94ST12",
+        fingerprint: "a973320f7f9c2e8aed3d89a96b757ca7bed200f2e99527f1074899aa783e8b90",
+    },
+    // Workspace read-write runs commands without asking; deleting and writing outside the
+    // workspace ask each time, downloading once per session.
+    PublishedRevision {
+        name: "shell.powershell",
+        revision: 7,
+        tool: "tol_01M2DG020980080021AN942005",
+        instance: "tin_01M2DG020980080021AN94SV05",
+        fingerprint: "dfa97b229eee9874c8ce62e0b137a3ba711ad11bef81aca8f3493ddce00196df",
+    },
+    PublishedRevision {
+        name: "shell.cmd",
+        revision: 6,
+        tool: "tol_01M2DG020980080021AN942006",
+        instance: "tin_01M2DG020980080021AN94SV06",
+        fingerprint: "862b707f23f74b4d6d96f38cd8c63547272f5190ae5db8827ffeb04b6f3d1ae4",
+    },
+    PublishedRevision {
+        name: "terminal.open",
+        revision: 3,
+        tool: "tol_01M2DG020980080021AN942011",
+        instance: "tin_01M2DG020980080021AN94SV11",
+        fingerprint: "26721b9c9edb50e2d0609634a47568bd6113aa02bb5b8a9a7b81f485bac3c357",
+    },
+    PublishedRevision {
+        name: "terminal.write",
+        revision: 4,
+        tool: "tol_01M2DG020980080021AN942012",
+        instance: "tin_01M2DG020980080021AN94SV12",
+        fingerprint: "52b9d45d56772d92123c71c7d30e1cc5ea0ef58f92af61ef3b1d643e0d5fafbe",
+    },
+    // Results name the folders the workspace's index did not enter (`not_indexed`).
+    PublishedRevision {
+        name: "fs.list",
+        revision: 7,
+        tool: "tol_01M2DG020980080021AN94200W",
+        instance: "tin_01M2DG020980080021AN94SV0W",
+        fingerprint: "bad94ff2ca2d89c47f68201f960bafb012f7876c3860588717c4b872ef52834b",
+    },
+    PublishedRevision {
+        name: "fs.find",
+        revision: 7,
+        tool: "tol_01M2DG020980080021AN94200Y",
+        instance: "tin_01M2DG020980080021AN94SV0Y",
+        fingerprint: "24f6f27630e524dd6eede0324a5f2ca40fc4858becc921a5c39e6c47ec4bd076",
+    },
+    PublishedRevision {
+        name: "fs.search",
+        revision: 8,
+        tool: "tol_01M2DG020980080021AN942002",
+        instance: "tin_01M2DG020980080021AN94SV02",
+        fingerprint: "4bad8cc10fff4aa29e17bc0ffea0dcfe3fdb9bd45c74420fdfefc79d7ee162f1",
+    },
 ];

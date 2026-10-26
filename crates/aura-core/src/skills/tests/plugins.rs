@@ -76,6 +76,32 @@ fn a_ready_plugins_skill_is_offered_and_follows_the_plugin() {
 }
 
 #[test]
+fn a_plugins_skill_is_switched_off_and_on_in_its_plugins_entry() {
+    let f = Fixture::new();
+    let (plugins, _context) = install(&f);
+    let skill = plugin_skills(&f).remove(0);
+    let switch = |enabled: bool| {
+        f.dispatch(
+            "agent.skills.set_enabled",
+            json!({"id": skill["id"], "enabled": enabled, "expected_revision": f.revision()}),
+        )
+        .expect("switched")
+    };
+    switch(false);
+    assert_eq!(plugin_skills(&f)[0]["state"], "disabled", "listed, off");
+    let saved = f.settings.plugin_registry().plugin("kit").cloned().expect("saved");
+    assert!(saved.changes.switched_off.skills.contains("guide"));
+    switch(true);
+    assert_eq!(plugin_skills(&f)[0]["state"], "ready");
+    let removed = f.dispatch(
+        "agent.skills.remove",
+        json!({"id": skill["id"], "expected_revision": f.revision()}),
+    );
+    assert!(removed.expect_err("with its plugin").to_string().starts_with("skills.from_plugin"));
+    drop(plugins);
+}
+
+#[test]
 fn a_skill_that_changed_after_its_plugin_was_read_is_not_offered() {
     let f = Fixture::new();
     let (plugins, _context) = install(&f);

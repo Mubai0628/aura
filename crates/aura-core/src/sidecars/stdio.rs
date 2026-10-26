@@ -4,6 +4,7 @@ use super::*;
     dead_code,
     reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
 )]
+// UNWIRED: no production caller dispatches work to the sandbox host; only tests reach this.
 impl ToolSandboxExecutionService {
     /// Drives the complete Core side of one authorized Aura Stdio execution.
     /// The event subscription is created before the launch request, and the

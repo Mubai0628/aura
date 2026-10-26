@@ -1,7 +1,7 @@
-//! The long work Core is doing that holds its stores — deleting a
-//! conversation, removing a workspace's records, finishing deletions an earlier run left — so the
-//! status can say Core is busy and why while other requests wait behind it. One Core process
-//! serves one runtime, so the record is the process's own.
+//! The deletions Core is doing in the background — a conversation, a removed workspace's
+//! records, deletions an earlier run left — so the status can say what is being deleted. They run
+//! in short steps and other requests are served between them. One Core process serves one
+//! runtime, so the record is the process's own.
 use aura_domain_common::UtcTimestamp;
 use aura_runtime_contract::{CoreBusyActivityV1, CoreBusyV1};
 use std::sync::Mutex;

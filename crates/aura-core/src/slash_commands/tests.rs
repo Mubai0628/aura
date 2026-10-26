@@ -71,11 +71,20 @@ fn a_ready_plugins_commands_come_last_and_lose_a_taken_name() {
     let mine =
         catalog.commands.iter().find(|c| c.name == "review" && c.source == CommandSource::User);
     assert!(mine.is_some_and(aura_agent_domain::CommandEntry::runnable), "the user's own keeps it");
-    let refused = context.set_enabled(CommandSetEnabledRequest {
-        workspace_id: None,
-        name: "summarize".into(),
-        source: CommandSource::Plugin,
-        enabled: false,
-    });
-    assert!(refused.expect_err("with its plugin").to_string().starts_with("commands.from_plugin"));
+    let switch = |enabled: bool| {
+        context
+            .set_enabled(CommandSetEnabledRequest {
+                workspace_id: None,
+                name: "summarize".into(),
+                source: CommandSource::Plugin,
+                enabled,
+            })
+            .expect("switched")
+    };
+    let off = switch(false);
+    let summarize = |catalog: &aura_agent_domain::CommandCatalog| {
+        catalog.commands.iter().find(|c| c.name == "summarize").map(|c| c.enabled)
+    };
+    assert_eq!(summarize(&off), Some(false), "listed, off");
+    assert_eq!(summarize(&switch(true)), Some(true));
 }

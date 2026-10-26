@@ -3,11 +3,11 @@
 //! the user made in Aura's editor and their events.
 use aura_domain_common::SessionId;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
-use rusqlite::{Connection, Transaction};
+use rusqlite::Connection;
 
-use super::PurgeReport;
-use super::rows::{IN, OPERATION_ARTIFACTS, OPERATION_ROWS, release};
+use super::plan::PurgePlan;
 use super::scope::{column, json, workspace_lifetime};
+use super::tables::{self, IN, OPERATION_ARTIFACTS, OPERATION_ROWS, Spec};
 
 pub(super) fn sessions(db: &Connection, workspace: &str) -> StoreResult<Vec<SessionId>> {
     column(db, "SELECT id FROM sessions WHERE workspace_id=?1", &workspace.to_owned())?
@@ -16,26 +16,26 @@ pub(super) fn sessions(db: &Connection, workspace: &str) -> StoreResult<Vec<Sess
         .collect()
 }
 
-pub(super) fn delete(tx: &Transaction<'_>, workspace: &str) -> StoreResult<PurgeReport> {
-    let w = &workspace.to_owned();
-    if !sessions(tx, workspace)?.is_empty() {
+pub(super) fn plan(db: &Connection, workspace: &str) -> StoreResult<PurgePlan> {
+    let w = vec![workspace.to_owned()];
+    if !sessions(db, workspace)?.is_empty() {
         return Err(Error::Conflict);
     }
     let operations = column(
-        tx,
+        db,
         "SELECT operation_id FROM workspace_mutation_receipts WHERE workspace_id=?1",
-        w,
+        &w[0],
     )?;
-    let grants = workspace_grants(tx, workspace)?;
+    let grants = workspace_grants(db, workspace)?;
     let mut owners = operations.clone();
     owners.extend(grants.iter().cloned());
-    owners.extend(column(tx, "SELECT id FROM external_grants WHERE workspace_id=?1", w)?);
+    owners.extend(column(db, "SELECT id FROM external_grants WHERE workspace_id=?1", &w[0])?);
     let mut events: Vec<String>;
     loop {
         events = if owners.is_empty() {
             Vec::new()
         } else {
-            column(tx, &format!("SELECT event_id FROM events WHERE owner {IN}"), &json(&owners))?
+            column(db, &format!("SELECT event_id FROM events WHERE owner {IN}"), &json(&owners))?
         };
         let before = owners.len();
         for id in &events {
@@ -50,44 +50,32 @@ pub(super) fn delete(tx: &Transaction<'_>, workspace: &str) -> StoreResult<Purge
     let mut held = Vec::new();
     if !operations.is_empty() {
         for sql in OPERATION_ARTIFACTS {
-            held.extend(column(tx, &sql.replace("{IN}", IN), &json(&operations))?);
+            held.extend(column(db, &sql.replace("{IN}", IN), &json(&operations))?);
         }
     }
     if !owners.is_empty() {
         held.extend(column(
-            tx,
+            db,
             &format!("SELECT artifact_id FROM artifact_owners WHERE owner {IN}"),
             &json(&owners),
         )?);
     }
-
-    let mut rows = 0;
-    let mut by = |sql: &str, ids: &[String]| -> StoreResult<()> {
-        if !ids.is_empty() {
-            rows += tx.execute(&sql.replace("{IN}", IN), [json(ids)])?;
-        }
-        Ok(())
-    };
-    by("DELETE FROM projection_outbox WHERE event_id {IN}", &events)?;
-    by("DELETE FROM events WHERE event_id {IN}", &events)?;
-    by("DELETE FROM artifact_owners WHERE owner {IN}", &owners)?;
-    for sql in OPERATION_ROWS {
-        by(sql, &operations)?;
-    }
-    by("DELETE FROM authorization_grants WHERE id {IN}", &grants)?;
-    for sql in [
-        "DELETE FROM file_references WHERE workspace_id=?1",
-        "DELETE FROM external_grants WHERE workspace_id=?1",
-        "DELETE FROM tool_pins WHERE owner_kind='workspace' AND owner_id=?1",
-        "DELETE FROM workspace_search_fts WHERE workspace_id=?1",
-        "DELETE FROM workspaces WHERE id=?1",
-    ] {
-        rows += tx.execute(sql, [w])?;
-    }
     held.sort();
     held.dedup();
-    let artifacts = release(tx, &held)?;
-    Ok(PurgeReport { rows, artifacts })
+
+    let by = |table, key, ids| Spec { table, key, ids, extra: "", shared: false, reversed: false };
+    let mut specs: Vec<Spec<'_>> = tables::events(&events).into();
+    specs.push(by("artifact_owners", "owner", &owners));
+    specs.extend(OPERATION_ROWS.map(|(table, key)| by(table, key, &operations)));
+    specs.extend([
+        by("authorization_grants", "id", &grants),
+        by("file_references", "workspace_id", &w),
+        by("external_grants", "workspace_id", &w),
+        Spec { extra: "AND owner_kind='workspace'", ..by("tool_pins", "owner_id", &w) },
+        by("workspace_search_fts", "workspace_id", &w),
+        by("workspaces", "id", &w),
+    ]);
+    PurgePlan::new(db, &specs, held)
 }
 
 /// Grants whose lifetime is this whole Workspace.

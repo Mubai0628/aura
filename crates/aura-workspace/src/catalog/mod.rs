@@ -11,6 +11,11 @@ pub use scan::{
 pub(crate) mod delta;
 pub use delta::{CatalogChange, CatalogUpdate, CatalogUpdateReport};
 mod artifacts;
+pub(crate) mod build;
+pub use build::{CatalogBuildPhase, CatalogBuildStatus};
+mod boundary;
+mod fuzzy;
+pub use boundary::children_beyond_index;
 mod watch;
 pub(crate) use watch::{WatchDescription, changes_for_watch_events};
 pub(crate) mod reconcile;
@@ -22,3 +27,15 @@ mod watch_description_tests;
 #[cfg(test)]
 #[path = "tests/publication_artifacts.rs"]
 mod publication_artifact_tests;
+
+#[cfg(test)]
+#[path = "tests/ignored_directories.rs"]
+mod ignored_directory_tests;
+
+#[cfg(test)]
+#[path = "tests/background_build.rs"]
+mod background_build_tests;
+
+#[cfg(test)]
+#[path = "tests/unfinished_index.rs"]
+mod unfinished_index_tests;

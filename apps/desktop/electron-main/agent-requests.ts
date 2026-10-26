@@ -26,9 +26,25 @@ const RUN_STOP_COMMANDS: ReadonlySet<string> = new Set([
   'permission.set_session_mode',
 ]);
 
+/**
+ * Work whose size the user chose — a folder to add, a plugin or Skill to read and copy — runs in
+ * Core for as long as it takes, up to Core's own 120 s bound for workspace commands. Main waits a
+ * little longer, so slow work ends as its real result instead of as unconfirmed.
+ */
+const LONG_WORK_REPLY_BUDGET_MS = 125_000;
+const LONG_WORK_COMMANDS: ReadonlySet<string> = new Set([
+  'workspace.create',
+  'workspace.restore',
+  'agent.plugins.preview',
+  'agent.plugins.import',
+  'agent.skills.preview',
+  'agent.skills.import',
+]);
+
 /** How long Main waits for Core's reply to one command. */
 export function replyBudget(command: string): number {
-  return RUN_STOP_COMMANDS.has(command) ? RUN_STOP_REPLY_BUDGET_MS : ORDINARY_REPLY_BUDGET_MS;
+  if (RUN_STOP_COMMANDS.has(command)) return RUN_STOP_REPLY_BUDGET_MS;
+  return LONG_WORK_COMMANDS.has(command) ? LONG_WORK_REPLY_BUDGET_MS : ORDINARY_REPLY_BUDGET_MS;
 }
 
 /** Normal replies and confirmed outcomes use the same Rust-generated result validator. */
@@ -43,16 +59,14 @@ export function requestAgentCommand<C extends AgentMainCommand>(
     accept: (value) => parseAgentResult(command, value),
     command,
     send: (transport) =>
-      onRequestId === undefined && onQueuedOpening === undefined && !RUN_STOP_COMMANDS.has(command)
-        ? transport.request(command, params)
-        : transport.request(
-            command,
-            params,
-            1,
-            replyBudget(command),
-            undefined,
-            onRequestId,
-            onQueuedOpening,
-          ),
+      transport.request(
+        command,
+        params,
+        1,
+        replyBudget(command),
+        undefined,
+        onRequestId,
+        onQueuedOpening,
+      ),
   });
 }

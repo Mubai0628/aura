@@ -49,8 +49,8 @@ pub enum ManagedShell {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, JsonSchema, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShellExecuteInput {
-    /// Default false. Set true when the script needs the network; read-only and
-    /// workspace modes then ask for network approval. It declares a need and never
+    /// Default false. Set true when the script needs the network; read-only mode
+    /// then asks for network approval. It declares a need and never
     /// grants access by itself.
     #[serde(default)]
     pub requires_network: bool,

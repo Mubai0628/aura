@@ -21,6 +21,7 @@ async fn call(runtime: &crate::RuntimeState, method: &str, params: Value) -> Val
 async fn delete(runtime: &crate::RuntimeState, session: SessionId) {
     call(runtime, "session.archive", json!({ "session_id": session })).await;
     call(runtime, "session.delete", json!({ "session_id": session })).await;
+    crate::session_lifecycle::deleted(runtime).await;
 }
 
 async fn turn(

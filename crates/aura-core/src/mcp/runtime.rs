@@ -29,6 +29,7 @@ type StartGate = Arc<Mutex<()>>;
 const STOPPED_WHILE_STARTING: &str =
     "服务器在启动时被停用、撤销信任、修改或移除，这次没有使用它；如仍需要，请重试";
 
+mod plugin_hint;
 mod plugins;
 mod signing;
 mod view;

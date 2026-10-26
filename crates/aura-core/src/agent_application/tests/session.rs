@@ -9,6 +9,12 @@ mod l10_11_branch;
 // Reading a conversation writes nothing that did not change and waits on no write.
 #[path = "l10_13_reads.rs"]
 mod l10_13_reads;
+// Deleting a long conversation lets other writes in between its steps.
+#[path = "l12_2_purge_steps.rs"]
+mod l12_2_purge_steps;
+// A failed file index is walked again on request.
+#[path = "l12_2_rebuild_index.rs"]
+mod l12_2_rebuild_index;
 
 #[tokio::test]
 async fn session_creation_binds_authority_and_rejects_changed_replay_without_workspace_mutation() {

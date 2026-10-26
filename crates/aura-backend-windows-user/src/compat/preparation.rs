@@ -22,8 +22,14 @@ impl CompatExecutionBackend {
             revision: Revision::INITIAL,
             runtime_instance_id: self.runtime,
             class: BackendClass::Native,
-            capabilities: [ResolvedCapability::ProcessExecute, ResolvedCapability::OrdinaryNetwork]
-                .into(),
+            // A download is a process that uses the network: the policy asks about it, and the
+            // backend runs it as any other command.
+            capabilities: [
+                ResolvedCapability::ProcessExecute,
+                ResolvedCapability::OrdinaryNetwork,
+                ResolvedCapability::DownloadArtifact,
+            ]
+            .into(),
             guarantees: [
                 EnforcementGuarantee::ChildProcessControl,
                 EnforcementGuarantee::BoundedOutput,

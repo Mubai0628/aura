@@ -70,6 +70,7 @@ impl Harness {
             )
             .expect("create workspace");
         let catalog = workspace.catalog(created.workspace.workspace_id).expect("catalog");
+        catalog.wait_until_built(std::time::Duration::from_secs(60)).expect("the first walk");
         let resolver = workspace.resolver(created.workspace.workspace_id).expect("resolver");
         // A live watcher would deliver the test's own filesystem change a second time
         // and hide which path produced the result.
@@ -625,6 +626,7 @@ fn two_workspaces_can_index_the_same_relative_path() {
                 CorrelationId::new(),
             )
             .expect("create workspace");
+        workspace.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
         catalogs.push((
             workspace.catalog(created.workspace.workspace_id).expect("catalog"),
             workspace.resolver(created.workspace.workspace_id).expect("resolver"),

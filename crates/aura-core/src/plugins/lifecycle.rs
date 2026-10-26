@@ -12,8 +12,14 @@ use aura_plugins::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 const JOURNAL: &str = "journal.json";
+
+/// How long moving an installed plugin's folder waits for its servers' programs to let go of
+/// it: a stopped one is still exiting, or a tool listing started just before the stop runs to
+/// its end.
+const RELEASE_WAIT: Duration = Duration::from_secs(3);
 
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "operation", rename_all = "snake_case")]
@@ -36,6 +42,22 @@ fn busy(error: &std::io::Error) -> anyhow::Error {
     )
 }
 
+/// Moves the installed folder of a plugin whose servers were just stopped.
+fn move_released(from: &Path, to: &Path) -> std::io::Result<()> {
+    let deadline = Instant::now() + RELEASE_WAIT;
+    loop {
+        match std::fs::rename(from, to) {
+            // Access denied or a sharing violation: a file in it is still open.
+            Err(error)
+                if matches!(error.raw_os_error(), Some(5 | 32)) && Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            moved => return moved,
+        }
+    }
+}
+
 fn remove_or_log(folder: &Path) {
     if let Err(error) = std::fs::remove_dir_all(folder) {
         // Hidden (`.removed-*`) and never listed: swept when Core next starts.
@@ -46,7 +68,7 @@ fn remove_or_log(folder: &Path) {
     }
 }
 
-fn replaced(registry: &PluginRegistry, setting: PluginSetting) -> Vec<PluginSetting> {
+pub(super) fn replaced(registry: &PluginRegistry, setting: PluginSetting) -> Vec<PluginSetting> {
     let mut plugins = registry.plugins.clone();
     plugins.retain(|plugin| plugin.name != setting.name);
     plugins.push(setting);
@@ -79,7 +101,11 @@ impl PluginRuntime {
         self.root().join(format!(".removed-{}", CorrelationId::new()))
     }
 
-    fn write_registry(&self, expected: u64, plugins: &[PluginSetting]) -> anyhow::Result<()> {
+    pub(super) fn write_registry(
+        &self,
+        expected: u64,
+        plugins: &[PluginSetting],
+    ) -> anyhow::Result<()> {
         match self.settings().replace_plugin_registry(expected, plugins) {
             Ok(_) => Ok(()),
             Err(SettingsFacadeError::RevisionConflict { .. }) => {
@@ -276,7 +302,9 @@ impl PluginRuntime {
         );
         let mut setting =
             located.setting.clone().unwrap_or_else(|| PluginSetting::imported(&located.name, None));
+        let trusted_before = setting.trusted_parts.servers.clone();
         let gone = self.trust_parts(package, &mut setting);
+        self.settle_changes(package, &mut setting, &trusted_before);
         setting.enabled = true;
         self.stop_servers(Some(package));
         self.write_registry(registry.revision, &replaced(&registry, setting))?;
@@ -306,7 +334,7 @@ impl PluginRuntime {
         self.write_journal(&Journal::Update { name: name.clone(), previous: previous.clone() })?;
         self.stop_servers(located.scanned.as_ref().ok());
         let had_folder = folder.exists();
-        if had_folder && let Err(error) = std::fs::rename(&folder, &previous) {
+        if had_folder && let Err(error) = move_released(&folder, &previous) {
             self.clear_journal();
             return Err(busy(&error));
         }
@@ -335,7 +363,9 @@ impl PluginRuntime {
         if let Some(update) = setting.pending.take() {
             setting.imported_from = update.imported_from;
         }
+        let trusted_before = setting.trusted_parts.servers.clone();
         let gone_secrets = self.trust_parts(&package, &mut setting);
+        self.settle_changes(&package, &mut setting, &trusted_before);
         setting.enabled = true;
         if let Err(error) = self.write_registry(registry.revision, &replaced(registry, setting)) {
             return Err(restore(error));
@@ -452,7 +482,7 @@ impl PluginRuntime {
         })?;
         self.stop_servers(located.scanned.as_ref().ok());
         let moved = folder.exists();
-        if moved && let Err(error) = std::fs::rename(&folder, &installed) {
+        if moved && let Err(error) = move_released(&folder, &installed) {
             self.clear_journal();
             return Err(busy(&error));
         }

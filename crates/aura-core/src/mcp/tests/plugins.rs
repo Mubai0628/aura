@@ -21,7 +21,7 @@ fn write(path: &Path, text: &str) {
 
 /// A plugin `kit` with one stdio server `files`: `command` (the plugin's own copy of the test
 /// server when `None`), `arguments` and `extra` lines for the server's transport.
-fn source(
+pub(super) fn source(
     f: &Fixture,
     limits: &str,
     command: Option<&Path>,
@@ -64,24 +64,25 @@ fn listed(f: &Fixture, id: &str) -> bool {
     true
 }
 
-struct Plugins {
-    context: PluginContext,
+pub(super) struct Plugins {
+    pub(super) context: PluginContext,
+    runtime: Arc<PluginRuntime>,
 }
 
 impl Plugins {
-    fn attach(f: &Fixture) -> Self {
+    pub(super) fn attach(f: &Fixture) -> Self {
         let runtime = PluginRuntime::new(Arc::clone(&f.settings), Some(Arc::clone(&f.runtime)));
         f.runtime.attach_plugins(&runtime);
-        Self { context: PluginContext::new(runtime) }
+        Self { context: PluginContext::new(Arc::clone(&runtime)), runtime }
     }
 
-    fn revision(&self) -> u64 {
+    pub(super) fn revision(&self) -> u64 {
         self.context.dispatch("agent.plugins.list", json!({})).expect("list")["revision"]
             .as_u64()
             .expect("revision")
     }
 
-    fn install(&self, source: &Path) {
+    pub(super) fn install(&self, source: &Path) {
         self.context
             .dispatch(
                 "agent.plugins.import",
@@ -136,26 +137,15 @@ fn a_trusted_plugins_server_lists_its_tools_without_the_mcp_page() {
 }
 
 #[test]
-fn a_plugins_server_is_changed_only_with_its_plugin() {
+fn a_plugins_server_is_untrusted_and_removed_only_with_its_plugin() {
     let f = Fixture::new();
     let plugins = Plugins::attach(&f);
     plugins.install(&source(&f, "", None, &[], ""));
-    let config = f.view("kit-files")["config"].clone();
     for method in ["agent.mcp.untrust", "agent.mcp.remove"] {
         let refused =
             f.dispatch(method, json!({"id": "kit-files", "expected_revision": f.revision()}));
         assert!(refused.expect_err(method).to_string().starts_with("mcp.from_plugin"));
     }
-    let switched = f.dispatch(
-        "agent.mcp.set_enabled",
-        json!({"id": "kit-files", "enabled": false, "expected_revision": f.revision()}),
-    );
-    assert!(switched.expect_err("switch").to_string().starts_with("mcp.from_plugin"));
-    let edited = f.dispatch(
-        "agent.mcp.save",
-        json!({"server": config, "replaces": "kit-files", "expected_revision": f.revision()}),
-    );
-    assert!(edited.expect_err("edit").to_string().starts_with("mcp.from_plugin"));
     let copy = f.server("kit-files", &[]);
     let taken = f.dispatch(
         "agent.mcp.save",
@@ -262,4 +252,38 @@ fn a_plugins_server_runs_under_the_plugins_memory_limit() {
         panic!("the server ends at its limit: {large:?}");
     };
     assert!(reason.contains("内存上限"), "{reason}");
+}
+
+#[test]
+fn a_plugin_is_uninstalled_or_updated_while_its_servers_tools_are_still_being_listed() {
+    let f = Fixture::new();
+    let plugins = Plugins::attach(&f);
+    // Slow to answer: the listing its trust starts still runs the program in the plugin's folder
+    // when the folder is moved.
+    let slow = ["--initialize-delay-ms", "2000"];
+    let listing = Duration::from_millis(500);
+    plugins.install(&source(&f, "", None, &slow, ""));
+    std::thread::sleep(listing);
+    plugins.change("agent.plugins.uninstall").expect("uninstalled once the listing let go");
+    assert!(!plugins.runtime.folder("kit").exists());
+
+    plugins.install(&source(&f, "", None, &slow, ""));
+    std::thread::sleep(listing);
+    let newer = source(&f, "", None, &["--initialize-delay-ms", "2000", "--env-tool"], "");
+    plugins
+        .context
+        .dispatch(
+            "agent.plugins.import",
+            json!({"path": newer.display().to_string(), "expected_revision": plugins.revision()}),
+        )
+        .expect("imported as an update");
+    let listed = plugins.context.dispatch("agent.plugins.list", json!({})).expect("list");
+    let update = &listed["plugins"][0]["pending_update"];
+    plugins
+        .context
+        .dispatch(
+            "agent.plugins.trust",
+            json!({"name": "kit", "pending": true, "expected_fingerprint": update["fingerprint"], "expected_revision": plugins.revision()}),
+        )
+        .expect("updated once the listing let go");
 }

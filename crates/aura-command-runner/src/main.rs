@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 //! Formal Runner bootstrap. Diagnostic and host mutation commands are absent.
+//! UNWIRED: not in the release layout (scripts/release/layout.mjs); only the development setup
+//! builds it, so released builds have no restricted-user backend.
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     let args = std::env::args().skip(1).collect::<Vec<_>>();

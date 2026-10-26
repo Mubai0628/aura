@@ -172,28 +172,62 @@ fn fail_trial(
     )
 }
 
-/// Before a trial: a newer version gets a copy of the data taken first; going back to an older one
-/// puts the copy from before the current version back when the user asked for that.
+/// Before a trial: a newer version gets a copy of the stores it will migrate taken first (its own
+/// Core in `version_directory` says which); going back to an older one puts the copy from before
+/// the current version back when the user asked for that. `false` when the user chose not to
+/// start the newer version without a copy.
 fn prepare_data(
     data_root: &Path,
     state: &ActiveInstallState,
     version: &str,
+    version_directory: &Path,
     log: &Path,
-) -> Result<()> {
+) -> Result<bool> {
     let request = data_backup::take_request(data_root);
     if newer(version, &state.active) {
-        let event = match data_backup::take(data_root, version) {
-            Ok(stores) => {
-                json!({ "event": "data_backed_up", "version": version, "stores": stores })
-            }
+        let started = std::time::Instant::now();
+        let pending =
+            data_backup::pending_stores(&version_directory.join("aura-core.exe"), data_root);
+        let taken = data_backup::take(data_root, version, pending.as_ref());
+        let event = match &taken {
+            Ok(data_backup::Taken::Copied { stores, bytes }) => json!({
+                "event": "data_backed_up",
+                "version": version,
+                "stores": stores,
+                "bytes": bytes,
+                "elapsed_ms": started.elapsed().as_millis() as u64,
+                "migration_known": pending.is_some(),
+            }),
+            Ok(data_backup::Taken::NothingToCopy) => json!({
+                "event": "data_backup_skipped",
+                "version": version,
+                "reason": "no_store_migration",
+            }),
+            Ok(data_backup::Taken::NoRoom { needed, free }) => json!({
+                "event": "data_backup_skipped",
+                "version": version,
+                "reason": "insufficient_space",
+                "needed_bytes": needed,
+                "free_bytes": free,
+            }),
             Err(error) => {
                 json!({ "event": "data_backup_failed", "version": version, "detail": format!("{error:#}") })
             }
         };
-        return append_log(
+        append_log(
             log,
             json!({ "timestamp": UtcTimestamp::now(), "component": "launcher", "data": event }),
-        );
+        )?;
+        const MIB: u64 = 1024 * 1024;
+        let problem = match taken {
+            Ok(data_backup::Taken::NoRoom { needed, free }) => (
+                "磁盘空间不够备份数据",
+                format!("需要约 {} MB，这个磁盘只剩 {} MB。", needed.div_ceil(MIB), free / MIB),
+            ),
+            Err(error) => ("更新前备份数据没有成功", format!("{}。", error.root_cause())),
+            Ok(_) => return Ok(true),
+        };
+        return start_without_backup(version, problem);
     }
     if let Some(request) = request
         && request.before_version == state.active
@@ -209,7 +243,23 @@ fn prepare_data(
             }),
         )?;
     }
-    Ok(())
+    Ok(true)
+}
+
+/// No copy could be taken before `version` migrates the data: the user decides whether it starts
+/// anyway. Closing the window starts nothing, and the next start tries the copy again.
+fn start_without_backup(version: &str, (instruction, cause): (&str, String)) -> Result<bool> {
+    let details = format!(
+        "新版本 {version} 第一次启动会升级数据，启动前要先备份。{cause}\n可以先退出，处理好后再启动 Aura；也可以不备份直接启动。"
+    );
+    let action = show_recovery_dialog(&RecoveryChoice {
+        instruction,
+        details: &details,
+        actions: &[RecoveryAction::Exit, RecoveryAction::StartWithoutBackup],
+        previous_version: None,
+    })
+    .context("failed to show the backup window")?;
+    Ok(action == RecoveryAction::StartWithoutBackup)
 }
 
 /// The previous version, when it is there and checks out.
@@ -276,8 +326,16 @@ pub fn run_launcher() -> Result<()> {
         };
         let selection = launch.selection;
         let data_root = local_data_root(&selection.manifest.bundle_namespace)?;
-        if launch.trial {
-            prepare_data(&data_root, &state, &selection.manifest.product_version, &launcher_log)?;
+        if launch.trial
+            && !prepare_data(
+                &data_root,
+                &state,
+                &selection.manifest.product_version,
+                &selection.version_directory,
+                &launcher_log,
+            )?
+        {
+            return Ok(());
         }
         let crash_state_path = data_root.join("launcher").join("crash-state.v1.json");
         let mut crash_state = load_crash_state(&crash_state_path);
@@ -464,7 +522,8 @@ pub fn run_launcher() -> Result<()> {
                         export_diagnostics(&path, &selection, &exit_records, &log_directory)?;
                     }
                 }
-                RecoveryAction::Exit => return Ok(()),
+                // Not offered here; anything unexpected leaves the app closed.
+                RecoveryAction::Exit | RecoveryAction::StartWithoutBackup => return Ok(()),
             }
         }
     }

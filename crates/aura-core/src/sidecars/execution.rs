@@ -4,6 +4,7 @@ use super::*;
     dead_code,
     reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
 )]
+// UNWIRED: no production caller dispatches work to the sandbox host; only tests reach this.
 impl ToolSandboxExecutionService {
     /// Final pre-dispatch liveness check. A P04 Allow never substitutes for an
     /// available Sandbox execution path, and failure here occurs before `tea_`

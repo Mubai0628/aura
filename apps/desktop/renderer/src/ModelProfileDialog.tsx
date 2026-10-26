@@ -50,9 +50,11 @@ export function ModelProfileDialog({
   const [providerModelName, setProviderModelName] = useState(profile?.provider_model_name ?? '');
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [notes, setNotes] = useState(profile?.notes ?? '');
-  const [contextWindow, setContextWindow] = useState<number | ''>(
-    profile?.context.user_override_window_tokens ?? profile?.context.catalog_window_tokens ?? '',
-  );
+  // The field shows the window the model really gets until the user changes it, so a profile
+  // read again after a save shows the new value.
+  const effectiveWindow = profile?.context.runtime_effective_window_tokens;
+  const [contextEdit, setContextEdit] = useState<number | ''>();
+  const contextWindow = contextEdit ?? effectiveWindow ?? '';
   const [maxOutputTokens, setMaxOutputTokens] = useState<number | ''>(
     profile?.request_defaults.max_output_tokens ?? '',
   );
@@ -136,11 +138,38 @@ export function ModelProfileDialog({
               image_input: imageInput,
             },
           });
-    setBusy(false);
     if (!result.ok) {
+      setBusy(false);
       notifyFailure(onNotify, 'Model Profile 未保存', result.error);
       return;
     }
+    // The profile update carries no context window; a changed one is the user's own window,
+    // written right after at the revision the update returned.
+    if (profile !== undefined && contextEdit !== undefined && contextEdit !== effectiveWindow) {
+      const written =
+        contextEdit === ''
+          ? await window.aura.v1.clearModelContextWindowOverride({
+              expected_revision: result.value.revision,
+              model_profile_id: profile.id,
+            })
+          : await window.aura.v1.correctModelContextWindow({
+              expected_revision: result.value.revision,
+              model_profile_id: profile.id,
+              window_tokens: contextEdit,
+            });
+      if (!written.ok) {
+        setBusy(false);
+        await onSaved();
+        onNotify({
+          dedupeKey: `上下文窗口未保存:${written.error.code}`,
+          message: `其他设置已保存。${userMessage(written.error, MODEL_FAILURE_FALLBACK)}`,
+          title: '上下文窗口未保存',
+          tone: 'danger',
+        });
+        return;
+      }
+    }
+    setBusy(false);
     await onSaved();
     onNotify({
       dedupeKey: `model-profile-saved:${result.value.value.id}:${result.value.revision}`,
@@ -149,30 +178,6 @@ export function ModelProfileDialog({
       tone: 'success',
     });
     onClose();
-  };
-
-  const correctContext = async () => {
-    if (
-      profile === undefined ||
-      contextWindow === '' ||
-      contextWindow <= 0 ||
-      busy ||
-      writeUnavailableReason !== undefined
-    ) {
-      return;
-    }
-    setBusy(true);
-    const result = await window.aura.v1.correctModelContextWindow({
-      expected_revision: settings.models_revision,
-      model_profile_id: profile.id,
-      window_tokens: contextWindow,
-    });
-    setBusy(false);
-    if (!result.ok) {
-      notifyFailure(onNotify, '上下文窗口未更新', result.error);
-      return;
-    }
-    await onSaved();
   };
 
   const clearContext = async (runtime: boolean) => {
@@ -193,7 +198,7 @@ export function ModelProfileDialog({
       return;
     }
     await onSaved();
-    setContextWindow('');
+    setContextEdit(undefined);
   };
 
   return (
@@ -253,7 +258,7 @@ export function ModelProfileDialog({
             <span>上下文窗口 Tokens</span>
             <input
               min={1}
-              onChange={(event) => setContextWindow(numberOrBlank(event.target.value))}
+              onChange={(event) => setContextEdit(numberOrBlank(event.target.value))}
               type="number"
               value={contextWindow}
             />
@@ -397,15 +402,7 @@ export function ModelProfileDialog({
               <AppIcon name="chevron-down" size={14} />
             </Collapsible.Trigger>
             <Collapsible.Content>
-              <p>单独保存上方的上下文窗口值，或清除已有修正。</p>
               <div className="context-tools-actions">
-                <button
-                  disabled={busy || contextWindow === '' || writeUnavailableReason !== undefined}
-                  onClick={() => void correctContext()}
-                  type="button"
-                >
-                  应用上下文修正
-                </button>
                 <button
                   disabled={busy || writeUnavailableReason !== undefined}
                   onClick={() => void clearContext(false)}

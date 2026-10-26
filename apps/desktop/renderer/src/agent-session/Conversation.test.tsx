@@ -2,6 +2,7 @@ import type { AgentSessionProjection } from '@aura/contracts/generated';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Conversation } from './Conversation';
+import { acceptSending, resetSendingForTests, startSending } from './sending';
 
 const related = vi.fn();
 /** A controllable IntersectionObserver: the sentinel is only reached when a
@@ -30,7 +31,10 @@ beforeEach(() => {
     value: { v1: { startRelatedAgentTurn: related } },
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  resetSendingForTests();
+});
 
 function show(state: 'cancelled' | 'failed' | 'recovery_required' | 'completed', withPlan = false) {
   const projection = {
@@ -206,4 +210,52 @@ test('a turn with earlier messages pages them from its own marker', async () => 
     observer!.callback([{ isIntersecting: true, target: observer!.element }]);
   });
   expect(loadTurnOlder).toHaveBeenCalledWith('turn-1');
+});
+
+// A message just sent shows at the end of its conversation, also while the conversation loads,
+// and gives way to the real message once the projection has it.
+test('a message being sent shows until the conversation has it', async () => {
+  const viewportRef = { current: document.createElement('div') };
+  const props = {
+    sessionId: 'session',
+    viewportRef,
+    onChanged: vi.fn(),
+    error: undefined,
+    loadOlder: vi.fn(),
+    loadTurnOlder: vi.fn(),
+  };
+  startSending('session', { text: '你好', files: [] });
+  const { rerender } = render(<Conversation {...props} projection={undefined} loading />);
+  expect(screen.getByText('发送中')).toBeTruthy();
+  expect(screen.queryByText('正在加载会话…')).toBeNull();
+  act(() => acceptSending('session'));
+  const arrived = {
+    session_id: 'session',
+    runtime_instance_id: 'runtime',
+    active: null,
+    turns: [
+      {
+        turn: {
+          mode: 'normal',
+          state: { state: 'running' },
+          session_id: 'session',
+          turn_task_id: 'turn',
+          revision: '1',
+          root_user_event_id: 'event',
+        },
+        user_messages: [
+          {
+            event_id: 'event',
+            text: '你好',
+            total_bytes: 6,
+            at: '2026-10-25T00:00:00Z',
+            origin: 'user',
+          },
+        ],
+        assistant_messages: [],
+      },
+    ],
+  } as unknown as AgentSessionProjection;
+  rerender(<Conversation {...props} projection={arrived} loading={false} />);
+  await waitFor(() => expect(screen.queryByText('发送中')).toBeNull());
 });

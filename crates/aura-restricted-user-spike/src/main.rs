@@ -1,5 +1,6 @@
 //! Disposable mechanism prototype. No Core route, SQL, formal V2 contract
 //! or production Backend registration. Host acceptance remains a separate gate.
+//! UNWIRED: not part of the product; only scripts/r06 runs it.
 use anyhow::{Result, bail, ensure};
 use std::{env, path::PathBuf};
 

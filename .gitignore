@@ -21,6 +21,7 @@ junit*.xml
 
 # Local runtime state
 .aura/
+# Its tracked Markdown reports stay tracked; a new report is added with `git add -f`.
 .aura-dev/
 .env
 .env.*

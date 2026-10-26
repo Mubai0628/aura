@@ -135,7 +135,7 @@ test('without a ready Core nothing is read', () => {
   expect(list).not.toHaveBeenCalled();
 });
 
-test('a plugin’s commands are listed in their own group, switched only with the plugin', async () => {
+test('a plugin’s commands are listed in their own group, switched here and removed with the plugin', async () => {
   list.mockResolvedValue(
     catalog([
       entry('help', 'builtin'),
@@ -149,7 +149,7 @@ test('a plugin’s commands are listed in their own group, switched only with th
   const group = screen.getAllByText('插件 kit')[0]?.closest('ul') as HTMLElement;
   expect(within(group).getAllByText('插件 kit')).toHaveLength(2);
   expect(within(group).getByText('未提供：与已有的 /review 重名，未启用')).toBeTruthy();
-  expect(within(group).queryByRole('button', { name: '停用' })).toBeNull();
+  expect(within(group).getAllByRole('button', { name: '停用' })).toHaveLength(1);
   expect(within(group).queryByRole('button', { name: '打开目录' })).toBeNull();
   expect(within(group).queryByRole('button', { name: '删除' })).toBeNull();
 });

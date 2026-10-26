@@ -83,12 +83,14 @@ fn importing_copies_exactly_the_checked_folder_and_removing_deletes_only_the_cop
     assert_eq!(std::fs::read(original.join("SKILL.md")).expect("original"), before);
     assert!(f.list()["skills"].as_array().expect("skills").iter().all(|s| s["relative"] != "pdf"));
 
+    // The user's own folder goes to the Recycle Bin (a bin beside it in tests), not away for good.
     skill(&f.global(), "mine");
     let global = f.view("mine")["id"].clone();
-    let refused =
-        f.dispatch("agent.skills.remove", json!({"id": global, "expected_revision": f.revision()}));
-    assert!(refused.expect_err("refused").to_string().starts_with("skills.not_removable"));
-    assert!(f.global().join("mine").join("SKILL.md").is_file(), "the user's own folder is kept");
+    f.dispatch("agent.skills.remove", json!({"id": global, "expected_revision": f.revision()}))
+        .expect("deleted to the Recycle Bin");
+    assert!(!f.global().join("mine").exists());
+    assert!(f.global().join(".test-recycle-bin").join("mine").join("SKILL.md").is_file());
+    assert!(f.list()["skills"].as_array().expect("skills").iter().all(|s| s["relative"] != "mine"));
 }
 
 /// With the folder open in another program, removing once said only "try

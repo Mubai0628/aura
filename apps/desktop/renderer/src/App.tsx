@@ -81,14 +81,14 @@ export function App() {
   const busy = coreState === 'ready' ? projection?.payload.busy : undefined;
   const corePresentation = health.loading
     ? { label: '正在连接 Aura Core', tone: 'warning' as const }
-    : busy
-      ? busyPresentation(busy)
-      : projection?.payload.status_code === STORE_CHECK_FAILED
-        ? {
-            label: '数据库检查发现问题',
-            tone: 'danger' as const,
-            detail: projection.payload.status_message,
-          }
+    : projection?.payload.status_code === STORE_CHECK_FAILED
+      ? {
+          label: '数据库检查发现问题',
+          tone: 'danger' as const,
+          detail: projection.payload.status_message,
+        }
+      : busy
+        ? busyPresentation(busy)
         : CORE_PRESENTATION[coreState];
   const actualWorkspaces = workspaceSessions.projection?.payload.workspaces ?? [];
   const actualSessions = workspaceSessions.projection?.payload.sessions ?? [];

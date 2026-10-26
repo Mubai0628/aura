@@ -3,7 +3,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Stdio,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -15,8 +15,11 @@ mod architecture;
 mod contracts;
 mod git_test_profile;
 mod manifests;
+mod process;
 mod public;
 mod r06;
+
+use process::{run, run_with_env};
 
 /// Cargo builds with
 /// six jobs and tests run on six threads. Every cargo command xtask runs carries both.
@@ -335,7 +338,7 @@ fn experimental_processmodel_proxy(root: &Path) -> Result<()> {
     println!(
         "$ cargo test -p aura-windows-platform --features experimental-processmodel-proxy --test experimental_processmodel_proxy -- --ignored --nocapture"
     );
-    let command_status = Command::new("cargo")
+    let command_status = process::command("cargo")
         .args([
             "test",
             "-p",
@@ -431,7 +434,7 @@ fn collect_appcontainer_network_evidence(root: &Path) -> Result<Value> {
         "cargo test -p aura-sandbox {APPCONTAINER_EVIDENCE_TEST} -- --ignored --exact --nocapture --test-threads=1"
     );
     println!("$ {command}");
-    let command_status = Command::new("cargo")
+    let command_status = process::command("cargo")
         .args([
             "test",
             "-p",
@@ -580,7 +583,7 @@ fn p04_report(root: &Path) -> Result<()> {
     let mut results = Vec::with_capacity(checks.len());
     for check in checks {
         println!("$ {} {}", check.program, check.args.join(" "));
-        let status = Command::new(check.program)
+        let status = process::command(check.program)
             .args(check.args)
             .current_dir(root)
             .stdin(Stdio::inherit())
@@ -813,7 +816,7 @@ fn p05_report(root: &Path) -> Result<()> {
     let mut results = Vec::with_capacity(checks.len());
     for check in checks {
         println!("$ {} {}", check.program, check.args.join(" "));
-        let status = Command::new(check.program)
+        let status = process::command(check.program)
             .args(check.args)
             .current_dir(root)
             .stdin(Stdio::inherit())
@@ -975,36 +978,6 @@ pub(crate) fn required_string<'a>(value: &'a Value, field: &str) -> Result<&'a s
         .and_then(Value::as_str)
         .filter(|text| !text.is_empty())
         .with_context(|| format!("{field} must be a non-empty string"))
-}
-
-fn run(root: &Path, program: &str, args: &[&str]) -> Result<()> {
-    run_with_env(root, program, args, &[])
-}
-
-fn run_with_env(
-    root: &Path,
-    program: &str,
-    args: &[&str],
-    environment: &[(&str, &std::ffi::OsStr)],
-) -> Result<()> {
-    println!("$ {program} {}", args.join(" "));
-    let mut command = Command::new(program);
-    command.args(args);
-    if program == "cargo" {
-        command.env("CARGO_BUILD_JOBS", BUILD_JOBS).env("RUST_TEST_THREADS", TEST_THREADS);
-    }
-    for (name, value) in environment {
-        command.env(name, value);
-    }
-    let status = command
-        .current_dir(root)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .with_context(|| format!("failed to start {program}"))?;
-    ensure!(status.success(), "command failed with {status}: {program} {}", args.join(" "));
-    Ok(())
 }
 
 fn build_tool_runtime_fixtures(root: &Path) -> Result<()> {

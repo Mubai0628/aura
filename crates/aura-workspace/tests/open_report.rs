@@ -38,6 +38,7 @@ fn create_workspace(runtime: &WorkspaceRuntime, root: &std::path::Path) {
         )
         .expect("create workspace");
     assert_eq!(created.disposition, WorkspaceCreateDisposition::Created);
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
 }
 
 #[test]

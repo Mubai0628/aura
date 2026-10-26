@@ -22,6 +22,7 @@ mod resource_wait;
 mod search;
 mod service;
 mod types;
+mod unindexed;
 pub mod vault;
 
 pub use error::{ExternalPublishStage, ExternalWriteError, FsToolError};

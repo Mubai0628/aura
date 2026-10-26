@@ -69,6 +69,9 @@ pub fn permits(
         | C::AgentTaskWrite
         | C::InteractiveTerminal
         | C::BackgroundProcess => true,
+        // A program a confining backend keeps to the workspace. The built-in shells and the
+        // terminal run unconfined as the user and ask below FullAccess by their own slice rule
+        // (`aura_security_contract::ordinary_mode_covers_capability`).
         C::ProcessExecute => mode != PermissionMode::ReadOnly,
         // A trusted MCP server's tool; ReadOnly asks once per server per turn.
         C::ExternalExtensionCall => mode != PermissionMode::ReadOnly,
@@ -123,6 +126,7 @@ pub(crate) fn refuses_outright(actor: InvocationActor, capabilities: &[C]) -> bo
     if capabilities.contains(&C::ConfigurationWrite) {
         return true;
     }
+    // UNWIRED: nothing creates a child agent run, so this actor never reaches here.
     matches!(actor, InvocationActor::ChildAgent)
 }
 

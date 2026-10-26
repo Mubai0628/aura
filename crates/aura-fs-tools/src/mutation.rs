@@ -1165,15 +1165,12 @@ impl PreparedOperation {
         self.audit_seeds()
             .iter()
             .map(|seed| {
-                let current = catalog.entry(&seed.path)?;
-                let ignored = current.as_ref().map_or_else(
-                    || seed.before_entry.as_ref().is_some_and(|entry| entry.ignored),
-                    |entry| entry.ignored,
-                );
-                let generated = current.as_ref().map_or_else(
-                    || seed.before_entry.as_ref().is_some_and(|entry| entry.generated),
-                    |entry| entry.generated,
-                );
+                // A path below an ignored folder has no entry; the folder decides its flags.
+                let (ignored, generated) =
+                    match catalog.entry(&seed.path)?.or_else(|| seed.before_entry.clone()) {
+                        Some(entry) => (entry.ignored, entry.generated),
+                        None => catalog.flags_beyond_index(&seed.path)?,
+                    };
                 Ok(MutationAuditRecord {
                     workspace_id,
                     session_id,

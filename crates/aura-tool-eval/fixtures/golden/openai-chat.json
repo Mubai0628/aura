@@ -952,7 +952,7 @@
       },
       {
         "function": {
-          "description": "Run a PowerShell 7 script as the user's Windows account. Only script is required: working_directory defaults to the workspace root and timeout_ms to 120000; give builds, tests and other long commands a larger timeout_ms. The call also ends at the tool time limit in Tool settings (default 10 minutes). Read-only mode asks before running. The script is not sandboxed and can change anything the user can. Set requires_network when it needs the network: read-only and workspace modes then ask for network approval, Full Access allows it, and blocking the network is not enforced. Each call gets a fresh environment and PATH, as in a new terminal, with secret variables removed (filtered_environment_names lists the removed ones your script names). Returns the exit code and stdout and stderr as text; a long stream shows its first 2 KB and last 6 KB, and stdout_next or stderr_next is where shell.query reads the rest. The exit code is that of exit N, or 1 after an uncaught error, else 0 even when a native command failed: end with exit $LASTEXITCODE to report it. Errors name lines of your script. PowerShell quoting is not bash: inside \"...\" a double quote is `\" (\\\" ends the string) and ` escapes, so JavaScript template literals break; inside '...' double a single quote (''). Put long inline programs (node -e, python -c) in a file with fs.write and run the file. Processes left running stay managed: read them with shell.query and stop them with shell.stop. An interrupted call is never re-run automatically.",
+          "description": "Run a PowerShell 7 script as the user's Windows account. Only script is required: working_directory defaults to the workspace root and timeout_ms to 120000; give builds, tests and other long commands a larger timeout_ms. The call also ends at the tool time limit in Tool settings (default 10 minutes). Workspace mode runs commands without asking; read-only mode asks before the first command in a session, and that answer covers later PowerShell, CMD and terminal commands. Below Full Access a command that deletes files or writes outside the workspace asks each time, and one that downloads (curl, Invoke-WebRequest, git clone/pull/fetch, package installs) asks once per session. The script is not sandboxed and can change anything the user can. Set requires_network when it needs the network: read-only mode then asks for network approval, the other modes allow it, and blocking the network is not enforced. Each call gets a fresh environment and PATH, as in a new terminal, with secret variables removed (filtered_environment_names lists the removed ones your script names). Returns the exit code and stdout and stderr as text; a long stream shows its first 2 KB and last 6 KB, and stdout_next or stderr_next is where shell.query reads the rest. The exit code is that of exit N, or 1 after an uncaught error, else 0 even when a native command failed: end with exit $LASTEXITCODE to report it. Errors name lines of your script. PowerShell quoting is not bash: inside \"...\" a double quote is `\" (\\\" ends the string) and ` escapes, so JavaScript template literals break; inside '...' double a single quote (''). Put long inline programs (node -e, python -c) in a file with fs.write and run the file. Processes left running stay managed: read them with shell.query and stop them with shell.stop. An interrupted call is never re-run automatically.",
           "name": "shell_powershell__01m2dg020980080021an942005",
           "parameters": {
             "additionalProperties": false,
@@ -970,7 +970,7 @@
                 "type": "integer"
               },
               "requires_network": {
-                "description": "Default false. Set true when the script needs the network; read-only and\nworkspace modes then ask for network approval. It declares a need and never\ngrants access by itself.",
+                "description": "Default false. Set true when the script needs the network; read-only mode\nthen asks for network approval. It declares a need and never\ngrants access by itself.",
                 "type": "boolean"
               },
               "script": {
@@ -1021,7 +1021,7 @@
                 "type": "integer"
               },
               "requires_network": {
-                "description": "Default false. Set true when the script needs the network; read-only and\nworkspace modes then ask for network approval. It declares a need and never\ngrants access by itself.",
+                "description": "Default false. Set true when the script needs the network; read-only mode\nthen asks for network approval. It declares a need and never\ngrants access by itself.",
                 "type": "boolean"
               },
               "script": {
@@ -2890,7 +2890,7 @@
       },
       {
         "function": {
-          "description": "Open an Agent-owned PowerShell 7 or CMD terminal in this session. shell defaults to powershell, working_directory to the workspace root. It runs as the user's Windows account, is not sandboxed, and network blocking is not enforced. Read-only mode asks for run approval; Shell's session run approval also covers terminal.open and terminal.write. requires_network has the same soft network default and approval as Shell. User terminals are never visible. The terminal stays managed until closed; no automatic replay after interruption.",
+          "description": "Open an Agent-owned PowerShell 7 or CMD terminal in this session. shell defaults to powershell, working_directory to the workspace root. It runs as the user's Windows account, is not sandboxed, and network blocking is not enforced. Workspace mode runs it without asking; read-only mode asks for run approval, and Shell's session run approval also covers terminal.open and terminal.write. requires_network has the same soft network default and approval as Shell. User terminals are never visible. The terminal stays managed until closed; no automatic replay after interruption.",
           "name": "terminal_open__01m2dg020980080021an942011",
           "parameters": {
             "additionalProperties": false,
@@ -2929,7 +2929,7 @@
       },
       {
         "function": {
-          "description": "Send input to an Agent terminal in this session; newline submits a line, interrupt sends Ctrl+C first. wait_ms defaults to 2000, up to 30000 and the tool's time limit. until_text returns early when seen. Read-only mode asks for the same run approval as Shell. Returns new plain text with byte offsets; terminal.read pages the retained output. While the user has taken over, model reads and writes are refused; an empty input then waits up to wait_ms for the user to hand it back and returns the terminal's latest output as soon as they do. It is not sandboxed and network blocking is not enforced.",
+          "description": "Send input to an Agent terminal in this session; newline submits a line, interrupt sends Ctrl+C first. wait_ms defaults to 2000, up to 30000 and the tool's time limit. until_text returns early when seen. Read-only mode asks for the same run approval as Shell; below Full Access, input that deletes files or writes outside the workspace asks each time and input that downloads asks once per session, as Shell commands do. Returns new plain text with byte offsets; terminal.read pages the retained output. While the user has taken over, model reads and writes are refused; an empty input then waits up to wait_ms for the user to hand it back and returns the terminal's latest output as soon as they do. It is not sandboxed and network blocking is not enforced.",
           "name": "terminal_write__01m2dg020980080021an942012",
           "parameters": {
             "additionalProperties": false,

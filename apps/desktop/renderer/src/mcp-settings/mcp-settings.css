@@ -184,3 +184,12 @@
   margin: 6px 0;
   padding-left: 18px;
 }
+
+/* A sign-in address is one unbroken word; it breaks anywhere instead of widening the page. */
+.mcp-sign-in-link {
+  display: block;
+  margin: 4px 0 6px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: text;
+}

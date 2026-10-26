@@ -1094,7 +1094,7 @@ fn workspace_error(error: WorkspaceError, correlation_id: CorrelationId) -> IpcE
         WorkspaceError::EncodingAmbiguous { .. } => {
             ("file.encoding_ambiguous", ErrorCategory::Validation, false)
         }
-        WorkspaceError::CatalogUnavailable => {
+        WorkspaceError::CatalogUnavailable | WorkspaceError::IndexBuilding { .. } => {
             ("workspace.catalog_unavailable", ErrorCategory::Unavailable, true)
         }
         // Another index update committed while this one was being planned. Nothing was

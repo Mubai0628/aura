@@ -155,14 +155,20 @@ impl FsToolService {
                     root_identity: None,
                 }
             });
+        let skipped_scopes = crate::unindexed::skipped(
+            self.catalog(workspace_id)?.as_ref(),
+            &resolver,
+            &directory,
+            input.recursive,
+        )?;
         Ok(AgentFileFindResult {
-            skipped_scopes: Vec::new(),
+            complete: page.complete && skipped_scopes.is_empty(),
+            skipped_scopes,
             matches,
             scope_revision: page.scope_revision,
             next_cursor,
             truncated,
             scanned_entries: page.scanned_entries,
-            complete: page.complete,
             external: None,
         })
     }

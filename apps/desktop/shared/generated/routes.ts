@@ -365,6 +365,8 @@ import type {
   WorkspaceDeleteCommand,
   WorkspaceDirectorySelection,
   WorkspaceFileOpenRequest,
+  WorkspaceIndexRebuildRequest,
+  WorkspaceIndexRebuildStarted,
   WorkspaceLifecycleOperationQuery,
   WorkspaceLifecyclePrepareDeliveredInput,
   WorkspaceLifecycleSummary,
@@ -910,6 +912,7 @@ export type AgentMainParams = {
   'agent.files.open_outside': WorkspaceFileOpenRequest;
   'agent.links.open': ExternalLinkOpenRequest;
   'agent.clipboard.write': ClipboardWriteRequest;
+  'agent.workspace.rebuild_index': WorkspaceIndexRebuildRequest;
   'agent.start': AgentStartRequest;
   'agent.init.start': AgentInitStartRequest;
   'agent.compaction.start': AgentCompactionStartRequest;
@@ -936,6 +939,7 @@ export type AgentMainParams = {
   'agent.mcp.trust': McpTrustRequest;
   'agent.mcp.untrust': McpServerRequest;
   'agent.mcp.set_enabled': McpSetEnabledRequest;
+  'agent.mcp.restore_plugin_default': McpServerRequest;
   'agent.mcp.remove': McpServerRequest;
   'agent.mcp.refresh': McpRefreshRequest;
   'agent.mcp.secret.set': McpSecretSetRequest;
@@ -1012,6 +1016,7 @@ export type AgentMainResult = {
   'agent.files.open_outside': OpenedOutside;
   'agent.links.open': OpenedOutside;
   'agent.clipboard.write': ClipboardWritten;
+  'agent.workspace.rebuild_index': WorkspaceIndexRebuildStarted;
   'agent.start': AgentRunProjection;
   'agent.init.start': AgentRunProjection;
   'agent.compaction.start': AgentRunProjection;
@@ -1038,6 +1043,7 @@ export type AgentMainResult = {
   'agent.mcp.trust': McpRegistryView;
   'agent.mcp.untrust': McpRegistryView;
   'agent.mcp.set_enabled': McpRegistryView;
+  'agent.mcp.restore_plugin_default': McpRegistryView;
   'agent.mcp.remove': McpRegistryView;
   'agent.mcp.refresh': McpServerDetail;
   'agent.mcp.secret.set': McpSecretSetResult;
@@ -1175,6 +1181,7 @@ export type AgentCoreParams = {
   'agent.shell.stop': ShellStopRequest;
   'agent.tool_activity': AgentToolActivityRequest;
   'agent.activity.query': ActivityQueryRequestV1;
+  'agent.workspace.rebuild_index': WorkspaceIndexRebuildRequest;
   'agent.commands.catalog': CommandCatalogRequest;
   'agent.commands.set_enabled': CommandSetEnabledRequest;
   'agent.commands.delete': CommandDeleteRequest;
@@ -1203,6 +1210,7 @@ export type AgentCoreParams = {
   'agent.mcp.trust': McpTrustRequest;
   'agent.mcp.untrust': McpServerRequest;
   'agent.mcp.set_enabled': McpSetEnabledRequest;
+  'agent.mcp.restore_plugin_default': McpServerRequest;
   'agent.mcp.remove': McpServerRequest;
   'agent.mcp.refresh': McpRefreshRequest;
   'agent.mcp.secret.set': McpSecretSetRequest;
@@ -1272,6 +1280,7 @@ export type AgentCoreResult = {
   'agent.shell.stop': ShellExecutionView;
   'agent.tool_activity': AgentToolActivityPage;
   'agent.activity.query': ActivityQueryResponseV1;
+  'agent.workspace.rebuild_index': WorkspaceIndexRebuildStarted;
   'agent.commands.catalog': CommandCatalog;
   'agent.commands.set_enabled': CommandCatalog;
   'agent.commands.delete': CommandCatalog;
@@ -1300,6 +1309,7 @@ export type AgentCoreResult = {
   'agent.mcp.trust': McpRegistryView;
   'agent.mcp.untrust': McpRegistryView;
   'agent.mcp.set_enabled': McpRegistryView;
+  'agent.mcp.restore_plugin_default': McpRegistryView;
   'agent.mcp.remove': McpRegistryView;
   'agent.mcp.refresh': McpServerDetail;
   'agent.mcp.secret.set': McpSecretSetResult;
@@ -2909,6 +2919,17 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.workspace.rebuild_index': {
+    method: 'agent.workspace.rebuild_index',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'WorkspaceIndexRebuildRequest',
+    response_type: 'WorkspaceIndexRebuildStarted',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.start': {
     method: 'agent.start',
     owner: 'agent',
@@ -3190,6 +3211,17 @@ export const MAIN_ROUTES = {
     surface: 'main',
     auth: 'trusted_renderer',
     request_type: 'McpSetEnabledRequest',
+    response_type: 'McpRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.mcp.restore_plugin_default': {
+    method: 'agent.mcp.restore_plugin_default',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'McpServerRequest',
     response_type: 'McpRegistryView',
     idempotency: 'command_invocation',
     cancellation: 'none',
@@ -5677,6 +5709,17 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.workspace.rebuild_index': {
+    method: 'agent.workspace.rebuild_index',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'WorkspaceIndexRebuildRequest',
+    response_type: 'WorkspaceIndexRebuildStarted',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.commands.catalog': {
     method: 'agent.commands.catalog',
     owner: 'agent',
@@ -5980,6 +6023,17 @@ export const CORE_ROUTES = {
     surface: 'core',
     auth: 'authenticated_main',
     request_type: 'McpSetEnabledRequest',
+    response_type: 'McpRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.mcp.restore_plugin_default': {
+    method: 'agent.mcp.restore_plugin_default',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'McpServerRequest',
     response_type: 'McpRegistryView',
     idempotency: 'command_invocation',
     cancellation: 'none',
@@ -7080,4 +7134,4 @@ export function coreRoute(method: string) {
     ? CORE_ROUTES[method as keyof typeof CORE_ROUTES]
     : undefined;
 }
-export const ROUTE_COUNTS = { main: 254, core: 254 } as const;
+export const ROUTE_COUNTS = { main: 256, core: 256 } as const;

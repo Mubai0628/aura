@@ -179,6 +179,15 @@ impl AgentExecution {
             H::TerminalWrite => {
                 let input: aura_windows_user_contract::AgentTerminalWriteInput =
                     serde_json::from_value(action.clone())?;
+                // What is typed is read like a script; where the terminal stands is not known,
+                // so only places the text names in full are checked against the workspace.
+                let root = self.workspace.resolver(workspace_id)?.canonical_root().to_path_buf();
+                let found = super::shell_risks::of_script(
+                    aura_windows_user_contract::ManagedShell::PowerShell,
+                    &input.input,
+                    None,
+                    &[root],
+                );
                 let record = aura_persistence_v2::terminal::get(
                     self.journal.lock()?.database.connection(),
                     id.session_id,
@@ -188,6 +197,7 @@ impl AgentExecution {
                     network = OperationNetwork::BroadProcess;
                     capabilities.push(ResolvedCapability::OrdinaryNetwork);
                 }
+                shell_risks(&found, &mut risks, &mut capabilities, &mut network);
                 compatibility = [ExecutionCompatibility::ProcessTreeCancellation].into();
                 vec![ResourceDescriptor::WorkspaceRoot { workspace_id }]
             }
@@ -203,10 +213,13 @@ impl AgentExecution {
                 } else {
                     aura_windows_user_contract::ManagedShell::Cmd
                 };
-                // Deleting from a Shell is permanent; it is asked every time but in 完全访问.
-                if super::shell_deletion::deletes_files(shell, &input.script) {
-                    risks.push(OperationRiskFlag::PermanentFileDeletion);
-                }
+                let resolver = self.workspace.resolver(workspace_id)?;
+                let found = super::shell_risks::of_script(
+                    shell,
+                    &input.script,
+                    Some(&resolved.absolute_path),
+                    &[resolver.canonical_root().to_path_buf()],
+                );
                 let mut command = input.command(shell)?;
                 command.working_directory = resolved.absolute_path.to_string_lossy().into_owned();
                 action = serde_json::to_value(command)?;
@@ -215,6 +228,7 @@ impl AgentExecution {
                     network = OperationNetwork::BroadProcess;
                     capabilities.push(ResolvedCapability::OrdinaryNetwork);
                 }
+                shell_risks(&found, &mut risks, &mut capabilities, &mut network);
                 vec![ResourceDescriptor::WorkspaceRoot { workspace_id }]
             }
             H::WebSearch | H::WebFetch => {
@@ -300,6 +314,8 @@ impl AgentExecution {
         let mut content = OperationContent {
             identity: InvocationIdentity {
                 principal_id: PrincipalId::from_bytes(id.session_id.to_bytes()),
+                // UNWIRED: no product path creates a run with a parent, so ChildAgent is never
+                // produced here.
                 actor: if run.parent_agent_run_id.is_some() {
                     InvocationActor::ChildAgent
                 } else {
@@ -475,4 +491,31 @@ pub(super) fn stored_form<T: serde::Serialize>(input: &T) -> Result<serde_json::
     let canonical = aura_domain_common::jcs::canonical_json_jcs(input)
         .map_err(|_| anyhow::anyhow!("agent.tool_input_invalid"))?;
     Ok(serde_json::from_slice(&canonical)?)
+}
+
+/// Below 完全访问 a Shell deletion asks every time, a download once per session (its capability
+/// is what the session answer covers) and a write outside the workspace every time.
+fn shell_risks(
+    found: &super::shell_risks::ShellRisks,
+    risks: &mut Vec<OperationRiskFlag>,
+    capabilities: &mut Vec<ResolvedCapability>,
+    network: &mut OperationNetwork,
+) {
+    if found.deletes {
+        risks.push(OperationRiskFlag::PermanentFileDeletion);
+    }
+    // A download uses the network, whatever the script declared.
+    if found.downloads {
+        *network = OperationNetwork::BroadProcess;
+        for capability in
+            [ResolvedCapability::OrdinaryNetwork, ResolvedCapability::DownloadArtifact]
+        {
+            if !capabilities.contains(&capability) {
+                capabilities.push(capability);
+            }
+        }
+    }
+    if !found.outside.is_empty() {
+        risks.push(OperationRiskFlag::OutsideWorkspaceWrite);
+    }
 }

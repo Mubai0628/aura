@@ -6,6 +6,10 @@
 //! - `update-and-restart` lets the version named in `fake-next.txt` wait, as an applied update
 //!   does, and asks the launcher to start again (exit 75);
 //! - anything else exits 0 without reporting.
+//!
+//! Copied in as `aura-core.exe` it answers `--store-migration-check` with the
+//! `fake-migration.json` beside it, as the new version's Core tells the launcher which stores
+//! it would migrate.
 use std::{env, fs, path::PathBuf, process::ExitCode};
 
 use aura_runtime_contract::{ActiveInstallState, BuildComponentManifest};
@@ -18,6 +22,17 @@ fn data_root(manifest: &BuildComponentManifest) -> PathBuf {
 }
 
 fn main() -> ExitCode {
+    if env::args().nth(1).as_deref() == Some("--store-migration-check") {
+        let answer = env::current_exe()
+            .and_then(|program| fs::read_to_string(program.with_file_name("fake-migration.json")));
+        return match answer {
+            Ok(answer) => {
+                print!("{answer}");
+                ExitCode::SUCCESS
+            }
+            Err(_) => ExitCode::from(7),
+        };
+    }
     let mode = fs::read_to_string("fake-mode.txt").unwrap_or_default();
     let Ok(manifest) = fs::read("component-manifest.json")
         .map_err(|_| ())

@@ -1,5 +1,6 @@
-//! Settings actions: turning a user or workspace command on or off, and removing one of the
-//! user's own commands at the revision the user saw.
+//! Settings actions: turning a user, workspace or plugin command on or off, and removing one of
+//! the user's own commands at the revision the user saw. A plugin's command is removed only with
+//! its plugin.
 use super::CommandContext;
 use aura_agent_domain::{
     CommandCatalog, CommandDeleteRequest, CommandSetEnabledRequest, CommandSource,
@@ -15,10 +16,24 @@ impl CommandContext {
             request.source != CommandSource::Builtin,
             "commands.builtin_always_enabled: 内置命令不能停用"
         );
-        anyhow::ensure!(
-            request.source != CommandSource::Plugin,
-            "commands.from_plugin: 插件的命令随插件启用，请在 设置 → 插件 里停用插件"
-        );
+        if request.source == CommandSource::Plugin {
+            let current = self.catalog(request.workspace_id)?;
+            let plugin = current
+                .commands
+                .iter()
+                .find(|command| command.source == request.source && command.name == request.name)
+                .and_then(|command| command.plugin.clone())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("commands.not_found: /{} 不存在，请刷新后再试", request.name)
+                })?;
+            let plugins = self
+                .plugins
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("commands.from_plugin: 插件暂时不可用"))?;
+            let command = crate::plugins::PartKind::Command;
+            plugins.switch_part(&plugin, command, &request.name, request.enabled)?;
+            return self.catalog(request.workspace_id);
+        }
         anyhow::ensure!(
             request.source != CommandSource::Workspace || request.workspace_id.is_some(),
             "commands.workspace_required: 请先选择工作区"

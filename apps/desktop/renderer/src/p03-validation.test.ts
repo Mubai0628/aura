@@ -300,4 +300,43 @@ describe('P03 Electron boundary', () => {
       }),
     ).toBeUndefined();
   });
+
+  it('a Workspace Files status may carry its index build, and only a well-formed one', () => {
+    const runtime = 'rti_01ARZ3NDEKTSV4RRFFQ69G5FAV';
+    const files = (indexing: object) => ({
+      payload: {
+        lifecycle_operations: [],
+        workspaces: [
+          {
+            workspace_id: WORKSPACE_ID,
+            workspace_revision: '1',
+            catalog: {
+              freshness: 'rebuilding',
+              catalog_revision: '0',
+              indexed_at: null,
+              watcher_state: 'watching',
+              partitions: [],
+              indexing,
+            },
+            logical_files: [],
+            editor_reservations: [],
+            deferred_mutations: [],
+          },
+        ],
+      },
+      projection_kind: 'workspace_files',
+      projection_scope: { type: 'global' },
+      revision: '1',
+      runtime_instance_id: runtime,
+    });
+    const building = { state: 'building', listed_entries: 12, unindexed_directories: 0 };
+    expect(parseProjection(files(building))?.projection_kind).toBe('workspace_files');
+    expect(
+      parseProjection(files({ ...building, state: 'failed', failure: 'disk gone' }))
+        ?.projection_kind,
+    ).toBe('workspace_files');
+    expect(parseProjection(files({ ...building, state: 'paused' }))).toBeUndefined();
+    expect(parseProjection(files({ ...building, listed_entries: -1 }))).toBeUndefined();
+    expect(parseProjection(files({ ...building, extra: true }))).toBeUndefined();
+  });
 });

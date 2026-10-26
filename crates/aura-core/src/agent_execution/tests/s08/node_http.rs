@@ -85,7 +85,7 @@ async fn call(f: &mut Fixture, tool: &str, network: bool, approve_network: bool)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn s08_node_http_obeys_the_soft_default_proxy_and_the_separate_network_answer() {
+async fn s08_node_http_obeys_the_soft_default_proxy_and_runs_declared_network_unasked() {
     let service = LocalHttp::start();
     for tool in ["shell.powershell", "shell.cmd"] {
         let mut f=Fixture::with_exposure_setup(PermissionMode::WorkspaceReadWrite,&[tool],|root|{
@@ -99,29 +99,16 @@ async fn s08_node_http_obeys_the_soft_default_proxy_and_the_separate_network_ans
             before,
             "soft offline reaches no local target in this Node version"
         );
-        let enabled = call(&mut f, tool, true, true).await;
+        // Workspace mode runs a command that declares the network without asking.
+        let enabled = call(&mut f, tool, true, false).await;
         assert!(enabled.contains("200"));
         assert_eq!(service.count(), before + 1);
-        let reused = call(&mut f, tool, true, false).await;
-        assert!(reused.contains("200"));
-        assert_eq!(service.count(), before + 2);
-        let rows = crate::r03_tests::success(
-            &f.runtime,
-            "security.network_session_consent.list",
-            json!({"session_id":f.turn.session_id,"include_inactive":false}),
-        )
-        .await;
-        let row = &rows.as_array().expect("network answers")[0];
-        crate::r03_tests::success(&f.runtime,"security.network_session_consent.revoke",json!({"session_id":f.turn.session_id,"grant_id":row["grant_id"],"expected_revision":row["grant_revision"]})).await;
-        let offline = call(&mut f, tool, false, false).await;
-        assert!(offline.contains("403"));
-        assert_eq!(service.count(), before + 2);
         mode(&f, PermissionMode::FullAccess).await;
         let full = call(&mut f, tool, false, false).await;
         assert!(full.contains("200"), "FullAccess enables networking even without a declaration");
-        assert_eq!(service.count(), before + 3);
+        assert_eq!(service.count(), before + 2);
         println!(
-            "S08_NODE_HTTP {tool}: soft default=403/0 target hits, session enabled=200, reuse=200, revoked new child=403, FullAccess default=200"
+            "S08_NODE_HTTP {tool}: soft default=403/0 target hits, declared=200 unasked, FullAccess default=200"
         );
     }
 }

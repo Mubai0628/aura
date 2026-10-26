@@ -75,6 +75,8 @@ impl Harness {
                 CorrelationId::new(),
             )
             .expect("create workspace");
+        // The first walk runs after the create returns; the cases start from a complete index.
+        workspace.wait_until_indexed(Duration::from_secs(60)).expect("the first walk");
         let workspace_id = created.workspace.workspace_id;
         let session_id = SessionId::new();
         let current = persistence.workspace(workspace_id).expect("current workspace");

@@ -59,19 +59,19 @@ pub(super) fn finish(
     Ok(match call.operation.content.action_kind.as_str() {
         "fs.list" => {
             let mut result: AgentFileListResult = serde_json::from_value(value)?;
-            result.skipped_scopes = skipped;
+            result.skipped_scopes.extend(skipped);
             serde_json::to_value(result)?
         }
         "fs.find" => {
             let mut result: AgentFileFindResult = serde_json::from_value(value)?;
-            result.skipped_scopes = skipped;
+            result.skipped_scopes.extend(skipped);
             result.complete = false;
             serde_json::to_value(result)?
         }
         "fs.search" => {
             let mut result: FsSearchTextResult = serde_json::from_value(value)?;
             result.skipped_file_count = result.skipped_file_count.max(skipped.len() as u64);
-            result.skipped_scopes = skipped;
+            result.skipped_scopes.extend(skipped);
             match &mut result.completion {
                 FsSearchCompletion::Partial { reasons } => {
                     if !reasons.contains(&FsSearchIncompleteReason::ScopeExcluded) {

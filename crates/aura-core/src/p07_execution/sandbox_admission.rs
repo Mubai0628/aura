@@ -1,5 +1,6 @@
 use super::*;
 
+// UNWIRED: no production caller dispatches work to the sandbox host; only tests reach this.
 impl ToolAttemptPreDispatchServiceV1 {
     /// Acquires deterministic locks and the selected Host's actual capacity,
     /// rechecks exact Registry/Package authority, then atomically persists

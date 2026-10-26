@@ -205,6 +205,25 @@ test('a changed meter on the same step is reloaded, while equal meter values do 
   expect(read).toHaveBeenCalledTimes(2);
 });
 
+test('the step is read again once its request finishes, when its cache use is known', async () => {
+  projection = session();
+  projection.turns[0]!.assistant_messages[0]!.partial = true;
+  const rendered = render(view());
+  fireEvent.click(screen.getByRole('button', { name: '打开上下文详情' }));
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+  // Still answering: streamed text alone reads nothing.
+  projection = session();
+  projection.turns[0]!.assistant_messages[0]!.partial = true;
+  projection.turns[0]!.assistant_messages[0]!.text = 'streaming';
+  rendered.rerender(view());
+  await act(async () => undefined);
+  expect(read).toHaveBeenCalledTimes(1);
+  projection = session();
+  projection.turns[0]!.assistant_messages[0]!.partial = false;
+  rendered.rerender(view());
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+});
+
 test('estimation, segment and window changes refresh even when the total token count is unchanged', async () => {
   const rendered = render(view());
   fireEvent.click(screen.getByRole('button', { name: '打开上下文详情' }));

@@ -84,6 +84,7 @@ impl CommandContext {
         );
         if let Some(plugins) = &self.plugins {
             aura_commands::add_plugin_commands(&mut commands, &plugin_commands(plugins));
+            switch_off_plugin_commands(&mut commands, plugins);
         }
         Ok(CommandCatalog {
             commands,
@@ -91,6 +92,23 @@ impl CommandContext {
             workspace_directory: workspace
                 .map(|(_, directory, _)| aura_domain_common::display_path(&directory)),
         })
+    }
+}
+
+/// The plugin commands the user switched off stay listed, off.
+fn switch_off_plugin_commands(
+    commands: &mut [aura_agent_domain::CommandEntry],
+    plugins: &crate::plugins::PluginRuntime,
+) {
+    let ready = plugins.ready();
+    for entry in commands.iter_mut().filter(|entry| entry.source == CommandSource::Plugin) {
+        let switched_off = ready.iter().any(|plugin| {
+            entry.plugin.as_ref() == Some(&plugin.package.manifest.name)
+                && plugin.setting.changes.switched_off.commands.contains(&entry.name)
+        });
+        if switched_off {
+            entry.enabled = false;
+        }
     }
 }
 

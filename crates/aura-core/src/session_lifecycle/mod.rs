@@ -7,6 +7,7 @@
 //! out of the workspace/session projection — so a deletion cut short by a crash finishes the next
 //! time Core starts. A removed Workspace is finished the same way from the primary registry's
 //! `workspace.removed` notification.
+mod execution_purge;
 mod purger;
 pub(crate) use purger::Purger;
 
@@ -37,6 +38,13 @@ pub(crate) async fn dispatch(
         }
         _ => anyhow::bail!("session.route_unknown"),
     })
+}
+
+/// Waits until the deletions Core's own task is running have ended.
+#[cfg(test)]
+pub(crate) async fn deleted(runtime: &crate::RuntimeState) {
+    let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
+    Purger::of(services).resume().await.expect("the deletions finish");
 }
 
 /// Whether a workspace route answered with a completed Workspace removal.

@@ -8,6 +8,33 @@ async fn main() -> ExitCode {
         println!("aura-core {}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
+    // Before a newer version's first start the launcher asks this build which stores it would
+    // migrate, and copies only those. Nothing is opened for writing and Core does not start.
+    let arguments: Vec<String> = env::args().collect();
+    if let Some(at) = arguments.iter().position(|argument| argument == "--store-migration-check") {
+        let Some(root) = arguments.get(at + 1).map(std::path::PathBuf::from) else {
+            eprintln!("Aura Core argument error: --store-migration-check needs the data folder");
+            return ExitCode::from(2);
+        };
+        let answer = |pending: Result<bool, String>| match pending {
+            Ok(pending) => serde_json::json!(pending),
+            Err(error) => serde_json::json!({ "error": error }),
+        };
+        let legacy = aura_persistence::store_migration_pending(&root.join("data").join("aura.db"))
+            .map_err(|error| error.to_string());
+        let execution = aura_persistence_v2::migration_pending(
+            &root.join("data").join("v2-execution").join("aura-v2.db"),
+        )
+        .map_err(|error| error.to_string());
+        println!(
+            "{}",
+            serde_json::json!({
+                "data/aura.db": answer(legacy),
+                "data/v2-execution/aura-v2.db": answer(execution),
+            })
+        );
+        return ExitCode::SUCCESS;
+    }
     if env::args().any(|argument| argument == "--help" || argument == "-h") {
         println!(
             "Aura Core P01 Sidecar\n\nAura Core is started by Electron Main with a private bootstrap contract."

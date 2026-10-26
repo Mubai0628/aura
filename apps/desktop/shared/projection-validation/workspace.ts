@@ -165,8 +165,9 @@ const isCatalogStatus = (value: unknown): boolean =>
   recordWithOptional(
     value,
     ['catalog_revision', 'freshness', 'partitions', 'watcher_state'],
-    ['indexed_at'],
+    ['indexed_at', 'indexing'],
   ) &&
+  (value.indexing === undefined || isIndexingStatus(value.indexing)) &&
   typeof value.freshness === 'string' &&
   isRevision(value.catalog_revision) &&
   (value.indexed_at === undefined ||
@@ -175,6 +176,13 @@ const isCatalogStatus = (value: unknown): boolean =>
   typeof value.watcher_state === 'string' &&
   Array.isArray(value.partitions) &&
   value.partitions.every(isCatalogPartition);
+
+const isIndexingStatus = (value: unknown): boolean =>
+  recordWithOptional(value, ['listed_entries', 'state', 'unindexed_directories'], ['failure']) &&
+  ['building', 'incomplete', 'failed'].includes(value.state as string) &&
+  isSafeUnsigned(value.listed_entries) &&
+  isSafeUnsigned(value.unindexed_directories) &&
+  (value.failure === undefined || typeof value.failure === 'string');
 
 const isCatalogPartition = (value: unknown): boolean =>
   exactRecord(value, ['file_count', 'index_mode', 'indexable_text_bytes', 'partition_path']) &&

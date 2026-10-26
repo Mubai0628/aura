@@ -103,7 +103,10 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
         `已信任并启用 ${server.config.display_name}，正在列出工具`,
       );
     });
-  const change = (server: McpServerView, action: 'enable' | 'disable' | 'untrust' | 'remove') =>
+  const change = (
+    server: McpServerView,
+    action: 'enable' | 'disable' | 'untrust' | 'remove' | 'restore',
+  ) =>
     run(`${action}:${server.config.id}`, async () => {
       const request = { id: server.config.id, expected_revision: revision };
       const api = window.aura.v1;
@@ -120,6 +123,8 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
         case 'remove':
           setRemoving(undefined);
           return applied(await api.removeMcpServer(request), `已移除 ${name}`);
+        case 'restore':
+          return applied(await api.restoreMcpPluginDefault(request), `已恢复 ${name} 的插件配置`);
       }
     });
   const signIn = (server: McpServerView) =>
@@ -162,7 +167,7 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
     const { config } = server;
     const locked = busy !== undefined;
     const needsTrust = server.state === 'not_trusted' || server.state === 'config_changed';
-    // A plugin's server is edited, switched and removed with its plugin.
+    // A plugin's server is trusted and removed with its plugin.
     const plugin = server.plugin ?? undefined;
     const tone = mcpStateTone(server.state);
     return (
@@ -177,6 +182,7 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
           <strong>{config.display_name}</strong>
           <code>{config.id}</code>
           {plugin ? <span className="settings-tag mcp-row-source">插件 {plugin}</span> : null}
+          {server.plugin_changed ? <span className="settings-tag">已修改</span> : null}
           <span className="status-pill mcp-row-state" data-tone={tone}>
             {mcpStateLabel(server)}
           </span>
@@ -213,9 +219,8 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
               {server.state === 'config_changed' ? '查看并重新信任' : '查看并信任'}
             </button>
           ) : null}
-          {!plugin &&
-          (server.state === 'disabled' ||
-            (config.enabled && !needsTrust && server.state !== 'invalid')) ? (
+          {server.state === 'disabled' ||
+          (config.enabled && !needsTrust && server.state !== 'invalid') ? (
             <button
               type="button"
               className="button is-small"
@@ -244,16 +249,26 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
           >
             {open === config.id ? '收起' : '工具与日志'}
           </button>
+          <button
+            type="button"
+            className="button is-small"
+            disabled={locked}
+            onClick={() => setEditing(server)}
+          >
+            编辑
+          </button>
+          {plugin && server.plugin_changed ? (
+            <button
+              type="button"
+              className="button is-small"
+              disabled={locked}
+              onClick={() => void change(server, 'restore')}
+            >
+              恢复插件默认
+            </button>
+          ) : null}
           {plugin ? null : (
             <>
-              <button
-                type="button"
-                className="button is-small"
-                disabled={locked}
-                onClick={() => setEditing(server)}
-              >
-                编辑
-              </button>
               {config.trusted_fingerprint ? (
                 <button
                   type="button"
@@ -276,17 +291,14 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
           )}
         </div>
         {plugin ? (
-          <>
-            <McpPluginSecrets
-              server={server}
-              locked={locked}
-              onSaved={(text, alert) => {
-                setNotice({ alert, text });
-                setReload((value) => value + 1);
-              }}
-            />
-            <p className="mcp-row-note">随插件 {plugin} 信任与启用；编辑与移除请到 设置 → 插件。</p>
-          </>
+          <McpPluginSecrets
+            server={server}
+            locked={locked}
+            onSaved={(text, alert) => {
+              setNotice({ alert, text });
+              setReload((value) => value + 1);
+            }}
+          />
         ) : null}
         {trusting === config.id ? (
           <div

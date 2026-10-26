@@ -40,9 +40,14 @@ impl McpRuntime {
         } else {
             McpServerState::Starting
         };
+        let (plugin, plugin_changed) = self
+            .brought_by(&server.id)
+            .map_or((None, false), |(plugin, changed)| (Some(plugin), changed));
+        let last_error = super::plugin_hint::rewrite(plugin.as_deref(), server, last_error);
         McpServerView {
             config: server.clone(),
-            plugin: self.plugin_of(&server.id),
+            plugin,
+            plugin_changed,
             state,
             fingerprint: checked.fingerprint.clone(),
             resolved_command: checked.resolved,

@@ -3432,7 +3432,7 @@
         "tool_id": "tol_01M2DG020980080021AN942002",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "7"
+          "definition_revision": "8"
         },
         "tool_package_id": null,
         "package_key": null,
@@ -3747,12 +3747,21 @@
                   "type": "object"
                 },
                 "FsSkippedScopeReason": {
-                  "enum": [
-                    "protected_scope",
-                    "control_authority",
-                    "target_unavailable"
-                  ],
-                  "type": "string"
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "protected_scope",
+                        "control_authority",
+                        "target_unavailable"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "const": "not_indexed",
+                      "description": "A folder the workspace's index did not enter (past its entry cap, or with memory low):\nlookups do not reach into it; listing it reads the disk.",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "Revision": {
                   "type": "string"
@@ -3827,7 +3836,7 @@
             "schema_hash": {
               "algorithm": "sha256",
               "canonicalization_version": "rfc8785_jcs_v1",
-              "hex": "eac1103f888411ed760b6c3dc5422982111b1f27f64aebf33306fd92e9070ea4"
+              "hex": "eabc8f620b45e90632d085feca22174003d2a148b35062f75fdaba11511db9be"
             }
           }
         },
@@ -3854,17 +3863,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "d5c0e15ad8967510ea468b8f8c341628468fbd7df391022669d117ff330b177a"
+          "hex": "4bad8cc10fff4aa29e17bc0ffea0dcfe3fdb9bd45c74420fdfefc79d7ee162f1"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94S902",
+        "tool_instance_id": "tin_01M2DG020980080021AN94SV02",
         "tool_id": "tol_01M2DG020980080021AN942002",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "7"
+          "definition_revision": "8"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -3872,7 +3881,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "74291dcefc425bbb45ebfb2b343c44bae6dc113bb87796686d2e06e0316d3885"
+            "hex": "77566005796bd282fa396dd76f86d9daa496f7132143b2acdc22b9415553883a"
           }
         },
         "enabled": true,
@@ -4631,14 +4640,14 @@
         "tool_id": "tol_01M2DG020980080021AN942005",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "5"
+          "definition_revision": "7"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "shell.powershell",
         "display_name": "Run managed PowerShell",
-        "model_description": "Run a PowerShell 7 script as the user's Windows account. Only script is required: working_directory defaults to the workspace root and timeout_ms to 120000; give builds, tests and other long commands a larger timeout_ms. The call also ends at the tool time limit in Tool settings (default 10 minutes). Read-only mode asks before running. The script is not sandboxed and can change anything the user can. Set requires_network when it needs the network: read-only and workspace modes then ask for network approval, Full Access allows it, and blocking the network is not enforced. Each call gets a fresh environment and PATH, as in a new terminal, with secret variables removed (filtered_environment_names lists the removed ones your script names). Returns the exit code and stdout and stderr as text; a long stream shows its first 2 KB and last 6 KB, and stdout_next or stderr_next is where shell.query reads the rest. The exit code is that of exit N, or 1 after an uncaught error, else 0 even when a native command failed: end with exit $LASTEXITCODE to report it. Errors name lines of your script. PowerShell quoting is not bash: inside \"...\" a double quote is `\" (\\\" ends the string) and ` escapes, so JavaScript template literals break; inside '...' double a single quote (''). Put long inline programs (node -e, python -c) in a file with fs.write and run the file. Processes left running stay managed: read them with shell.query and stop them with shell.stop. An interrupted call is never re-run automatically.",
+        "model_description": "Run a PowerShell 7 script as the user's Windows account. Only script is required: working_directory defaults to the workspace root and timeout_ms to 120000; give builds, tests and other long commands a larger timeout_ms. The call also ends at the tool time limit in Tool settings (default 10 minutes). Workspace mode runs commands without asking; read-only mode asks before the first command in a session, and that answer covers later PowerShell, CMD and terminal commands. Below Full Access a command that deletes files or writes outside the workspace asks each time, and one that downloads (curl, Invoke-WebRequest, git clone/pull/fetch, package installs) asks once per session. The script is not sandboxed and can change anything the user can. Set requires_network when it needs the network: read-only mode then asks for network approval, the other modes allow it, and blocking the network is not enforced. Each call gets a fresh environment and PATH, as in a new terminal, with secret variables removed (filtered_environment_names lists the removed ones your script names). Returns the exit code and stdout and stderr as text; a long stream shows its first 2 KB and last 6 KB, and stdout_next or stderr_next is where shell.query reads the rest. The exit code is that of exit N, or 1 after an uncaught error, else 0 even when a native command failed: end with exit $LASTEXITCODE to report it. Errors name lines of your script. PowerShell quoting is not bash: inside \"...\" a double quote is `\" (\\\" ends the string) and ` escapes, so JavaScript template literals break; inside '...' double a single quote (''). Put long inline programs (node -e, python -c) in a file with fs.write and run the file. Processes left running stay managed: read them with shell.query and stop them with shell.stop. An interrupted call is never re-run automatically.",
         "model_summary": "Run managed PowerShell",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -4654,7 +4663,7 @@
                 "type": "integer"
               },
               "requires_network": {
-                "description": "Default false. Set true when the script needs the network; read-only and\nworkspace modes then ask for network approval. It declares a need and never\ngrants access by itself.",
+                "description": "Default false. Set true when the script needs the network; read-only mode\nthen asks for network approval. It declares a need and never\ngrants access by itself.",
                 "type": "boolean"
               },
               "script": {
@@ -4684,7 +4693,7 @@
           "schema_hash": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "d8771fe60b773527f19fd38904e44662155546ded77d4a4cbd055a5405addc97"
+            "hex": "71c1adcbaf83f53aac649cf9f17d69899263419f83418fee1396911332a4c62b"
           }
         },
         "strict": true,
@@ -4854,17 +4863,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "a5ac4c59f9a83d484803ca47cd59286b8a56382ebcff57f0c44d2205e410a2dc"
+          "hex": "dfa97b229eee9874c8ce62e0b137a3ba711ad11bef81aca8f3493ddce00196df"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94SK05",
+        "tool_instance_id": "tin_01M2DG020980080021AN94SV05",
         "tool_id": "tol_01M2DG020980080021AN942005",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "5"
+          "definition_revision": "7"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -4872,7 +4881,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "fb477641db9b8a5eed7e7e3398f4401ad3a209203966b92eda3070718b0dc7c5"
+            "hex": "bb295983798cb7cdc992d066e6a40d122a94d3d38e109984a6b3add44abf4544"
           }
         },
         "enabled": true,
@@ -4896,7 +4905,7 @@
         "tool_id": "tol_01M2DG020980080021AN942006",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "5"
+          "definition_revision": "6"
         },
         "tool_package_id": null,
         "package_key": null,
@@ -4919,7 +4928,7 @@
                 "type": "integer"
               },
               "requires_network": {
-                "description": "Default false. Set true when the script needs the network; read-only and\nworkspace modes then ask for network approval. It declares a need and never\ngrants access by itself.",
+                "description": "Default false. Set true when the script needs the network; read-only mode\nthen asks for network approval. It declares a need and never\ngrants access by itself.",
                 "type": "boolean"
               },
               "script": {
@@ -4949,7 +4958,7 @@
           "schema_hash": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "d8771fe60b773527f19fd38904e44662155546ded77d4a4cbd055a5405addc97"
+            "hex": "71c1adcbaf83f53aac649cf9f17d69899263419f83418fee1396911332a4c62b"
           }
         },
         "strict": true,
@@ -5119,17 +5128,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "83565e9597a100134d3b10043db1c3ba49eba77f5bb029c722fbb1898a896694"
+          "hex": "862b707f23f74b4d6d96f38cd8c63547272f5190ae5db8827ffeb04b6f3d1ae4"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94SK06",
+        "tool_instance_id": "tin_01M2DG020980080021AN94SV06",
         "tool_id": "tol_01M2DG020980080021AN942006",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "5"
+          "definition_revision": "6"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -5137,7 +5146,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "ba2a24e49a4573eae5850211659511905d8ea35139bb5a47b97c28bc0d1d1d3b"
+            "hex": "826f617a429a404edec680afe8e2c1353a3838eb6870b85b596393306b86344c"
           }
         },
         "enabled": true,
@@ -11615,7 +11624,7 @@
         "tool_id": "tol_01M2DG020980080021AN94200W",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "6"
+          "definition_revision": "7"
         },
         "tool_package_id": null,
         "package_key": null,
@@ -11814,12 +11823,21 @@
                   "type": "object"
                 },
                 "FsSkippedScopeReason": {
-                  "enum": [
-                    "protected_scope",
-                    "control_authority",
-                    "target_unavailable"
-                  ],
-                  "type": "string"
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "protected_scope",
+                        "control_authority",
+                        "target_unavailable"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "const": "not_indexed",
+                      "description": "A folder the workspace's index did not enter (past its entry cap, or with memory low):\nlookups do not reach into it; listing it reads the disk.",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "Revision": {
                   "type": "string"
@@ -11878,7 +11896,7 @@
             "schema_hash": {
               "algorithm": "sha256",
               "canonicalization_version": "rfc8785_jcs_v1",
-              "hex": "83a66fc9cfe2e2fefcffdb3b647454fec73ecc6cdef4e1fa4f4603ff78df7580"
+              "hex": "4ed1e9f4a655d74cabb14c9ee6e32360aba4f5d5001c38dc0f0f051cc6a713c7"
             }
           }
         },
@@ -11914,17 +11932,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "1952770cdc9c2cecce0e3337cf880637ff9569036b54bbe2fa09fcac648bdf81"
+          "hex": "bad94ff2ca2d89c47f68201f960bafb012f7876c3860588717c4b872ef52834b"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94S90W",
+        "tool_instance_id": "tin_01M2DG020980080021AN94SV0W",
         "tool_id": "tol_01M2DG020980080021AN94200W",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "6"
+          "definition_revision": "7"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -11932,7 +11950,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "e78c70544e187dc4cc666faf9710d8c402e08f5bbfe091989e50edf24b855ade"
+            "hex": "d85c5a2ebb06f2304acf10d048e9971d4551da675af3b4394d5d0b6a413e76d0"
           }
         },
         "enabled": true,
@@ -12235,7 +12253,7 @@
         "tool_id": "tol_01M2DG020980080021AN94200Y",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "6"
+          "definition_revision": "7"
         },
         "tool_package_id": null,
         "package_key": null,
@@ -12594,12 +12612,21 @@
                   "type": "object"
                 },
                 "FsSkippedScopeReason": {
-                  "enum": [
-                    "protected_scope",
-                    "control_authority",
-                    "target_unavailable"
-                  ],
-                  "type": "string"
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "protected_scope",
+                        "control_authority",
+                        "target_unavailable"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "const": "not_indexed",
+                      "description": "A folder the workspace's index did not enter (past its entry cap, or with memory low):\nlookups do not reach into it; listing it reads the disk.",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "Revision": {
                   "type": "string"
@@ -12671,7 +12698,7 @@
             "schema_hash": {
               "algorithm": "sha256",
               "canonicalization_version": "rfc8785_jcs_v1",
-              "hex": "01beb424c6f6274aac7b13c45f2a6727695634a2577ec339fcbaf96c7f0ae90d"
+              "hex": "beeb26b61c2a15145533a9272ebe8791e124cac5d95b2886399ba3db162cbe51"
             }
           }
         },
@@ -12707,17 +12734,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "6244e5f16e2ba121459f8b4f6cf924a84bd6fdf203ff2f23a6f1e92c360b564a"
+          "hex": "24f6f27630e524dd6eede0324a5f2ca40fc4858becc921a5c39e6c47ec4bd076"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94S90Y",
+        "tool_instance_id": "tin_01M2DG020980080021AN94SV0Y",
         "tool_id": "tol_01M2DG020980080021AN94200Y",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "6"
+          "definition_revision": "7"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -12725,7 +12752,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "7b67a9a9a048693dead7c62ad2d0cc13cd6500cafc7ec50e9409e53d26a777f4"
+            "hex": "246bb093df6daef107e7aa69ad486ef015196d64f8b0742d2be25dfc467422d6"
           }
         },
         "enabled": true,
@@ -13264,14 +13291,14 @@
         "tool_id": "tol_01M2DG020980080021AN942011",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "1"
+          "definition_revision": "3"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "terminal.open",
         "display_name": "Open an interactive terminal",
-        "model_description": "Open an Agent-owned PowerShell 7 or CMD terminal in this session. shell defaults to powershell, working_directory to the workspace root. It runs as the user's Windows account, is not sandboxed, and network blocking is not enforced. Read-only mode asks for run approval; Shell's session run approval also covers terminal.open and terminal.write. requires_network has the same soft network default and approval as Shell. User terminals are never visible. The terminal stays managed until closed; no automatic replay after interruption.",
+        "model_description": "Open an Agent-owned PowerShell 7 or CMD terminal in this session. shell defaults to powershell, working_directory to the workspace root. It runs as the user's Windows account, is not sandboxed, and network blocking is not enforced. Workspace mode runs it without asking; read-only mode asks for run approval, and Shell's session run approval also covers terminal.open and terminal.write. requires_network has the same soft network default and approval as Shell. User terminals are never visible. The terminal stays managed until closed; no automatic replay after interruption.",
         "model_summary": "Open an interactive terminal",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -13438,17 +13465,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "01ce7beefd7cf983c7f60dc834452140d1b98e723dbddc2faddf780d830cae96"
+          "hex": "26721b9c9edb50e2d0609634a47568bd6113aa02bb5b8a9a7b81f485bac3c357"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN942011",
+        "tool_instance_id": "tin_01M2DG020980080021AN94SV11",
         "tool_id": "tol_01M2DG020980080021AN942011",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "1"
+          "definition_revision": "3"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -13456,7 +13483,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "009df92707b4c1038a3021475fb7e7e5034659e53400b0534b9e048c7f3cf015"
+            "hex": "83f9571741eb029d39f336fb57e766df55d8372f4fbb7a3da659861c11c79e31"
           }
         },
         "enabled": true,
@@ -13480,14 +13507,14 @@
         "tool_id": "tol_01M2DG020980080021AN942012",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "2"
+          "definition_revision": "4"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "terminal.write",
         "display_name": "Write to an interactive terminal",
-        "model_description": "Send input to an Agent terminal in this session; newline submits a line, interrupt sends Ctrl+C first. wait_ms defaults to 2000, up to 30000 and the tool's time limit. until_text returns early when seen. Read-only mode asks for the same run approval as Shell. Returns new plain text with byte offsets; terminal.read pages the retained output. While the user has taken over, model reads and writes are refused; an empty input then waits up to wait_ms for the user to hand it back and returns the terminal's latest output as soon as they do. It is not sandboxed and network blocking is not enforced.",
+        "model_description": "Send input to an Agent terminal in this session; newline submits a line, interrupt sends Ctrl+C first. wait_ms defaults to 2000, up to 30000 and the tool's time limit. until_text returns early when seen. Read-only mode asks for the same run approval as Shell; below Full Access, input that deletes files or writes outside the workspace asks each time and input that downloads asks once per session, as Shell commands do. Returns new plain text with byte offsets; terminal.read pages the retained output. While the user has taken over, model reads and writes are refused; an empty input then waits up to wait_ms for the user to hand it back and returns the terminal's latest output as soon as they do. It is not sandboxed and network blocking is not enforced.",
         "model_summary": "Write to an interactive terminal",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -13657,17 +13684,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "618c82153ddb3c18c933385b72f68d57cb7346ca006c15b172fa4f5006785b56"
+          "hex": "52b9d45d56772d92123c71c7d30e1cc5ea0ef58f92af61ef3b1d643e0d5fafbe"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94SQ12",
+        "tool_instance_id": "tin_01M2DG020980080021AN94SV12",
         "tool_id": "tol_01M2DG020980080021AN942012",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "2"
+          "definition_revision": "4"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -13675,7 +13702,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "c93f18698b5b0c02b85d41be61946065d4d19d0fd2811cfb34cdf4062b73f37c"
+            "hex": "eafa5d01a765efdcc915e0ad69276c79abd54b3e8157ebac60d97d0f60348024"
           }
         },
         "enabled": true,

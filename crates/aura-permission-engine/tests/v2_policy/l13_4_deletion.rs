@@ -62,18 +62,18 @@ fn a_shell_deletion_asks_once_outside_full_access() {
     for mode in [PermissionMode::ReadOnly, PermissionMode::WorkspaceReadWrite] {
         once_only(&shell(mode, true), &format!("a deleting Shell in {mode:?}"));
     }
-    // Without a deletion: read-only still offers this session's approval, and a workspace that
-    // may be written runs an ordinary Shell unasked.
-    let read_only = shell(PermissionMode::ReadOnly, false);
+    // Without a deletion read-only mode asks and offers this session's approval; workspace
+    // mode runs it.
+    let ordinary = shell(PermissionMode::ReadOnly, false);
     let PolicyAuthorization::Ask { proposal } =
-        authorize(&read_only.input(), &read_only.backend, None)
+        authorize(&ordinary.input(), &ordinary.backend, None)
     else {
-        panic!("an ordinary Shell asks in ReadOnly");
+        panic!("an ordinary Shell asks in read-only mode");
     };
     assert!(proposal.allowed_decisions.len() > 2, "{proposal:?}");
-    let writable = shell(PermissionMode::WorkspaceReadWrite, false);
+    let ordinary = shell(PermissionMode::WorkspaceReadWrite, false);
     assert!(matches!(
-        authorize(&writable.input(), &writable.backend, None),
+        authorize(&ordinary.input(), &ordinary.backend, None),
         PolicyAuthorization::Allow { .. }
     ));
 }

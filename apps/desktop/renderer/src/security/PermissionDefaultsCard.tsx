@@ -10,12 +10,13 @@ const MODES: ReadonlyArray<{ value: PermissionMode; label: string; description: 
   {
     value: 'workspace_read_write',
     label: '工作区读写',
-    description: '允许修改工作区文件、公开搜索与网页读取。',
+    description: '允许修改工作区文件、运行命令、公开搜索与网页读取。',
   },
   {
     value: 'full_access',
     label: '完全访问',
-    description: '还允许工具联网与上传文件，具体操作仍受授权约束。',
+    description:
+      '删除、下载与写工作区外的命令也不再询问，还允许工具联网与上传文件，具体操作仍受授权约束。',
   },
 ];
 

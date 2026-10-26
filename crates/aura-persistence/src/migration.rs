@@ -3987,7 +3987,7 @@ pub(crate) fn configure_reader(connection: &Connection) -> Result<(), Persistenc
     Ok(())
 }
 
-fn current_schema_version(connection: &Connection) -> Result<i64, PersistenceError> {
+pub(crate) fn current_schema_version(connection: &Connection) -> Result<i64, PersistenceError> {
     let exists = connection.query_row(
         "SELECT EXISTS(
             SELECT 1 FROM sqlite_master

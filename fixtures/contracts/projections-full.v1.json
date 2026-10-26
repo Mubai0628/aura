@@ -104,6 +104,12 @@
               "catalog_revision": "1",
               "freshness": "unavailable",
               "indexed_at": "fixture",
+              "indexing": {
+                "failure": "fixture",
+                "listed_entries": 1,
+                "state": "building",
+                "unindexed_directories": 1
+              },
               "partitions": [
                 {
                   "file_count": 1,

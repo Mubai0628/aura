@@ -1,6 +1,8 @@
-//! Settings → MCP: list, check, save, trust, untrust, switch, remove, test and describe.
-//! Every change names the registry revision it was made against; trust is given only at the
-//! fingerprint the user was shown, and never comes from a save.
+//! Settings → MCP: list, check, save, trust, untrust, switch, remove, test and describe, and put a
+//! plugin server's own configuration back. Every change names the registry revision it was made
+//! against; trust is given only at the fingerprint the user was shown, and never comes from a save.
+mod brought;
+
 use super::McpRuntime;
 use aura_config::SettingsFacadeError;
 use aura_mcp::{
@@ -76,7 +78,10 @@ impl McpContext {
             }
             "agent.mcp.set_enabled" => {
                 let request: McpSetEnabledRequest = serde_json::from_value(params)?;
-                self.not_from_plugin(&request.id)?;
+                if let Some(plugin) = self.runtime.plugin_of(&request.id) {
+                    let view = self.switch_brought(&plugin, &request.id, request.enabled)?;
+                    return Ok(serde_json::to_value(view)?);
+                }
                 serde_json::to_value(self.change(
                     &request.id,
                     request.expected_revision,
@@ -98,6 +103,13 @@ impl McpContext {
                 self.runtime.release_secrets(removed.as_ref(), None);
                 self.runtime.sign_out(&request.id);
                 serde_json::to_value(self.view(false))?
+            }
+            "agent.mcp.restore_plugin_default" => {
+                let request: McpServerRequest = serde_json::from_value(params)?;
+                let plugin = self.runtime.plugin_of(&request.id).ok_or_else(|| {
+                    anyhow::anyhow!("mcp.not_from_plugin: 这个服务器不是插件带来的")
+                })?;
+                serde_json::to_value(self.restore_brought(&plugin, &request.id)?)?
             }
             "agent.mcp.refresh" => {
                 let request: McpRefreshRequest = serde_json::from_value(params)?;
@@ -132,11 +144,11 @@ impl McpContext {
         Ok(find(&mut servers, id)?.clone())
     }
 
-    /// A plugin's server is edited, switched and removed with its plugin.
+    /// A plugin's server is trusted and removed with its plugin.
     fn not_from_plugin(&self, id: &str) -> anyhow::Result<()> {
         match self.runtime.plugin_of(id) {
             Some(plugin) => anyhow::bail!(
-                "mcp.from_plugin: 这个服务器来自插件 {plugin}，请在 设置 → 插件 里管理"
+                "mcp.from_plugin: 这个服务器来自插件 {plugin}，它的信任和移除都随插件"
             ),
             None => Ok(()),
         }
@@ -195,20 +207,37 @@ impl McpContext {
     fn save(&self, request: McpSaveRequest) -> anyhow::Result<McpRegistryView> {
         let problems = aura_mcp::validate_server(&request.server);
         anyhow::ensure!(problems.is_empty(), "mcp.invalid_server: {}", problems.join("；"));
+        let plugin = self.runtime.plugin_of(&request.server.id);
+        // A plugin's server may also name the secrets its plugin keeps for it.
+        let own: Vec<_> = plugin
+            .as_ref()
+            .and_then(|plugin| self.runtime.settings().plugin_registry().plugin(plugin).cloned())
+            .map(|setting| {
+                setting
+                    .secrets
+                    .iter()
+                    .filter(|secret| secret.server == request.server.id)
+                    .map(|secret| secret.secret_id)
+                    .collect()
+            })
+            .unwrap_or_default();
         for secret in request.server.transport.secret_ids() {
             anyhow::ensure!(
-                self.runtime.secrets().belongs_to(&request.server.id, secret),
+                own.contains(&secret)
+                    || self.runtime.secrets().belongs_to(&request.server.id, secret),
                 "mcp.secret_unknown: 密钥不存在或不属于这个服务器，请重新填写密钥"
             );
         }
-        if let Some(id) = &request.replaces {
-            self.not_from_plugin(id)?;
-        }
-        if let Some(plugin) = self.runtime.plugin_of(&request.server.id) {
-            anyhow::bail!(
+        if let Some(plugin) = plugin {
+            anyhow::ensure!(
+                request.replaces.is_some(),
                 "mcp.duplicate_id: 已有 id 为 {} 的服务器（来自插件 {plugin}）",
                 request.server.id
             );
+            return self.save_brought(&plugin, request);
+        }
+        if let Some(id) = &request.replaces {
+            self.not_from_plugin(id)?;
         }
         let registry = self.registry()?;
         let mut servers = registry.servers;

@@ -124,11 +124,15 @@ pub fn resolve(
     let consent = match choice {
         ApprovalDecisionKind::AllowSession
             if backend_class_can_hold_a_session_consent(backend_class)
-                && approval
-                    .scope
-                    .capability_limit
-                    .as_ref()
-                    .is_none_or(|caps| caps.contains(&ResolvedCapability::ProcessExecute)) =>
+                && approval.scope.capability_limit.as_ref().is_none_or(|caps| {
+                    caps.iter().any(|cap| {
+                        matches!(
+                            cap,
+                            ResolvedCapability::ProcessExecute
+                                | ResolvedCapability::DownloadArtifact
+                        )
+                    })
+                }) =>
         {
             identity.session_id.and_then(|session_id| {
                 native_session_consent_scope(

@@ -14,6 +14,8 @@ import { userMessage } from './agent-session/user-message';
 import { OceanBackdrop } from './ocean/OceanBackdrop';
 import { ConversationAttachments } from './composer-attachments/ConversationAttachments';
 import { FULL_ACCESS_DELETES } from './security/full-access-notice';
+import { SendingMessage } from './agent-session/SendingMessage';
+import { useSending } from './agent-session/sending';
 
 export function NewSessionView({
   draft,
@@ -27,6 +29,7 @@ export function NewSessionView({
   onInspect: (sessionId: string) => void;
 }) {
   const catalog = useDraftModelChoices();
+  const sending = useSending(draft.id);
   const [defaultMode, setDefaultMode] = useState<PermissionMode>();
   const [confirmFull, setConfirmFull] = useState(false);
   const binding = useRef<{ sessionId: string; revision: string; modelId: string } | undefined>(
@@ -101,11 +104,17 @@ export function NewSessionView({
       </header>
       <div className="new-session-body">
         <OceanBackdrop />
-        <div className="new-session-welcome">
-          <span>AURA</span>
-          {/* No subtitle under the title. */}
-          <h1>从一个想法开始</h1>
-        </div>
+        {sending ? (
+          <div className="new-session-sending">
+            <SendingMessage sending={sending} />
+          </div>
+        ) : (
+          <div className="new-session-welcome">
+            <span>AURA</span>
+            {/* No subtitle under the title. */}
+            <h1>从一个想法开始</h1>
+          </div>
+        )}
         <div className="new-session-composer">
           {draft.serverSessionId && draft.needsReview && (
             <button

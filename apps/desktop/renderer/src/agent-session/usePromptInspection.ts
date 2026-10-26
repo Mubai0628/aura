@@ -60,7 +60,8 @@ export function usePromptInspection(
         selected.mode === 'step' ? step : null,
       ])
     : undefined;
-  // A projection poll or streamed answer alone does not change the request being inspected.
+  // A projection poll or streamed answer alone does not change the request being inspected; its
+  // end does, since the step's cache use is known only then.
   const requestKey =
     selected && step
       ? JSON.stringify([
@@ -68,7 +69,7 @@ export function usePromptInspection(
           step,
           selected.ordinal,
           selected.mode === 'latest'
-            ? [latest.contextSnapshotId, latest.usage, latest.compactionRunning]
+            ? [latest.contextSnapshotId, latest.usage, latest.compactionRunning, latest.finished]
             : null,
         ])
       : undefined;

@@ -25,14 +25,26 @@ impl FsToolService {
             return Err(FsToolError::ScopeUnavailable);
         }
         let directory = input.path.into_relative();
-        let resolved = self.resolver(workspace_id)?.resolve_existing(&directory)?;
+        let resolver = self.resolver(workspace_id)?;
+        let resolved = resolver.resolve_existing(&directory)?;
         if !resolved.info.is_directory {
             return Err(aura_workspace::WorkspaceError::WrongKind { path: directory }.into());
         }
         let after = input.cursor.as_ref().map(|cursor| cursor.after_path.relative().clone());
-        let (entries, catalog_revision, directory_revision) = self
-            .catalog(workspace_id)?
-            .children_page(&directory, after.as_ref(), input.limit as usize + 1)?;
+        let catalog = self.catalog(workspace_id)?;
+        let page = input.limit as usize + 1;
+        // A folder the index stops above (an ignored one, or one below it) is read from disk.
+        let (entries, catalog_revision, directory_revision) =
+            match aura_workspace::children_beyond_index(
+                &catalog,
+                &resolver,
+                &directory,
+                after.as_ref(),
+                page,
+            )? {
+                Some((entries, revision)) => (entries, revision, revision),
+                None => catalog.children_page(&directory, after.as_ref(), page)?,
+            };
         if let Some(cursor) = &input.cursor
             && (cursor.directory.relative() != &directory
                 || cursor.catalog_revision != directory_revision)
@@ -44,7 +56,6 @@ impl FsToolService {
         let truncated = entries.len() > input.limit as usize;
         let after_examined =
             entries.iter().take(input.limit as usize).next_back().map(|e| e.path.clone());
-        let resolver = self.resolver(workspace_id)?;
         let entries = entries
             .into_iter()
             .take(input.limit as usize)

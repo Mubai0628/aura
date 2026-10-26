@@ -142,6 +142,26 @@ pub(super) fn protected_resource(
     Ok(ProtectedResource { resource, authorization_server, scopes })
 }
 
+/// GitHub's web sign-in redeems the code only with the app's own client secret, which a desktop
+/// program cannot hold, so the one route that works is a personal access token.
+pub(super) const GITHUB_TOKEN_NEEDED: &str = "GitHub 的网页登录要求应用自己的客户端密钥，Aura 无法用它登录。请把这个服务器的“认证”改为“密钥（Authorization: Bearer）”，填写 GitHub 个人访问令牌（在 github.com → Settings → Developer settings → Personal access tokens 里创建）。";
+pub(super) const CLIENT_ID_NEEDED: &str = "授权服务器不支持自动注册。请在服务器设置的“认证”里填写你在这个服务上注册的应用的客户端 ID，或改用“密钥（Authorization: Bearer）”。";
+
+/// Why signing in at this authorization server cannot work, decided before a browser opens.
+pub(super) fn sign_in_refusal(
+    authorization_endpoint: &str,
+    registration_endpoint: Option<&str>,
+    client_id: Option<&str>,
+) -> Option<&'static str> {
+    let github = url::Url::parse(authorization_endpoint).ok().and_then(|url| {
+        url.host_str().map(|host| host == "github.com" || host.ends_with(".github.com"))
+    });
+    if github == Some(true) {
+        return Some(GITHUB_TOKEN_NEEDED);
+    }
+    (client_id.is_none() && registration_endpoint.is_none()).then_some(CLIENT_ID_NEEDED)
+}
+
 /// An authorization server's endpoints, checked to follow the address rules.
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub(super) struct AuthorizationServer {
@@ -209,6 +229,39 @@ mod tests {
         assert_eq!(read.scope.as_deref(), Some("repo read:org"));
         assert_eq!(challenge("bearer scope=files").scope.as_deref(), Some("files"));
         assert_eq!(challenge("Basic realm=x"), Challenge::default());
+    }
+
+    #[test]
+    fn github_asks_for_a_personal_access_token_with_or_without_a_client_id() {
+        for client in [None, Some("aura")] {
+            assert_eq!(
+                sign_in_refusal("https://github.com/login/oauth/authorize", None, client),
+                Some(GITHUB_TOKEN_NEEDED)
+            );
+        }
+        assert_eq!(
+            sign_in_refusal(
+                "https://enterprise.github.com/login/oauth/authorize",
+                Some("https://enterprise.github.com/register"),
+                None
+            ),
+            Some(GITHUB_TOKEN_NEEDED)
+        );
+        assert_eq!(
+            sign_in_refusal("https://notgithub.com/authorize", Some("https://r"), None),
+            None
+        );
+    }
+
+    #[test]
+    fn a_server_without_registration_needs_a_client_id_unless_one_is_set() {
+        let authorize = "https://auth.example.com/authorize";
+        assert_eq!(sign_in_refusal(authorize, None, None), Some(CLIENT_ID_NEEDED));
+        assert_eq!(
+            sign_in_refusal(authorize, Some("https://auth.example.com/register"), None),
+            None
+        );
+        assert_eq!(sign_in_refusal(authorize, None, Some("my-app")), None);
     }
 
     #[test]

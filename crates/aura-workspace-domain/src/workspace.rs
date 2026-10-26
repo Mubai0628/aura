@@ -75,6 +75,30 @@ pub struct WorkspaceCatalogStatus {
     pub indexed_at: Option<String>,
     pub watcher_state: WorkspaceWatcherState,
     pub partitions: Vec<CatalogPartitionSummary>,
+    /// The index build, while it runs or when it did not finish the whole tree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indexing: Option<WorkspaceIndexingStatus>,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceIndexingStatus {
+    pub state: WorkspaceIndexingState,
+    /// Entries the running or last walk listed.
+    pub listed_entries: u64,
+    /// Folders recorded but not entered: past the entry cap, or with memory low.
+    pub unindexed_directories: u64,
+    /// Why the build failed, when it did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceIndexingState {
+    Building,
+    Incomplete,
+    Failed,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

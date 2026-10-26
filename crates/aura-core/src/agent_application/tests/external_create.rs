@@ -28,6 +28,12 @@ async fn an_authorized_external_file_is_created_through_the_model_loop() {
     let session =
         create_session(&runtime, workspace.workspace_id, PermissionMode::FullAccess).await;
     let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
+    // The workspace's first index walk commits after the create returns; compare from after it.
+    services
+        .p03_required()
+        .workspace
+        .wait_until_indexed(std::time::Duration::from_secs(60))
+        .expect("the first walk");
     let revision_before = services
         .p03_required()
         .workspace

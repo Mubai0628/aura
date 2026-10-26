@@ -1734,6 +1734,11 @@ export type WorkspaceLifecycleState =
   | 'failed';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorkspaceIndexingState".
+ */
+export type WorkspaceIndexingState = 'building' | 'incomplete' | 'failed';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "CatalogIndexMode".
  */
 export type CatalogIndexMode = 'full_text' | 'metadata_only';
@@ -6624,7 +6629,8 @@ export type FsSearchIncompleteReason =
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "FsSkippedScopeReason".
  */
-export type FsSkippedScopeReason = 'protected_scope' | 'control_authority' | 'target_unavailable';
+export type FsSkippedScopeReason =
+  ('protected_scope' | 'control_authority' | 'target_unavailable') | 'not_indexed';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "WorkspaceLifecycleOperation".
@@ -11628,7 +11634,7 @@ export interface ArtifactRecord {
  */
 export interface CoreHealthProjection {
   /**
-   * Long work that holds Core's stores, while it has run for a while ("Core 正忙").
+   * A deletion Core is doing in the background, once it has run for a while.
    */
   busy?: CoreBusyV1 | null;
   read_only: boolean;
@@ -11639,8 +11645,8 @@ export interface CoreHealthProjection {
   status_message: string;
 }
 /**
- * The long work Core is doing that holds its stores — other requests wait
- * behind it — and since when.
+ * A deletion Core is doing in the background, in short steps other requests are served
+ * between, and since when.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "CoreBusyV1".
@@ -11766,8 +11772,31 @@ export interface WorkspaceCatalogStatus {
   catalog_revision: Revision;
   freshness: CatalogFreshness;
   indexed_at?: string | null;
+  /**
+   * The index build, while it runs or when it did not finish the whole tree.
+   */
+  indexing?: WorkspaceIndexingStatus | null;
   partitions: CatalogPartitionSummary[];
   watcher_state: WorkspaceWatcherState;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorkspaceIndexingStatus".
+ */
+export interface WorkspaceIndexingStatus {
+  /**
+   * Why the build failed, when it did.
+   */
+  failure?: string | null;
+  /**
+   * Entries the running or last walk listed.
+   */
+  listed_entries: number;
+  state: WorkspaceIndexingState;
+  /**
+   * Folders recorded but not entered: past the entry cap, or with memory low.
+   */
+  unindexed_directories: number;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -21135,9 +21164,13 @@ export interface McpServerView {
   fingerprint?: string | null;
   last_error?: string | null;
   /**
-   * The plugin that brings it; it is changed and removed with the plugin.
+   * The plugin that brings it; it is removed with the plugin.
    */
   plugin?: string | null;
+  /**
+   * A plugin's server the user saved with a configuration of their own.
+   */
+  plugin_changed?: boolean;
   problems: string[];
   protocol_version?: string | null;
   resolved_command?: ResolvedCommand | null;
@@ -22505,6 +22538,11 @@ export interface PluginListRequest {}
  * via the `definition` "PluginPendingView".
  */
 export interface PluginPendingView {
+  /**
+   * The servers the user configured whose own configuration this version changes or no
+   * longer has, by display name.
+   */
+  changed_servers?: string[];
   counts: PluginCounts;
   fingerprint?: string | null;
   problems: string[];
@@ -22948,8 +22986,8 @@ export interface ShellExecuteInput {
    */
   max_output_bytes?: number;
   /**
-   * Default false. Set true when the script needs the network; read-only and
-   * workspace modes then ask for network approval. It declares a need and never
+   * Default false. Set true when the script needs the network; read-only mode
+   * then asks for network approval. It declares a need and never
    * grants access by itself.
    */
   requires_network?: boolean;
@@ -23916,6 +23954,26 @@ export interface WorkspaceFileOpenRequest {
    */
   path: string;
   session_id: SessionId;
+  workspace_id: WorkspaceId;
+}
+/**
+ * Walks a workspace's folder again for its file index, after a build that failed.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorkspaceIndexRebuildRequest".
+ */
+export interface WorkspaceIndexRebuildRequest {
+  workspace_id: WorkspaceId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorkspaceIndexRebuildStarted".
+ */
+export interface WorkspaceIndexRebuildStarted {
+  /**
+   * False when a walk of the folder was already running; nothing more was started.
+   */
+  started: boolean;
   workspace_id: WorkspaceId;
 }
 /**

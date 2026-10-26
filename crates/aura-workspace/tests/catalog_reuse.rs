@@ -30,16 +30,19 @@ fn persistence(data: &std::path::Path) -> Arc<PersistenceCoordinator> {
     }
 }
 
+/// An open whose first walks have finished: they check the saved index after the open returns.
 fn opened(data: &std::path::Path) -> Arc<WorkspaceRuntime> {
-    WorkspaceRuntime::open(persistence(data), WorkspaceRuntimeOptions::default())
-        .expect("runtime open")
+    let runtime = WorkspaceRuntime::open(persistence(data), WorkspaceRuntimeOptions::default())
+        .expect("runtime open");
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walks");
+    runtime
 }
 
 fn create_workspace(
     runtime: &WorkspaceRuntime,
     root: &std::path::Path,
 ) -> aura_domain_common::WorkspaceId {
-    runtime
+    let workspace_id = runtime
         .create(
             WorkspaceCreateCommand {
                 selected_root: root.display().to_string(),
@@ -49,7 +52,9 @@ fn create_workspace(
         )
         .expect("create workspace")
         .workspace
-        .workspace_id
+        .workspace_id;
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
+    workspace_id
 }
 
 fn text_files() -> Vec<(&'static str, &'static str)> {

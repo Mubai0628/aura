@@ -15,15 +15,22 @@ async fn s08_all_modes_offer_only_the_current_user_compat_backend_by_default() {
 
 #[tokio::test]
 async fn s08_shell_requests_only_the_missing_slices_before_an_attempt() {
-    for (mode, required) in [
+    // Read-only asks to run and to use the network; workspace mode runs both and asks only for
+    // the download.
+    for (mode, script, required) in [
         (
             PermissionMode::ReadOnly,
+            "echo pending",
             vec![ResolvedCapability::ProcessExecute, ResolvedCapability::OrdinaryNetwork],
         ),
-        (PermissionMode::WorkspaceReadWrite, vec![ResolvedCapability::OrdinaryNetwork]),
+        (
+            PermissionMode::WorkspaceReadWrite,
+            "git fetch",
+            vec![ResolvedCapability::DownloadArtifact],
+        ),
     ] {
         let f = Fixture::with_exposure(mode, &["shell.cmd"]).await;
-        let batch = f.admit(&[("shell.cmd", json!({"script":"echo pending","requires_network":true,"working_directory":".","stdin":"","timeout_ms":1000,"max_output_bytes":4096}))]);
+        let batch = f.admit(&[("shell.cmd", json!({"script":script,"requires_network":true,"working_directory":".","stdin":"","timeout_ms":1000,"max_output_bytes":4096}))]);
         let id = batch.batch.calls[0].tool_call_id;
         match f.execute_rejecting(batch).await.expect("real Core answers") {
             BatchOutcome::AwaitingApproval { proposal, .. } => {

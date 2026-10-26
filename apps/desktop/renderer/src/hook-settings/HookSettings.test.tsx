@@ -254,7 +254,7 @@ test('nothing is requested before Core is ready', () => {
   expect(screen.getByRole('button', { name: '添加 Hook…' })).toHaveProperty('disabled', true);
 });
 
-test('a plugin’s Hook is listed after the user’s own and is managed with its plugin', async () => {
+test('a plugin’s Hook is listed after the user’s own, switched here, and trusted and removed with its plugin', async () => {
   api.listHooks.mockResolvedValue(
     registry([
       entry('guard'),
@@ -265,9 +265,9 @@ test('a plugin’s Hook is listed after the user’s own and is managed with its
   await screen.findByText('checker', { selector: 'strong' });
   const row = rowOf('checker');
   expect(within(row).getByText('插件 kit')).toBeTruthy();
-  for (const name of ['预览', '停用', '撤销信任', '上移 checker', '下移 checker', '移除'])
+  for (const name of ['预览', '撤销信任', '上移 checker', '下移 checker', '移除'])
     expect(within(row).queryByRole('button', { name })).toBeNull();
-  expect(within(row).getByText(/在你自己的 Hook 之后运行/u)).toBeTruthy();
+  expect(within(row).getByRole('button', { name: '停用' })).toBeTruthy();
   // The user's own Hook cannot be moved below a plugin's.
   expect(
     (within(rowOf('guard')).getByRole('button', { name: '下移 guard' }) as HTMLButtonElement)

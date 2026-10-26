@@ -392,6 +392,7 @@ export function WorkspaceView({
             <div className="conversation-column" ref={conversationColumnRef}>
               <FileLinkContext.Provider value={fileLinks}>
                 <Conversation
+                  sessionId={selectedSession.id}
                   onToolCompleted={setToolCompletion}
                   projection={agent.projection}
                   loading={agent.loading}

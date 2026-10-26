@@ -169,6 +169,13 @@
   width: min(900px, 100%);
   margin: 20px auto 0;
 }
+/* The first message, while it is sent, where the conversation will show it. */
+.new-session-sending {
+  position: relative;
+  z-index: 1;
+  width: min(900px, 100%);
+  margin: auto auto 0;
+}
 .draft-inspect {
   border: 1px solid var(--line);
   border-radius: 8px;

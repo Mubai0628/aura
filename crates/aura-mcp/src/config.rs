@@ -138,6 +138,7 @@ pub struct McpServerConfig {
     #[serde(default = "default_call_timeout")]
     pub call_timeout_ms: u64,
     /// Saved for multi-agent; no sub-agent exists yet.
+    // UNWIRED: no child agent exists to read it.
     #[serde(default)]
     pub available_for_subagents: bool,
 }

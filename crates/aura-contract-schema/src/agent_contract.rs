@@ -71,6 +71,8 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
         OpenedOutside,
         ClipboardWriteRequest,
         ClipboardWritten,
+        WorkspaceIndexRebuildRequest,
+        WorkspaceIndexRebuildStarted,
         AgentSessionBranchRequest,
         AgentBranchOrigin,
         AgentSessionBranchResult,

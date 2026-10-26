@@ -1,5 +1,7 @@
 //! Owned installation management only. No user command execution, DNS probes,
 //! RPC experiments, process payloads, or test acceptance shortcuts.
+//! UNWIRED: not in the release layout (scripts/release/layout.mjs); only the development setup
+//! builds it.
 use anyhow::{Result, bail};
 use std::path::Path;
 mod acceptance;

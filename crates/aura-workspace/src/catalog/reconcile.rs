@@ -217,6 +217,7 @@ impl PathCatalog {
                 scan.persisted_entries,
                 scan.persisted_partitions,
                 correlation_id,
+                crate::catalog::build::walk_stop(),
             )? {
                 CatalogCommitOutcome::Applied(revision) => revision,
                 CatalogCommitOutcome::Refused(CatalogCommitRefusal::RevisionMoved { .. }) => {
@@ -230,7 +231,8 @@ impl PathCatalog {
                 // facts saying no for a reason re-reading cannot fix.
                 CatalogCommitOutcome::Refused(
                     CatalogCommitRefusal::InstanceReplaced { .. }
-                    | CatalogCommitRefusal::WorkspaceMissing,
+                    | CatalogCommitRefusal::WorkspaceMissing
+                    | CatalogCommitRefusal::Stopped,
                 ) => {
                     return Err(WorkspaceError::CatalogPlanSuperseded { replans });
                 }
@@ -303,13 +305,12 @@ fn reconcile_workspace(
     let mut pending = Vec::new();
     let mut stats = BTreeMap::<WorkspacePath, PartitionStats>::new();
     let mut watch_directories = vec![resolver.canonical_root().to_path_buf()];
-    let mut ignores = Vec::new();
     let root = WorkspacePath::parse(WorkspacePath::ROOT).expect("root path");
     scan_directory(
         resolver,
         root.clone(),
         root,
-        &mut ignores,
+        &[],
         &mut pending,
         &mut stats,
         &mut watch_directories,

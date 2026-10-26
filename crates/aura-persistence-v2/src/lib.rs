@@ -12,6 +12,7 @@ pub mod model;
 pub mod network_consents;
 pub mod packages;
 mod schema_migration;
+pub use schema_migration::migration_pending;
 pub mod security;
 pub mod security_approval;
 pub mod session_purge;

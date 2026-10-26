@@ -5,6 +5,9 @@ mod reasoning;
 // The browser's screenshots a model that takes images is sent.
 #[path = "screenshots.rs"]
 pub(super) mod screenshots;
+// The capability modules each loaded tool brings to the prompt.
+#[path = "prompt_capabilities.rs"]
+mod prompt_capabilities;
 
 impl AgentApplication {
     pub(in crate::agent_application) async fn prepare(
@@ -293,21 +296,7 @@ impl AgentApplication {
                 .schema_set
                 .tools
                 .iter()
-                .flat_map(|s| {
-                    let name = s.canonical_name.to_string();
-                    if name.starts_with("memory.") {
-                        vec![name, "memory".into()]
-                    } else if name.starts_with("workspace_init.") {
-                        vec![name, "workspace_init".into()]
-                    } else if name.starts_with("commands.") {
-                        vec![name, "command_authoring".into()]
-                    } else if name.starts_with("web.") || name.starts_with("http.") {
-                        // The web module, which named a capability nothing produced.
-                        vec![name, "web".into()]
-                    } else {
-                        vec![name]
-                    }
-                })
+                .flat_map(|s| prompt_capabilities::capabilities_of(&s.canonical_name.to_string()))
                 .chain(
                     (purpose == AgentTaskPurpose::Compaction)
                         .then(|| "compaction_command".to_owned()),
@@ -325,6 +314,7 @@ impl AgentApplication {
             let journal = Arc::clone(&self.execution.journal);
             let turn_task_id = turn.turn_task_id;
             let session_id = turn.session_id;
+            let (provider, model) = (snapshot.provider_id, snapshot.model_name.clone());
             self.store
                 .run_critical(
                     StoreStep::run(run_id, "agent.context.inspector"),
@@ -340,7 +330,10 @@ impl AgentApplication {
                             aura_persistence_v2::agent::inspector::previous_context(
                                 db, session_id,
                             )?,
-                            aura_persistence_v2::agent::counted_request::latest(db, session_id)?,
+                            // A new conversation borrows another one's count of this model.
+                            aura_persistence_v2::agent::counted_request::for_model(
+                                db, session_id, &provider, &model,
+                            )?,
                         ))
                     },
                 )
@@ -634,8 +627,9 @@ impl AgentApplication {
     }
 }
 
-/// The conversation's newest counted request as a measurement for this one: only the same
-/// model's, because another model's tokenizer counts the same text differently.
+/// A counted request (this conversation's, or before it has one another conversation's) as a
+/// measurement for this one: only the same model's, because another model's tokenizer counts
+/// the same text differently.
 fn measured(
     counted: aura_persistence_v2::agent::counted_request::CountedRequest,
     now: &ModelExecutionSnapshot,

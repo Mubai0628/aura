@@ -1,26 +1,40 @@
-//! The data an update could change, kept from before a newer version's first start. A trial that
-//! fails puts it back before the version it replaced starts again; going back to an older version
-//! puts it back only when the user asked for that (`launcher/restore.v1.json`), because it drops
-//! what was written since.
+//! The data an update could change, kept from before a newer version's first start. Only a store
+//! the new version will migrate is copied: its own Core says which (`--store-migration-check`),
+//! and an answer that cannot be had copies them all. A trial that fails puts the copy back before
+//! the version it replaced starts again; going back to an older version puts it back only when
+//! the user asked for that (`launcher/restore.v1.json`), because it drops what was written since.
 use std::{
+    collections::BTreeSet,
     fs, io,
+    io::{Read, Write},
     path::{Path, PathBuf},
+    process::{Command, Stdio},
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result};
 use aura_domain_common::UtcTimestamp;
 use serde::{Deserialize, Serialize};
 
-/// The stores, relative to the data folder: Aura's two databases with their journals.
-const STORES: &[&str] = &[
-    "data/aura.db",
-    "data/aura.db-wal",
-    "data/aura.db-shm",
-    "data/v2-execution/aura-v2.db",
-    "data/v2-execution/aura-v2.db-wal",
-    "data/v2-execution/aura-v2.db-shm",
+/// Aura's two databases, each with its journals: a group is copied and put back as a whole, so a
+/// database never meets a journal from another moment.
+const GROUPS: &[(&str, &[&str])] = &[
+    ("data/aura.db", &["data/aura.db", "data/aura.db-wal", "data/aura.db-shm"]),
+    (
+        "data/v2-execution/aura-v2.db",
+        &[
+            "data/v2-execution/aura-v2.db",
+            "data/v2-execution/aura-v2.db-wal",
+            "data/v2-execution/aura-v2.db-shm",
+        ],
+    ),
 ];
 pub const RESTORE_FILE: &str = "launcher/restore.v1.json";
+/// The new version's Core answers in well under a second; this only bounds a hung one.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
+/// Room beyond the copy itself, in percent of it.
+const SPACE_MARGIN_PERCENT: u64 = 10;
+const CHUNK: usize = 4 * 1024 * 1024;
 
 fn backups(data_root: &Path) -> PathBuf {
     data_root.join("backups")
@@ -31,21 +45,139 @@ pub fn backup_folder(data_root: &Path, version: &str) -> PathBuf {
     backups(data_root).join(format!("before-{version}"))
 }
 
-fn copy_stores(from: &Path, to: &Path) -> io::Result<usize> {
-    let mut copied = 0;
-    for store in STORES {
-        let source = from.join(store);
-        if !source.is_file() {
-            continue;
+/// What happened before a newer version's first start.
+#[derive(Debug, Eq, PartialEq)]
+pub enum Taken {
+    Copied {
+        stores: usize,
+        bytes: u64,
+    },
+    /// The new version migrates no store, so its data stays readable by the version before it.
+    NothingToCopy,
+    /// The disk lacks room for the copy; nothing was copied.
+    NoRoom {
+        needed: u64,
+        free: u64,
+    },
+}
+
+/// The stores the new version would migrate, as its Core at `core` answers for `data_root`;
+/// `None` when it could not answer, which copies every store.
+pub fn pending_stores(core: &Path, data_root: &Path) -> Option<BTreeSet<&'static str>> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut child = Command::new(core)
+        .arg("--store-migration-check")
+        .arg(data_root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .ok()?;
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => break,
+            Ok(None) if started.elapsed() < CHECK_TIMEOUT => {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
         }
-        let target = to.join(store);
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::copy(&source, &target)?;
-        copied += 1;
     }
-    Ok(copied)
+    let mut answer = String::new();
+    child.stdout.take()?.read_to_string(&mut answer).ok()?;
+    parse_pending(&answer)
+}
+
+/// A store is left out only when the answer says plainly that it will not be migrated.
+fn parse_pending(answer: &str) -> Option<BTreeSet<&'static str>> {
+    let answer: serde_json::Value = serde_json::from_str(answer.trim()).ok()?;
+    Some(GROUPS.iter().map(|(store, _)| *store).filter(|store| answer[*store] != false).collect())
+}
+
+/// Copies the stores `pending` names (every store when it is `None`) before `version` first
+/// starts; earlier copies go. Nothing has the stores open while the launcher runs no desktop.
+pub fn take(
+    data_root: &Path,
+    version: &str,
+    pending: Option<&BTreeSet<&'static str>>,
+) -> Result<Taken> {
+    take_with(data_root, version, pending, aura_windows_platform::free_disk_space)
+}
+
+fn take_with(
+    data_root: &Path,
+    version: &str,
+    pending: Option<&BTreeSet<&'static str>>,
+    free_space: impl Fn(&Path) -> io::Result<u64>,
+) -> Result<Taken> {
+    let folder = backup_folder(data_root, version);
+    let files: Vec<&str> = GROUPS
+        .iter()
+        .filter(|(store, _)| pending.is_none_or(|pending| pending.contains(store)))
+        .flat_map(|(_, files)| files.iter().copied())
+        .filter(|file| data_root.join(file).is_file())
+        .collect();
+    if files.is_empty() {
+        // An older copy belongs to an older version's start and could only put back older data.
+        remove_folders(data_root, "before-", &folder);
+        return Ok(Taken::NothingToCopy);
+    }
+    let bytes = files
+        .iter()
+        .map(|file| fs::metadata(data_root.join(file)).map(|m| m.len()).unwrap_or(0))
+        .sum::<u64>();
+    fs::create_dir_all(backups(data_root))?;
+    let needed = bytes + bytes * SPACE_MARGIN_PERCENT / 100;
+    if let Ok(free) = free_space(&backups(data_root))
+        && free < needed
+    {
+        return Ok(Taken::NoRoom { needed, free });
+    }
+    let staging = backups(data_root).join(format!(".taking-{version}"));
+    let _ = fs::remove_dir_all(&staging);
+    let copied = aura_windows_platform::with_progress_window(
+        "Aura",
+        "正在备份数据，准备启动新版本",
+        |progress| {
+            progress.set_total(bytes);
+            files.iter().try_for_each(|file| {
+                copy_counted(&data_root.join(file), &staging.join(file), |n| progress.advance(n))
+            })
+        },
+    );
+    if let Err(error) = copied {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(error).context("cannot copy Aura's data before the update");
+    }
+    let _ = fs::remove_dir_all(&folder);
+    fs::rename(&staging, &folder)?;
+    remove_folders(data_root, "before-", &folder);
+    Ok(Taken::Copied { stores: files.len(), bytes })
+}
+
+/// Copies one file in chunks, reporting each chunk, so a large store shows its progress.
+fn copy_counted(from: &Path, to: &Path, mut advance: impl FnMut(u64)) -> io::Result<()> {
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut source = fs::File::open(from)?;
+    let mut target = fs::File::create(to)?;
+    let mut buffer = vec![0_u8; CHUNK];
+    loop {
+        let read = source.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        target.write_all(&buffer[..read])?;
+        advance(read as u64);
+    }
+    target.sync_all()
 }
 
 fn remove_folders(data_root: &Path, prefix: &str, keep: &Path) {
@@ -57,21 +189,8 @@ fn remove_folders(data_root: &Path, prefix: &str, keep: &Path) {
     }
 }
 
-/// Copies the stores before `version` first starts; earlier copies go. Nothing has the stores
-/// open while the launcher runs no desktop.
-pub fn take(data_root: &Path, version: &str) -> Result<usize> {
-    let folder = backup_folder(data_root, version);
-    let staging = backups(data_root).join(format!(".taking-{version}"));
-    let _ = fs::remove_dir_all(&staging);
-    let copied =
-        copy_stores(data_root, &staging).context("cannot copy Aura's data before the update")?;
-    let _ = fs::remove_dir_all(&folder);
-    fs::rename(&staging, &folder)?;
-    remove_folders(data_root, "before-", &folder);
-    Ok(copied)
-}
-
-/// Puts the copy taken before `version` back. The stores it replaces are kept beside it, so
+/// Puts the copy taken before `version` back: each store the copy holds, with its journals, as a
+/// whole; a store the copy does not hold is left as it is. What it replaces is kept beside it, so
 /// nothing written since is lost from disk.
 pub fn restore(data_root: &Path, version: &str) -> Result<bool> {
     let folder = backup_folder(data_root, version);
@@ -80,17 +199,28 @@ pub fn restore(data_root: &Path, version: &str) -> Result<bool> {
     }
     let kept = backups(data_root)
         .join(format!("replaced-{}", UtcTimestamp::now().to_string().replace([':', '.'], "-")));
-    for store in STORES {
-        let current = data_root.join(store);
-        if current.is_file() {
-            let target = kept.join(store);
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent)?;
+    for (store, files) in GROUPS {
+        if !folder.join(store).is_file() {
+            continue;
+        }
+        for file in *files {
+            let current = data_root.join(file);
+            if current.is_file() {
+                let target = kept.join(file);
+                if let Some(parent) = target.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::rename(&current, &target)?;
             }
-            fs::rename(&current, &target)?;
+        }
+        for file in *files {
+            let copy = folder.join(file);
+            if copy.is_file() {
+                copy_counted(&copy, &data_root.join(file), |_| {})
+                    .context("cannot put Aura's earlier data back")?;
+            }
         }
     }
-    copy_stores(&folder, data_root).context("cannot put Aura's earlier data back")?;
     remove_folders(data_root, "replaced-", &kept);
     Ok(true)
 }
@@ -110,68 +240,5 @@ pub fn take_request(data_root: &Path) -> Option<RestoreRequest> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn stores(data: &Path, text: &str) {
-        for store in
-            ["data/aura.db", "data/v2-execution/aura-v2.db", "data/v2-execution/aura-v2.db-wal"]
-        {
-            let path = data.join(store);
-            fs::create_dir_all(path.parent().expect("parent")).expect("folder");
-            fs::write(path, format!("{text} {store}")).expect("store");
-        }
-    }
-
-    fn read(data: &Path, store: &str) -> String {
-        fs::read_to_string(data.join(store)).expect("store")
-    }
-
-    #[test]
-    fn a_copy_taken_before_a_version_puts_the_stores_back_and_keeps_what_it_replaced() {
-        let data = tempfile::tempdir().expect("data");
-        stores(data.path(), "old");
-        assert_eq!(take(data.path(), "0.1.1").expect("take"), 3);
-        stores(data.path(), "migrated");
-        assert!(restore(data.path(), "0.1.1").expect("restore"));
-        assert_eq!(read(data.path(), "data/aura.db"), "old data/aura.db");
-        assert_eq!(
-            read(data.path(), "data/v2-execution/aura-v2.db-wal"),
-            "old data/v2-execution/aura-v2.db-wal"
-        );
-        let kept: Vec<_> = fs::read_dir(data.path().join("backups"))
-            .expect("backups")
-            .flatten()
-            .map(|entry| entry.file_name().to_string_lossy().into_owned())
-            .filter(|name| name.starts_with("replaced-"))
-            .collect();
-        assert_eq!(kept.len(), 1);
-        let replaced = data.path().join("backups").join(&kept[0]);
-        assert_eq!(read(&replaced, "data/aura.db"), "migrated data/aura.db");
-    }
-
-    #[test]
-    fn only_the_latest_copy_stays_and_a_version_without_one_restores_nothing() {
-        let data = tempfile::tempdir().expect("data");
-        stores(data.path(), "first");
-        take(data.path(), "0.1.1").expect("take");
-        take(data.path(), "0.1.2").expect("take again");
-        assert!(!backup_folder(data.path(), "0.1.1").exists());
-        assert!(backup_folder(data.path(), "0.1.2").is_dir());
-        assert!(!restore(data.path(), "0.1.1").expect("nothing to restore"));
-        assert_eq!(read(data.path(), "data/aura.db"), "first data/aura.db");
-    }
-
-    #[test]
-    fn a_restore_request_is_read_once() {
-        let data = tempfile::tempdir().expect("data");
-        let path = data.path().join(RESTORE_FILE);
-        fs::create_dir_all(path.parent().expect("parent")).expect("folder");
-        fs::write(&path, r#"{"before_version":"0.1.1"}"#).expect("request");
-        assert_eq!(
-            take_request(data.path()),
-            Some(RestoreRequest { before_version: "0.1.1".into() })
-        );
-        assert_eq!(take_request(data.path()), None);
-    }
-}
+#[path = "data_backup_tests.rs"]
+mod tests;

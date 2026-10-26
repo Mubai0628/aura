@@ -5,6 +5,8 @@ pub(super) struct WorkspaceWatchHandle {
     join: Option<JoinHandle<()>>,
     state: Arc<RwLock<WorkspaceWatcherState>>,
     stop: Arc<AtomicBool>,
+    /// A walk of the whole folder asked for; the watcher thread runs it.
+    walk: Arc<AtomicBool>,
 }
 
 impl WorkspaceWatchHandle {
@@ -20,19 +22,36 @@ impl WorkspaceWatchHandle {
         rescan_attempts: u32,
         batch_hook: Option<WatcherBatchHook>,
     ) -> Result<Self, WorkspaceError> {
-        let directories = catalog.watch_directories()?;
+        let mut directories = catalog.watch_directories()?;
+        if directories.is_empty() {
+            // A workspace still to be walked: its root is watched until the walk names the rest.
+            directories.push(resolver.canonical_root().to_path_buf());
+        }
         let initial = WorkspaceFileWatcher::start(&directories, poll_interval)
             .map_err(|error| WorkspaceError::Watcher(error.to_string()))?;
         let state = Arc::new(RwLock::new(backend_state(initial.backend())));
         let watcher_path = resolver.canonical_root().to_path_buf();
         let stop = Arc::new(AtomicBool::new(false));
+        let walk = Arc::new(AtomicBool::new(false));
         let thread_stop = Arc::clone(&stop);
+        let thread_walk = Arc::clone(&walk);
         let thread_state = Arc::clone(&state);
         let join = thread::Builder::new()
             .name(format!("aura-workspace-watch-{workspace_id}"))
             .spawn(move || {
                 let mut watcher = initial;
+                first_walk(&mut watcher, &resolver, &catalog, &projection_signals, &thread_stop);
                 while !thread_stop.load(Ordering::Acquire) {
+                    if thread_walk.swap(false, Ordering::AcqRel) {
+                        first_walk(
+                            &mut watcher,
+                            &resolver,
+                            &catalog,
+                            &projection_signals,
+                            &thread_stop,
+                        );
+                        continue;
+                    }
                     let first = match watcher.receiver().recv_timeout(coalesce) {
                         Ok(event) => event,
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
@@ -83,6 +102,8 @@ impl WorkspaceWatchHandle {
                             &catalog,
                             &persistence,
                             &thread_state,
+                            &projection_signals,
+                            &thread_stop,
                         )
                     } else {
                         reconcile_scoped_batch(
@@ -92,6 +113,7 @@ impl WorkspaceWatchHandle {
                             &projection_signals,
                             &events,
                             batch_hook.as_ref(),
+                            &thread_stop,
                         )
                     };
                     // Keep the same receiver so events delivered during this batch survive.
@@ -141,7 +163,12 @@ impl WorkspaceWatchHandle {
                 path: watcher_path,
                 source,
             })?;
-        Ok(Self { join: Some(join), state, stop })
+        Ok(Self { join: Some(join), state, stop, walk })
+    }
+
+    /// Asks the watcher thread for a walk of the whole folder.
+    pub(super) fn request_walk(&self) {
+        self.walk.store(true, Ordering::Release);
     }
 
     pub(super) fn state(&self) -> Result<WorkspaceWatcherState, WorkspaceError> {
@@ -152,11 +179,68 @@ impl WorkspaceWatchHandle {
     }
 }
 
+/// The walk a newly installed workspace starts with. A fresh workspace is usable meanwhile —
+/// listings read the disk and queries wait for the walk a bounded time — and one opened with its
+/// saved index answers from it while the walk checks it against the disk. Afterwards the folders
+/// it found are watched.
+fn first_walk(
+    watcher: &mut WorkspaceFileWatcher,
+    resolver: &SecurePathResolver,
+    catalog: &PathCatalog,
+    signals: &WorkspaceProjectionSignals,
+    stop: &Arc<AtomicBool>,
+) {
+    let _ = walk_whole(catalog, resolver, stop, signals, || {
+        // A walk another commit overtook is refused; it is walked once more.
+        let (_, report) = catalog
+            .reconcile(resolver, CorrelationId::new())
+            .or_else(|_| catalog.reconcile(resolver, CorrelationId::new()))?;
+        // Recorded before the walk ends, so whoever waits for it reads what it found.
+        catalog.build.record(report);
+        Ok(())
+    });
+    if let Ok(directories) = catalog.watch_directories() {
+        let _ = watcher.set_directories(&directories);
+    }
+    let _ = signals.bump();
+}
+
+/// A whole walk of the workspace on its own thread: counted, capped and paced like the first
+/// build, and stopped when the workspace closes. The phase it ends in follows from what it could
+/// not enter.
+fn walk_whole<T>(
+    catalog: &PathCatalog,
+    resolver: &SecurePathResolver,
+    stop: &Arc<AtomicBool>,
+    signals: &WorkspaceProjectionSignals,
+    walk: impl FnOnce() -> Result<T, WorkspaceError>,
+) -> Result<T, WorkspaceError> {
+    // The first walk was marked when the workspace was installed; a later one marks itself.
+    let _ = catalog.build.begin(false);
+    let reports = signals.clone();
+    let progress = catalog.build.progress();
+    let report = move || {
+        let _ = reports.bump();
+    };
+    let walked = crate::catalog::build::with_walk(progress, Arc::clone(stop), report, walk);
+    let _ = catalog.build.finish(walked.as_ref().err().map(ToString::to_string));
+    // Index updates writes asked for while the walk ran are applied now that it has ended.
+    if let Ok(changes) = catalog.build.take_deferred()
+        && !changes.is_empty()
+    {
+        let update = crate::catalog::CatalogUpdate::new(changes, "deferred-during-walk");
+        let _ = catalog.apply_changes(resolver, update, &catalog.options(), CorrelationId::new());
+    }
+    walked
+}
+
 /// Applies one batch of watcher events to the index.
 fn apply_watch_changes(
     resolver: &SecurePathResolver,
     catalog: &PathCatalog,
     events: &[aura_windows_platform::FileWatchEvent],
+    signals: &WorkspaceProjectionSignals,
+    stop: &Arc<AtomicBool>,
 ) -> Result<(), WorkspaceError> {
     // An external change is bounded to the paths that actually changed, so a write
     // inside one directory no longer rescans the whole workspace. A batch that
@@ -166,7 +250,10 @@ fn apply_watch_changes(
     // dropped.
     match crate::catalog::changes_for_watch_events(resolver, catalog, events) {
         crate::catalog::WatchDescription::Undescribed => {
-            catalog.rebuild(resolver, CorrelationId::new()).map(|_| ())
+            walk_whole(catalog, resolver, stop, signals, || {
+                catalog.rebuild(resolver, CorrelationId::new())
+            })
+            .map(|_| ())
         }
         crate::catalog::WatchDescription::Described(changes) if changes.is_empty() => Ok(()),
         crate::catalog::WatchDescription::Described(changes) => catalog
@@ -197,10 +284,13 @@ fn rebuild_after_undescribed_batch(
     catalog: &PathCatalog,
     persistence: &PersistenceCoordinator,
     state: &RwLock<WorkspaceWatcherState>,
+    signals: &WorkspaceProjectionSignals,
+    stop: &Arc<AtomicBool>,
 ) -> Result<(), WorkspaceError> {
     set_watcher_state(state, WorkspaceWatcherState::Rescanning);
     let _ = persistence.mark_catalog_stale(workspace_id);
-    catalog.rebuild(resolver, CorrelationId::new()).map(|_| ())
+    walk_whole(catalog, resolver, stop, signals, || catalog.rebuild(resolver, CorrelationId::new()))
+        .map(|_| ())
 }
 
 /// Brings the watcher's registrations in line with the index, and re-reads the
@@ -275,7 +365,7 @@ fn force_rescan_once(
     persistence: &PersistenceCoordinator,
     projection_signals: &WorkspaceProjectionSignals,
     state: &RwLock<WorkspaceWatcherState>,
-    stop: &AtomicBool,
+    stop: &Arc<AtomicBool>,
     poll_interval: Duration,
     rescan_attempts: u32,
 ) -> Option<WorkspaceFileWatcher> {
@@ -287,13 +377,14 @@ fn force_rescan_once(
         let _ = persistence.mark_catalog_stale(workspace_id);
         set_watcher_state(state, WorkspaceWatcherState::Rescanning);
 
-        let replacement = catalog
-            .rebuild(resolver, CorrelationId::new())
-            .and_then(|_| catalog.watch_directories())
-            .and_then(|directories| {
-                WorkspaceFileWatcher::start(&directories, poll_interval)
-                    .map_err(|error| WorkspaceError::Watcher(error.to_string()))
-            });
+        let replacement = walk_whole(catalog, resolver, stop, projection_signals, || {
+            catalog.rebuild(resolver, CorrelationId::new())
+        })
+        .and_then(|_| catalog.watch_directories())
+        .and_then(|directories| {
+            WorkspaceFileWatcher::start(&directories, poll_interval)
+                .map_err(|error| WorkspaceError::Watcher(error.to_string()))
+        });
 
         if let Ok(watcher) = replacement {
             let _ = projection_signals.bump();
@@ -320,11 +411,41 @@ fn wait_for_watcher_retry(stop: &AtomicBool, duration: Duration) -> bool {
     false
 }
 
-impl Drop for WorkspaceWatchHandle {
-    fn drop(&mut self) {
+/// How long closing a workspace waits for its watcher thread. A thread still in a long index
+/// write ends at its next check of the stop flag, off the closing caller's path.
+const STOP_WAIT: Duration = Duration::from_millis(500);
+
+impl WorkspaceWatchHandle {
+    /// Asks the watcher thread to end, without waiting for it.
+    pub(super) fn signal_stop(&self) {
         self.stop.store(true, Ordering::Release);
+    }
+
+    /// Stops the watcher and waits until its thread has ended.
+    pub(super) fn stop_and_join(mut self) {
+        self.signal_stop();
         if let Some(join) = self.join.take() {
             let _ = join.join();
+        }
+    }
+}
+
+impl Drop for WorkspaceWatchHandle {
+    fn drop(&mut self) {
+        self.signal_stop();
+        let Some(join) = self.join.take() else { return };
+        let waited = Instant::now();
+        while !join.is_finished() && waited.elapsed() < STOP_WAIT {
+            thread::sleep(Duration::from_millis(10));
+        }
+        if join.is_finished() {
+            let _ = join.join();
+        } else {
+            let _ = thread::Builder::new().name("aura-workspace-watch-end".to_owned()).spawn(
+                move || {
+                    let _ = join.join();
+                },
+            );
         }
     }
 }
@@ -350,8 +471,9 @@ fn reconcile_scoped_batch(
     projection_signals: &WorkspaceProjectionSignals,
     events: &[aura_windows_platform::FileWatchEvent],
     hook: Option<&WatcherBatchHook>,
+    stop: &Arc<AtomicBool>,
 ) -> Result<(), WorkspaceError> {
-    let applied = apply_watch_changes(resolver, catalog, events);
+    let applied = apply_watch_changes(resolver, catalog, events, projection_signals, stop);
     if let Some(hook) = hook {
         hook.run();
     }

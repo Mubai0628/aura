@@ -6,3 +6,4 @@
 - [工具](tools.md)
 - [数据与隐私](data-and-privacy.md)
 - [遇到问题时](troubleshooting.md)
+- [尚未实现与已知限制](limitations.md)

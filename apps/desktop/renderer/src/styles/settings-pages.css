@@ -417,3 +417,14 @@
     transform: scale(0.7);
   }
 }
+
+/* Long addresses, paths and quoted errors break inside the page instead of scrolling it sideways;
+   a log block scrolls within itself. */
+.settings-content :is(p, code, dd, li, [role='alert']) {
+  overflow-wrap: anywhere;
+}
+
+.settings-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+}

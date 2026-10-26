@@ -1,6 +1,6 @@
 use super::artifacts::is_internal_component;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, VecDeque},
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -25,6 +25,7 @@ use ignore::{
     gitignore::{Gitignore, GitignoreBuilder},
 };
 
+use super::fuzzy::fuzzy_score;
 use crate::error::io_error;
 use crate::{SecurePathResolver, WorkspaceError};
 
@@ -155,6 +156,7 @@ pub struct PathCatalog {
     /// catalog's own commit path free for the writer it is racing.
     commit_hold: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     open_report: CatalogOpenReport,
+    pub(crate) build: super::build::CatalogBuild,
 }
 
 /// A caller-supplied hold for the catalog's next commit section.
@@ -230,14 +232,24 @@ impl PathCatalog {
     ) -> Result<Self, WorkspaceError> {
         let mut open_report = CatalogOpenReport::default();
         let started = std::time::Instant::now();
-        let (entries, partitions, revision) = persistence.load_workspace_catalog(workspace_id)?;
+        let (mut entries, mut partitions, revision) =
+            persistence.load_workspace_catalog(workspace_id)?;
+        // An index whose write in batches did not finish is not trusted: the folder is walked.
+        let unfinished = persistence.workspace(workspace_id)?.catalog_freshness
+            == aura_workspace_domain::CatalogFreshness::Rebuilding;
+        if unfinished {
+            (entries, partitions) = (Vec::new(), Vec::new());
+        }
         open_report.load_ms = elapsed_ms(started);
         let started = std::time::Instant::now();
         let recent_use = persistence.load_path_recent_use(workspace_id)?.into_iter().collect();
         open_report.recent_use_ms = elapsed_ms(started);
         let started = std::time::Instant::now();
-        let indexed_paths =
-            persistence.workspace_content_paths(workspace_id)?.into_iter().collect();
+        let indexed_paths = if unfinished {
+            Default::default()
+        } else {
+            persistence.workspace_content_paths(workspace_id)?.into_iter().collect()
+        };
         open_report.content_paths_ms = elapsed_ms(started);
         let entries: BTreeMap<_, _> =
             entries.into_iter().map(|entry| (entry.path.clone(), catalog_entry(entry))).collect();
@@ -270,6 +282,7 @@ impl PathCatalog {
             commit: Mutex::new(()),
             commit_hold: Mutex::new(None),
             open_report,
+            build: super::build::CatalogBuild::ready(),
         };
         let started = std::time::Instant::now();
         let repaired = catalog.repair_unproven_text()?;
@@ -435,8 +448,7 @@ impl PathCatalog {
             // the moment it started and nothing else.
             let baseline = self.published_revision()?;
             let scan = scan_workspace(resolver, &self.options)?;
-            // Which paths hold text after this replacement, derived from the same values
-            // the write uses — the records are moved into the write below.
+            // Which paths hold text after this replacement, from the records the write takes.
             let indexed_paths = text_holding_paths(&scan.persisted_entries);
             // The plan is complete and nothing has been validated or written: this is the
             // point a test parks to observe what a commit does with a plan that another
@@ -453,6 +465,7 @@ impl PathCatalog {
                 scan.persisted_entries,
                 scan.persisted_partitions,
                 correlation_id,
+                crate::catalog::build::walk_stop(),
             )?;
             let revision = match outcome {
                 CatalogCommitOutcome::Applied(revision) => revision,
@@ -465,10 +478,10 @@ impl PathCatalog {
                 }
                 CatalogCommitOutcome::Refused(
                     CatalogCommitRefusal::InstanceReplaced { .. }
-                    | CatalogCommitRefusal::WorkspaceMissing,
+                    | CatalogCommitRefusal::WorkspaceMissing
+                    | CatalogCommitRefusal::Stopped,
                 ) => {
-                    // This instance no longer owns the workspace's index: re-walking
-                    // cannot change that, so the loss is reported.
+                    // This instance no longer owns the workspace's index, or it is closing.
                     return Err(WorkspaceError::CatalogPlanSuperseded {
                         replans: MAX_REBUILD_ATTEMPTS,
                     });
@@ -537,6 +550,7 @@ impl PathCatalog {
     /// One locked snapshot of catalog entries and revision so a search cannot
     /// label a stale candidate list with a newer revision.
     pub fn snapshot(&self) -> Result<(Vec<CatalogEntry>, Revision), WorkspaceError> {
+        self.build.wait(super::build::QUERY_WAIT)?;
         let state = self.state.read().map_err(|_| WorkspaceError::LockPoisoned("path catalog"))?;
         Ok((state.entries.values().cloned().collect(), state.revision))
     }
@@ -573,6 +587,7 @@ impl PathCatalog {
         limit: usize,
         scan_budget: u64,
     ) -> Result<NameFindPage, WorkspaceError> {
+        self.build.wait(super::build::QUERY_WAIT)?;
         let state = self.state.read().map_err(|_| WorkspaceError::LockPoisoned("path catalog"))?;
         let patterns = file_names
             .iter()
@@ -658,7 +673,10 @@ impl PathCatalog {
             .read()
             .map_err(|_| WorkspaceError::LockPoisoned("path catalog"))?
             .watch_directories
-            .clone())
+            .iter()
+            .take(super::build::MAX_WATCHED_DIRECTORIES)
+            .cloned()
+            .collect())
     }
 
     pub fn find_paths(
@@ -667,6 +685,7 @@ impl PathCatalog {
         limit: usize,
     ) -> Result<PathSearchResult, WorkspaceError> {
         let query = query.trim().replace('\\', "/").to_lowercase();
+        self.build.wait(super::build::QUERY_WAIT)?;
         let state = self.state.read().map_err(|_| WorkspaceError::LockPoisoned("path catalog"))?;
         let mut matches = state
             .entries
@@ -701,6 +720,7 @@ impl PathCatalog {
     }
 
     pub fn glob(&self, pattern: &str) -> Result<Vec<CatalogEntry>, WorkspaceError> {
+        self.build.wait(super::build::QUERY_WAIT)?;
         let glob = GlobBuilder::new(pattern)
             .literal_separator(true)
             .backslash_escape(false)
@@ -809,12 +829,11 @@ pub(crate) fn scan_workspace(
     let mut pending = Vec::new();
     let mut stats = BTreeMap::<WorkspacePath, PartitionStats>::new();
     let mut watch_directories = vec![resolver.canonical_root().to_path_buf()];
-    let mut ignores = Vec::new();
     scan_directory(
         resolver,
         WorkspacePath::parse(WorkspacePath::ROOT).expect("root path"),
         WorkspacePath::parse(WorkspacePath::ROOT).expect("root path"),
-        &mut ignores,
+        &[],
         &mut pending,
         &mut stats,
         &mut watch_directories,
@@ -871,40 +890,37 @@ pub(crate) fn scan_workspace(
     })
 }
 
+/// Walks `directory`'s subtree outside in, a level at a time, so a build walk that has to stop
+/// early still holds the top of the tree. Each queued folder carries the ignore rules in force
+/// above it, so every ancestor `.gitignore` applies to its listing.
 pub(crate) fn scan_directory(
     resolver: &SecurePathResolver,
     directory: WorkspacePath,
     inherited_partition: WorkspacePath,
-    ignores: &mut Vec<Gitignore>,
+    ignores: &[Gitignore],
     pending: &mut Vec<PendingEntry>,
     stats: &mut BTreeMap<WorkspacePath, PartitionStats>,
     watch_directories: &mut Vec<PathBuf>,
 ) -> Result<(), WorkspaceError> {
-    let (pushed_ignore, listed) =
-        list_directory(resolver, &directory, &inherited_partition, ignores)?;
-    for (entry, child_absolute, _) in listed {
-        let child_path = entry.record.path.clone();
-        let child_partition = entry.record.partition_path.clone();
-        let child_is_directory = entry.record.kind == CatalogEntryKind::Directory;
-        record_stats(stats, entry.record.kind, entry.text_candidate, &entry.record);
-        pending.push(entry);
-        if child_is_directory {
-            watch_directories.push(child_absolute);
-            // Recursing inside the pushed ignore scope keeps every ancestor
-            // `.gitignore` in force for the nested listing.
-            scan_directory(
-                resolver,
-                child_path,
-                child_partition,
-                ignores,
-                pending,
-                stats,
-                watch_directories,
-            )?;
+    let mut queue = VecDeque::from([(directory, inherited_partition, Arc::new(ignores.to_vec()))]);
+    while let Some((directory, partition, inherited)) = queue.pop_front() {
+        if super::build::stop_requested() {
+            return Err(WorkspaceError::Busy { reason: "the workspace is closing".to_owned() });
         }
-    }
-    if pushed_ignore {
-        ignores.pop();
+        let mut rules = inherited.as_ref().clone();
+        let (_, listed) = list_directory(resolver, &directory, &partition, &mut rules)?;
+        super::build::note_listed(listed.len());
+        let rules = Arc::new(rules);
+        for (entry, child_absolute, _) in listed {
+            let descend = entry.record.kind == CatalogEntryKind::Directory && !entry.record.ignored;
+            record_stats(stats, entry.record.kind, entry.text_candidate, &entry.record);
+            if descend && super::build::may_enter(&entry.record.path) {
+                watch_directories.push(child_absolute);
+                let child = (entry.record.path.clone(), entry.record.partition_path.clone());
+                queue.push_back((child.0, child.1, Arc::clone(&rules)));
+            }
+            pending.push(entry);
+        }
     }
     Ok(())
 }
@@ -927,7 +943,7 @@ pub(crate) fn list_directory_once(
         list_directory(resolver, directory, inherited_partition, ignores)?;
     for (entry, child_absolute, is_directory) in listed {
         record_stats(stats, entry.record.kind, entry.text_candidate, &entry.record);
-        if is_directory {
+        if is_directory && !entry.record.ignored {
             watch_directories.push(child_absolute);
         }
         pending.push(entry);
@@ -1295,7 +1311,7 @@ pub(crate) fn is_text_candidate(file_name: &str) -> bool {
     )
 }
 
-fn is_generated_path(path: &WorkspacePath) -> bool {
+pub(crate) fn is_generated_path(path: &WorkspacePath) -> bool {
     path.as_str().split('/').any(|component| {
         matches!(
             component.to_ascii_lowercase().as_str(),
@@ -1454,45 +1470,6 @@ fn apply_line_ending(text: &str, line_ending: LineEnding) -> String {
     }
 }
 
-fn fuzzy_score(entry: &CatalogEntry, query: &str, recent: Option<u64>) -> Option<i64> {
-    if query.is_empty() {
-        return Some(10_000 + recent.map_or(0, |value| i64::try_from(value.min(999)).unwrap_or(0)));
-    }
-    let path = entry.path.as_str().to_lowercase();
-    let name = entry.file_name.to_lowercase();
-    let mut score = if path == query {
-        100_000
-    } else if name == query {
-        90_000
-    } else if name.starts_with(query) {
-        80_000 - i64::try_from(name.len().saturating_sub(query.len())).unwrap_or(10_000)
-    } else if path.split('/').any(|component| component.starts_with(query)) {
-        70_000
-    } else {
-        let gaps = subsequence_gaps(&path, query)?;
-        60_000 - i64::try_from(gaps).unwrap_or(50_000)
-    };
-    score += recent.map_or(0, |value| i64::try_from(value.min(999)).unwrap_or(0));
-    Some(score)
-}
-
-fn subsequence_gaps(value: &str, query: &str) -> Option<usize> {
-    let mut positions = Vec::new();
-    let mut search_start = 0;
-    for query_character in query.chars() {
-        let found = value[search_start..]
-            .char_indices()
-            .find(|(_, character)| *character == query_character)?;
-        let position = search_start + found.0;
-        positions.push(position);
-        search_start = position + found.1.len_utf8();
-    }
-    positions
-        .first()
-        .zip(positions.last())
-        .map(|(first, last)| last.saturating_sub(*first).saturating_sub(query.len()))
-}
-
 /// The version of one directory's own listing.
 ///
 /// It is a digest of the direct children and their content facts, not a counter:
@@ -1509,6 +1486,25 @@ fn directory_version(
         .entries
         .values()
         .filter(|entry| &entry.parent_path == parent)
+        .map(|entry| {
+            (
+                entry.path.as_str(),
+                entry.kind,
+                entry.byte_length,
+                entry.modified_at.as_deref(),
+                entry.content_hash.as_ref().map(ToString::to_string),
+            )
+        })
+        .collect::<Vec<_>>();
+    children.sort_by(|left, right| left.0.cmp(right.0));
+    version_of(&children)
+}
+
+/// The version of one folder's listing as read from disk, from the same facts as
+/// [`directory_version`]: it stays the same while the folder's own children do.
+pub(crate) fn listing_version(entries: &[CatalogEntry]) -> Result<Revision, WorkspaceError> {
+    let mut children = entries
+        .iter()
         .map(|entry| {
             (
                 entry.path.as_str(),
@@ -2161,18 +2157,16 @@ mod tests {
         let workspace = tempfile::tempdir().expect("workspace root");
         std::fs::create_dir_all(workspace.path().join("src")).expect("src");
         std::fs::create_dir_all(workspace.path().join("node_modules/pkg")).expect("generated");
+        std::fs::create_dir_all(workspace.path().join("vendor")).expect("a large tree");
         std::fs::create_dir_all(workspace.path().join(".git")).expect("git metadata");
         std::fs::write(workspace.path().join(".gitignore"), "ignored.txt\nnode_modules/\n")
             .expect("gitignore");
         std::fs::write(workspace.path().join("ignored.txt"), "still catalogued")
             .expect("ignored file");
         std::fs::write(workspace.path().join("src/main.rs"), "fn main() {}").expect("source file");
-        for index in 0..3 {
-            std::fs::write(
-                workspace.path().join(format!("node_modules/pkg/{index}.js")),
-                format!("export const value = {index};"),
-            )
-            .expect("generated file");
+        let files = ["node_modules/pkg/0.js", "vendor/0.js", "vendor/1.js", "vendor/2.js"];
+        for file in files {
+            std::fs::write(workspace.path().join(file), "export const value = 0;").expect("file");
         }
         std::fs::write(workspace.path().join(".git/config"), "[core]").expect("git config");
 
@@ -2191,12 +2185,14 @@ mod tests {
             .expect("entry")
             .expect("ignored is catalogued");
         assert!(ignored.ignored);
+        // An ignored folder is recorded as itself and never entered.
         let generated = catalog
-            .entry(&WorkspacePath::parse("node_modules/pkg/0.js").expect("path"))
+            .entry(&WorkspacePath::parse("node_modules").expect("path"))
             .expect("entry")
-            .expect("generated is catalogued");
-        assert!(generated.ignored);
-        assert!(generated.generated);
+            .expect("the ignored folder is catalogued");
+        assert!(generated.ignored && generated.generated);
+        let below = WorkspacePath::parse("node_modules/pkg/0.js").expect("path");
+        assert!(catalog.entry(&below).expect("entry").is_none());
         assert!(
             catalog
                 .find_paths("config", 10)
@@ -2210,8 +2206,8 @@ mod tests {
         assert_eq!(
             partitions
                 .iter()
-                .find(|partition| partition.partition_path.as_str() == "node_modules")
-                .expect("generated partition")
+                .find(|partition| partition.partition_path.as_str() == "vendor")
+                .expect("large partition")
                 .index_mode,
             CatalogIndexMode::MetadataOnly
         );

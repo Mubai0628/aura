@@ -15,6 +15,7 @@ mod error;
 mod external_approvals;
 mod legacy_configuration_transport;
 mod migration;
+mod migration_check;
 mod model;
 mod model_binding;
 mod model_catalog;
@@ -27,6 +28,7 @@ mod model_projection_fixture;
 mod model_runtime;
 mod mutation_journal;
 mod read_pool;
+mod registry_purge;
 mod security;
 mod session;
 mod session_lifecycle;
@@ -87,6 +89,7 @@ pub use legacy_configuration_transport::{
     HistoricalIntegrityDegradation, LEGACY_CONFIGURATION_TRANSPORT_MIGRATION_KEY,
 };
 pub use migration::{DatabaseOpenOptions, MigrationFaultPoint};
+pub use migration_check::store_migration_pending;
 pub use model::{
     CommittedProjection, DatabasePragmas, EventActor, MigrationRecoveryRequired,
     PersistentEventDraft,

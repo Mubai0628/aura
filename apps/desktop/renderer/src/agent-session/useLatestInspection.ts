@@ -22,6 +22,8 @@ export interface LatestInspection {
   /** The step whose real request the meter shows, when there is one. */
   modelStepId: string | undefined;
   contextSnapshotId: string | undefined;
+  /** That step's request has ended; its cache use is known only then. */
+  finished: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ const meterFor = (
   usage: ContextUsageSummaryView | undefined;
   compactionRunning: boolean;
   contextSnapshotId: string | undefined;
+  finished: boolean;
 } => {
   for (const turn of projection.turns) {
     for (const message of turn.assistant_messages) {
@@ -67,10 +70,16 @@ const meterFor = (
         usage: message.context_usage ?? undefined,
         compactionRunning: message.context_compaction_running === true,
         contextSnapshotId: message.context_snapshot_id ?? undefined,
+        finished: message.partial !== true,
       };
     }
   }
-  return { usage: undefined, compactionRunning: false, contextSnapshotId: undefined };
+  return {
+    usage: undefined,
+    compactionRunning: false,
+    contextSnapshotId: undefined,
+    finished: false,
+  };
 };
 
 export function useLatestInspection(
@@ -85,6 +94,7 @@ export function useLatestInspection(
       compactionRunning: false,
       modelStepId: undefined,
       contextSnapshotId: undefined,
+      finished: false,
     };
   }
   const meter = meterFor(projection, selected.modelStepId);
@@ -96,6 +106,7 @@ export function useLatestInspection(
       compactionRunning: meter.compactionRunning,
       modelStepId: selected.modelStepId,
       contextSnapshotId: meter.contextSnapshotId,
+      finished: meter.finished,
     };
   }
   return {
@@ -107,5 +118,6 @@ export function useLatestInspection(
     compactionRunning: meter.compactionRunning,
     modelStepId: selected.modelStepId,
     contextSnapshotId: meter.contextSnapshotId,
+    finished: meter.finished,
   };
 }

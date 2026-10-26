@@ -1,5 +1,6 @@
 use super::*;
 
+// UNWIRED: no production caller dispatches work to the sandbox host; only tests reach this.
 impl CommittedAuthorizedToolAttemptV1 {
     /// Crosses the one-shot Host boundary and persists Running only after the
     /// Host emits the matching execution `Started` event. Failure to persist

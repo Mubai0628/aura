@@ -238,7 +238,7 @@ pub(crate) async fn initialize_services_at(
                 json!({
                     "capability": ConfigDependentCapability::ToolPolicy.key(),
                     "fault_code": fault_code,
-                    "reason": error.to_string(),
+                    "reason": format!("{error:#}"),
                 }),
             );
             None

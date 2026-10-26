@@ -40,6 +40,7 @@ impl Fixture {
                 CorrelationId::new(),
             )
             .expect("workspace registration");
+        runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
         let workspace = created.workspace.workspace_id;
         let session = SessionId::new();
         persistence

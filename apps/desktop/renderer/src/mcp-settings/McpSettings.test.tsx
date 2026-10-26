@@ -52,6 +52,7 @@ const api = {
   trustMcpServer: vi.fn(),
   untrustMcpServer: vi.fn(),
   setMcpServerEnabled: vi.fn(),
+  restoreMcpPluginDefault: vi.fn(),
   removeMcpServer: vi.fn(),
   refreshMcpServer: vi.fn(),
   setMcpSecret: vi.fn(),
@@ -315,7 +316,36 @@ test('an HTTP server is added by its address and its trust says where calls go',
   expect(dialog.textContent).not.toContain('能做你能做的事');
 });
 
-test('a plugin’s server is managed with its plugin, and its secrets are entered here', async () => {
+test('a plugin’s server the user changed says so, is switched here and gets its plugin’s configuration back', async () => {
+  const user = userEvent.setup();
+  const brought = view('kit-files', { plugin: 'kit', plugin_changed: true, state: 'ready' });
+  api.listMcpServers.mockResolvedValue(registry([brought]));
+  api.restoreMcpPluginDefault.mockResolvedValue(
+    registry([view('kit-files', { plugin: 'kit', state: 'ready' })], 6),
+  );
+  api.setMcpServerEnabled.mockResolvedValue(registry([brought], 7));
+  render(<McpSettings coreReady />);
+  await screen.findByText('kit-files 服务器', { selector: 'strong' });
+  const row = rowOf('kit-files 服务器');
+  expect(within(row).getByText('已修改')).toBeTruthy();
+  await user.click(within(row).getByRole('button', { name: '停用' }));
+  expect(api.setMcpServerEnabled).toHaveBeenCalledWith({
+    id: 'kit-files',
+    expected_revision: 5,
+    enabled: false,
+  });
+  await user.click(within(rowOf('kit-files 服务器')).getByRole('button', { name: '恢复插件默认' }));
+  expect(api.restoreMcpPluginDefault).toHaveBeenCalledWith({
+    id: 'kit-files',
+    expected_revision: 7,
+  });
+  expect((await screen.findByRole('status')).textContent).toContain(
+    '已恢复 kit-files 服务器 的插件配置',
+  );
+  expect(within(rowOf('kit-files 服务器')).queryByText('已修改')).toBeNull();
+});
+
+test('a plugin’s server is edited here, trusted and removed with its plugin, and its secrets entered here', async () => {
   const user = userEvent.setup();
   const secretId = 'crd_01M55FF84C9XFN71FZ0GS9967Y';
   const brought = view('kit-files', {
@@ -337,9 +367,10 @@ test('a plugin’s server is managed with its plugin, and its secrets are entere
   await screen.findByText('kit-files 服务器', { selector: 'strong' });
   const row = rowOf('kit-files 服务器');
   expect(within(row).getByText('插件 kit')).toBeTruthy();
-  for (const name of ['编辑', '移除', '撤销信任', '停用', '启用'])
+  expect(within(row).getByRole('button', { name: '编辑' })).toBeTruthy();
+  for (const name of ['移除', '撤销信任', '恢复插件默认'])
     expect(within(row).queryByRole('button', { name })).toBeNull();
-  expect(within(row).getByText(/编辑与移除请到 设置 → 插件/u)).toBeTruthy();
+  expect(within(row).queryByText('已修改')).toBeNull();
   await user.type(within(row).getByLabelText('GITHUB_TOKEN'), 'token-value');
   await user.click(within(row).getByRole('button', { name: '保存' }));
   const [request, bytes] = api.setMcpSecret.mock.calls[0] as [unknown, Uint8Array];

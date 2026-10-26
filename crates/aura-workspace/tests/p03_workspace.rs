@@ -1,79 +1,21 @@
+mod runtime_support;
+
 use std::{sync::Arc, time::Duration};
 
 use aura_domain_common::{
     CorrelationId, DeferredMutationId, MutationJournalId, RendererInstanceId, Revision,
-    RuntimeInstanceId, SecretNonce, SessionId, UtcTimestamp, WorkspacePath,
+    SecretNonce, SessionId, UtcTimestamp, WorkspacePath,
 };
-use aura_persistence::{
-    DeferredMutationRecord, PersistenceCoordinator, PersistenceError, PersistenceOptions,
-    PersistenceStartup,
-};
+use aura_persistence::{DeferredMutationRecord, PersistenceError};
 use aura_workspace::{CatalogOptions, WorkspaceError, WorkspaceRuntime, WorkspaceRuntimeOptions};
 use aura_workspace_domain::{
     BeginWorkspaceLifecycleInput, BufferEditCommand, BufferOpenCommand,
-    EditorLifecycleTransitionAck, IssueDiscardConfirmationInput, ResolveWorkspaceLifecycleInput,
-    SessionSummary, WorkspaceCreateCommand, WorkspaceCreateDisposition,
-    WorkspaceLifecycleOperation, WorkspaceLifecyclePrepareDeliveredInput,
-    WorkspaceLifecycleResolution, WorkspaceLifecycleState, WorkspaceLifecycleSummary,
+    IssueDiscardConfirmationInput, ResolveWorkspaceLifecycleInput, SessionSummary,
+    WorkspaceCreateCommand, WorkspaceCreateDisposition, WorkspaceLifecycleOperation,
+    WorkspaceLifecyclePrepareDeliveredInput, WorkspaceLifecycleResolution, WorkspaceLifecycleState,
     WorkspaceState,
 };
-
-fn persistence(data: &tempfile::TempDir) -> Arc<PersistenceCoordinator> {
-    match PersistenceCoordinator::start(PersistenceOptions::new(
-        data.path().join("aura.sqlite3"),
-        data.path().join("artifacts"),
-        RuntimeInstanceId::new(),
-    ))
-    .expect("persistence startup")
-    {
-        PersistenceStartup::Ready(value) => Arc::new(value),
-        PersistenceStartup::RecoveryRequired(value) => {
-            panic!("unexpected recovery: {}", value.reason)
-        }
-    }
-}
-
-fn begin_and_ack(
-    runtime: &Arc<WorkspaceRuntime>,
-    workspace_id: aura_domain_common::WorkspaceId,
-    expected_workspace_revision: Revision,
-    renderer_instance_id: RendererInstanceId,
-    operation: WorkspaceLifecycleOperation,
-) -> WorkspaceLifecycleSummary {
-    let begin = runtime
-        .begin_lifecycle(
-            BeginWorkspaceLifecycleInput {
-                workspace_id,
-                expected_workspace_revision,
-                renderer_instance_id,
-                operation,
-            },
-            CorrelationId::new(),
-        )
-        .expect("begin lifecycle");
-    let prepare =
-        runtime.prepare_lifecycle_transition(begin.operation_id).expect("prepare transition");
-    assert_eq!(prepare.lifecycle_revision, begin.lifecycle_revision);
-    runtime
-        .mark_lifecycle_prepare_delivered(WorkspaceLifecyclePrepareDeliveredInput {
-            operation_id: begin.operation_id,
-            expected_lifecycle_revision: begin.lifecycle_revision,
-            renderer_instance_id,
-        })
-        .expect("prepare delivered");
-    runtime
-        .acknowledge_lifecycle(EditorLifecycleTransitionAck {
-            operation_id: begin.operation_id,
-            lifecycle_revision: begin.lifecycle_revision,
-            renderer_instance_id,
-            workspace_id,
-            buffers: runtime
-                .buffers()
-                .current_lifecycle_states(workspace_id)
-                .expect("current editor states"),
-        })
-        .expect("ack lifecycle")
-}
+use runtime_support::{begin_and_ack, persistence};
 
 #[test]
 fn relocate_requires_identity_or_confirmation_and_invalidates_old_path_state() {
@@ -106,9 +48,11 @@ fn relocate_requires_identity_or_confirmation_and_invalidates_old_path_state() {
         .expect("create workspace");
     assert_eq!(created.disposition, WorkspaceCreateDisposition::Created);
     let workspace_id = created.workspace.workspace_id;
+    // The first walk runs after the create returns and records the index on the workspace.
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
     assert_eq!(
-        created.workspace,
-        persistence.workspace(workspace_id).expect("created workspace must be current")
+        created.workspace.selected_root,
+        persistence.workspace(workspace_id).expect("created workspace").selected_root
     );
     let session_id = SessionId::new();
     persistence
@@ -205,6 +149,9 @@ fn relocate_requires_identity_or_confirmation_and_invalidates_old_path_state() {
         },
     );
     assert_eq!(completed.state, WorkspaceLifecycleState::Completed);
+    runtime
+        .wait_until_indexed(std::time::Duration::from_secs(60))
+        .expect("the relocated workspace's first walk");
     let relocated = persistence.workspace(workspace_id).expect("relocated workspace");
     assert_eq!(relocated.workspace_id, workspace_id);
     assert!(relocated.authorization_epoch.value() > before.authorization_epoch.value());
@@ -290,6 +237,9 @@ fn archive_requires_every_persistent_workspace_blocker_to_clear() {
         .expect("create workspace")
         .workspace;
     let workspace_id = workspace.workspace_id;
+    // The first walk runs after the create returns and records the index on the workspace.
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
+    let workspace = persistence.workspace(workspace_id).expect("current workspace");
     let session_id = SessionId::new();
     persistence
         .upsert_workspace_session(
@@ -457,6 +407,8 @@ fn prepare_timeout_fails_safely_and_preserves_clean_editor_state() {
         .expect("create workspace")
         .workspace;
     let workspace_id = workspace.workspace_id;
+    // The first walk runs after the create returns and records the index on the workspace.
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
     let session_id = SessionId::new();
     let opened = runtime
         .open_buffer(BufferOpenCommand {
@@ -537,6 +489,8 @@ fn discard_nonce_is_exact_and_completed_lifecycle_rejects_late_updates() {
         .expect("create workspace")
         .workspace;
     let workspace_id = workspace.workspace_id;
+    // The first walk runs after the create returns and records the index on the workspace.
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
     let session_id = SessionId::new();
     let path = WorkspacePath::parse("main.rs").expect("path");
     let opened = runtime
@@ -656,6 +610,8 @@ fn renderer_disconnect_cancels_blocked_operation_and_preserves_editor_state() {
         .expect("create workspace")
         .workspace;
     let workspace_id = workspace.workspace_id;
+    // The first walk runs after the create returns and records the index on the workspace.
+    runtime.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
     let session_id = SessionId::new();
     let path = WorkspacePath::parse("main.rs").expect("path");
     let opened = runtime

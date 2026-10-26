@@ -242,8 +242,10 @@ mod tests {
         // preload's `readAgentSessionsActivity`. It also adds `agent.compaction.start`
         // (CommandInvocation, both surfaces), the preload's `startAgentCompaction`: `/compact`
         // while nothing runs starts a one-off task, as `/init` does, that compacts the
-        // conversation first; it carries a note and no tool or approval of its own.
-        ("agent", 40),
+        // conversation first; it carries a note and no tool or approval of its own. Adds
+        // `agent.workspace.rebuild_index` (CommandInvocation, both surfaces), the preload's
+        // `rebuildWorkspaceIndex`: a workspace's file index walked again after it failed.
+        ("agent", 41),
         // Adds Settings → Hook in its own module: list, preview and invocation records
         // (ReadOnly), trust, untrust, enable, remove and reorder (CommandInvocation, both
         // surfaces), and the Main-only folder picker. None of them runs a Hook; trust is
@@ -253,8 +255,9 @@ mod tests {
         // enable, remove and refresh (CommandInvocation; refresh starts the server to list its
         // tools); B5 adds setting a server's secret on the single-use `SecretInput` channel and
         // OAuth sign-in and sign-out (Main opens the sign-in address in the browser itself).
-        // None of them calls a server's tool.
-        ("agent_mcp", 12),
+        // Adds putting a plugin server's own configuration back (CommandInvocation, both
+        // surfaces), the preload's `restoreMcpPluginDefault`. None of them calls a server's tool.
+        ("agent_mcp", 13),
         // Settings → Skill: list and preview (ReadOnly); trust, untrust, enable, import and
         // remove (CommandInvocation; import copies a folder into Aura's own, remove deletes only
         // such a copy), and three Main-only routes: the folder and ZIP file pickers and opening

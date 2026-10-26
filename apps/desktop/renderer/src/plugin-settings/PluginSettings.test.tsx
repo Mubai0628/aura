@@ -136,6 +136,7 @@ test('a waiting update is reviewed and trusted as the update, or discarded', asy
       fingerprint: 'update-fingerprint',
       counts: { skills: 1, commands: 3, servers: 1, hooks: 0 },
       problems: [],
+      changed_servers: ['files'],
     },
   });
   api.listPlugins.mockResolvedValue(registry([kit]));
@@ -145,6 +146,7 @@ test('a waiting update is reviewed and trusted as the update, or discarded', asy
   render(<PluginSettings coreReady />);
   const row = await card('kit');
   expect(within(row).getByText(/新版本 2.0.0 已导入/u)).toBeTruthy();
+  expect(within(row).getByText('你改过配置、新版本也改了的服务器：files')).toBeTruthy();
   await userEvent.click(within(row).getByRole('button', { name: '查看新版本' }));
   expect(api.previewPlugin).toHaveBeenCalledWith({ name: 'kit', pending: true });
   const shown = await within(row).findByRole('region', { name: /的内容$/u });

@@ -65,6 +65,22 @@ impl SkillContext {
             "agent.skills.set_enabled" => {
                 let request: SkillSetEnabledRequest = serde_json::from_value(params)?;
                 let located = self.runtime.locate(request.id, request.workspace_id)?;
+                if let Some(plugin) = &located.view.plugin {
+                    let plugins = self
+                        .runtime
+                        .plugin_runtime()
+                        .ok_or_else(|| anyhow::anyhow!("skills.from_plugin: 插件暂时不可用"))?;
+                    let relative = &located.view.relative;
+                    let folder =
+                        relative.strip_prefix(&format!("{plugin}/")).unwrap_or(relative.as_str());
+                    plugins.switch_part(
+                        plugin,
+                        crate::plugins::PartKind::Skill,
+                        folder,
+                        request.enabled,
+                    )?;
+                    return Ok(serde_json::to_value(self.view(request.workspace_id)?)?);
+                }
                 self.change(&located, request.expected_revision, request.workspace_id, |s| {
                     s.enabled = request.enabled;
                 })?
@@ -168,14 +184,17 @@ impl SkillContext {
         self.view(None)
     }
 
-    /// Removes a Skill imported into Aura's own folder. Skills elsewhere are the user's files:
-    /// they can only be switched off here.
+    /// Removes a Skill. Aura's own copy is deleted outright; a Skill in the user's or a
+    /// workspace's `.agents` folder goes to the Recycle Bin, because it may be the only copy and
+    /// other tools read that folder too. A plugin's Skill goes only with its plugin.
     fn remove(&self, request: SkillChangeRequest) -> anyhow::Result<SkillRegistryView> {
         let located = self.runtime.locate(request.id, request.workspace_id)?;
         from_plugin(&located.view)?;
+        let users_folder =
+            matches!(located.view.source, SkillSource::AgentGlobal | SkillSource::Workspace);
         anyhow::ensure!(
-            located.view.source == SkillSource::AuraStore,
-            "skills.not_removable: 只能移除导入到 Aura 的 Skill；其他位置的 Skill 请在这里停用，或在它的文件夹里处理"
+            located.view.source == SkillSource::AuraStore || users_folder,
+            "skills.not_removable: 这个 Skill 不能在这里删除，请在它的文件夹里处理"
         );
         let registry = self.runtime.settings().skill_registry();
         anyhow::ensure!(
@@ -188,6 +207,22 @@ impl SkillContext {
             metadata.is_dir() && !crate::skills::reparse_point(&metadata),
             "skills.not_removable: 这个文件夹是链接或挂载点，请在资源管理器中处理"
         );
+        if users_folder {
+            use aura_windows_platform::RecycleOutcome;
+            match crate::agent_execution::recycle::move_to_recycle_bin(directory) {
+                Ok(RecycleOutcome::Recycled) => {}
+                Ok(RecycleOutcome::NotRecyclable) => anyhow::bail!(
+                    "skills.not_recyclable: 回收站放不下这个文件夹（或它所在的位置没有回收站），没有删除，它还在原处；请在资源管理器中处理。"
+                ),
+                Err(error) => anyhow::bail!(
+                    "skills.remove_busy: 这个 Skill 的文件夹正被其他程序使用（例如资源管理器或编辑器打开着它或里面的文件），关闭后再删除；Skill 没有改变（{error}）"
+                ),
+            }
+            let mut skills = registry.skills;
+            skills.retain(|skill| skill.id != request.id);
+            self.write(request.expected_revision, &skills)?;
+            return self.view(request.workspace_id);
+        }
         let store = self.runtime.store_root();
         sweep_removed(&store);
         let trash = store.join(format!(".removed-{}", aura_domain_common::CorrelationId::new()));
@@ -213,11 +248,11 @@ impl SkillContext {
     }
 }
 
-/// A plugin's Skill is trusted, switched and removed with its plugin.
+/// A plugin's Skill is trusted and removed with its plugin.
 fn from_plugin(view: &aura_skills::SkillView) -> anyhow::Result<()> {
     match &view.plugin {
         Some(plugin) => anyhow::bail!(
-            "skills.from_plugin: 这个 Skill 来自插件 {plugin}，请在 设置 → 插件 里管理"
+            "skills.from_plugin: 这个 Skill 来自插件 {plugin}，它的信任和移除都随插件"
         ),
         None => Ok(()),
     }

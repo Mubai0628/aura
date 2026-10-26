@@ -23,8 +23,9 @@ pub use workspace::{
     WorkspaceArchiveCommand, WorkspaceCatalogStatus, WorkspaceCreateCommand,
     WorkspaceCreateDisposition, WorkspaceCreateResult, WorkspaceDeleteCommand,
     WorkspaceDeleteResult, WorkspaceDirectorySelection, WorkspaceFileStatus,
-    WorkspaceFilesProjection, WorkspaceRelocateCommand, WorkspaceRestoreCommand,
-    WorkspaceSelectDirectoryRequest, WorkspaceState, WorkspaceSummary, WorkspaceWatcherState,
+    WorkspaceFilesProjection, WorkspaceIndexingState, WorkspaceIndexingStatus,
+    WorkspaceRelocateCommand, WorkspaceRestoreCommand, WorkspaceSelectDirectoryRequest,
+    WorkspaceState, WorkspaceSummary, WorkspaceWatcherState,
 };
 mod editor_approval;
 mod lifecycle;

@@ -6,6 +6,7 @@ pub(super) struct ExternalProcessService {
     pub(super) host_capacity: std::sync::Arc<Semaphore>,
 }
 
+// UNWIRED: Core keeps this service but nothing sends it a request.
 #[derive(Clone)]
 pub(crate) struct ExternalProcessExecutionService {
     pub(super) requests: mpsc::Sender<ExternalProcessCommand>,

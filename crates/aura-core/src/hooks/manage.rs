@@ -49,6 +49,12 @@ impl HookContext {
         Self { settings, journal, plugins: None }
     }
 
+    #[cfg(test)]
+    pub(crate) fn with_plugins(mut self, plugins: Arc<crate::plugins::PluginRuntime>) -> Self {
+        self.plugins = Some(plugins);
+        self
+    }
+
     /// Runs one `agent.hooks.*` Core route.
     pub(crate) fn dispatch(
         &self,
@@ -79,6 +85,11 @@ impl HookContext {
             }
             "agent.hooks.set_enabled" => {
                 let request: HookSetEnabledRequest = serde_json::from_value(params)?;
+                if let Some((plugins, plugin, folder)) = self.plugin_hook(&request.path) {
+                    let hook = crate::plugins::PartKind::Hook;
+                    plugins.switch_part(&plugin, hook, &folder, request.enabled)?;
+                    return Ok(serde_json::to_value(self.view())?);
+                }
                 serde_json::to_value(self.change(
                     &request.path,
                     request.expected_revision,
@@ -124,6 +135,25 @@ impl HookContext {
             entries.extend(registry::plugin_entry_views(plugins));
         }
         HookRegistryView { revision: registry.revision, entries }
+    }
+
+    /// The ready plugin that brings the Hook at `path`, and the Hook's folder in it.
+    fn plugin_hook(
+        &self,
+        path: &str,
+    ) -> Option<(Arc<crate::plugins::PluginRuntime>, String, String)> {
+        let plugins = self.plugins.as_ref()?;
+        plugins.ready().iter().find_map(|plugin| {
+            let root = plugin.package.root.join("hooks");
+            plugin
+                .package
+                .hooks
+                .iter()
+                .find(|hook| same_path(&root.join(&hook.folder).display().to_string(), path))
+                .map(|hook| {
+                    (Arc::clone(plugins), plugin.package.manifest.name.clone(), hook.folder.clone())
+                })
+        })
     }
 
     fn preview(&self, path: &str) -> anyhow::Result<HookPreview> {

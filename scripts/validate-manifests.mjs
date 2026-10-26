@@ -108,4 +108,4 @@ for (const kind of requiredComponentKinds) {
   if (!componentKinds.has(kind)) throw new Error(`Component manifest is missing ${kind}.`);
 }
 
-console.log('Prompt, schema, and component manifest placeholders are valid.');
+console.log('Prompt, schema and component manifests are valid.');

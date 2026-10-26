@@ -337,13 +337,13 @@ pub struct CoreHealthProjection {
     pub restart_attempt: u8,
     pub status_code: String,
     pub status_message: String,
-    /// Long work that holds Core's stores, while it has run for a while ("Core 正忙").
+    /// A deletion Core is doing in the background, once it has run for a while.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub busy: Option<CoreBusyV1>,
 }
 
-/// The long work Core is doing that holds its stores — other requests wait
-/// behind it — and since when.
+/// A deletion Core is doing in the background, in short steps other requests are served
+/// between, and since when.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CoreBusyV1 {

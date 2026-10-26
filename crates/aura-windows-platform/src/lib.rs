@@ -27,6 +27,7 @@ mod child_environment;
 mod credential;
 mod dialog;
 mod directory_create;
+mod disk_space;
 mod dns;
 mod elevation;
 #[cfg(feature = "execution-maintenance")]
@@ -37,6 +38,8 @@ mod file_identity;
 mod file_name;
 mod git_installation;
 pub mod installer;
+mod progress_dialog;
+mod system_load;
 pub use git_installation::machine_git_installation;
 mod handle;
 mod headless_web;
@@ -97,6 +100,7 @@ pub use dialog::{
     RecoveryAction, RecoveryChoice, choose_diagnostic_export_path, show_recovery_dialog,
 };
 pub use directory_create::handle_bound_create_directory;
+pub use disk_space::free_disk_space;
 pub use dns::{DnsAddressRecord, resolve_dns_addresses};
 pub use elevation::{
     ElevatedHelperLaunch, ElevatedHelperLaunchError, ElevatedProcess,
@@ -158,6 +162,7 @@ pub use process::{
     current_process_working_set, named_pipe_client_identity, retain_process, snapshot_process,
     validate_named_pipe_client, validate_named_pipe_server,
 };
+pub use progress_dialog::{Progress, with_progress_window};
 pub use release_trust::{
     AuthenticatedActiveCoreIdentity, authenticate_active_core_identity,
     verify_active_release_trust, verify_release_manifest, verify_release_manifest_against_root,
@@ -176,6 +181,7 @@ pub use sandbox::{
     spawn_restricted_process_with_secret_environment, spawn_standard_user_process,
 };
 pub use sandbox::{JobLaunchError, JobLaunchTiming, spawn_compat_process};
+pub use system_load::{CpuLoad, PhysicalMemory, physical_memory};
 mod git_read;
 #[cfg(feature = "git-read-test-profile")]
 pub use git_read::set_git_read_fixture_integrity;

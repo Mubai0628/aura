@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
 import { copySessionReasoning, sessionReasoning } from '../reasoning-effort';
 import { getComposerDraft, updateComposerDraft } from './composer-drafts';
+import { acceptSending, endSending, startSending } from './sending';
 import { userMessage } from './user-message';
 
 export interface SubmissionPreparation {
@@ -56,6 +57,22 @@ export function useComposerSubmission(
     setBusy(true);
     setError(undefined);
     let requestStarted = false;
+    // A message that starts a turn shows at once where the conversation will show it, and the
+    // composer empties; if it is not accepted the text comes back. The saved draft keeps it
+    // until it is accepted.
+    let shown: { text: string; files: string[] } | undefined;
+    const showing = new Set<string>();
+    const show = (key: string) => {
+      if (!shown || showing.has(key)) return;
+      startSending(key, shown);
+      showing.add(key);
+    };
+    const unshow = () => {
+      showing.forEach(endSending);
+      if (!shown) return;
+      const typed = getComposerDraft(sessionId)?.text;
+      setDraft(typed && typed !== shown.text ? `${shown.text}\n${typed}` : shown.text);
+    };
     try {
       const special = !activeTurn && !queuePending && mode !== 'normal';
       const budget: GoalBudget = {
@@ -80,7 +97,13 @@ export function useComposerSubmission(
         setError('Goal 预算需填写正整数，留空表示不设置该项。');
         return false;
       }
+      if (!activeTurn && !queuePending) {
+        shown = { text: draft, files: attachments.map(attachmentName) };
+        show(sessionId);
+        updateDraft('');
+      }
       const targetSession = preparation && modelId ? await preparation.prepare(modelId) : sessionId;
+      show(targetSession);
       // The conversation's own thinking level for its model goes with the message; a new
       // conversation takes the one its draft chose.
       copySessionReasoning(sessionId, targetSession);
@@ -108,6 +131,7 @@ export function useComposerSubmission(
               ...attached,
             });
       if (!result.ok) {
+        unshow();
         setError(userMessage(result.error.message, '消息未发送，请检查模型与连接后重试。'));
         if (isUnconfirmedCommandOutcome(result.error)) setNeedsReview(true);
         onChanged();
@@ -118,9 +142,11 @@ export function useComposerSubmission(
       preparation?.accepted(targetSession, draft.trim() ? draft : (firstName ?? draft));
       setDraft('');
       setMode('normal');
+      showing.forEach((key) => (key === targetSession ? acceptSending(key) : endSending(key)));
       onChanged();
       return true;
     } catch (reason) {
+      unshow();
       setError(userMessage(reason, '发送结果未确认。草稿已保留，请核对消息历史与队列。'));
       if (requestStarted || !preparation || !getComposerDraft(sessionId)?.serverSessionId)
         setNeedsReview(true);
@@ -237,4 +263,11 @@ export function useComposerSubmission(
     sendInit,
     sendCompaction,
   };
+}
+
+/** The name a picture or file is shown by while it is sent. */
+function attachmentName(attachment: AgentAttachmentDraft): string {
+  return attachment.kind === 'file'
+    ? (attachment.path.split(/[\\/]/u).at(-1) ?? attachment.path)
+    : attachment.name;
 }

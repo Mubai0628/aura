@@ -301,7 +301,7 @@ fn requires_forced_once_approval(plan: &OperationSecurityPlan) -> bool {
     // An ordinary external delete is deliberately absent here: deleting, overwriting or
     // renaming inside a write scope the user already granted is covered by that scope's
     // approval, which may be a session or workspace term. See the V2 rule in
-    // `crate::policy::forced_once` for the full reasoning; this legacy entry keeps the same
+    // `crate::policy::once` for the full reasoning; this legacy entry keeps the same
     // set so the two entries cannot disagree about what is reusable.
     const FORCED: &[OperationRiskFlag] = &[
         OperationRiskFlag::ExecutableArtifact,

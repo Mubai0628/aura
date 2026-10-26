@@ -575,6 +575,9 @@ impl WorkspaceRuntime {
 
         entry.record = completed;
         self.buffers.complete_lifecycle_cleanup(workspace_id)?;
+        if matches!(entry.record.operation, WorkspaceLifecycleOperation::Archive) {
+            self.clear_archived_index_in_background(vec![workspace_id]);
+        }
         if let Some(workspace) = relocated_workspace {
             self.install_online_workspace(workspace, entry.correlation_id)?;
         }

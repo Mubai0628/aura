@@ -33,6 +33,11 @@ class WorkspaceFilesStore {
     this.#readers += 1;
     if (this.#started) return;
     this.#started = true;
+    // A window whose bridge offers no file projection (a page under test) simply shows none.
+    if (typeof window.aura?.v1?.onWorkspaceFiles !== 'function') {
+      this.#setState({ loading: false });
+      return;
+    }
     this.#unsubscribe = window.aura.v1.onWorkspaceFiles((change) => this.#receiveIncrement(change));
     void this.#requestSnapshot();
   }

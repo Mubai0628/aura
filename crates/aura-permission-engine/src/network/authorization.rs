@@ -25,7 +25,10 @@ pub fn is_ordinary(input: &PolicyInput<'_>) -> bool {
         && c.capabilities.iter().all(|cap| {
             *cap == ResolvedCapability::OrdinaryNetwork
                 || built_in_shell(&c.source, &c.action_kind)
-                    && *cap == ResolvedCapability::ProcessExecute
+                    && matches!(
+                        cap,
+                        ResolvedCapability::ProcessExecute | ResolvedCapability::DownloadArtifact
+                    )
                 || !built_in_shell(&c.source, &c.action_kind)
                     && file_capabilities_are_consentable(&[*cap])
         })
@@ -192,7 +195,12 @@ pub fn authorize(
             proposal: AuthorizationProposal {
                 scope,
                 requested_capabilities: Some(missing.clone()),
-                native_session_consent: if missing.contains(&ResolvedCapability::ProcessExecute) {
+                native_session_consent: if missing.iter().any(|capability| {
+                    matches!(
+                        capability,
+                        ResolvedCapability::ProcessExecute | ResolvedCapability::DownloadArtifact
+                    )
+                }) {
                     native_session_consent_scope(
                         &op.content.source,
                         &op.content.action_kind,

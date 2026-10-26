@@ -113,6 +113,21 @@
   height: 24px;
 }
 
+.file-tree-indexing {
+  margin: 2px 9px 4px;
+  color: var(--quiet);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.file-tree-indexing.is-failed {
+  color: var(--danger);
+}
+
+.file-tree-indexing.is-failed p {
+  margin: 0 0 4px;
+}
+
 .file-tree-list,
 .file-tree-list ul {
   margin: 0;

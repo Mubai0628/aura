@@ -41,6 +41,22 @@ describe('agent request budgets', () => {
     );
   });
 
+  // Adding a large folder or importing a large plugin answered "未确认" after 15 s while Core
+  // was still working.
+  it.each([
+    'agent.plugins.preview',
+    'agent.plugins.import',
+    'agent.skills.preview',
+    'agent.skills.import',
+  ] as const)('%s waits for Core as long as the work takes', async (command) => {
+    expect(await budgetOf(command)).toBe(125_000);
+  });
+
+  it('adding or restoring a workspace waits past the 120 s bound Core sets itself', () => {
+    expect(replyBudget('workspace.create')).toBe(125_000);
+    expect(replyBudget('workspace.restore')).toBe(125_000);
+  });
+
   it('every other request keeps the ordinary budget', async () => {
     expect(await budgetOf('agent.status')).toBe(15_000);
     expect(replyBudget('permission.get_session_mode')).toBe(15_000);

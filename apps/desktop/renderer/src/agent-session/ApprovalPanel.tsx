@@ -1,6 +1,7 @@
 import { userMessage } from './user-message';
 import { NetworkApprovalFacts } from './NetworkApprovalFacts';
 import { DeletionTargets } from './DeletionTargets';
+import { OutsideTargets } from './OutsideTargets';
 import { ShellApprovalFacts } from './ShellApprovalFacts';
 import { GitApprovalFacts } from './GitApprovalFacts';
 import { PackageApprovalFacts } from './PackageApprovalFacts';
@@ -188,6 +189,18 @@ export function ApprovalPanel({
     : false;
   const network =
     !shell && (view?.operation.content.capabilities.includes('ordinary_network') ?? false);
+  // A command whose text writes outside the workspace is asked each time.
+  const outside =
+    shell &&
+    ((view?.operation.content.risks ?? []) as readonly string[]).includes(
+      'outside_workspace_write',
+    );
+  const shellText = (action: Record<string, unknown>) =>
+    typeof action.script === 'string'
+      ? action.script
+      : typeof action.input === 'string'
+        ? action.input
+        : '';
   const fileConsent =
     (workspace.length > 0 || targets.length > 0) &&
     requested.some((capability) =>
@@ -229,6 +242,16 @@ export function ApprovalPanel({
                 <DeletionTargets
                   action={view.operation.content.action as Record<string, unknown>}
                   actionKind={view.operation.content.action_kind}
+                />
+              </>
+            ) : null}
+            {outside ? (
+              <>
+                <p className="agent-approval-warning" role="alert">
+                  这条命令会写工作区以外的位置；只能允许这一次。
+                </p>
+                <OutsideTargets
+                  text={shellText(view.operation.content.action as Record<string, unknown>)}
                 />
               </>
             ) : null}

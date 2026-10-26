@@ -18,6 +18,8 @@ export default tseslint.config(
   {
     ignores: [
       '.aura-dev/**',
+      // Claude Code keeps its session worktrees here: other checkouts, not this tree.
+      '.claude/**',
       '.tmp/**',
       '**/dist/**',
       '**/node_modules/**',

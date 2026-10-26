@@ -142,8 +142,25 @@ test('L08 an OAuth MCP server is signed in through the browser and called with i
     await trust.getByRole('button', { name: '信任并启用' }).click();
     const signIn = settings.getByRole('group', { name: '测试登录 的登录' });
     await expect(signIn).toContainText('需要在浏览器中登录', { timeout: 60_000 });
+    // A narrow window: the long sign-in address must break inside the page, not widen it.
+    const size = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]?.getSize(),
+    );
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(900, 720));
     await signIn.getByRole('button', { name: '在浏览器中登录' }).click();
     await expect(settings.getByText(/已在浏览器中打开 127\.0\.0\.1 的登录页面/u)).toBeVisible();
+    await expect(signIn.getByRole('button', { name: '复制链接' })).toBeVisible();
+    const overflow = await page.evaluate(() => {
+      const content = document.querySelector('.settings-content');
+      return content ? content.scrollWidth - content.clientWidth : Number.NaN;
+    });
+    expect(overflow).toBeLessThanOrEqual(1);
+    if (size)
+      await app.evaluate(
+        ({ BrowserWindow }, [width, height]) =>
+          BrowserWindow.getAllWindows()[0]?.setSize(width!, height!),
+        size,
+      );
     const opened = await app.evaluate(
       () => (Reflect.get(globalThis, '__auraOpened') as string[] | undefined) ?? [],
     );

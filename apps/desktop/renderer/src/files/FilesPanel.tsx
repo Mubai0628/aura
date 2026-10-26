@@ -32,11 +32,10 @@ function usePageWidth() {
 }
 
 /**
- * A 文件 tab, read only, after the owner's reference: the workspace tree
- * beside the open file, shown or hidden with one button. "打开的文件在文件页
- * 内的文件树右侧半栏展示，控制关闭文件查看标签页" — the files opened here are the page's own small
- * tabs beside the tree, each closed on its own; with none open the tree has the whole page. The
- * tree marks the file shown and opens its folders.
+ * A 文件 tab, read only: the workspace tree beside the open file, shown or hidden with one button.
+ * The files opened here are the page's own small tabs to the right of the tree, each closed on its
+ * own; with none open the tree has the whole page. The tree marks the file shown and opens its
+ * folders, and lists its open folders again after the model's tool calls finish.
  */
 export function FilesPanel({
   scope,
@@ -62,6 +61,22 @@ export function FilesPanel({
     const folder = shown?.split('/').slice(0, -1).join('/');
     if (folder) fileTrees.reveal(scope, folder);
   }, [scope, shown]);
+  // A finished tool call lists the open folders again, once per burst. A hidden page or a closed
+  // tree reads nothing and catches up once it shows. The scope object is new on every render, so
+  // the timer keys on its ids and takes the latest scope from a ref.
+  const latestScope = useRef(scope);
+  useEffect(() => {
+    latestScope.current = scope;
+  });
+  const [seenRefresh, setSeenRefresh] = useState(refreshKey);
+  useEffect(() => {
+    if (refreshKey === seenRefresh || !visible || !tree.open) return;
+    const timer = setTimeout(() => {
+      setSeenRefresh(refreshKey);
+      fileTrees.refresh(latestScope.current);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [refreshKey, seenRefresh, visible, tree.open, scope.workspace, scope.session]);
   const treeButton = (
     <button
       aria-label={tree.open ? '隐藏文件树' : '显示文件树'}

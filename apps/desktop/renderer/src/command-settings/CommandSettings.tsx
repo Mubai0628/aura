@@ -114,7 +114,7 @@ export function CommandSettings({
     );
   };
 
-  // A plugin's command is switched with its plugin.
+  // A plugin's command is removed with its plugin.
   const row = (command: CommandEntry, index: number) => (
     <li
       key={id(command)}
@@ -148,7 +148,7 @@ export function CommandSettings({
             {previewing === id(command) ? '收起预览' : '预览'}
           </button>
         ) : null}
-        {command.issue == null && command.source !== 'plugin' ? (
+        {command.issue == null ? (
           <button
             type="button"
             className="button is-small"

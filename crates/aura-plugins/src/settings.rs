@@ -29,6 +29,50 @@ pub struct PluginTrustedParts {
     pub servers: BTreeMap<String, String>,
 }
 
+/// Parts of each kind, by the name `trusted_parts` uses for them.
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginParts {
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub skills: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub commands: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub hooks: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub servers: BTreeSet<String>,
+}
+
+impl PluginParts {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.skills.is_empty()
+            && self.commands.is_empty()
+            && self.hooks.is_empty()
+            && self.servers.is_empty()
+    }
+}
+
+/// What the user changed in what the plugin brings: parts switched off, and MCP servers saved
+/// with a configuration of the user's own. Kept across the plugin's updates for the parts the
+/// new version still has, and removed with the plugin.
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginChanges {
+    #[serde(default, skip_serializing_if = "PluginParts::is_empty")]
+    pub switched_off: PluginParts,
+    /// MCP server ID → the configuration the user saved in place of the plugin's.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub servers: BTreeMap<String, aura_mcp::McpServerConfig>,
+}
+
+impl PluginChanges {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.switched_off.is_empty() && self.servers.is_empty()
+    }
+}
+
 /// A credential Aura keeps for one of the plugin's server secrets.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -63,6 +107,10 @@ pub struct PluginSetting {
     pub imported_from: Option<String>,
     #[serde(default)]
     pub pending: Option<PluginPendingSetting>,
+    /// Written only once the user changed something, so an untouched entry reads the same in
+    /// earlier versions.
+    #[serde(default, skip_serializing_if = "PluginChanges::is_empty")]
+    pub changes: PluginChanges,
 }
 
 impl PluginSetting {
@@ -77,6 +125,7 @@ impl PluginSetting {
             secrets: Vec::new(),
             imported_from,
             pending: None,
+            changes: PluginChanges::default(),
         }
     }
 
@@ -115,6 +164,15 @@ pub fn check_settings(plugins: &[PluginSetting]) -> Result<(), String> {
         }
         if plugin.trusted_fingerprint.is_none() && *parts != PluginTrustedParts::default() {
             return Err(format!("{name} 没有信任，却记着信任时的内容"));
+        }
+        for (id, server) in &plugin.changes.servers {
+            if server.id != *id {
+                return Err(format!("{name} 改过的服务器 {id} 与它记着的 id 不一致"));
+            }
+            let problems = aura_mcp::validate_server(server);
+            if !problems.is_empty() {
+                return Err(format!("{name} 改过的服务器 {id}：{}", problems.join("；")));
+            }
         }
         let mut keys = BTreeSet::new();
         for secret in &plugin.secrets {

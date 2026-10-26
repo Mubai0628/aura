@@ -71,6 +71,12 @@ pub(crate) fn changes_for_watch_events(
                 // never indexed, so an event about one describes nothing.
                 continue;
             }
+            if changes_ignore_rules(&relative) {
+                // Which folders the index enters may have changed anywhere below this one,
+                // which only a whole rebuild can redraw.
+                undescribed = true;
+                continue;
+            }
             if relative.is_root() {
                 changes.insert(relative, CatalogChange::DirectoryListed);
                 continue;
@@ -108,4 +114,15 @@ pub(crate) fn changes_for_watch_events(
         return WatchDescription::Undescribed;
     }
     WatchDescription::Described(changes.into_iter().collect())
+}
+
+/// A `.gitignore` in any folder, or the root's `.git/info/exclude`: the files that decide what
+/// the index skips.
+fn changes_ignore_rules(path: &WorkspacePath) -> bool {
+    path.as_str().eq_ignore_ascii_case(".git/info/exclude")
+        || path
+            .as_str()
+            .rsplit('/')
+            .next()
+            .is_some_and(|name| name.eq_ignore_ascii_case(".gitignore"))
 }

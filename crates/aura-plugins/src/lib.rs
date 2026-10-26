@@ -24,6 +24,7 @@ pub use servers::{
     HTTP_SECRET_KEY, PLUGIN_ROOT_VARIABLE, PluginAuth, PluginServer, PluginTransport, server_id,
 };
 pub use settings::{
-    PluginPendingSetting, PluginSecret, PluginSetting, PluginTrustedParts, check_settings,
+    PluginChanges, PluginParts, PluginPendingSetting, PluginSecret, PluginSetting,
+    PluginTrustedParts, check_settings,
 };
 pub use views::*;

@@ -62,6 +62,9 @@ pub struct ValidatedPromptBundle {
 pub struct PromptActivationInput {
     pub agent_mode: PromptAgentMode,
     pub loaded_capabilities: BTreeSet<String>,
+    // UNWIRED: production always passes false, an empty set and None for these three, so the
+    // child-agent, recovery and failure-summary / environment-update maintenance modules are never
+    // selected (memory maintenance and compaction take their modules by id).
     pub child_agent: bool,
     pub recovery_kinds: BTreeSet<String>,
     pub compaction: bool,

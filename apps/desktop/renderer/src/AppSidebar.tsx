@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AppIcon } from './app-icons';
+import { WorkspaceIndexBadge } from './files/workspace-indexing';
+import { readExpandedWorkspaces, rememberExpandedWorkspaces } from './sidebar-expansion';
 import { WorkspaceActions } from './WorkspaceActions';
 import { SessionList } from './SessionList';
 import { SidebarItemMenu } from './SidebarItemMenu';
@@ -36,14 +38,22 @@ export function AppSidebar({
   workspaces,
 }: AppSidebarProps) {
   const activity = useSessionActivity();
+  // What the user left open or closed wins over the selection, including a closed selected one.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    () => new Set([selectedWorkspaceId]),
+    () => new Set(readExpandedWorkspaces() ?? [selectedWorkspaceId].filter(Boolean)),
   );
   const [previousSelection, setPreviousSelection] = useState(selectedWorkspaceId);
   if (previousSelection !== selectedWorkspaceId) {
     setPreviousSelection(selectedWorkspaceId);
     if (selectedWorkspaceId) setExpanded((current) => new Set([...current, selectedWorkspaceId]));
   }
+  // Not while the list is still loading: an empty list would forget every open workspace.
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+    rememberExpandedWorkspaces(
+      workspaces.map((workspace) => workspace.id).filter((id) => expanded.has(id)),
+    );
+  }, [expanded, workspaces]);
 
   const toggleWorkspace = (workspaceId: string) => {
     setExpanded((current) => {
@@ -93,6 +103,7 @@ export function AppSidebar({
                 >
                   <AppIcon name="workspace" />
                   <span>{workspace.name}</span>
+                  {demoMode ? null : <WorkspaceIndexBadge workspaceId={workspace.id} />}
                 </button>
                 <SidebarItemMenu workspace={workspace} />
                 <button

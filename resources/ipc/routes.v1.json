@@ -2827,6 +2827,28 @@
     "test_only": false
   },
   {
+    "method": "agent.workspace.rebuild_index",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "WorkspaceIndexRebuildRequest",
+    "response_type": "WorkspaceIndexRebuildStarted",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.workspace.rebuild_index",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "WorkspaceIndexRebuildRequest",
+    "response_type": "WorkspaceIndexRebuildStarted",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.commands.catalog",
     "owner": "agent",
     "surface": "core",
@@ -3344,6 +3366,17 @@
     "test_only": false
   },
   {
+    "method": "agent.mcp.restore_plugin_default",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "McpServerRequest",
+    "response_type": "McpRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.mcp.remove",
     "owner": "agent",
     "surface": "main",
@@ -3470,6 +3503,17 @@
     "surface": "core",
     "auth": "authenticated_main",
     "request_type": "McpSetEnabledRequest",
+    "response_type": "McpRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.mcp.restore_plugin_default",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "McpServerRequest",
     "response_type": "McpRegistryView",
     "idempotency": "command_invocation",
     "cancellation": "none",

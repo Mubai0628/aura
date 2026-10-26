@@ -106,6 +106,7 @@ async fn an_entry_of_an_attached_zip_opens_for_its_conversation_only() {
     wait_idle(&runtime, session).await;
     call(&runtime, "session.archive", json!({"session_id": session})).await;
     call(&runtime, "session.delete", json!({"session_id": session})).await;
+    crate::session_lifecycle::deleted(&runtime).await;
     assert!(!copy.exists(), "{}", copy.display());
 }
 

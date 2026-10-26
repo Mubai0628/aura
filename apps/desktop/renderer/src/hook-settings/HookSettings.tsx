@@ -145,7 +145,7 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
     const name = definition?.name ?? folderName(entry.path);
     const tools = definition ? hookToolsLabel(definition) : undefined;
     const locked = busy !== undefined;
-    // A plugin's Hook is trusted, switched and removed with its plugin.
+    // A plugin's Hook is trusted and removed with its plugin, and runs after the user's own.
     const plugin = entry.plugin ?? undefined;
     const tone = hookStateTone(entry.state);
     const shown = preview?.path === entry.path;
@@ -203,7 +203,7 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
                     : '预览'}
             </button>
           )}
-          {!plugin && (entry.state === 'ready' || entry.state === 'disabled') ? (
+          {entry.state === 'ready' || entry.state === 'disabled' ? (
             <button
               type="button"
               className="button is-small"
@@ -266,11 +266,6 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
             </button>
           )}
         </div>
-        {plugin ? (
-          <p className="hook-row-events">
-            在你自己的 Hook 之后运行；随插件 {plugin} 信任与启用，在 设置 → 插件 里管理。
-          </p>
-        ) : null}
         {removing === entry.path ? (
           <div role="alertdialog" aria-label={`移除 ${name}`} className="settings-panel is-danger">
             <p>

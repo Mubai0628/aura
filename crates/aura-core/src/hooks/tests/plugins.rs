@@ -114,3 +114,37 @@ fn a_plugins_hook_runs_under_the_plugins_process_limit() {
         "one process is enough"
     );
 }
+
+#[test]
+fn a_plugins_hook_switched_off_in_settings_stays_listed_and_does_not_run() {
+    let mut f = Fixture::new();
+    let _context = install(&f, r#"{"decision":"block","reason":"the plugin says no"}"#, "");
+    let plugins = runtime(&f);
+    f.runner.plugins = Some(Arc::clone(&plugins));
+    let settings = std::mem::replace(
+        &mut f.context,
+        HookContext::new(Arc::clone(&f.runner.settings), Arc::clone(&f.runner.journal)),
+    )
+    .with_plugins(Arc::clone(&plugins));
+    let path = registry::plugin_entry_views(&plugins)[0].path.clone();
+    let switch = |enabled: bool| {
+        let revision =
+            settings.dispatch("agent.hooks.list", json!({})).expect("list")["revision"].clone();
+        settings
+            .dispatch(
+                "agent.hooks.set_enabled",
+                json!({"path": path, "enabled": enabled, "expected_revision": revision}),
+            )
+            .expect("switched")
+    };
+    let listed = switch(false);
+    let entry = &listed["entries"][0];
+    assert_eq!((entry["plugin"].clone(), entry["enabled"].clone()), (json!("guard"), json!(false)));
+    let outcome =
+        f.run(f.call(HookEvent::ToolBeforeCall, Some("fs.write"), json!({"arguments": {}})));
+    assert!(outcome.block.is_none() && outcome.invocations.is_empty(), "off, it does not run");
+    switch(true);
+    let outcome =
+        f.run(f.call(HookEvent::ToolBeforeCall, Some("fs.write"), json!({"arguments": {}})));
+    assert!(outcome.block.is_some(), "on again, it runs");
+}

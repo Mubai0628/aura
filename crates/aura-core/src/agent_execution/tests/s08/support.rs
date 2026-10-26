@@ -3,6 +3,24 @@ use super::*;
 pub(super) fn arguments(script: &str, network: bool) -> serde_json::Value {
     json!({"script":script,"requires_network":network,"working_directory":".","stdin":"","timeout_ms":10000,"max_output_bytes":4096})
 }
+/// The question a call gets before any answer, from the real backend it would run on.
+pub(in crate::agent_execution::tests) async fn ask(
+    f: &Fixture,
+    call: &CallContext,
+) -> aura_security_contract::AuthorizationProposal {
+    f.service().commands_required().wait_until_ready().await.expect("managed runtime verified");
+    let engine = f.service().agent_execution_required();
+    let backend =
+        f.service().commands_required().candidates_for(call.snapshot.mode)[0].descriptor();
+    match aura_permission_engine::policy::authorize(
+        &call.policy(UtcTimestamp::now(), engine.runtime),
+        &backend,
+        None,
+    ) {
+        PolicyAuthorization::Ask { proposal } => proposal,
+        other => panic!("the call runs without asking: {other:?}"),
+    }
+}
 pub(in crate::agent_execution::tests) async fn approve(
     f: &Fixture,
     call: &CallContext,

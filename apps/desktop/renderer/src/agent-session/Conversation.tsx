@@ -22,6 +22,8 @@ import { PlanCard } from './PlanCard';
 import { ReplyActions, UserCopy } from './ReplyActions';
 import { TurnProcess } from './TurnProcess';
 import { PendingAdditions } from './PendingAdditions';
+import { SendingMessage } from './SendingMessage';
+import { endSending, shownIn, useSending } from './sending';
 import { useConversationScroll } from './useConversationScroll';
 import { useToolCallDirectory } from './useToolCallDirectory';
 import { latestToolCompletion } from './tool-completion';
@@ -30,6 +32,7 @@ import { terminalTurn } from './turn-state';
 
 const uncertainRelated = new Set<string>();
 export function Conversation({
+  sessionId,
   projection,
   viewportRef,
   onChanged,
@@ -42,6 +45,8 @@ export function Conversation({
   onBranched,
   onOpenSession,
 }: {
+  /** The conversation shown, also while its projection loads. */
+  sessionId?: string | undefined;
   projection: AgentSessionProjection | undefined;
   viewportRef: RefObject<HTMLDivElement | null>;
   onChanged: () => void;
@@ -58,13 +63,23 @@ export function Conversation({
   onOpenSession?: ((sessionId: string) => boolean) | undefined;
 }) {
   const [branchTurn, setBranchTurn] = useState<string>();
+  // A message just sent shows here until the projection has it.
+  const shownSession = sessionId ?? projection?.session_id;
+  const sending = useSending(shownSession);
+  const arrived =
+    sending !== undefined &&
+    projection?.session_id === shownSession &&
+    shownIn(projection, sending);
+  useEffect(() => {
+    if (arrived && sending?.accepted && shownSession) endSending(shownSession);
+  }, [arrived, sending, shownSession]);
   const last = projection?.turns.at(-1);
   const step = last?.assistant_messages.at(-1);
   // A message appended to the running task appears at its end too.
   const appended = (projection?.inbox?.messages ?? []).filter(
     (message) => message.destination.lane === 'addition',
   ).length;
-  const contentVersion = `${last?.turn.turn_task_id}:${last?.user_messages.length}:${last?.turn.revision}:${step?.model_step_id}:${step?.stream_sequence}:${step?.partial}:${appended}`;
+  const contentVersion = `${last?.turn.turn_task_id}:${last?.user_messages.length}:${last?.turn.revision}:${step?.model_step_id}:${step?.stream_sequence}:${step?.partial}:${appended}:${sending && !arrived ? 'sending' : ''}`;
   // Resolve all visible calls, including earlier pages of a long task.
   const visibleCallIds = (projection?.turns ?? []).flatMap((item) =>
     item.assistant_messages.flatMap((message) => message.tool_call_ids),
@@ -108,9 +123,9 @@ export function Conversation({
       aria-label="会话消息"
       data-session-id={projection?.session_id}
     >
-      {loading ? <p role="status">正在加载会话…</p> : null}
+      {loading && !sending ? <p role="status">正在加载会话…</p> : null}
       {error ? <p role="alert">{userMessage(error)}</p> : null}
-      {!loading && !error && !projection?.turns.length ? (
+      {!loading && !error && !projection?.turns.length && !sending ? (
         <div className="agent-empty">
           <h3>开始一个新任务</h3>
           <p>选择模型，输入你的需求。</p>
@@ -148,6 +163,7 @@ export function Conversation({
           ) : null}
         </Fragment>
       ))}
+      {sending && !arrived ? <SendingMessage sending={sending} /> : null}
       {branchTurn && projection && onBranched ? (
         <BranchDialog
           sessionId={projection.session_id}

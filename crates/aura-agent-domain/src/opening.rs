@@ -41,3 +41,18 @@ pub struct OpenedOutside {
     pub completed: bool,
     pub message: String,
 }
+
+/// Walks a workspace's folder again for its file index, after a build that failed.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceIndexRebuildRequest {
+    pub workspace_id: WorkspaceId,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceIndexRebuildStarted {
+    pub workspace_id: WorkspaceId,
+    /// False when a walk of the folder was already running; nothing more was started.
+    pub started: bool,
+}

@@ -137,6 +137,10 @@ impl SkillRuntime {
         let _ = self.plugins.set(plugins);
     }
 
+    pub(crate) fn plugin_runtime(&self) -> Option<&Arc<crate::plugins::PluginRuntime>> {
+        self.plugins.get()
+    }
+
     /// A ready plugin's Skills, each read now and offered only at the fingerprint it had when
     /// the plugin was trusted.
     fn plugin_skills(&self, skills: &mut Vec<LocatedSkill>) {
@@ -155,7 +159,7 @@ impl SkillRuntime {
                     source: SkillSource::Plugin,
                     workspace_id: None,
                     relative,
-                    enabled: true,
+                    enabled: !plugin.setting.changes.switched_off.skills.contains(&found.relative),
                     trusted_fingerprint: plugin
                         .setting
                         .trusted_parts

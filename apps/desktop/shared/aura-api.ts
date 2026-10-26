@@ -293,6 +293,10 @@ export interface AuraApiV1 extends SessionConsentsApi {
   writeClipboard(
     request: AgentMainParams['agent.clipboard.write'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.clipboard.write']>>;
+  /** Walks a workspace's folder again after its file index failed to build. */
+  rebuildWorkspaceIndex(
+    request: AgentMainParams['agent.workspace.rebuild_index'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.workspace.rebuild_index']>>;
   /** Settings → Hook: the registry in execution order, each Hook with its live state. */
   listHooks(
     request: AgentMainParams['agent.hooks.list'],
@@ -357,6 +361,9 @@ export interface AuraApiV1 extends SessionConsentsApi {
   setMcpServerEnabled(
     request: AgentMainParams['agent.mcp.set_enabled'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.mcp.set_enabled']>>;
+  restoreMcpPluginDefault(
+    request: AgentMainParams['agent.mcp.restore_plugin_default'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.mcp.restore_plugin_default']>>;
   /** Removes a server from the list; its program is left untouched. */
   removeMcpServer(
     request: AgentMainParams['agent.mcp.remove'],

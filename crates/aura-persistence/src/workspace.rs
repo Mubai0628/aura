@@ -1,8 +1,11 @@
+mod catalog_write;
 mod lifecycle_record;
+mod stale_index;
 use lifecycle_record::load_lifecycle_record;
 use std::{
     collections::{BTreeSet, HashSet},
     str::FromStr,
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use aura_domain_common::{
@@ -165,6 +168,9 @@ pub enum CatalogCommitRefusal {
     InstanceReplaced { current: u64 },
     /// The workspace row is gone, so there is nothing to write into.
     WorkspaceMissing,
+    /// The caller stopped a write in jobs between two jobs. The index stays `rebuilding`, so
+    /// the next open walks the folder again.
+    Stopped,
 }
 
 /// What a guarded catalog commit did.
@@ -411,7 +417,7 @@ impl PersistenceCoordinator {
                 return Err(PersistenceError::WorkspaceNotFound);
             }
             if invalidate_paths {
-                clear_workspace_path_state(&transaction, workspace.workspace_id)?;
+                stale_index::untrust(&transaction, workspace.workspace_id)?;
             }
             let mut event = PersistentEventDraft::system(
                 event_type,
@@ -473,7 +479,7 @@ impl PersistenceCoordinator {
                 return Err(PersistenceError::WorkspaceNotFound);
             }
             if invalidate_paths {
-                clear_workspace_path_state(&transaction, workspace.workspace_id)?;
+                stale_index::untrust(&transaction, workspace.workspace_id)?;
             }
             let (external_grants_changed, revoked_external_grant_ids) =
                 match lifecycle.summary.operation {
@@ -1500,6 +1506,7 @@ impl PersistenceCoordinator {
             entries,
             partitions,
             correlation_id,
+            None,
         )? {
             CatalogCommitOutcome::Applied(revision) => Ok(revision),
             CatalogCommitOutcome::Refused(_) => Err(PersistenceError::InvalidRequest(
@@ -1515,6 +1522,8 @@ impl PersistenceCoordinator {
     /// revision moved, or a newer catalog instance claimed this workspace, and the
     /// transaction rolled back without touching an entry, a partition, a text row or the
     /// revision.
+    /// A write in jobs checks `stop` between jobs and is refused with
+    /// [`CatalogCommitRefusal::Stopped`] once it is set.
     pub fn replace_workspace_catalog_guarded(
         &self,
         workspace_id: WorkspaceId,
@@ -1522,6 +1531,7 @@ impl PersistenceCoordinator {
         entries: Vec<CatalogEntryRecord>,
         partitions: Vec<CatalogPartitionRecord>,
         correlation_id: CorrelationId,
+        stop: Option<Arc<AtomicBool>>,
     ) -> Result<CatalogCommitOutcome, PersistenceError> {
         self.replace_workspace_catalog_inner(
             workspace_id,
@@ -1529,6 +1539,7 @@ impl PersistenceCoordinator {
             entries,
             partitions,
             correlation_id,
+            stop,
         )
     }
 
@@ -1539,12 +1550,30 @@ impl PersistenceCoordinator {
         entries: Vec<CatalogEntryRecord>,
         partitions: Vec<CatalogPartitionRecord>,
         correlation_id: CorrelationId,
+        stop: Option<Arc<AtomicBool>>,
     ) -> Result<CatalogCommitOutcome, PersistenceError> {
         // A rebuild is derived index work on its own lane: it must not take the
         // interactive lane's capacity, and an interactive write must not wait behind the
         // whole rebuild. Its own budget is finite (see `INDEX_DEADLINE`), and the job
         // carries the caller's identity so a replacement whose caller stopped waiting
         // leaves a terminal record instead of an unresolvable unknown.
+        // A large index, new or stored, is written in jobs, so interactive writes run between
+        // them: deleting a large stored index is as long as writing one.
+        if entries.len() > catalog_write::BATCH
+            || self.with_reader(|connection| {
+                stale_index::more_than_one_batch(connection, workspace_id)
+            })?
+        {
+            return catalog_write::replace_in_batches(
+                self,
+                workspace_id,
+                expected,
+                entries,
+                partitions,
+                correlation_id,
+                stop,
+            );
+        }
         let identity = Self::workspace_catalog_write_identity(workspace_id, correlation_id);
         self.dispatch_class_identified(
             WorkClass::Index,
@@ -1560,100 +1589,9 @@ impl PersistenceCoordinator {
                     // dropping it: a refused plan leaves no trace at all.
                     return Ok(CatalogCommitOutcome::Refused(refusal));
                 }
-                let workspace = workspace_id.to_string();
-                // The rowid map is the only way to address one text row. Reading it out
-                // before the delete keeps every removal a primary-key lookup instead of
-                // an FTS scan, and drops the rows in one pass.
-                let rowids = {
-                    let mut statement = transaction.prepare(
-                        "SELECT fts_rowid FROM workspace_content_index WHERE workspace_id=?1",
-                    )?;
-                    statement
-                        .query_map([&workspace], |row| row.get::<_, i64>(0))?
-                        .collect::<Result<Vec<_>, _>>()?
-                };
-                transaction.execute(
-                    "DELETE FROM workspace_content_index WHERE workspace_id=?1",
-                    [&workspace],
-                )?;
-                {
-                    let mut statement =
-                        transaction.prepare("DELETE FROM workspace_content_fts WHERE rowid=?1")?;
-                    for rowid in rowids {
-                        statement.execute([rowid])?;
-                    }
-                }
-                transaction.execute(
-                    "DELETE FROM workspace_catalog_entries WHERE workspace_id=?1",
-                    [&workspace],
-                )?;
-                transaction.execute(
-                    "DELETE FROM workspace_catalog_partitions WHERE workspace_id=?1",
-                    [&workspace],
-                )?;
-                for partition in partitions {
-                    transaction.execute(
-                        "INSERT INTO workspace_catalog_partitions(
-                        workspace_id, partition_path, file_count, indexable_text_bytes, index_mode
-                     ) VALUES (?1, ?2, ?3, ?4, ?5)",
-                        params![
-                            workspace_id.to_string(),
-                            partition.partition_path.to_string(),
-                            as_sql_u64(partition.file_count)?,
-                            as_sql_u64(partition.indexable_text_bytes)?,
-                            index_mode_name(partition.index_mode),
-                        ],
-                    )?;
-                }
-                for entry in entries {
-                    transaction.execute(
-                        "INSERT INTO workspace_catalog_entries(
-                        workspace_id, relative_path, parent_path, file_name, entry_kind,
-                        partition_path, byte_length, modified_at, content_hash, text_encoding,
-                        ignored, generated, hidden_from_search, reparse_tag, change_usn,
-                        volume_serial, file_id
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                               ?16, ?17)",
-                        params![
-                            workspace_id.to_string(),
-                            entry.path.to_string(),
-                            entry.parent_path.to_string(),
-                            entry.file_name,
-                            entry_kind_name(entry.kind),
-                            entry.partition_path.to_string(),
-                            entry.byte_length.map(as_sql_u64).transpose()?,
-                            entry.modified_at,
-                            entry.content_hash.as_ref().map(ToString::to_string),
-                            entry.text_encoding.map(encoding_name),
-                            entry.ignored,
-                            entry.generated,
-                            entry.hidden_from_search,
-                            entry.reparse_tag.map(i64::from),
-                            entry.change_usn.map(as_sql_u64).transpose()?,
-                            entry.volume_serial,
-                            entry.file_id,
-                        ],
-                    )?;
-                    if let Some(content) = entry.content {
-                        let content_hash = entry.content_hash.as_ref().map(ToString::to_string);
-                        transaction.execute(
-                        "INSERT INTO workspace_content_fts(workspace_id, relative_path, content)
-                         VALUES (?1, ?2, ?3)",
-                        params![workspace_id.to_string(), entry.path.to_string(), content],
-                    )?;
-                        transaction.execute(
-                            "INSERT INTO workspace_content_index(
-                            workspace_id, relative_path, fts_rowid, content_hash, needs_reindex
-                         ) VALUES (?1, ?2, ?3, ?4, 0)",
-                            params![
-                                workspace_id.to_string(),
-                                entry.path.to_string(),
-                                transaction.last_insert_rowid(),
-                                content_hash
-                            ],
-                        )?;
-                    }
-                }
+                catalog_write::delete_old(&transaction, &workspace_id.to_string(), None)?;
+                catalog_write::insert_partitions(&transaction, workspace_id, partitions)?;
+                catalog_write::insert_entries(&transaction, workspace_id, entries)?;
                 // The revision the whole-set replacement publishes is claimed, not assumed:
                 // for a guarded commit the update also carries the revision the plan was
                 // derived from, so the condition and the modification are one statement as
@@ -1749,7 +1687,8 @@ impl PersistenceCoordinator {
         &self,
         workspace_id: WorkspaceId,
     ) -> Result<Vec<WorkspacePath>, PersistenceError> {
-        self.with_reader(|connection| {
+        // A whole index's read: its size, not an interactive wait, sets how long it takes.
+        self.read_within(self.index_deadline(), |connection| {
             let mut statement = connection.prepare(
                 "SELECT relative_path FROM workspace_content_index
                  WHERE workspace_id=?1 AND fts_rowid IS NOT NULL AND needs_reindex=0
@@ -2163,7 +2102,8 @@ impl PersistenceCoordinator {
         workspace_id: WorkspaceId,
     ) -> Result<(Vec<CatalogEntryRecord>, Vec<CatalogPartitionRecord>, Revision), PersistenceError>
     {
-        self.with_reader(|connection| {
+        // A whole index's read: its size, not an interactive wait, sets how long it takes.
+        self.read_within(self.index_deadline(), |connection| {
             let revision = connection
                 .query_row(
                     "SELECT catalog_revision FROM workspaces WHERE workspace_id=?1",
@@ -2271,6 +2211,25 @@ impl PersistenceCoordinator {
                 "permanent-delete lifecycle record is invalid".to_owned(),
             ));
         }
+        // What only whole-table reads find, and the rows there are thousands of, go first in
+        // short background jobs, so the transaction below holds the writer briefly.
+        let subject = workspace_id.to_string();
+        let mut scanned = self.with_reader(|connection| {
+            let state = connection
+                .query_row(
+                    "SELECT state FROM workspaces WHERE workspace_id=?1",
+                    [&subject],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+                .ok_or(PersistenceError::WorkspaceNotFound)?;
+            if parse_workspace_state(&state)? != WorkspaceState::Archived {
+                return Err(PersistenceError::WorkspaceBusy);
+            }
+            crate::registry_purge::of_workspace(connection, &subject)
+        })?;
+        scanned.delete_text(self)?;
+        crate::registry_purge::delete_catalog(self, &subject)?;
         let (report, committed) = self.dispatch(move |connection| {
             let transaction = connection.transaction()?;
             let state = transaction
@@ -2332,21 +2291,6 @@ impl PersistenceCoordinator {
                 &now,
             )?;
             transaction.execute(
-                "DELETE FROM event_search_fts
-                 WHERE event_id IN (
-                    SELECT event_id FROM events
-                    WHERE workspace_id=?1
-                       OR session_id IN (
-                           SELECT session_id FROM sessions WHERE workspace_id=?1
-                       )
-                 )",
-                [workspace_id.to_string()],
-            )?;
-            transaction.execute(
-                "DELETE FROM workspace_content_fts WHERE workspace_id=?1",
-                [workspace_id.to_string()],
-            )?;
-            transaction.execute(
                 "DELETE FROM workspaces WHERE workspace_id=?1",
                 [workspace_id.to_string()],
             )?;
@@ -2361,9 +2305,10 @@ impl PersistenceCoordinator {
                     )? == 1,
                 );
             }
-            transaction.execute(
-                "DELETE FROM projection_outbox WHERE projection_kind='workspace_session'",
-                [],
+            scanned.delete_outbox(
+                &transaction,
+                &workspace_id.to_string(),
+                "projection_kind='workspace_session' AND ?1 IS NOT NULL",
             )?;
             let committed = commit_projection(&transaction)?;
             transaction.commit()?;
@@ -2593,34 +2538,6 @@ pub(crate) fn commit_projection(
         ],
     )?;
     Ok(CommittedProjection { outbox_id: transaction.last_insert_rowid(), source_revision, payload })
-}
-
-fn clear_workspace_path_state(
-    transaction: &Transaction<'_>,
-    workspace_id: WorkspaceId,
-) -> Result<(), PersistenceError> {
-    for table in [
-        "workspace_catalog_entries",
-        "workspace_catalog_partitions",
-        "workspace_path_recent_use",
-        "workspace_deferred_mutations",
-        "workspace_mutation_ownership",
-        "file_references",
-    ] {
-        transaction.execute(
-            &format!("DELETE FROM {table} WHERE workspace_id=?1"),
-            [workspace_id.to_string()],
-        )?;
-    }
-    transaction.execute(
-        "DELETE FROM workspace_content_index WHERE workspace_id=?1",
-        [workspace_id.to_string()],
-    )?;
-    transaction.execute(
-        "DELETE FROM workspace_content_fts WHERE workspace_id=?1",
-        [workspace_id.to_string()],
-    )?;
-    Ok(())
 }
 
 /// Removes one path's text row through its recorded rowid.

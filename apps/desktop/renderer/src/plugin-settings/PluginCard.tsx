@@ -107,6 +107,11 @@ export function PluginCard({
             {plugin.version ?? '当前版本'}。
           </span>
           {update.problems.length ? <p role="alert">{update.problems.join('；')}</p> : null}
+          {update.changed_servers?.length ? (
+            <p className="plugin-warning">
+              你改过配置、新版本也改了的服务器：{update.changed_servers.join('、')}
+            </p>
+          ) : null}
           <div className="settings-card-actions">
             {update.fingerprint ? (
               <button

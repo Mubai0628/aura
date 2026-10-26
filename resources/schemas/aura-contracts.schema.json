@@ -13007,7 +13007,7 @@
     },
     "CoreBusyV1": {
       "additionalProperties": false,
-      "description": "The long work Core is doing that holds its stores — other requests wait\nbehind it — and since when.",
+      "description": "A deletion Core is doing in the background, in short steps other requests are served\nbetween, and since when.",
       "properties": {
         "activity": {
           "$ref": "#/$defs/CoreBusyActivityV1"
@@ -13042,7 +13042,7 @@
               "type": "null"
             }
           ],
-          "description": "Long work that holds Core's stores, while it has run for a while (\"Core 正忙\")."
+          "description": "A deletion Core is doing in the background, once it has run for a while."
         },
         "read_only": {
           "type": "boolean"
@@ -17574,12 +17574,21 @@
       "type": "object"
     },
     "FsSkippedScopeReason": {
-      "enum": [
-        "protected_scope",
-        "control_authority",
-        "target_unavailable"
-      ],
-      "type": "string"
+      "oneOf": [
+        {
+          "enum": [
+            "protected_scope",
+            "control_authority",
+            "target_unavailable"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "not_indexed",
+          "description": "A folder the workspace's index did not enter (past its entry cap, or with memory low):\nlookups do not reach into it; listing it reads the disk.",
+          "type": "string"
+        }
+      ]
     },
     "FsStatRequest": {
       "additionalProperties": false,
@@ -22434,11 +22443,15 @@
           ]
         },
         "plugin": {
-          "description": "The plugin that brings it; it is changed and removed with the plugin.",
+          "description": "The plugin that brings it; it is removed with the plugin.",
           "type": [
             "string",
             "null"
           ]
+        },
+        "plugin_changed": {
+          "description": "A plugin's server the user saved with a configuration of their own.",
+          "type": "boolean"
         },
         "problems": {
           "items": {
@@ -34415,6 +34428,13 @@
       "additionalProperties": false,
       "description": "A newer copy of an installed plugin, imported and waiting to be trusted. The installed copy\nkeeps working until then.",
       "properties": {
+        "changed_servers": {
+          "description": "The servers the user configured whose own configuration this version changes or no\nlonger has, by display name.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "counts": {
           "$ref": "#/$defs/PluginCounts"
         },
@@ -49253,7 +49273,7 @@
         },
         "requires_network": {
           "default": false,
-          "description": "Default false. Set true when the script needs the network; read-only and\nworkspace modes then ask for network approval. It declares a need and never\ngrants access by itself.",
+          "description": "Default false. Set true when the script needs the network; read-only mode\nthen asks for network approval. It declares a need and never\ngrants access by itself.",
           "type": "boolean"
         },
         "script": {
@@ -62621,6 +62641,17 @@
             "null"
           ]
         },
+        "indexing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceIndexingStatus"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The index build, while it runs or when it did not finish the whole tree."
+        },
         "partitions": {
           "items": {
             "$ref": "#/$defs/CatalogPartitionSummary"
@@ -63427,6 +63458,77 @@
     },
     "WorkspaceId": {
       "type": "string"
+    },
+    "WorkspaceIndexRebuildRequest": {
+      "additionalProperties": false,
+      "description": "Walks a workspace's folder again for its file index, after a build that failed.",
+      "properties": {
+        "workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id"
+      ],
+      "type": "object"
+    },
+    "WorkspaceIndexRebuildStarted": {
+      "additionalProperties": false,
+      "properties": {
+        "started": {
+          "description": "False when a walk of the folder was already running; nothing more was started.",
+          "type": "boolean"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "started"
+      ],
+      "type": "object"
+    },
+    "WorkspaceIndexingState": {
+      "enum": [
+        "building",
+        "incomplete",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "WorkspaceIndexingStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "failure": {
+          "description": "Why the build failed, when it did.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "listed_entries": {
+          "description": "Entries the running or last walk listed.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/WorkspaceIndexingState"
+        },
+        "unindexed_directories": {
+          "description": "Folders recorded but not entered: past the entry cap, or with memory low.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "state",
+        "listed_entries",
+        "unindexed_directories"
+      ],
+      "type": "object"
     },
     "WorkspaceLifecycleBlocker": {
       "oneOf": [

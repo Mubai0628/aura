@@ -9,13 +9,15 @@ use regex::Regex;
 use std::sync::OnceLock;
 
 /// A command that deletes, where a command starts: the script's start, a new line, `;`, `|`, `&`,
-/// `(` or `{`, an optional call operator, and the word followed by a space or the end.
-const COMMAND: &str = r"(?im)(?:^|[;|&({\r\n])\s*(?:&\s*)?(?:remove-item|ri|rm|rmdir|rd|del|erase|clear-recyclebin|remove-itemproperty\s+-path\s+\S*::filesystem)(?:\.exe)?(?:\s|$|[;|&)}])";
+/// `(`, `{` or a quote (a script handed to `powershell -c`, `Invoke-Expression` or `cmd /c`), an
+/// optional call operator, and the word followed by a space or the end.
+const COMMAND: &str = r#"(?im)(?:^|[;|&({\r\n"'])\s*(?:&\s*)?(?:remove-item|ri|rm|rmdir|rd|del|erase|clear-recyclebin|remove-itemproperty\s+-path\s+\S*::filesystem)(?:\.exe)?(?:\s|$|[;|&)}])"#;
 /// .NET and COM deletions a PowerShell script can make.
 const DOTNET: &str = r"(?i)\[(?:system\.)?io\.(?:file|directory)\]::delete\s*\(|\]::delete(?:file|directory)\s*\(|\.delete\s*\(\s*(?:\$true|\$false)?\s*\)";
 /// `git clean` with a force flag deletes untracked files; robocopy's /MIR and /PURGE delete what
-/// the source lacks; `cmd /c del` from PowerShell is still a deletion.
-const TOOLS: &str = r"(?i)\bgit(?:\.exe)?\s+clean\b[^\r\n;|&]*\s-(?:-force|[a-z]*f)|\brobocopy(?:\.exe)?\b[^\r\n;|&]*\s/(?:mir|purge)\b|\bcmd(?:\.exe)?\s+/[ck]\s+[^\r\n]*\b(?:del|erase|rd|rmdir)\b";
+/// the source lacks; `cmd /c del` from PowerShell is still a deletion; an encoded PowerShell command
+/// cannot be read at all, so it is asked like one.
+const TOOLS: &str = r"(?i)\bgit(?:\.exe)?\s+clean\b[^\r\n;|&]*\s-(?:-force|[a-z]*f)|\brobocopy(?:\.exe)?\b[^\r\n;|&]*\s/(?:mir|purge)\b|\bcmd(?:\.exe)?\s+/[ck]\s+[^\r\n]*\b(?:del|erase|rd|rmdir)\b|\b(?:powershell|pwsh)(?:\.exe)?\b[^\r\n]*\s-(?:encodedcommand|enc|ec)\b";
 
 fn patterns() -> &'static [Regex; 3] {
     static PATTERNS: OnceLock<[Regex; 3]> = OnceLock::new();
@@ -36,6 +38,42 @@ mod tests {
     use super::*;
 
     const SHELLS: [ManagedShell; 2] = [ManagedShell::PowerShell, ManagedShell::Cmd];
+
+    #[test]
+    fn deletions_quoted_wrapped_or_encoded_are_seen() {
+        for script in [
+            "powershell -c \"Remove-Item x\"",
+            "pwsh -Command 'Remove-Item x -Recurse'",
+            "Invoke-Expression 'Remove-Item x'",
+            "iex \"rm -r dist\"",
+            "cmd /c \"del /q x\"",
+            "powershell -EncodedCommand UgBlAG0AbwB2AGUALQBJAHQAZQBtACAAeAA=",
+            "pwsh -enc UgBlAG0A",
+            "powershell.exe -NoProfile -ec UgBlAG0A",
+        ] {
+            for shell in SHELLS {
+                assert!(deletes_files(shell, script), "{shell:?}: {script}");
+            }
+        }
+    }
+
+    /// What a pattern cannot read stays unseen; the user documentation says so.
+    #[test]
+    fn indirect_deletions_remain_a_known_limit() {
+        for script in [
+            "python -c \"import shutil; shutil.rmtree('dist')\"",
+            "python cleanup.py",
+            "node -e \"require('fs').rmSync('dist',{recursive:true})\"",
+            "$c='Remove-Item'; & $c x",
+            "Set-Content x ''",
+            "Move-Item x $env:TEMP",
+            "node --enable-source-maps build.mjs",
+        ] {
+            for shell in SHELLS {
+                assert!(!deletes_files(shell, script), "{shell:?}: {script}");
+            }
+        }
+    }
 
     #[test]
     fn the_ways_a_model_deletes_files_are_seen() {

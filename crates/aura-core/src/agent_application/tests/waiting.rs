@@ -65,6 +65,9 @@ mod l13_5_zip_entries;
 // A workspace zip's entry, and a file outside the workspace a message names.
 #[path = "l13_6_files.rs"]
 mod l13_6_files;
+// A new conversation's first request measured by another conversation's count.
+#[path = "l12_1_borrowed_count.rs"]
+mod l12_1_borrowed_count;
 
 /// The runtime, session and model profile a run needs, before anything has been
 /// started. Tests that must commit their own configuration first (the context

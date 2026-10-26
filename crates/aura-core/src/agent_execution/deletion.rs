@@ -8,7 +8,7 @@ use anyhow::{Result, bail, ensure};
 use aura_permission_domain::ExternalGrantCapability;
 use aura_windows_platform::{NativeFileAccess, NativePathInfo, RecycleOutcome};
 use aura_workspace_domain::{AgentFileDeleteInput, AgentFileDeleteOutcome, AgentFileDeleteResult};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(super) const NOT_RECYCLABLE: &str = "fs.delete.not_recyclable: 回收站放不下这一项（或它所在的位置没有回收站），没有删除，它还在原处。要永久删除，请先告诉用户，再用 permanent: true，Aura 会先问用户。";
 
@@ -78,25 +78,6 @@ fn shell_path(info: &NativePathInfo) -> PathBuf {
     ))
 }
 
-#[cfg(not(test))]
-fn recycle(path: &Path) -> std::io::Result<RecycleOutcome> {
-    aura_windows_platform::move_to_recycle_bin(path)
-}
-
-/// Tests never touch the user's Recycle Bin: the item moves to a bin folder beside it, and a name
-/// with `not-recyclable` in it is one the bin cannot take.
-#[cfg(test)]
-fn recycle(path: &Path) -> std::io::Result<RecycleOutcome> {
-    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    if name.contains("not-recyclable") {
-        return Ok(RecycleOutcome::NotRecyclable);
-    }
-    let bin = path.parent().unwrap_or(path).join(".test-recycle-bin");
-    std::fs::create_dir_all(&bin)?;
-    std::fs::rename(path, bin.join(name))?;
-    Ok(RecycleOutcome::Recycled)
-}
-
 pub(super) fn delete(
     service: &AgentExecution,
     call: &CallContext,
@@ -117,7 +98,7 @@ pub(super) fn delete(
         }
         AgentFileDeleteOutcome::Deleted
     } else {
-        match recycle(&shell)? {
+        match super::recycle::move_to_recycle_bin(&shell)? {
             RecycleOutcome::Recycled => AgentFileDeleteOutcome::Recycled,
             RecycleOutcome::NotRecyclable => bail!(NOT_RECYCLABLE),
         }

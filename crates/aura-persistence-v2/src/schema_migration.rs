@@ -32,6 +32,15 @@ pub(crate) fn migrate(path: &Path) -> StoreResult<()> {
     Ok(())
 }
 
+/// Whether this build would migrate the store at `path`, decided read-only exactly as [`migrate`]
+/// decides it. A missing store is a new one, which nothing needs to protect.
+pub fn migration_pending(path: &Path) -> StoreResult<bool> {
+    if !path.is_file() {
+        return Ok(false);
+    }
+    Ok(plan_migration(path)?.is_some())
+}
+
 fn apply_plan(
     transaction: &rusqlite::Transaction<'_>,
     planned: &PlannedMigrations,

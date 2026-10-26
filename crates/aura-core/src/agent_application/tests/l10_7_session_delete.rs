@@ -186,12 +186,13 @@ async fn archiving_keeps_a_session_and_deleting_it_leaves_no_trace_and_keeps_the
     assert!(!v2(runtime, |db| traces(db, MARKER_A)).is_empty(), "a refused delete removed nothing");
     crate::r03_tests::success(runtime, "session.archive", json!({"session_id": a})).await;
 
-    // Delete.
+    // Delete: the route answers once A is hidden; its records go on Core's own task.
     let deleted =
         crate::r03_tests::success(runtime, "session.delete", json!({"session_id": a})).await;
     assert_eq!(deleted["session_id"], json!(a));
     assert!(projection(runtime).sessions.iter().all(|s| s.session_id != a));
     assert!(projection(runtime).sessions.iter().any(|s| s.session_id == b && s.state == "idle"));
+    crate::session_lifecycle::deleted(runtime).await;
 
     // Nothing of A remains in the execution store: not its ID, not its turns, not its message.
     for needle in [a.to_string(), MARKER_A.to_owned()].into_iter().chain(a_turns.clone()) {

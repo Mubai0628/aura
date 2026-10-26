@@ -59,11 +59,23 @@ impl FsToolService {
             );
         }
         let catalog = self.catalog(request.workspace_id)?;
-        let revision = catalog.revision()?;
-        let entries = catalog
-            .entries()?
+        // A folder the index stops above (an ignored one, or one below it) is read from disk.
+        let (entries, revision) = match aura_workspace::children_beyond_index(
+            &catalog,
+            &resolver,
+            &request.target.path,
+            None,
+            usize::MAX,
+        )? {
+            Some(page) => page,
+            None => {
+                let (entries, revision, _) =
+                    catalog.children_page(&request.target.path, None, usize::MAX)?;
+                (entries, revision)
+            }
+        };
+        let entries = entries
             .into_iter()
-            .filter(|entry| entry.parent_path == request.target.path)
             .map(|entry| FsListEntry {
                 path: entry.path,
                 name: entry.file_name,
@@ -275,7 +287,13 @@ impl FsToolService {
         let outcome =
             crate::search::execute(&catalog, &buffers, &resolver, &request, cancel, &stages);
         self.record_search_diagnostics(stages.snapshot());
-        outcome
+        let (mut result, diagnostics) = outcome?;
+        let skipped = crate::unindexed::skipped(&catalog, &resolver, &request.root, true)?;
+        if !skipped.is_empty() {
+            result.skipped_scopes.extend(skipped);
+            crate::unindexed::partial(&mut result.completion);
+        }
+        Ok((result, diagnostics))
     }
 
     pub fn capture_workspace_file(

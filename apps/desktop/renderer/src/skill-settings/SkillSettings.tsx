@@ -120,7 +120,10 @@ export function SkillSettings({
           return applied(await api.untrustSkill(request(skill)), `已撤销对 ${name(skill)} 的信任`);
         case 'remove':
           setRemoving(undefined);
-          return applied(await api.removeSkill(request(skill)), `已移除 ${name(skill)}`);
+          return applied(
+            await api.removeSkill(request(skill)),
+            skill.source === 'aura_store' ? `已移除 ${name(skill)}` : `已删除 ${name(skill)}`,
+          );
       }
     });
   // Main opens the folder Core lists for this Skill; the page never sends a path.
@@ -151,7 +154,7 @@ export function SkillSettings({
   const row = (skill: SkillView, index: number) => {
     const locked = busy !== undefined;
     const usable = skill.state !== 'invalid' && skill.state !== 'unavailable';
-    // A plugin's Skill is trusted, switched and removed with its plugin.
+    // A plugin's Skill is trusted and removed with its plugin.
     const plugin = skill.source === 'plugin' ? (skill.plugin ?? '') : undefined;
     const needsTrust =
       plugin === undefined &&
@@ -212,7 +215,7 @@ export function SkillSettings({
                   : '预览'}
             </button>
           ) : null}
-          {usable && !needsTrust && plugin === undefined ? (
+          {usable && !needsTrust ? (
             <button
               type="button"
               className="button is-small"
@@ -241,34 +244,38 @@ export function SkillSettings({
             <AppIcon name="folder" size={14} />
             打开文件夹
           </button>
-          {skill.source === 'aura_store' ? (
+          {skill.source === 'plugin' ? null : (
             <button
               type="button"
               className="button is-danger is-small skill-remove"
               disabled={locked}
               onClick={() => setRemoving(skill.id)}
             >
-              移除
+              {skill.source === 'aura_store' ? '移除' : '删除'}
             </button>
-          ) : null}
+          )}
         </div>
-        {plugin !== undefined ? (
-          <p className="skill-row-tools">随插件 {plugin} 信任与启用；请在 设置 → 插件 里管理。</p>
-        ) : null}
         {removing === skill.id ? (
           <div
             role="alertdialog"
-            aria-label={`移除 ${name(skill)}`}
+            aria-label={`${skill.source === 'aura_store' ? '移除' : '删除'} ${name(skill)}`}
             className="settings-panel is-danger"
           >
-            <p>移除后 Aura 里的这份副本会被删除；你当初导入的原文件夹不受影响。</p>
+            {skill.source === 'aura_store' ? (
+              <p>移除后 Aura 里的这份副本会被删除；你当初导入的原文件夹不受影响。</p>
+            ) : (
+              <p>
+                删除后，这个 Skill 的文件夹会移到回收站：{skill.path}
+                {skill.source === 'agent_global' ? ' 其他使用 .agents 的工具也会看不到它。' : null}
+              </p>
+            )}
             <div className="settings-card-actions">
               <button
                 type="button"
                 className="button is-danger is-solid is-small"
                 onClick={() => void change(skill, 'remove')}
               >
-                移除
+                {skill.source === 'aura_store' ? '移除' : '删除'}
               </button>
               <button
                 type="button"

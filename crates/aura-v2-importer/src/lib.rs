@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+//! UNWIRED: a standalone legacy-data import tool; no shipped binary links this crate.
 
 mod configurations;
 mod publish;

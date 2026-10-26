@@ -540,6 +540,27 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         CommandInvocation,
         None
     ),
+    // A failed file index is walked again on request.
+    route!(
+        "agent.workspace.rebuild_index",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "WorkspaceIndexRebuildRequest",
+        "WorkspaceIndexRebuildStarted",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.workspace.rebuild_index",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "WorkspaceIndexRebuildRequest",
+        "WorkspaceIndexRebuildStarted",
+        CommandInvocation,
+        None
+    ),
     route!(
         "agent.commands.catalog",
         Agent,

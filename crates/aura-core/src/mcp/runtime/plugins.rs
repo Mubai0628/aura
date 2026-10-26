@@ -13,6 +13,8 @@ pub(crate) struct BroughtServer {
     pub config: McpServerConfig,
     pub plugin: String,
     pub limits: JobLimits,
+    /// Run with the configuration the user saved in place of the plugin's.
+    pub changed: bool,
 }
 
 impl McpRuntime {
@@ -38,14 +40,20 @@ impl McpRuntime {
                 if !taken.insert(server.id.clone()) {
                     continue;
                 }
-                let mut config =
-                    server.config(&|key| setting.secret(&server.id, key).unwrap_or_default());
-                config.enabled = true;
+                let changed = setting.changes.servers.get(&server.id);
+                let mut config = match changed {
+                    Some(changed) => changed.clone(),
+                    None => {
+                        server.config(&|key| setting.secret(&server.id, key).unwrap_or_default())
+                    }
+                };
+                config.enabled = !setting.changes.switched_off.servers.contains(&server.id);
                 config.trusted_fingerprint = setting.trusted_parts.servers.get(&server.id).cloned();
                 brought.push(BroughtServer {
                     config,
                     plugin: plugin.package.manifest.name.clone(),
                     limits: plugin.job_limits(),
+                    changed: changed.is_some(),
                 });
             }
         }
@@ -62,12 +70,17 @@ impl McpRuntime {
         self.brought(id).map(|server| server.plugin)
     }
 
+    /// The plugin that brings the server `id` and whether the user saved its configuration.
+    pub(crate) fn brought_by(&self, id: &str) -> Option<(String, bool)> {
+        self.brought(id).map(|server| (server.plugin, server.changed))
+    }
+
     pub(crate) fn plugin_limits(&self, id: &str) -> Option<JobLimits> {
         self.brought(id).map(|server| server.limits)
     }
 
-    /// Every secret and every server ID `plugins.json` names, ready or not; `None` while it
-    /// cannot be read (then nothing may be swept).
+    /// Every secret and every server ID `plugins.json` names, ready or not (the user's saved
+    /// configurations included); `None` while it cannot be read (then nothing may be swept).
     pub(crate) fn plugin_credentials(&self) -> Option<(BTreeSet<CredentialId>, Vec<String>)> {
         let registry = self.settings.plugin_registry();
         if registry.issue.is_some() {
@@ -81,6 +94,10 @@ impl McpRuntime {
                 servers.insert(secret.server.clone());
             }
             servers.extend(plugin.trusted_parts.servers.keys().cloned());
+            for (id, changed) in &plugin.changes.servers {
+                secrets.extend(changed.transport.secret_ids());
+                servers.insert(id.clone());
+            }
         }
         Some((secrets, servers.into_iter().collect()))
     }

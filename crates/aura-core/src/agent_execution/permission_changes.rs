@@ -11,6 +11,14 @@ pub(super) fn rank(mode: PermissionMode) -> u8 {
     }
 }
 
+/// An Agent's built-in shell or terminal: it runs unconfined as the user, so its default is the
+/// shells' own slice rule, not the confined-process ceiling.
+fn unconfined_shell(operation: &SecuredOperation) -> bool {
+    let c = &operation.content;
+    matches!(c.identity.actor, InvocationActor::ParentAgent | InvocationActor::ChildAgent)
+        && aura_security_contract::built_in_shell(&c.source, &c.action_kind)
+}
+
 pub(crate) fn lost_default(
     operation: &SecuredOperation,
     before: PermissionMode,
@@ -23,12 +31,24 @@ pub(crate) fn lost_default(
         &c.capabilities,
         &c.resources,
     );
-    c.capabilities.iter().any(|cap| {
-        mode_ceiling::permits(c.identity.actor, before, &[*cap], false, controlled)
-            && !mode_ceiling::permits(c.identity.actor, after, &[*cap], false, controlled)
-    }) || c.network != OperationNetwork::None
-        && mode_ceiling::permits(c.identity.actor, before, &[], true, controlled)
-        && !mode_ceiling::permits(c.identity.actor, after, &[], true, controlled)
+    let unconfined = unconfined_shell(operation);
+    let covers = |mode, cap: ResolvedCapability| {
+        if unconfined {
+            aura_security_contract::ordinary_mode_covers_capability(
+                mode,
+                &c.source,
+                &c.action_kind,
+                cap,
+                &c.resources,
+            )
+        } else {
+            mode_ceiling::permits(c.identity.actor, mode, &[cap], false, controlled)
+        }
+    };
+    c.capabilities.iter().any(|cap| covers(before, *cap) && !covers(after, *cap))
+        || c.network != OperationNetwork::None
+            && mode_ceiling::permits(c.identity.actor, before, &[], true, controlled)
+            && !mode_ceiling::permits(c.identity.actor, after, &[], true, controlled)
 }
 
 impl AgentExecution {
@@ -49,6 +69,7 @@ impl AgentExecution {
             )
         });
         if !protected
+            && !unconfined_shell(operation)
             && mode_ceiling::permits(
                 c.identity.actor,
                 mode,

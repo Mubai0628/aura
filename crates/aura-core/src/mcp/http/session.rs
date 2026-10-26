@@ -22,6 +22,10 @@ use std::{
 };
 use tokio::runtime::Handle;
 
+/// The start of the error a server that wants a sign-in answers with; a plugin's server is
+/// recognised by it (`mcp::runtime::plugin_hint`).
+pub(crate) const SIGN_IN_REQUIRED: &str = "服务器要求登录（HTTP 401）";
+
 const NOTES: usize = 200;
 const NOTE_CHARS: usize = 500;
 /// How long a cancelled request may still be answered before it is settled as cancelled.
@@ -211,8 +215,7 @@ impl HttpSession {
                     return Err(Failure::NotSent(if self.plan.credential.is_some() {
                         "服务器拒绝了登录凭据（HTTP 401），请在设置里检查密钥或重新登录".into()
                     } else {
-                        "服务器要求登录（HTTP 401），请在服务器设置的“认证”里设置密钥或 OAuth 登录"
-                            .into()
+                        format!("{SIGN_IN_REQUIRED}，请在服务器设置的“认证”里设置密钥或 OAuth 登录")
                     }));
                 }
                 outcome => return outcome,

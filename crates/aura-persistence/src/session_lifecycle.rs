@@ -103,8 +103,22 @@ impl PersistenceCoordinator {
     }
 
     /// Deletes every primary-registry row of a Session in state `deleting`, with its events.
-    /// Returns false when the Session is already gone.
+    /// Returns false when the Session is already gone. The rows found only by reading whole
+    /// tables are read first on a reader, and its full-text rows go in short background jobs,
+    /// so the one transaction that deletes the rest holds the writer briefly.
     pub fn purge_session(&self, session_id: SessionId) -> Result<bool, PersistenceError> {
+        let session = session_id.to_string();
+        let planned = self.with_reader(|connection| match state_of(connection, session_id)? {
+            None => Ok(None),
+            Some(state) if state != SESSION_DELETING => {
+                Err(PersistenceError::InvalidRequest("session.not_deleting".into()))
+            }
+            Some(_) => Ok(Some(crate::registry_purge::of_session(connection, &session)?)),
+        })?;
+        let Some(mut scanned) = planned else {
+            return Ok(false);
+        };
+        scanned.delete_text(self)?;
         let committed = self.dispatch(move |connection| {
             let tx = connection.transaction()?;
             let Some(state) = state_of(&tx, session_id)? else {
@@ -113,7 +127,7 @@ impl PersistenceCoordinator {
             if state != SESSION_DELETING {
                 return Err(PersistenceError::InvalidRequest("session.not_deleting".into()));
             }
-            purge_rows(&tx, &session_id.to_string())?;
+            purge_rows(&tx, &session, &scanned)?;
             let projection = crate::workspace::commit_projection(&tx)?;
             tx.commit()?;
             Ok(Some(projection))
@@ -251,7 +265,11 @@ fn summary(
 
 /// One transaction. Foreign keys are checked at commit, so the order below only has to leave a
 /// consistent store, and anything that still points at a removed row fails the whole purge.
-fn purge_rows(tx: &Transaction<'_>, session: &str) -> Result<(), PersistenceError> {
+fn purge_rows(
+    tx: &Transaction<'_>,
+    session: &str,
+    scanned: &crate::registry_purge::Scanned,
+) -> Result<(), PersistenceError> {
     tx.execute_batch("PRAGMA defer_foreign_keys=ON")?;
     let now = UtcTimestamp::now().to_string();
     tx.execute(
@@ -260,13 +278,7 @@ fn purge_rows(tx: &Transaction<'_>, session: &str) -> Result<(), PersistenceErro
          WHERE owner_kind='session' AND owner_id=?1",
         params![session, now],
     )?;
-    // Search rows are not reached by the cascades.
-    tx.execute(
-        "DELETE FROM event_search_fts
-         WHERE event_id IN (SELECT event_id FROM events WHERE session_id=?1)",
-        [session],
-    )?;
-    tx.execute("DELETE FROM context_search_fts WHERE session_id=?1", [session])?;
+    // Search rows are not reached by the cascades; they went before this transaction.
     // P03-era tool history references its batch without a cascade. The RESTRICT binding is
     // checked at once, so it goes before the attempts it points at.
     let attempts = "SELECT tool_execution_attempt_id FROM tool_execution_attempts
@@ -294,19 +306,12 @@ fn purge_rows(tx: &Transaction<'_>, session: &str) -> Result<(), PersistenceErro
     tx.execute("DELETE FROM tool_batches WHERE session_id=?1", [session])?;
     tx.execute("DELETE FROM events WHERE session_id=?1", [session])?;
     // Projections kept for this Session, and the older published history of every projection
-    // that named it; the latest row of a projection is what its readers use, so it stays. The
-    // workspace/session projection is rewritten below with the Session gone.
-    tx.execute(
-        "DELETE FROM projection_outbox
-         WHERE instr(projection_key, ?1) > 0
-            OR projection_kind='workspace_session'
-            OR (published_at IS NOT NULL AND instr(payload_json, ?1) > 0
-                AND outbox_id < (
-                    SELECT max(latest.outbox_id) FROM projection_outbox AS latest
-                    WHERE latest.projection_kind=projection_outbox.projection_kind
-                      AND latest.projection_key=projection_outbox.projection_key
-                ))",
-        [session],
+    // that named it (`registry_purge::of_session`). The workspace/session projection is
+    // rewritten below with the Session gone.
+    scanned.delete_outbox(
+        tx,
+        session,
+        "instr(projection_key, ?1) > 0 OR projection_kind='workspace_session'",
     )?;
     tx.execute("DELETE FROM projection_revisions WHERE instr(projection_key, ?1) > 0", [session])?;
     tx.execute("DELETE FROM sessions WHERE session_id=?1", [session])?;

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppIcon } from '../app-icons';
 import { userMessage } from '../agent-session/user-message';
 import { fileTrees, ROOT, useFileTree, type FileScope } from './file-tree-store';
+import { FileTreeIndexing } from './workspace-indexing';
 
 /** A file row's right-click menu, when the tree offers one. */
 export type FileRowMenu = (event: MouseEvent<HTMLElement>, path: string) => void;
@@ -270,6 +271,7 @@ export function FileTree({
           <AppIcon name="refresh" size={13} />
         </button>
       </div>
+      <FileTreeIndexing workspaceId={scope.workspace} />
       <ul className="file-tree-list">
         {query ? (
           <FilterResults

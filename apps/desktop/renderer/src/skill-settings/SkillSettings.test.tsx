@@ -99,7 +99,7 @@ test('lists Skills with source and state; only a trusted one has a switch', asyn
   expect(within(rowOf('edited')).getByRole('button', { name: '查看变化并重新信任' })).toBeTruthy();
   // An unusable folder offers no preview or trust; there is nothing it could be trusted at.
   expect(within(rowOf('broken')).queryByRole('button', { name: /查看|预览|启用/u })).toBeNull();
-  // Only a copy in Aura's own folder can be removed; the user's folders are switched off.
+  // A copy in Aura's own folder is removed; the user's own folders are deleted (see below).
   expect(within(rowOf('pdf')).getByRole('button', { name: '移除' })).toBeTruthy();
   expect(within(rowOf('notes')).queryByRole('button', { name: '移除' })).toBeNull();
 });
@@ -234,7 +234,7 @@ test('a workspace adds its own Skills to the listing', async () => {
   expect(api.listSkills).toHaveBeenCalledWith({ workspace_id: 'wsp_1' });
 });
 
-test('a plugin’s Skill shows its plugin and is trusted, switched and removed with it', async () => {
+test('a plugin’s Skill shows its plugin, is switched here, and is trusted and removed with it', async () => {
   api.listSkills.mockResolvedValue(
     registry([
       view('guide', {
@@ -248,10 +248,10 @@ test('a plugin’s Skill shows its plugin and is trusted, switched and removed w
   await screen.findByText('guide', { selector: 'strong' });
   const row = screen.getByText('guide', { selector: 'strong' }).closest('li') as HTMLElement;
   expect(within(row).getByText('插件 kit')).toBeTruthy();
-  for (const name of ['停用', '撤销信任', '移除', '查看并信任'])
+  for (const name of ['撤销信任', '移除', '查看并信任'])
     expect(within(row).queryByRole('button', { name })).toBeNull();
   expect(within(row).getByRole('button', { name: '预览' })).toBeTruthy();
-  expect(within(row).getByText(/请在 设置 → 插件 里管理/u)).toBeTruthy();
+  expect(within(row).getByRole('button', { name: '停用' })).toBeTruthy();
 });
 
 // The button that opened a preview closes it; the preview has no close
@@ -281,4 +281,81 @@ test('the preview button also closes the preview it opened', async () => {
   expect(within(review).queryByRole('button', { name: '关闭' })).toBeNull();
   await user.click(within(rowOf('found')).getByRole('button', { name: '收起' }));
   expect(screen.queryByRole('region', { name: '预览 Skill found' })).toBeNull();
+});
+
+test('a Skill in the user’s own folder is deleted to the Recycle Bin after a confirmation', async () => {
+  const user = userEvent.setup();
+  api.removeSkill.mockResolvedValue(
+    registry(
+      skills().filter((s) => s.relative !== 'notes'),
+      5,
+    ),
+  );
+  render(<SkillSettings coreReady />);
+  await screen.findByText('notes', { selector: 'strong' });
+  // An imported copy is removed, not deleted.
+  expect(within(rowOf('pdf')).queryByRole('button', { name: '删除' })).toBeNull();
+  await user.click(within(rowOf('notes')).getByRole('button', { name: '删除' }));
+  const confirm = screen.getByRole('alertdialog', { name: '删除 notes' });
+  expect(confirm.textContent).toContain(
+    '删除后，这个 Skill 的文件夹会移到回收站：C:\\Users\\me\\.agents\\skills\\notes',
+  );
+  expect(confirm.textContent).toContain('其他使用 .agents 的工具也会看不到它。');
+  await user.click(within(confirm).getByRole('button', { name: '取消' }));
+  expect(api.removeSkill).not.toHaveBeenCalled();
+  await user.click(within(rowOf('notes')).getByRole('button', { name: '删除' }));
+  await user.click(
+    within(screen.getByRole('alertdialog', { name: '删除 notes' })).getByRole('button', {
+      name: '删除',
+    }),
+  );
+  expect(api.removeSkill).toHaveBeenCalledWith({
+    id: 'skl_notes',
+    workspace_id: null,
+    expected_revision: 4,
+  });
+  expect(await screen.findByText('已删除 notes')).toBeTruthy();
+});
+
+test('a workspace Skill names only its folder, and a plugin’s Skill has no delete', async () => {
+  const user = userEvent.setup();
+  api.listSkills.mockResolvedValue(
+    registry([
+      view('local', {
+        source: 'workspace',
+        workspace_id: 'wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV' as NonNullable<SkillView['workspace_id']>,
+        path: 'C:\\Dev\\demo\\.agents\\skills\\local',
+      }),
+      view('bundled', { source: 'plugin', plugin: 'tools' }),
+    ]),
+  );
+  render(<SkillSettings coreReady />);
+  await screen.findByText('local', { selector: 'strong' });
+  expect(within(rowOf('bundled')).queryByRole('button', { name: '删除' })).toBeNull();
+  await user.click(within(rowOf('local')).getByRole('button', { name: '删除' }));
+  const confirm = screen.getByRole('alertdialog', { name: '删除 local' });
+  expect(confirm.textContent).toContain('C:\\Dev\\demo\\.agents\\skills\\local');
+  expect(confirm.textContent).not.toContain('其他使用 .agents 的工具');
+});
+
+test('a delete Core refuses shows its reason and keeps the Skill', async () => {
+  const user = userEvent.setup();
+  api.removeSkill.mockResolvedValue({
+    ok: false,
+    error: {
+      code: 'skills.not_recyclable',
+      message:
+        'skills.not_recyclable: 回收站放不下这个文件夹（或它所在的位置没有回收站），没有删除，它还在原处；请在资源管理器中处理。',
+    },
+  });
+  render(<SkillSettings coreReady />);
+  await screen.findByText('notes', { selector: 'strong' });
+  await user.click(within(rowOf('notes')).getByRole('button', { name: '删除' }));
+  await user.click(
+    within(screen.getByRole('alertdialog', { name: '删除 notes' })).getByRole('button', {
+      name: '删除',
+    }),
+  );
+  expect(await screen.findByText(/回收站放不下这个文件夹/u)).toBeTruthy();
+  expect(screen.getByText('notes', { selector: 'strong' })).toBeTruthy();
 });

@@ -92,7 +92,9 @@ pub(crate) fn plugin_candidates(
 ) -> Vec<Candidate> {
     let mut found = Vec::new();
     for plugin in plugins.ready().iter() {
-        for hook in &plugin.package.hooks {
+        let switched_off = &plugin.setting.changes.switched_off.hooks;
+        for hook in plugin.package.hooks.iter().filter(|hook| !switched_off.contains(&hook.folder))
+        {
             let (Ok(package), Some(trusted)) =
                 (&hook.package, plugin.setting.trusted_parts.hooks.get(&hook.folder))
             else {
@@ -123,7 +125,7 @@ pub(crate) fn plugin_entry_views(plugins: &crate::plugins::PluginRuntime) -> Vec
             let trusted = plugin.setting.trusted_parts.hooks.get(&hook.folder).cloned();
             let mut entry = view(&HookRegistration {
                 path: root.display().to_string(),
-                enabled: true,
+                enabled: !plugin.setting.changes.switched_off.hooks.contains(&hook.folder),
                 trusted_fingerprint: trusted,
             });
             entry.plugin = Some(plugin.package.manifest.name.clone());

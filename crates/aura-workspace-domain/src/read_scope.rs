@@ -17,4 +17,7 @@ pub enum FsSkippedScopeReason {
     ProtectedScope,
     ControlAuthority,
     TargetUnavailable,
+    /// A folder the workspace's index did not enter (past its entry cap, or with memory low):
+    /// lookups do not reach into it; listing it reads the disk.
+    NotIndexed,
 }

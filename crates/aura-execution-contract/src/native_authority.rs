@@ -25,7 +25,9 @@ pub(super) fn valid(authority: &AuthorizationDecision, op: &SecuredOperation) ->
                 && c.capabilities.iter().all(|cap| {
                     matches!(
                         cap,
-                        ResolvedCapability::ProcessExecute | ResolvedCapability::OrdinaryNetwork
+                        ResolvedCapability::ProcessExecute
+                            | ResolvedCapability::OrdinaryNetwork
+                            | ResolvedCapability::DownloadArtifact
                     )
                 });
             // The trusted package program exception, in its exact shape only.

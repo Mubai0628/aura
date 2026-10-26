@@ -1,5 +1,9 @@
+mod indexing;
+mod online;
 mod saving;
+mod signals;
 mod watching;
+use signals::WorkspaceProjectionSignals;
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -231,7 +235,7 @@ impl WorkspaceRuntime {
         report.projection_ms = elapsed_ms(started);
         for workspace in workspaces {
             if workspace.state == WorkspaceState::Online {
-                let install = runtime.install_online_workspace(workspace, CorrelationId::new())?;
+                let Some(install) = runtime.install_at_open(workspace) else { continue };
                 report.online_workspaces += 1;
                 report.catalog_load_ms += install.catalog.load_ms
                     + install.catalog.recent_use_ms
@@ -249,6 +253,10 @@ impl WorkspaceRuntime {
                 report.watcher_spawn_ms += install.watcher_spawn_ms;
             }
         }
+        // Archived workspaces whose stored index was not fully removed before Core stopped.
+        if let Ok(archived) = runtime.persistence.archived_workspaces_with_index() {
+            runtime.clear_archived_index_in_background(archived);
+        }
         report.total_ms = elapsed_ms(total_started);
         // Set-once by construction; a second set is a programming error, not a
         // runtime condition, so discard the result rather than fail the open.
@@ -258,18 +266,17 @@ impl WorkspaceRuntime {
 
     /// The measured cost of the open that built this runtime.
     pub fn open_report(&self) -> Option<WorkspaceOpenReport> {
-        self.open_report.get().copied()
+        self.open_report.get().copied().map(|report| self.with_walk_reports(report))
     }
 
-    /// Stops every watcher this runtime started and waits for its thread to end.
+    /// Lets every first walk finish, then stops every watcher and waits for its thread to end.
     ///
-    /// Dropping the handles does the same thing, but not *at a known moment*: the
-    /// watcher thread only notices the stop flag on its next turn of the loop, so a test
-    /// that drops the runtime and immediately applies a change can still have the
-    /// watcher deliver that change first. This makes "the index is quiescent from here"
-    /// something a caller can establish instead of hope for, which is what a test that
-    /// measures one update in isolation needs. Returns how many watchers were stopped.
+    /// Dropping the handles stops the threads too, but not at a known moment, and it cuts a
+    /// running walk short. This makes "the index is complete and quiescent from here" something
+    /// a caller can establish, which is what a test that measures one update in isolation needs.
+    /// Returns how many watchers were stopped.
     pub fn stop_watchers(&self) -> Result<usize, WorkspaceError> {
+        let _ = self.wait_until_indexed(Duration::from_secs(120));
         let handles = {
             let mut watchers = self
                 .watchers
@@ -278,9 +285,11 @@ impl WorkspaceRuntime {
             std::mem::take(&mut *watchers)
         };
         let stopped = handles.len();
+        for handle in handles.values() {
+            handle.signal_stop();
+        }
         for (_, handle) in handles {
-            // `WorkspaceWatchHandle::drop` sets the flag and joins the thread.
-            drop(handle);
+            handle.stop_and_join();
         }
         Ok(stopped)
     }
@@ -424,6 +433,7 @@ impl WorkspaceRuntime {
                             indexed_at: None,
                             watcher_state: WorkspaceWatcherState::Failed,
                             partitions: Vec::new(),
+                            indexing: None,
                         },
                         logical_files: Vec::new(),
                         editor_reservations: Vec::new(),
@@ -447,12 +457,15 @@ impl WorkspaceRuntime {
     ) -> Result<WorkspaceFileStatus, WorkspaceError> {
         let catalog = self.catalog(*workspace_id).ok();
         let catalog_status = if let Some(catalog) = catalog {
+            let stored = self.persistence.workspace(*workspace_id)?.catalog_freshness;
+            let (freshness, indexing) = indexing::catalog_indexing(&catalog, stored)?;
             WorkspaceCatalogStatus {
-                freshness: self.persistence.workspace(*workspace_id)?.catalog_freshness,
+                freshness,
                 catalog_revision: catalog.revision()?,
                 indexed_at: None,
                 watcher_state: self.watcher_state(*workspace_id)?,
                 partitions: catalog.partitions()?,
+                indexing,
             }
         } else {
             WorkspaceCatalogStatus {
@@ -461,6 +474,7 @@ impl WorkspaceRuntime {
                 indexed_at: None,
                 watcher_state: WorkspaceWatcherState::Failed,
                 partitions: Vec::new(),
+                indexing: None,
             }
         };
         Ok(WorkspaceFileStatus {
@@ -555,104 +569,18 @@ impl WorkspaceRuntime {
         } else {
             WorkspaceState::Offline
         };
+        // The index stored before the archive is not trusted: the restored folder is walked.
         self.persistence.update_workspace(
             workspace.clone(),
             "workspace.restored",
             correlation_id,
-            false,
+            true,
         )?;
         if workspace.state == WorkspaceState::Online {
             self.install_online_workspace(workspace.clone(), correlation_id)?;
         }
         self.notify_projection_change()?;
         self.persistence.workspace(workspace_id).map_err(Into::into)
-    }
-
-    pub(super) fn install_online_workspace(
-        &self,
-        workspace: WorkspaceSummary,
-        correlation_id: CorrelationId,
-    ) -> Result<InstallMs, WorkspaceError> {
-        let resolver = match SecurePathResolver::from_workspace(&workspace) {
-            Ok(resolver) => Arc::new(resolver),
-            Err(_error) => {
-                let mut offline = workspace;
-                offline.state = WorkspaceState::Offline;
-                offline.catalog_freshness = CatalogFreshness::Unavailable;
-                offline.revision = increment(offline.revision)?;
-                self.persistence.update_workspace(
-                    offline,
-                    "workspace.offline",
-                    correlation_id,
-                    false,
-                )?;
-                return Ok(InstallMs::default());
-            }
-        };
-        let catalog = Arc::new(PathCatalog::open(
-            workspace.workspace_id,
-            Arc::clone(&self.persistence),
-            self.options.catalog.clone(),
-        )?);
-        let started = Instant::now();
-        // An open reconciles instead of rebuilding: the same walk, with the text of
-        // every file whose stored proof still holds left where it is. A rebuild
-        // re-reads and re-hashes every file in the workspace on every start, which
-        // is what put a large development workspace within seconds of the Core
-        // connect budget. A proven lost watcher event still takes the full rebuild
-        // below, because that is the one case where nothing may be assumed.
-        let (_, reconcile) = catalog.reconcile(&resolver, correlation_id)?;
-        let rebuild_ms = elapsed_ms(started);
-        self.resolvers
-            .write()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace resolvers"))?
-            .insert(workspace.workspace_id, Arc::clone(&resolver));
-        let report = catalog.open_report();
-        self.catalogs
-            .write()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace catalogs"))?
-            .insert(workspace.workspace_id, Arc::clone(&catalog));
-        let started = Instant::now();
-        let watcher = WorkspaceWatchHandle::spawn(
-            workspace.workspace_id,
-            resolver,
-            catalog,
-            Arc::clone(&self.persistence),
-            self.projection_signals.clone(),
-            self.options.watcher_coalesce,
-            self.options.watcher_poll_interval,
-            self.options.watcher_rescan_attempts,
-            self.options.watcher_batch_hook.clone(),
-        )?;
-        self.watchers
-            .lock()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace watchers"))?
-            .insert(workspace.workspace_id, watcher);
-        Ok(InstallMs {
-            catalog: report,
-            rebuild_ms,
-            watcher_spawn_ms: elapsed_ms(started),
-            reconcile,
-        })
-    }
-
-    pub(super) fn remove_online_runtime_state(
-        &self,
-        workspace_id: WorkspaceId,
-    ) -> Result<(), WorkspaceError> {
-        self.watchers
-            .lock()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace watchers"))?
-            .remove(&workspace_id);
-        self.catalogs
-            .write()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace catalogs"))?
-            .remove(&workspace_id);
-        self.resolvers
-            .write()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace resolvers"))?
-            .remove(&workspace_id);
-        Ok(())
     }
 
     fn watcher_state(
@@ -666,46 +594,6 @@ impl WorkspaceRuntime {
             .map(WorkspaceWatchHandle::state)
             .transpose()
             .map(|state| state.unwrap_or(WorkspaceWatcherState::Failed))
-    }
-}
-
-#[derive(Clone)]
-struct WorkspaceProjectionSignals {
-    revision: Arc<AtomicU64>,
-    subscribers: Arc<Mutex<Vec<Sender<Revision>>>>,
-}
-
-impl WorkspaceProjectionSignals {
-    fn new() -> Self {
-        Self {
-            revision: Arc::new(AtomicU64::new(Revision::INITIAL.value())),
-            subscribers: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    fn subscribe(&self) -> Result<Receiver<Revision>, WorkspaceError> {
-        let (sender, receiver) = mpsc::channel();
-        self.subscribers
-            .lock()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace projection subscribers"))?
-            .push(sender);
-        Ok(receiver)
-    }
-
-    fn bump(&self) -> Result<Revision, WorkspaceError> {
-        let next = self
-            .revision
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| current.checked_add(1))
-            .map_err(|_| WorkspaceError::RevisionExhausted)?
-            .checked_add(1)
-            .ok_or(WorkspaceError::RevisionExhausted)?;
-        let revision = Revision::new(next);
-        let mut subscribers = self
-            .subscribers
-            .lock()
-            .map_err(|_| WorkspaceError::LockPoisoned("workspace projection subscribers"))?;
-        subscribers.retain(|subscriber| subscriber.send(revision).is_ok());
-        Ok(revision)
     }
 }
 

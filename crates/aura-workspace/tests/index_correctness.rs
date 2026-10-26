@@ -82,6 +82,7 @@ impl Harness {
             )
             .expect("create session");
         let catalog = workspace.catalog(workspace_id).expect("catalog");
+        catalog.wait_until_built(std::time::Duration::from_secs(60)).expect("the first walk");
         let resolver = workspace.resolver(workspace_id).expect("resolver");
         // The tests apply exactly one change of their own; a live watcher would
         // deliver the same filesystem change a second time and hide which path

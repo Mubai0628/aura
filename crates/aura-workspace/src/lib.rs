@@ -20,9 +20,10 @@ pub use buffer::{
     UncommittedEditorBuffer, stream_verified_text,
 };
 pub use catalog::{
-    CatalogChange, CatalogCommitHold, CatalogEntry, CatalogOpenReport, CatalogOptions,
-    CatalogUpdate, CatalogUpdateReport, DecodedText, NameMatchMode, PathCatalog, decode_text,
-    decode_text_with_encoding, encode_text,
+    CatalogBuildPhase, CatalogBuildStatus, CatalogChange, CatalogCommitHold, CatalogEntry,
+    CatalogOpenReport, CatalogOptions, CatalogUpdate, CatalogUpdateReport, DecodedText,
+    NameMatchMode, PathCatalog, children_beyond_index, decode_text, decode_text_with_encoding,
+    encode_text,
 };
 pub use error::WorkspaceError;
 pub use path::{

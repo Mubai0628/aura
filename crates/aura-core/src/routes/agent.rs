@@ -57,6 +57,19 @@ pub(crate) async fn dispatch(
                 serde_json::from_value(request.params.clone())?;
             return Ok(serde_json::to_value(services.agent()?.attachment_entry(input).await?)?);
         }
+        // A workspace's file index walked again after it failed to build.
+        if request.method == "agent.workspace.rebuild_index" {
+            let input: aura_agent_domain::WorkspaceIndexRebuildRequest =
+                serde_json::from_value(request.params.clone())?;
+            let workspace = Arc::clone(&services.p03()?.workspace);
+            let id = input.workspace_id;
+            let started =
+                tokio::task::spawn_blocking(move || workspace.rebuild_index(id)).await??;
+            return Ok(serde_json::to_value(aura_agent_domain::WorkspaceIndexRebuildStarted {
+                workspace_id: id,
+                started,
+            })?);
+        }
         // A file outside the workspace a message names, for the 文件 tab.
         if request.method == "agent.files.mentioned" {
             let input: aura_agent_domain::MentionedFileRequest =

@@ -95,6 +95,12 @@ class FileTreeStore {
         setTimeout(() => void this.load(scope, path, retries - 1), INDEX_RETRY_MS);
         return;
       }
+      // An open folder that is gone (the model deleted or moved it) leaves the tree with
+      // everything opened below it, instead of staying behind as an error row.
+      if (!result.ok && result.error.code === 'file.not_found' && path !== ROOT) {
+        this.#forget(scope, path);
+        return;
+      }
       folder = result.ok
         ? { loading: false, entries: [...result.value.entries].sort(order) }
         : { loading: false, error: listingFailure(result.error) };
@@ -142,6 +148,14 @@ class FileTreeStore {
 
   resetForTests(): void {
     this.#trees.clear();
+  }
+
+  #forget(scope: FileScope, path: string): void {
+    const current = this.get(scope);
+    const gone = (item: string) => item === path || item.startsWith(`${path}/`);
+    const expanded = new Set([...current.expanded].filter((item) => !gone(item)));
+    const folders = new Map([...current.folders].filter(([item]) => !gone(item)));
+    this.#put(scope, { ...current, expanded, folders });
   }
 
   #folder(scope: FileScope, path: string, folder: Folder): void {

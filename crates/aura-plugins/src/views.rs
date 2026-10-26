@@ -122,6 +122,10 @@ pub struct PluginPendingView {
     pub fingerprint: Option<String>,
     pub counts: PluginCounts,
     pub problems: Vec<String>,
+    /// The servers the user configured whose own configuration this version changes or no
+    /// longer has, by display name.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_servers: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

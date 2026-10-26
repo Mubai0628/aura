@@ -167,7 +167,7 @@ impl PluginRuntime {
             problems: Vec::new(),
             warnings: Vec::new(),
             unsupported: Vec::new(),
-            pending_update: self.pending_view(&plugin.name),
+            pending_update: self.pending_view(plugin),
             file_count: 0,
             bytes: 0,
         };
@@ -200,8 +200,8 @@ impl PluginRuntime {
         view
     }
 
-    fn pending_view(&self, name: &str) -> Option<PluginPendingView> {
-        let folder = self.pending_folder(name);
+    fn pending_view(&self, plugin: &LocatedPlugin) -> Option<PluginPendingView> {
+        let folder = self.pending_folder(&plugin.name);
         if !folder.is_dir() {
             return None;
         }
@@ -211,12 +211,18 @@ impl PluginRuntime {
                 fingerprint: Some(package.fingerprint.clone()),
                 counts: package.counts(),
                 problems: Vec::new(),
+                changed_servers: super::changes::changed_servers(
+                    plugin.scanned.as_ref().ok(),
+                    &package,
+                    plugin.setting.as_ref(),
+                ),
             },
             Err(error) => PluginPendingView {
                 version: None,
                 fingerprint: None,
                 counts: PluginCounts::default(),
                 problems: problems(&error),
+                changed_servers: Vec::new(),
             },
         })
     }

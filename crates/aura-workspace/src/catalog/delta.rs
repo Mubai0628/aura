@@ -30,6 +30,10 @@ use aura_persistence::{
 };
 use aura_workspace_domain::{CatalogEntryKind, CatalogIndexMode, CatalogPartitionSummary};
 
+use super::boundary::{
+    beyond_index, ignored_directory, is_catalogued_directory, parent_of, path_exists,
+    remove_subtree,
+};
 use super::scan::{
     CatalogEntry, CatalogOptions, CatalogState, PartitionStats, PathCatalog, PendingEntry,
     hydrate_entry, inherited_ignores, is_text_candidate, list_directory_once, scan_directory,
@@ -331,6 +335,11 @@ impl PathCatalog {
                 path: WorkspacePath::parse(WorkspacePath::ROOT).expect("root path"),
             });
         }
+        // A build walk is running and reads the tree as it is; this update is applied when it
+        // ends, so a write never waits for the index and never races the walk.
+        if self.build.defer(&update.changes)? {
+            return self.revision();
+        }
         let started = std::time::Instant::now();
         resolver.verify_root_identity()?;
         let inputs = update.inputs;
@@ -621,7 +630,7 @@ impl PathCatalog {
                 }) => {
                     return Ok(PublishOutcome::InstanceLost("instance_replaced"));
                 }
-                CatalogCommitOutcome::Refused(CatalogCommitRefusal::WorkspaceMissing) => {
+                CatalogCommitOutcome::Refused(_) => {
                     return Ok(PublishOutcome::InstanceLost("workspace_missing"));
                 }
             }
@@ -732,6 +741,9 @@ fn plan_changes(
     let mut pending = Vec::new();
     let mut stats = BTreeMap::new();
     for (path, change) in changes {
+        if beyond_index(state, path) {
+            continue;
+        }
         // A removal is an observation, not an instruction: the watcher and the write
         // path describe the same directory from two directions, so a removal can arrive
         // after the path was created again. The path itself is the bounded check — when
@@ -786,6 +798,11 @@ fn plan_changes(
                     // belongs in the index any more.
                     remove_subtree(state, path, &mut plan.removed);
                 }
+            }
+            CatalogChange::DirectoryListed | CatalogChange::DirectoryRescanned
+                if ignored_directory(state, path) =>
+            {
+                refresh_directory_entry(state, resolver, path, &mut pending)?;
             }
             CatalogChange::DirectoryListed | CatalogChange::DirectoryRescanned => {
                 let is_directory = path.is_root()
@@ -1123,12 +1140,12 @@ fn rescan_subtree(
     // and a directory that is indexed but not registered is exactly how a new directory
     // became invisible to the watcher for the rest of the session.
     plan.watch_directories.push(resolver.absolute_path(directory));
-    let mut ignores = inherited_ignores(resolver, directory)?;
+    let ignores = inherited_ignores(resolver, directory)?;
     scan_directory(
         resolver,
         directory.clone(),
         partition_for(state, directory),
-        &mut ignores,
+        &ignores,
         pending,
         stats,
         &mut plan.watch_directories,
@@ -1259,51 +1276,6 @@ fn partition_mode(
     } else {
         CatalogIndexMode::MetadataOnly
     }
-}
-
-fn is_catalogued_directory(state: &CatalogView, path: &WorkspacePath) -> bool {
-    state.entries.get(path).is_some_and(|entry| entry.kind == CatalogEntryKind::Directory)
-}
-
-fn remove_subtree(
-    state: &CatalogView,
-    path: &WorkspacePath,
-    removed: &mut BTreeSet<WorkspacePath>,
-) {
-    let prefix = format!("{path}/");
-    let mut found = false;
-    for entry in state.entries.keys() {
-        if entry == path || entry.as_str().starts_with(&prefix) {
-            removed.insert(entry.clone());
-            found = true;
-        }
-    }
-    if !found {
-        // A path the catalog never recorded still has to leave the durable store
-        // so a late delta cannot leave a removed entry behind.
-        removed.insert(path.clone());
-    }
-}
-
-/// Whether a path a change named still exists.
-///
-/// This is the bounded check that separates a real removal from an observation that
-/// has been overtaken. A path that cannot be opened for any reason counts as absent,
-/// matching how the other change descriptions treat a path they cannot resolve: the
-/// change is then honoured as described rather than silently ignored.
-fn path_exists(resolver: &SecurePathResolver, path: &WorkspacePath) -> bool {
-    resolver.open_existing(path, aura_windows_platform::NativeFileAccess::Metadata).is_ok()
-}
-
-fn parent_of(path: &WorkspacePath) -> Result<WorkspacePath, WorkspaceError> {
-    let mut components = path.as_str().split('/').collect::<Vec<_>>();
-    components.pop();
-    if components.is_empty() {
-        return WorkspacePath::parse(WorkspacePath::ROOT)
-            .map_err(|error| WorkspaceError::Watcher(format!("unsafe workspace entry: {error}")));
-    }
-    WorkspacePath::parse(components.join("/"))
-        .map_err(|error| WorkspaceError::Watcher(format!("unsafe workspace entry: {error}")))
 }
 
 /// The partition a directory inherits. A recorded partition wins; otherwise the

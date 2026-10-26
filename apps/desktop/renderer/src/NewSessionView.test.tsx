@@ -7,6 +7,7 @@ import {
   resetComposerDraftsForTests,
   useComposerDrafts,
 } from './agent-session/composer-drafts';
+import { resetSendingForTests } from './agent-session/sending';
 vi.mock('./agent-session/useDraftModelChoices', () => ({
   useDraftModelChoices: () => ({
     choices: [{ id: 'model', label: 'Flash', provider: 'Provider' }],
@@ -28,6 +29,7 @@ const create = vi.fn(),
 beforeEach(() => {
   localStorage.clear();
   resetComposerDraftsForTests();
+  resetSendingForTests();
   create.mockReset().mockResolvedValue({ ok: true, value: { session_id: 'server-session' } });
   bind.mockReset().mockResolvedValue({ ok: true, value: { revision: '1' } });
   submit.mockReset().mockResolvedValue({ ok: true, value: {} });
@@ -173,4 +175,27 @@ test('binding rejection does not send or pause a message; retry uses the same ma
   await user.click(screen.getByRole('button', { name: '发送消息' }));
   await waitFor(() => expect(submit).toHaveBeenCalledOnce());
   expect(create).toHaveBeenCalledOnce();
+});
+
+// The message shows the moment it is sent, while the conversation is still being made.
+test('the first message shows at once while the conversation is made, and comes back if refused', async () => {
+  let made: (value: unknown) => void = () => undefined;
+  create.mockReturnValueOnce(new Promise((resolve) => (made = resolve)));
+  submit.mockResolvedValueOnce({ ok: false, error: { message: 'agent.model_unavailable' } });
+  const user = userEvent.setup();
+  const id = createLocalConversation('workspace');
+  render(<Fixture id={id} />);
+  const box = screen.getByRole('textbox', { name: '输入消息' });
+  await user.type(box, '你好');
+  await user.click(screen.getByRole('button', { name: '发送消息' }));
+  const shown = await screen.findByText('你好', { selector: '.agent-sending *' });
+  expect(shown.closest('article')?.textContent).toContain('发送中');
+  expect(screen.queryByRole('heading', { name: '从一个想法开始' })).toBeNull();
+  expect((box as HTMLTextAreaElement).value).toBe('');
+  made({ ok: true, value: { session_id: 'server-session' } });
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(screen.queryByText('发送中')).toBeNull();
+  expect((box as HTMLTextAreaElement).value).toBe('你好');
+  expect(screen.getByRole('heading', { name: '从一个想法开始' })).toBeTruthy();
+  expect(accepted).not.toHaveBeenCalled();
 });

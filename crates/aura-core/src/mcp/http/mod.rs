@@ -7,4 +7,4 @@ mod session;
 mod wire;
 
 pub(crate) use failure::describe as describe_network;
-pub(crate) use session::{HttpPlan, HttpSession};
+pub(crate) use session::{HttpPlan, HttpSession, SIGN_IN_REQUIRED};

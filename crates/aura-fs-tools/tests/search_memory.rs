@@ -165,6 +165,7 @@ fn open_harness(root: &Path) -> (Arc<FsToolService>, WorkspaceId, SessionId, tem
             CorrelationId::new(),
         )
         .expect("create");
+    workspace.wait_until_indexed(std::time::Duration::from_secs(60)).expect("the first walk");
     let workspace_id = created.workspace.workspace_id;
     let session = SessionId::new();
     persistence

@@ -250,6 +250,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       // The text of a text file a message carried.
       'readAttachmentText',
       'readShellExecution',
+      'rebuildWorkspaceIndex',
       'recheckAgentContext',
       'refreshMcpServer',
       'removeHook',
@@ -258,6 +259,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'requestAgentCompaction',
       'resolveAgentApproval',
       'resolveAgentContextWindow',
+      'restoreMcpPluginDefault',
       'saveMcpServer',
       'selectAgentQueryFile',
       'selectHookDirectory',

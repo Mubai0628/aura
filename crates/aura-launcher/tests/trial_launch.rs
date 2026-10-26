@@ -1,7 +1,8 @@
 //! The launcher program with a stand-in desktop (`examples/fake_desktop.rs`): a waiting version
 //! that reports ready becomes the active one, one that crashes is put back and recorded, one
 //! closed before it is ready waits for the next start, one that does not check out never starts,
-//! and going back starts the previous version the same way.
+//! and going back starts the previous version the same way. Before a newer version starts, only
+//! the stores its Core says it will migrate are copied.
 #![allow(clippy::unwrap_used)]
 use aura_domain_common::{ContentHash, ContentHashAlgorithm, ContractVersion, ReleaseBundleId};
 use aura_launcher::{FailedTrial, TrialFailure, roll_back};
@@ -42,10 +43,13 @@ impl Install {
 
     /// A version folder whose `Aura.exe` is the stand-in desktop, behaving as `mode` says.
     fn add(&self, version: &str, mode: &str) -> ReleaseDescriptor {
+        self.add_with_core(version, mode, format!("core {version}").into_bytes())
+    }
+
+    fn add_with_core(&self, version: &str, mode: &str, core: Vec<u8>) -> ReleaseDescriptor {
         let folder = self.root.path().join("versions").join(version);
         fs::create_dir_all(&folder).unwrap();
         let desktop = fs::read(fake_desktop()).unwrap();
-        let core = format!("core {version}").into_bytes();
         fs::write(folder.join("Aura.exe"), &desktop).unwrap();
         fs::write(folder.join("aura-core.exe"), &core).unwrap();
         fs::write(folder.join("fake-mode.txt"), mode).unwrap();
@@ -265,6 +269,39 @@ fn a_newer_version_that_crashes_after_changing_the_data_leaves_the_data_as_it_wa
         fs::read_to_string(replaced.path().join("data/aura.db")).unwrap(),
         "written by 0.1.1"
     );
+}
+
+/// A newer version whose Core answers `--store-migration-check` with `answer`, over both stores.
+fn newer_version_answering(answer: &str) -> Install {
+    let install = Install::new("0.1.0", "exit");
+    let v2 = install.store().parent().unwrap().join("v2-execution/aura-v2.db");
+    fs::create_dir_all(v2.parent().unwrap()).unwrap();
+    fs::write(install.store(), "conversations of 0.1.0").unwrap();
+    fs::write(v2, "operations of 0.1.0").unwrap();
+    install.add_with_core("0.1.1", "ready", fs::read(fake_desktop()).unwrap());
+    fs::write(install.root.path().join("versions/0.1.1/fake-migration.json"), answer).unwrap();
+    install.wait("0.1.1");
+    install.launch();
+    assert_eq!(install.state().active, "0.1.1", "{}", install.log());
+    install
+}
+
+#[test]
+fn a_newer_version_that_migrates_no_store_starts_without_a_copy() {
+    let install =
+        newer_version_answering(r#"{"data/aura.db":false,"data/v2-execution/aura-v2.db":false}"#);
+    let backups = install.store().parent().unwrap().parent().unwrap().join("backups");
+    assert!(!backups.join("before-0.1.1").exists(), "{}", install.log());
+    assert!(install.log().contains("no_store_migration"), "{}", install.log());
+}
+
+#[test]
+fn a_newer_version_gets_a_copy_of_only_the_store_it_migrates() {
+    let install =
+        newer_version_answering(r#"{"data/aura.db":true,"data/v2-execution/aura-v2.db":false}"#);
+    let copy = install.store().parent().unwrap().parent().unwrap().join("backups/before-0.1.1");
+    assert_eq!(fs::read_to_string(copy.join("data/aura.db")).unwrap(), "conversations of 0.1.0");
+    assert!(!copy.join("data/v2-execution").exists(), "{}", install.log());
 }
 
 #[test]

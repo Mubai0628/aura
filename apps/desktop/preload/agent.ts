@@ -89,6 +89,8 @@ export function agentBridge(
       invoke('agent.links.open', request),
     writeClipboard: (request: AgentMainParams['agent.clipboard.write']) =>
       invoke('agent.clipboard.write', request),
+    rebuildWorkspaceIndex: (request: AgentMainParams['agent.workspace.rebuild_index']) =>
+      invoke('agent.workspace.rebuild_index', request),
     listHooks: (request: AgentMainParams['agent.hooks.list']) =>
       invoke('agent.hooks.list', request),
     previewHook: (request: AgentMainParams['agent.hooks.preview']) =>
@@ -120,6 +122,8 @@ export function agentBridge(
       invoke('agent.mcp.untrust', request),
     setMcpServerEnabled: (request: AgentMainParams['agent.mcp.set_enabled']) =>
       invoke('agent.mcp.set_enabled', request),
+    restoreMcpPluginDefault: (request: AgentMainParams['agent.mcp.restore_plugin_default']) =>
+      invoke('agent.mcp.restore_plugin_default', request),
     removeMcpServer: (request: AgentMainParams['agent.mcp.remove']) =>
       invoke('agent.mcp.remove', request),
     refreshMcpServer: (request: AgentMainParams['agent.mcp.refresh']) =>

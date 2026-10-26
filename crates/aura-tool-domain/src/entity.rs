@@ -73,6 +73,7 @@ pub struct ToolInstanceOverridesV1 {
     pub timeout_ms: Option<u64>,
     pub max_retries: Option<u8>,
     pub max_concurrent_attempts: Option<u32>,
+    // UNWIRED: every writer sets None and no subagent path reads it.
     pub subagent_enabled: Option<bool>,
 }
 

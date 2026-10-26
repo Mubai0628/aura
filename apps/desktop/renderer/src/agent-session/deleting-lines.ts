@@ -1,6 +1,6 @@
 /**
  * The lines of a Shell script that delete, shown under the warning. The patterns
- * are Core's (crates/aura-core/src/agent_execution/shell_deletion.rs), read line by line; Core's
+ * are Core's (crates/aura-core/src/agent_execution/shell_risks/deletion.rs), read line by line; Core's
  * check is what asks, this only points at the lines.
  */
 const COMMAND =

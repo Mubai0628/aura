@@ -1,7 +1,8 @@
 //! The newest
 //! request of a conversation its provider counted, so the next request's estimate can count the
 //! parts it sends again at the provider's rate. A step that failed has no count; the one before
-//! it is used, so one failed step does not throw the conversation back to byte counting.
+//! it is used, so one failed step does not throw the conversation back to byte counting. A new
+//! conversation borrows the same model's newest count from another recent conversation.
 use aura_context_domain::ContextItemEstimate;
 use aura_domain_common::*;
 use aura_model_domain::UsageSource;
@@ -10,6 +11,10 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 /// How far back a counted request is looked for.
 const STEPS_BACK: u32 = 8;
+/// How many of the store's newest requests are searched for other conversations.
+const OTHER_REQUESTS_BACK: u32 = 64;
+/// How many other conversations are asked for their newest count.
+const OTHER_CONVERSATIONS: usize = 4;
 
 /// What the provider counted for one request, of which model, and the bytes of each of its parts.
 #[derive(Clone, Debug)]
@@ -58,6 +63,55 @@ pub fn latest(db: &Connection, session: SessionId) -> StoreResult<Option<Counted
             model_name: sent.model_name,
             parts: serde_json::from_str(&parts)?,
         }));
+    }
+    Ok(None)
+}
+
+/// What a request of `provider`'s `model` is measured by: the conversation's own newest count
+/// when it is of this model, otherwise the same model's count from another conversation.
+pub fn for_model(
+    db: &Connection,
+    session: SessionId,
+    provider: &ProviderId,
+    model: &str,
+) -> StoreResult<Option<CountedRequest>> {
+    match latest(db, session)? {
+        Some(own) if own.provider_id == *provider && own.model_name == model => Ok(Some(own)),
+        _ => latest_for_model(db, provider, model, session),
+    }
+}
+
+/// The newest count of `provider`'s `model` in one of the other conversations that sent the
+/// store's latest requests, for a conversation with no count of its own yet: the same model
+/// counts the same parts (tools, instructions) the same way in any conversation.
+pub fn latest_for_model(
+    db: &Connection,
+    provider: &ProviderId,
+    model: &str,
+    except: SessionId,
+) -> StoreResult<Option<CountedRequest>> {
+    let mut query =
+        db.prepare("SELECT session_id FROM context_snapshots ORDER BY rowid DESC LIMIT ?1")?;
+    let recent = query
+        .query_map([OTHER_REQUESTS_BACK], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(query);
+    let mut asked = Vec::new();
+    for session in recent {
+        let session: SessionId = session.parse().map_err(|_| Error::Conflict)?;
+        if session == except || asked.contains(&session) {
+            continue;
+        }
+        if asked.len() == OTHER_CONVERSATIONS {
+            break;
+        }
+        asked.push(session);
+        if let Some(counted) = latest(db, session)?
+            && counted.provider_id == *provider
+            && counted.model_name == model
+        {
+            return Ok(Some(counted));
+        }
     }
     Ok(None)
 }

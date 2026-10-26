@@ -26,6 +26,12 @@ async fn reading_a_conversation_writes_its_mirror_only_when_it_changed() {
     let session: SessionId =
         serde_json::from_value(created["session_id"].clone()).expect("session identity");
     let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
+    // The workspace's first index walk commits after the create returns; the count starts after.
+    services
+        .p03_required()
+        .workspace
+        .wait_until_indexed(Duration::from_secs(60))
+        .expect("the first walk");
     let written = || services.agent_required().store().counters().writes_committed;
     let history = json!(AgentHistoryRequest {
         session_id: session,

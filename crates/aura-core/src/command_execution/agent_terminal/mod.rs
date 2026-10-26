@@ -408,14 +408,12 @@ impl AgentTerminals {
         self: &Arc<Self>,
         live: &[aura_workspace_domain::SessionSummary],
     ) -> Result<()> {
-        let owner = self.clone();
+        // On the reader: a deletion's write steps do not hold this back.
         let entries = self
             .store
-            .run_critical(
-                StoreStep::operation("terminal.deleted_sessions"),
-                StoreAccess::Read,
-                move || Ok(records::list(owner.journal.lock()?.database.connection(), None)?),
-            )
+            .read(StoreStep::operation("terminal.deleted_sessions"), move |db| {
+                records::list(db, None)
+            })
             .await?;
         let deleted = entries
             .iter()

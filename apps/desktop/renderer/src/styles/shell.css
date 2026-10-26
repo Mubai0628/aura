@@ -167,6 +167,22 @@
   white-space: nowrap;
 }
 
+.workspace-select .workspace-index-badge {
+  flex: none;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: #765729;
+  background: var(--sand-soft);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.workspace-select .workspace-index-badge.is-failed {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
 .session-list {
   padding: 3px 0 3px 27px;
   margin: 0;

@@ -408,7 +408,7 @@ export class CoreSupervisor {
     return this.#commands.run({
       accept: (value) => value as P03CoreResult[Command],
       command,
-      send: (transport) => transport.request(command, params),
+      send: (transport) => transport.request(command, params, 1, replyBudget(command)),
     });
   }
 

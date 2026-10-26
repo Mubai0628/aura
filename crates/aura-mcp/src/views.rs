@@ -42,9 +42,12 @@ pub struct McpSignInView {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 pub struct McpServerView {
     pub config: McpServerConfig,
-    /// The plugin that brings it; it is changed and removed with the plugin.
+    /// The plugin that brings it; it is removed with the plugin.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin: Option<String>,
+    /// A plugin's server the user saved with a configuration of their own.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub plugin_changed: bool,
     pub state: McpServerState,
     /// What would be trusted now; absent when the command cannot be resolved.
     pub fingerprint: Option<String>,

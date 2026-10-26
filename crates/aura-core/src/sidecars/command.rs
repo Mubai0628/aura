@@ -4,6 +4,7 @@ use super::*;
     dead_code,
     reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
 )]
+// UNWIRED: no production caller dispatches work to the sandbox host; only tests reach this.
 impl ToolSandboxExecutionService {
     /// Drives one authorized declarative command while retaining the Host
     /// permit until the response and all queued execution evidence have been

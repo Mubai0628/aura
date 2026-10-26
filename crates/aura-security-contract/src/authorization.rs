@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum SecurityProfile {
     Balanced,
+    // UNWIRED: Strict and Guided are never produced; `for_permission_mode` yields only Balanced
+    // and FullAccess, and nothing else chooses a profile.
     Strict,
     Guided,
     FullAccess,
@@ -25,6 +27,8 @@ pub enum SecurityProfile {
 #[serde(rename_all = "snake_case")]
 pub enum BackendClass {
     CoreBroker,
+    // UNWIRED: the release layout ships no restricted-user runner, helper or maintainer, so no
+    // backend of these two classes is ever ready in a released build.
     RestrictedUserOffline,
     RestrictedUserOnline,
     Native,

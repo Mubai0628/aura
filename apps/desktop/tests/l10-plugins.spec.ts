@@ -164,12 +164,19 @@ test('L10 a plugin is imported, reviewed, trusted, used, switched off and uninst
     expect(path).toBeTruthy();
     expect(source).toBeTruthy();
 
-    // What it brings appears on each page as the plugin's, and is not edited there.
+    // What it brings appears on each page as the plugin's: switched and edited there, removed and
+    // untrusted only with the plugin.
     const mcp = await settingsPage(page, 'MCP', 'MCP 设置');
     const servers = mcp.getByRole('list', { name: 'MCP 服务器' });
     await expect(servers).toContainText('插件 kit');
     await expect(servers).toContainText('可用 · 5 个工具', { timeout: 60_000 });
-    await expect(servers.getByRole('button', { name: '编辑' })).toHaveCount(0);
+    await expect(servers.getByRole('button', { name: '编辑' })).toHaveCount(1);
+    await expect(servers.getByRole('button', { name: '移除' })).toHaveCount(0);
+    await expect(servers.getByRole('button', { name: '撤销信任' })).toHaveCount(0);
+    await servers.getByRole('button', { name: '停用' }).click();
+    await expect(servers).toContainText('已停用');
+    await servers.getByRole('button', { name: '启用' }).click();
+    await expect(servers).toContainText('可用 · 5 个工具', { timeout: 60_000 });
     const skills = await settingsPage(page, 'Skill', 'Skill 设置');
     await expect(skills.getByRole('list', { name: 'Skill', exact: true })).toContainText(
       '插件 kit',

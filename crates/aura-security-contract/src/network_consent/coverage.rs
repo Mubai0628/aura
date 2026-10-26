@@ -82,10 +82,17 @@ pub fn ordinary_mode_covers_capability(
     {
         return crate::native_git_mode_covers(mode, capability);
     }
+    // A built-in shell or terminal runs as the user, unconfined. ReadOnly asks before running,
+    // and a session answer covers both shells and the terminal; WorkspaceReadWrite runs commands,
+    // network use included. A download asks below FullAccess, and a session answer for it covers
+    // the session's later downloads. Deleting and writing outside the workspace are forced to a
+    // one-time answer by the policy, below FullAccess.
     if built_in_shell(source, action) {
         return match capability {
-            ResolvedCapability::ProcessExecute => mode != PermissionMode::ReadOnly,
-            ResolvedCapability::OrdinaryNetwork => mode == PermissionMode::FullAccess,
+            ResolvedCapability::ProcessExecute | ResolvedCapability::OrdinaryNetwork => {
+                mode != PermissionMode::ReadOnly
+            }
+            ResolvedCapability::DownloadArtifact => mode == PermissionMode::FullAccess,
             _ => false,
         };
     }

@@ -14,6 +14,7 @@ const SAFE_MODE_BUTTON: i32 = 1_002;
 const EXPORT_BUTTON: i32 = 1_003;
 const EXIT_BUTTON: i32 = 1_004;
 const ROLL_BACK_BUTTON: i32 = 1_005;
+const START_WITHOUT_BACKUP_BUTTON: i32 = 1_006;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RecoveryAction {
@@ -21,6 +22,8 @@ pub enum RecoveryAction {
     SafeMode,
     ExportDiagnostics,
     RollBack,
+    /// Starts a newer version whose data copy did not fit on the disk.
+    StartWithoutBackup,
     Exit,
 }
 
@@ -31,6 +34,7 @@ impl RecoveryAction {
             Self::SafeMode => SAFE_MODE_BUTTON,
             Self::ExportDiagnostics => EXPORT_BUTTON,
             Self::RollBack => ROLL_BACK_BUTTON,
+            Self::StartWithoutBackup => START_WITHOUT_BACKUP_BUTTON,
             Self::Exit => EXIT_BUTTON,
         }
     }
@@ -52,6 +56,9 @@ fn action_label(action: RecoveryAction, previous_version: Option<&str>) -> Strin
         RecoveryAction::ExportDiagnostics => "导出诊断\n保存本次启动与握手诊断".to_owned(),
         RecoveryAction::RollBack => {
             format!("回到上一版本\n启动 {}", previous_version.unwrap_or_default())
+        }
+        RecoveryAction::StartWithoutBackup => {
+            "不备份，启动新版本\n以后回到上一版本时不能恢复更新前的数据".to_owned()
         }
         RecoveryAction::Exit => "退出\n保持应用关闭".to_owned(),
     }
@@ -162,6 +169,6 @@ pub fn choose_diagnostic_export_path(default_name: &str) -> io::Result<Option<Pa
     Ok(Some(PathBuf::from(path)))
 }
 
-fn wide_null(value: &str) -> Vec<u16> {
+pub(crate) fn wide_null(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
 }

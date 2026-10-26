@@ -95,6 +95,9 @@ pub enum WorkspaceError {
     EncodingAmbiguous { candidates: Vec<String>, preview: String },
     #[error("catalog is unavailable or stale")]
     CatalogUnavailable,
+    /// The index is still being built after the bounded wait a query gives it.
+    #[error("索引还在建立（已处理 {listed} 项），请稍后再试；文件夹可以逐层展开查看")]
+    IndexBuilding { listed: u64 },
     /// Another update committed while this one was being planned, so the plan was
     /// discarded rather than written over newer facts. The changes are still valid;
     /// the caller decides whether to describe them again.

@@ -1,4 +1,6 @@
 node_modules/
+# Claude Code session worktrees: other checkouts, not this tree.
+.claude/
 target/
 apps/desktop/dist/
 apps/desktop/test-results/

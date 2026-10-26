@@ -36,6 +36,6 @@ pub fn shell_consent_covers_capability(
         && matches!(grant.scope.lifetime, AuthorizationLifetime::Session { session_id } if identity.session_id == Some(session_id))
         && built_in_shell(source, action)
         && NativeShell::from_action_kind(action).is_some_and(|shell| consent.approved.covers(shell))
-        && cap == ResolvedCapability::ProcessExecute
+        && matches!(cap, ResolvedCapability::ProcessExecute | ResolvedCapability::DownloadArtifact)
         && grant.scope.capability_limit.as_ref().is_none_or(|caps| caps.contains(&cap))
 }

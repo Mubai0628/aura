@@ -76,6 +76,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "agent.mcp.restore_plugin_default",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "McpServerRequest",
+        "McpRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
         "agent.mcp.remove",
         Agent,
         Main,
@@ -191,6 +201,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         Core,
         AuthenticatedMain,
         "McpSetEnabledRequest",
+        "McpRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.mcp.restore_plugin_default",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "McpServerRequest",
         "McpRegistryView",
         CommandInvocation,
         None

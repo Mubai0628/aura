@@ -245,3 +245,28 @@ fn owner_copy_rolls_back_a_partial_mcp_migration_and_can_restart_after_retry() {
         event_count()
     );
 }
+
+/// What an update asks before it copies this store: a predecessor needs migrating, a store this
+/// build created does not, and a missing one is new.
+#[test]
+fn migration_pending_answers_as_migrate_would_decide() {
+    let temp = tempfile::tempdir().expect("temporary database");
+    let path = temp.path().join("aura-v2.db");
+    assert!(!migration_pending(&path).expect("missing"));
+    let modules = MODULES
+        .iter()
+        .map(|module| SchemaModule {
+            owner: module.owner,
+            sql: match module.owner {
+                "tool" => include_str!("../../tests/fixtures/tool-before-l08.sql"),
+                _ => module.sql,
+            },
+        })
+        .collect::<Vec<_>>();
+    let mut database = DatabaseConnection::create_new(&path).expect("db");
+    schema::initialize(&mut database, &modules).expect("L07 predecessor");
+    drop(database);
+    assert!(migration_pending(&path).expect("predecessor"));
+    migrate(&path).expect("migrated");
+    assert!(!migration_pending(&path).expect("current"));
+}
