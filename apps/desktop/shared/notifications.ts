@@ -73,6 +73,9 @@ export function isNotificationPreferencesCommand(
 /** What a clicked notification opens. */
 export type NotificationTarget = { kind: 'session'; sessionId: string } | { kind: 'updates' };
 
+/** What is in front while 设置 → 关于与更新 shows, in place of a conversation. */
+export const UPDATES_IN_FRONT = 'aura:updates';
+
 export function readNotificationTarget(value: unknown): NotificationTarget | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const target = value as Record<string, unknown>;

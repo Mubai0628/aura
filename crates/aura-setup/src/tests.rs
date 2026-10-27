@@ -395,6 +395,10 @@ fn uninstalling_waits_for_a_program_file_held_open_for_a_moment() {
 /// running program the way an installation has a running Aura.
 struct Running(std::process::Child);
 
+// Chrome's relay left running in a version folder, and other programs holding one.
+#[path = "tests/leftover_relays.rs"]
+mod leftover_relays;
+
 impl Running {
     fn start(folder: &Path) -> Self {
         let program = folder.join("aura-running.exe");

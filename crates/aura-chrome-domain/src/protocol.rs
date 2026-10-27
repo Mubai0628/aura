@@ -231,6 +231,10 @@ pub fn plain_path(path: &std::path::Path) -> std::path::PathBuf {
     }
 }
 
+/// The relay's file name, beside the Core of its version. Chrome starts it on demand, so a relay
+/// left running from another version folder of an installation serves nobody and may be stopped.
+pub const RELAY_PROGRAM: &str = "aura-chrome-host.exe";
+
 /// Core's pipe for the relay of one installation, named by the folder that holds both programs
 /// (canonical and plain, compared without case), so a relay always reaches the Core it was
 /// installed with.

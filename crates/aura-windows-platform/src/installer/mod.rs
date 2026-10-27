@@ -16,7 +16,7 @@ pub use native_messaging::{
     read_chrome_native_host, remove_chrome_native_host, write_chrome_native_host,
 };
 pub use notification_identity::{notification_identity, remove_notification_identity};
-pub use processes::{RunningProgram, programs_running_in};
+pub use processes::{RunningProgram, programs_running_in, stop_program};
 pub use shortcut::{Shortcut, create_shortcut, desktop_folder, start_menu_programs};
 pub use task_dialog::{Answer, LinkHandler, Progress, Question, ask, run_with_progress};
 pub use uninstall_entry::{

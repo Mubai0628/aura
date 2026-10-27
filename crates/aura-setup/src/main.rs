@@ -160,7 +160,10 @@ fn run() -> Result<ExitCode> {
                 ExitCode::SUCCESS
             }
             Err(error) => {
-                report(json!({ "error": format!("{error:#}") }));
+                // A folder another program holds says nothing against the package: the caller keeps
+                // it and installs it again once the folder is free.
+                let intact = error.is::<install::FolderInUse>();
+                report(json!({ "error": format!("{error:#}"), "package_intact": intact }));
                 exit_for(&error)
             }
         });

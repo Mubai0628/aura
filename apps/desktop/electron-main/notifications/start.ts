@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { app, type BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 
 import type { CoreSupervisor } from '../core-supervisor.js';
@@ -7,6 +9,13 @@ import { registerNotifications, type RegisteredNotifications } from './index.js'
 export type { RegisteredNotifications } from './index.js';
 
 type Core = Pick<CoreSupervisor, 'requestAgent' | 'workspaceSessionSnapshot'>;
+
+/** The icon an installation keeps beside its versions folder; none in a development run. */
+function installedIcon(): string | undefined {
+  if (!app.isPackaged) return undefined;
+  const icon = resolve(dirname(process.execPath), '..', '..', 'Aura.ico');
+  return existsSync(icon) ? icon : undefined;
+}
 
 /**
  * Sends this installation's notifications under its own identity (named for Windows when Aura is
@@ -21,13 +30,15 @@ export function startNotifications(options: {
   log: (event: string, fields: Record<string, unknown>) => void;
 }): RegisteredNotifications {
   const identity = notificationIdentity(options.namespace);
+  const icon = installedIcon();
   app.setAppUserModelId(identity);
   if (app.isPackaged)
-    void registerNotificationIdentity(identity).catch((error: unknown) => {
+    void registerNotificationIdentity(identity, icon).catch((error: unknown) => {
       options.log('notifications.identity_failed', { message: String(error) });
     });
   return registerNotifications({
     dataRoot: options.dataRoot,
+    ...(icon ? { icon } : {}),
     window: options.window,
     trust: options.trust,
     readActivity: async (request) => {

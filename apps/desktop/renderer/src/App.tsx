@@ -39,7 +39,7 @@ import { useWorkspaceSessions } from './workspace-session-store';
 import { answerWorkspaceLifecycle } from './session-lifecycle/workspace-lifecycle';
 import { busyPresentation } from './core-busy';
 import { readOpenSession, rememberOpenSession } from './open-session';
-import { useDesktopNotifications } from './notification-settings/useDesktopNotifications';
+import { frontOf, useDesktopNotifications } from './notification-settings/useDesktopNotifications';
 
 const CORE_PRESENTATION: Record<CoreLifecycleState, CoreStatusPresentation> = {
   app_crash_escalated: { label: 'Launcher 正在接管恢复', tone: 'danger' },
@@ -270,7 +270,7 @@ export function App() {
   };
 
   useDesktopNotifications(
-    screen === 'workspace' ? (activeSession?.session_id ?? null) : null,
+    frontOf({ screen, section: settingsSection, session: activeSession?.session_id ?? null }),
     (target) => {
       if (target.kind === 'updates') return openSettings('about');
       const session = actualSessions.find((each) => each.session_id === target.sessionId);

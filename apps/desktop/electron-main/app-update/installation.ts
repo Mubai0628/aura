@@ -108,6 +108,16 @@ export const runProgram: RunProgram = (program, args) =>
     });
   });
 
+/** The setup program's refusal, and whether the package it was given can be installed as it is. */
+export class SetupRefusal extends Error {
+  constructor(
+    message: string,
+    readonly packageIntact: boolean,
+  ) {
+    super(message);
+  }
+}
+
 /** Runs the installation's setup program and returns the version it lets wait, or throws its error. */
 export async function runSetup(
   installation: Installation,
@@ -123,5 +133,8 @@ export async function runSetup(
     throw new Error('安装程序没有给出结果');
   }
   if (typeof value.waiting === 'string') return value.waiting;
-  throw new Error(typeof value.error === 'string' ? value.error : '安装程序没有完成');
+  throw new SetupRefusal(
+    typeof value.error === 'string' ? value.error : '安装程序没有完成',
+    value.package_intact === true,
+  );
 }

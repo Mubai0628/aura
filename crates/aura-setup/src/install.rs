@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail, ensure};
+use aura_chrome_domain::protocol::RELAY_PROGRAM;
 use aura_domain_common::{ContentHash, ContentHashAlgorithm, ReleaseBundleId};
 use aura_launcher::{
     read_install_state, remove_unkept_versions, resolve_version, write_install_state,
@@ -38,9 +39,81 @@ impl fmt::Display for AuraIsRunning {
 
 impl std::error::Error for AuraIsRunning {}
 
+fn is_relay(program: &RunningProgram) -> bool {
+    program.path.file_name().is_some_and(|name| name.eq_ignore_ascii_case(RELAY_PROGRAM))
+}
+
+/// Chrome's relays running from inside `folder`. Chrome starts a relay again when it needs one,
+/// from the registration the running Aura writes, so one left running from a version folder
+/// serves nobody and only keeps its folder from being replaced or removed.
+fn stop_relays(host: &dyn Host, folder: &Path) -> Result<()> {
+    for program in host.running_in(folder)?.iter().filter(|program| is_relay(program)) {
+        host.stop(program).with_context(|| format!("cannot stop {}", program.path.display()))?;
+    }
+    Ok(())
+}
+
+/// Refuses while Aura runs from `root`. A relay Chrome left running there is not Aura running;
+/// it is stopped instead.
 pub fn ensure_not_running(host: &dyn Host, root: &Path) -> Result<()> {
-    let running = host.running_in(root)?;
-    if running.is_empty() { Ok(()) } else { Err(AuraIsRunning(running).into()) }
+    let (relays, running): (Vec<_>, Vec<_>) =
+        host.running_in(root)?.into_iter().partition(is_relay);
+    if !running.is_empty() {
+        return Err(AuraIsRunning(running).into());
+    }
+    for relay in &relays {
+        host.stop(relay).with_context(|| format!("cannot stop {}", relay.path.display()))?;
+    }
+    Ok(())
+}
+
+/// A version folder the release has to replace is held by another program. The release itself is
+/// fine and can be installed again once that program has let go of the folder.
+#[derive(Debug)]
+pub struct FolderInUse {
+    pub folder: PathBuf,
+    pub programs: Vec<RunningProgram>,
+}
+
+impl std::fmt::Display for FolderInUse {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names = self
+            .programs
+            .iter()
+            .filter_map(|program| program.path.file_name())
+            .map(|name| name.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        if names.is_empty() {
+            write!(
+                formatter,
+                "{} 正被其他程序使用（例如在这个文件夹里打开的终端或资源管理器窗口），关闭后再安装。",
+                self.folder.display()
+            )
+        } else {
+            write!(
+                formatter,
+                "{} 正被 {} 使用，关闭后再安装。",
+                self.folder.display(),
+                names.join("、")
+            )
+        }
+    }
+}
+
+impl std::error::Error for FolderInUse {}
+
+/// `error` as [`FolderInUse`] when Windows refused to move `folder` because something holds it.
+fn in_use(host: &dyn Host, folder: &Path, error: anyhow::Error) -> anyhow::Error {
+    // ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION
+    let held = error
+        .chain()
+        .filter_map(|cause| cause.downcast_ref::<std::io::Error>())
+        .any(|cause| matches!(cause.raw_os_error(), Some(5 | 32)));
+    if !held {
+        return error;
+    }
+    let programs = host.running_in(folder).unwrap_or_default();
+    anyhow::Error::new(FolderInUse { folder: folder.to_path_buf(), programs })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -238,11 +311,14 @@ pub fn install(
     let result = (|| -> Result<()> {
         payload::extract(archive, &staging, progress)?;
         let version_folder = root.join("versions").join(&release.version);
+        // A relay Chrome started from this version before it was left would hold the folder.
+        stop_relays(host, &version_folder)?;
         let moved = Replaced::rename(
             &staging.join("versions").join(&release.version),
             &version_folder,
             root.join("versions").join(format!(".replaced-{}-{}", release.version, nonce())),
-        )?;
+        )
+        .map_err(|error| in_use(host, &version_folder, error))?;
         match resolve_version(root, &release.version, Some(&release.descriptor)) {
             Ok(_) => moved.keep(),
             Err(error) => {

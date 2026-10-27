@@ -19,6 +19,7 @@ import { publishToRenderer } from '../publish-to-renderer.js';
 import { AttentionBadge, RED_DOT_SIZE, redDotPixels } from './attention-badge.js';
 import { NotificationPreferencesStore } from './preferences.js';
 import { SessionNotifier, type SessionNoticeKind } from './session-notifier.js';
+import { announceUpdate } from './update-notice.js';
 
 /** How often the conversations are looked at for what they need. */
 const POLL_EVERY_MS = 2_000;
@@ -45,6 +46,8 @@ export interface RegisteredNotifications {
  */
 export function registerNotifications(options: {
   dataRoot: string;
+  /** Aura's icon, shown on its notifications; none in a development run. */
+  icon?: string;
   window: () => BrowserWindow | undefined;
   trust: (event: IpcMainInvokeEvent) => void;
   /** Core's activity read; fails while Core is not running. */
@@ -74,7 +77,7 @@ export function registerNotifications(options: {
   const badge = new AttentionBadge({
     inFront,
     apply: (count) =>
-      live()?.setOverlayIcon(count > 0 ? dot : null, count > 0 ? `${count} 个会话需要你查看` : ''),
+      live()?.setOverlayIcon(count > 0 ? dot : null, count > 0 ? `${count} 项需要你查看` : ''),
   });
   // The window a focus listener was added to: the dot goes and the flashing stops on focus.
   const watched = new WeakSet<BrowserWindow>();
@@ -100,7 +103,11 @@ export function registerNotifications(options: {
   };
   const show = (title: string, body: string, target: NotificationTarget) => {
     if (!Notification.isSupported()) return;
-    const notification = new Notification({ title, body });
+    const notification = new Notification({
+      title,
+      body,
+      ...(options.icon ? { icon: options.icon } : {}),
+    });
     shown.add(notification);
     notification.on('click', () => {
       shown.delete(notification);
@@ -108,6 +115,13 @@ export function registerNotifications(options: {
     });
     notification.on('close', () => shown.delete(notification));
     notification.show();
+  };
+  // The red dot until `key` has been in front, and a flash while Aura is in the background.
+  const attention = (key: string) => {
+    watch();
+    badge.add(key);
+    const window = live();
+    if (window !== undefined && !window.isFocused()) window.flashFrame(true);
   };
 
   ipcMain.handle(NOTIFICATION_PREFERENCES_CHANNEL, async (event, value: unknown) => {
@@ -132,10 +146,7 @@ export function registerNotifications(options: {
         kind: 'session',
         sessionId,
       });
-      watch();
-      badge.add(sessionId);
-      const window = live();
-      if (window !== undefined && !window.isFocused()) window.flashFrame(true);
+      attention(sessionId);
     },
   });
   let polling = false;
@@ -169,12 +180,13 @@ export function registerNotifications(options: {
 
   return {
     updateState(state) {
-      const version = state.latest?.version;
-      if (state.phase !== 'available' || version === undefined) return;
-      void store.read().then(async (switches) => {
-        if (!switches.updates || store.announcedUpdate === version) return;
-        await store.announced(version);
-        show('Aura 有新版本', `${version} 可以下载更新`, { kind: 'updates' });
+      void announceUpdate(state, {
+        allowed: async () => (await store.read()).updates,
+        announced: () => store.announcedUpdate,
+        remember: (version) => store.announced(version),
+        inFront,
+        show: (title, body) => show(title, body, { kind: 'updates' }),
+        attention,
       });
     },
     stop() {

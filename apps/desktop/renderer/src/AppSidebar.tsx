@@ -9,6 +9,7 @@ import { SidebarItemMenu } from './SidebarItemMenu';
 import type { AppScreen, CoreStatusPresentation, WorkspaceNavigationItem } from './app-shell-types';
 import type { NotificationInput } from './notification-center-store';
 import { useSessionActivity } from './session-activity';
+import { UpdateDot } from './app-updates/UpdateDot';
 
 interface AppSidebarProps {
   activeScreen: AppScreen;
@@ -140,6 +141,7 @@ export function AppSidebar({
         >
           <AppIcon name="settings" />
           <span>设置</span>
+          <UpdateDot />
         </button>
         <p className={`core-footer-status state-${coreStatus.tone}`} title={coreStatus.detail}>
           <span aria-hidden="true" />

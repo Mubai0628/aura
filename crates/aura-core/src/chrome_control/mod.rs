@@ -8,6 +8,7 @@ mod pairing;
 mod registration;
 pub(crate) mod secret;
 pub(crate) mod shares;
+mod stale_relays;
 #[cfg(test)]
 pub(crate) mod test_extension;
 #[cfg(test)]
@@ -19,8 +20,8 @@ pub(crate) use secret::ChromeSecrets;
 pub(crate) use secret::MemoryChromeSecrets;
 
 use aura_chrome_domain::protocol::{
-    CommandOutcome, CoreMessage, PAIRING_SECRET_BYTES, extension_id_for, native_host_name,
-    pipe_name, plain_path,
+    CommandOutcome, CoreMessage, PAIRING_SECRET_BYTES, RELAY_PROGRAM, extension_id_for,
+    native_host_name, pipe_name, plain_path,
 };
 use aura_chrome_domain::{
     ChromeConnectionState, ChromeControlStatus, ChromePairedExtension, ChromePairingCode,
@@ -68,7 +69,7 @@ impl ChromeControlOptions {
         let (relay_executable, pipe) = if cfg!(test) {
             (core.clone(), pipe_name(local_root))
         } else {
-            (folder.join("aura-chrome-host.exe"), pipe_name(&folder))
+            (folder.join(RELAY_PROGRAM), pipe_name(&folder))
         };
         Self {
             manifest_path: local_root.join("chrome").join(format!("{host_name}.json")),
@@ -155,6 +156,15 @@ impl ChromeControl {
     /// Opens the pipe and makes Chrome's registration current when the user turned Chrome control
     /// on; an update moves the relay, so the registration is checked at every start.
     pub(crate) fn start(&self) {
+        if self.inner.options.register {
+            let stopped = stale_relays::stop_others(&self.inner.options.relay_executable);
+            if stopped > 0 {
+                crate::append_core_log(
+                    "chrome.stale_relays_stopped",
+                    serde_json::json!({ "count": stopped }),
+                );
+            }
+        }
         if !self.inner.settings.chrome_settings().settings.enabled {
             return;
         }

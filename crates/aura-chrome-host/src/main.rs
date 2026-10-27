@@ -19,12 +19,14 @@ fn target() -> anyhow::Result<RelayTarget> {
 fn main() -> ExitCode {
     let origin = std::env::args().nth(1).unwrap_or_default();
     let result = target().and_then(|target| {
-        tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(relay(
-            &origin,
-            &target,
-            tokio::io::stdin(),
-            tokio::io::stdout(),
-        ))
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+        let result =
+            runtime.block_on(relay(&origin, &target, tokio::io::stdin(), tokio::io::stdout()));
+        // Chrome's input is read on a thread whose read cannot be cancelled. Waiting for it would
+        // keep this program running after Core has gone, holding Chrome's connection and the files
+        // of its version until Chrome closes.
+        runtime.shutdown_background();
+        result
     });
     match result {
         Ok(()) => ExitCode::SUCCESS,

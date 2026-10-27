@@ -1,0 +1,23 @@
+.update-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: #e5484d;
+}
+
+@media (max-width: 860px) {
+  .settings-navigation button {
+    position: relative;
+  }
+
+  /* The narrow navigation shows icons only; the dot moves to the icon's corner. */
+  .settings-navigation button .update-dot {
+    display: block;
+    position: absolute;
+    top: 7px;
+    right: 12px;
+    margin: 0;
+  }
+}

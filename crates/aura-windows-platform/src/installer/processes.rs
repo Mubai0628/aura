@@ -1,5 +1,5 @@
 //! Programs running from inside a folder, so an installer can ask before it replaces or removes
-//! their files.
+//! their files, and stop one of its own that nothing needs any more.
 use std::{
     io,
     mem::size_of,
@@ -15,7 +15,8 @@ use windows_sys::Win32::{
         },
         Threading::{
             GetCurrentProcessId, OpenProcess, PROCESS_NAME_WIN32,
-            PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+            PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+            QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
         },
     },
 };
@@ -26,21 +27,65 @@ pub struct RunningProgram {
     pub path: PathBuf,
 }
 
-fn image_path(process_id: u32) -> Option<PathBuf> {
-    // SAFETY: OpenProcess has no pointer arguments; a null handle means no access.
-    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
-    if handle.is_null() {
-        return None;
-    }
+/// The executable of the process `handle` was opened for with query access.
+fn image_of(handle: windows_sys::Win32::Foundation::HANDLE) -> Option<PathBuf> {
     let mut buffer = vec![0_u16; 32_768];
     let mut length = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
     // SAFETY: the buffer holds `length` units and the handle is open for querying.
     let ok = unsafe {
         QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, buffer.as_mut_ptr(), &mut length)
     };
+    (ok != 0).then(|| PathBuf::from(String::from_utf16_lossy(&buffer[..length as usize])))
+}
+
+fn image_path(process_id: u32) -> Option<PathBuf> {
+    // SAFETY: OpenProcess has no pointer arguments; a null handle means no access.
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id) };
+    if handle.is_null() {
+        return None;
+    }
+    let image = image_of(handle);
     // SAFETY: the handle was opened above and is closed once.
     unsafe { CloseHandle(handle) };
-    (ok != 0).then(|| PathBuf::from(String::from_utf16_lossy(&buffer[..length as usize])))
+    image
+}
+
+/// Ends `program`, but only while its process id still runs that same executable (an id is
+/// reused once its process is gone), and waits up to five seconds for it to be gone, so the files
+/// it held can be moved or removed afterwards.
+pub fn stop_program(program: &RunningProgram) -> io::Result<()> {
+    // SAFETY: OpenProcess has no pointer arguments; a null handle means no access.
+    let handle = unsafe {
+        OpenProcess(
+            PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+            0,
+            program.process_id,
+        )
+    };
+    if handle.is_null() {
+        // Gone already, or never this caller's to stop.
+        return if image_path(program.process_id).is_none() {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        };
+    }
+    let same = image_of(handle).is_some_and(|image| lowered(&image) == lowered(&program.path));
+    let outcome = if same {
+        // SAFETY: the handle is open with terminate and synchronize access.
+        if unsafe { TerminateProcess(handle, 1) } == 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            // SAFETY: as above; the wait is bounded.
+            unsafe { WaitForSingleObject(handle, 5_000) };
+            Ok(())
+        }
+    } else {
+        Ok(())
+    };
+    // SAFETY: the handle was opened above and is closed once.
+    unsafe { CloseHandle(handle) };
+    outcome
 }
 
 fn lowered(path: &Path) -> String {
@@ -101,5 +146,32 @@ mod tests {
         assert_eq!(running[0].process_id, child.id());
         let elsewhere = tempfile::tempdir().expect("other folder");
         assert!(programs_running_in(elsewhere.path()).expect("elsewhere").is_empty());
+    }
+
+    #[test]
+    fn a_stopped_program_is_gone_and_its_folder_can_be_moved() {
+        let folder = tempfile::tempdir().expect("folder");
+        let inner = folder.path().join("0.1.6");
+        std::fs::create_dir(&inner).expect("version folder");
+        let program = inner.join("aura-wait.exe");
+        std::fs::copy(r"C:\Windows\System32\PING.EXE", &program).expect("copy");
+        // Started in its own folder, as Chrome starts a native-messaging host: the working
+        // directory is what keeps the folder from being moved.
+        let mut child = Command::new(&program)
+            .args(["-n", "60", "127.0.0.1"])
+            .current_dir(&inner)
+            .spawn()
+            .expect("start");
+        let running = programs_running_in(&inner).expect("running");
+        assert_eq!(running.len(), 1, "{running:?}");
+        assert!(
+            std::fs::rename(&inner, folder.path().join("aside")).is_err(),
+            "a program working in the folder keeps it in place"
+        );
+        stop_program(&running[0]).expect("stopped");
+        assert!(child.try_wait().expect("status").is_some(), "the program has ended");
+        std::fs::rename(&inner, folder.path().join("aside")).expect("the folder moves now");
+        // Its id may be reused by now: a second stop never ends another program.
+        stop_program(&running[0]).expect("nothing left to stop");
     }
 }

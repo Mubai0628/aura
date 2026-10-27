@@ -11,6 +11,7 @@ import {
   readNotice,
   requestRestore,
   runSetup,
+  SetupRefusal,
   withdrawRestore,
   type Installation,
   type RunProgram,
@@ -271,12 +272,20 @@ export class AppUpdates {
       if (this.#state.phase === 'downloading') {
         return this.#set({ phase: 'paused', error: downloadFailure(error), progress: arrived });
       }
-      // The setup program refused the package, which may be damaged: the next try downloads it
-      // again instead of offering the same file.
       this.dependencies.log?.('app_update.setup_refused', {
         action: 'apply_update',
         reason: reasonOf(error),
       });
+      // Something on this computer held a folder the update replaces; the package itself is fine
+      // and stays, so the next try installs it without downloading it again.
+      if (error instanceof SetupRefusal && error.packageIntact) {
+        return this.#set({
+          phase: 'error',
+          error: `${error.message}更新包已保留，再点“下载更新”会直接安装，不用重新下载。`,
+        });
+      }
+      // Otherwise the package may be damaged: the next try downloads it again instead of
+      // offering the same file.
       await this.#clearPackages();
       return this.#set({
         phase: 'error',

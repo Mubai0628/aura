@@ -22,6 +22,7 @@ import './settings-navigation.css';
 import type { WorkspaceId } from '@aura/contracts/generated';
 import { useSecurityControl } from './security-control-store';
 import type { NotificationInput } from './notification-center-store';
+import { UpdateDot } from './app-updates/UpdateDot';
 
 type SecurityControl = ReturnType<typeof useSecurityControl>;
 
@@ -160,6 +161,7 @@ export function SettingsView({
                   >
                     <AppIcon name={item.icon} />
                     <span>{item.label}</span>
+                    {item.value === 'about' ? <UpdateDot /> : null}
                   </button>
                 ))}
               </Fragment>

@@ -40,7 +40,8 @@ test('notifications go under the installation identity, named for Windows only w
   Object.assign(app, { isPackaged: true });
   try {
     start(() => undefined);
-    expect(registerNotificationIdentity).toHaveBeenCalledWith('Aura.production');
+    // No Aura.ico two folders above this test's program: no icon to name.
+    expect(registerNotificationIdentity).toHaveBeenCalledWith('Aura.production', undefined);
   } finally {
     Object.assign(app, { isPackaged: false });
   }

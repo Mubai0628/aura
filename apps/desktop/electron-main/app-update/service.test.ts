@@ -258,6 +258,39 @@ test('a package the setup program refuses is deleted and downloaded again next t
   expect(downloads).toHaveLength(2);
 });
 
+test('a package setup could not install because a folder was held stays and installs without a new download', async () => {
+  const install = await installation({ active: '0.1.0', previous: null, pending: null });
+  const downloads: string[] = [];
+  const held = 'C:\\Aura\\versions\\0.1.1 正被 aura-chrome-host.exe 使用，关闭后再安装。';
+  const outputs = [
+    `${JSON.stringify({ error: held, package_intact: true })}\n`,
+    '{"waiting":"0.1.1"}\n',
+  ];
+  const updates = new AppUpdates({
+    installation: install,
+    current: install.current,
+    fetch: async (url) => {
+      if (url.endsWith('/pkg')) downloads.push(url);
+      return fakeFetch(url);
+    },
+    feedUrl: 'https://api.example.test/releases',
+    userAgent: 'Aura/test',
+    publish: () => undefined,
+    requestRestart: () => undefined,
+    run: async () => outputs.shift()!,
+  });
+  await updates.handle({ command: 'check' });
+  const refused = await updates.handle({ command: 'download' });
+  expect(refused.phase).toBe('error');
+  expect(refused.error).toContain(held);
+  expect(refused.error).toMatch(/更新包已保留/u);
+  expect(
+    readdirSync(join(install.dataRoot, 'updates')).filter((name) => name.endsWith('.aura-update')),
+  ).toHaveLength(1);
+  expect((await updates.handle({ command: 'download' })).phase).toBe('ready');
+  expect(downloads).toHaveLength(1);
+});
+
 test('going back with the data from before asks the launcher for it, then restarts', async () => {
   const install = await installation({ active: '0.1.1', previous: '0.1.0', pending: null });
   const runs: string[][] = [];

@@ -28,6 +28,8 @@ pub trait Host {
     fn start_menu(&self) -> io::Result<PathBuf>;
     fn create_shortcut(&self, shortcut: &Shortcut<'_>) -> io::Result<()>;
     fn running_in(&self, root: &Path) -> io::Result<Vec<RunningProgram>>;
+    /// Ends a program `running_in` found, while its process still runs that executable.
+    fn stop(&self, program: &RunningProgram) -> io::Result<()>;
     /// The installation's data folder (`%LOCALAPPDATA%\Aura\namespaces\<hash>`).
     fn data_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf>;
     /// The installation's settings folder (`%APPDATA%\Aura\namespaces\<hash>`).
@@ -124,6 +126,10 @@ impl Host for SystemHost {
             return Ok(Vec::new());
         }
         installer::programs_running_in(root)
+    }
+
+    fn stop(&self, program: &RunningProgram) -> io::Result<()> {
+        installer::stop_program(program)
     }
 
     fn data_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
@@ -245,6 +251,10 @@ impl Host for FolderHost {
             return Ok(Vec::new());
         }
         installer::programs_running_in(root)
+    }
+
+    fn stop(&self, program: &RunningProgram) -> io::Result<()> {
+        installer::stop_program(program)
     }
 
     fn data_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
