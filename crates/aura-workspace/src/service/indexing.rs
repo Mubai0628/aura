@@ -2,9 +2,10 @@
 use super::*;
 
 impl WorkspaceRuntime {
-    /// Walks a workspace's folder again after its index failed to build: the index counts as
-    /// building at once, and the walk runs on the workspace's watcher thread. Answers false, and
-    /// starts nothing, while a walk is already running.
+    /// Walks a workspace's folder again: after its index failed to build (the index counts as
+    /// building at once), or to enter the folders a walk left out (the index answers meanwhile).
+    /// The walk runs on the workspace's watcher thread. Answers false, and starts nothing, while
+    /// a walk is already running.
     pub fn rebuild_index(&self, workspace_id: WorkspaceId) -> Result<bool, WorkspaceError> {
         let catalog = self.catalog(workspace_id)?;
         let watchers =
@@ -62,7 +63,9 @@ pub(super) fn catalog_indexing(
     WorkspaceError,
 > {
     use crate::CatalogBuildPhase;
-    use aura_workspace_domain::{WorkspaceIndexingState, WorkspaceIndexingStatus};
+    use aura_workspace_domain::{
+        WorkspaceIndexIncompleteReason, WorkspaceIndexingState, WorkspaceIndexingStatus,
+    };
     let status = catalog.build_status()?;
     let (freshness, state, failure) = match status.phase {
         CatalogBuildPhase::Ready => return Ok((stored, None)),
@@ -82,6 +85,14 @@ pub(super) fn catalog_indexing(
             state,
             listed_entries: status.listed_entries,
             unindexed_directories: status.unindexed_directories,
+            incomplete_reason: (state == WorkspaceIndexingState::Incomplete).then_some(
+                if status.memory_low {
+                    WorkspaceIndexIncompleteReason::MemoryLow
+                } else {
+                    WorkspaceIndexIncompleteReason::EntryLimit
+                },
+            ),
+            walking: status.walking,
             failure,
         }),
     ))

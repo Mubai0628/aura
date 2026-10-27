@@ -29,7 +29,7 @@ test('归档 remains under 系统 before About and Updates, and search finds its
     security: {} as ComponentProps<typeof SettingsView>['security'],
   };
   const { rerender } = render(<SettingsView {...props} />);
-  expect(navigation().slice(-2)).toEqual(['归档', '关于与更新']);
+  expect(navigation().slice(-3)).toEqual(['归档', '通知', '关于与更新']);
   expect(screen.getByText('系统')).toBeTruthy();
   await userEvent.click(screen.getByRole('button', { name: '归档' }));
   expect(change).toHaveBeenCalledWith('archive');

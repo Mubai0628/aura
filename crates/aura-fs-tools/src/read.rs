@@ -310,13 +310,7 @@ impl FsToolService {
         let outcome =
             crate::search::execute(&catalog, &buffers, &resolver, &request, cancel, &stages);
         self.record_search_diagnostics(stages.snapshot());
-        let (mut result, diagnostics) = outcome?;
-        let skipped = crate::unindexed::skipped(&catalog, &resolver, &request.root, true)?;
-        if !skipped.is_empty() {
-            result.skipped_scopes.extend(skipped);
-            crate::unindexed::partial(&mut result.completion);
-        }
-        Ok((result, diagnostics))
+        outcome
     }
 
     pub fn capture_workspace_file(

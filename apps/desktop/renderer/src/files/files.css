@@ -134,7 +134,8 @@
   color: var(--danger);
 }
 
-.file-tree-indexing.is-failed p {
+.file-tree-indexing.is-failed p,
+.file-tree-indexing > p:has(+ button) {
   margin: 0 0 4px;
 }
 

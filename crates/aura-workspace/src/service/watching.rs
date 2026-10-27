@@ -54,7 +54,20 @@ impl WorkspaceWatchHandle {
                     }
                     let first = match watcher.receiver().recv_timeout(coalesce) {
                         Ok(event) => event,
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                            // An index a walk left incomplete for want of memory is walked
+                            // again once memory has come back.
+                            if catalog.build.retry_due() {
+                                first_walk(
+                                    &mut watcher,
+                                    &resolver,
+                                    &catalog,
+                                    &projection_signals,
+                                    &thread_stop,
+                                );
+                            }
+                            continue;
+                        }
                         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                             // The backend is gone, so this channel can never deliver
                             // anything again and a new watcher is the only recovery. The

@@ -402,7 +402,6 @@ impl AgentApplication {
         // One transaction: a wait that committed between the old read and
         // interrupt must not be cancelled, and a CAS miss must not poison
         // process-wide status (Native approval stays visible to agent.status).
-        let at = UtcTimestamp::now();
         // The class is decided by the error's own type (see `fault`). No field below is derived
         // from the error's text: a binding refusal is recognized because the transport built a
         // `ProviderBindingViolationDiagnostic`, not because a message quoted a phrase.
@@ -427,6 +426,9 @@ impl AgentApplication {
         let outcome = self
             .store
             .write_retained(step, move |journal| {
+                // Stamped when it runs: queued behind a slower write, a time taken earlier can
+                // precede the run's last change, and the record is refused as going back in time.
+                let at = UtcTimestamp::now();
                 journal.database.unit_of_work(|tx| {
                     aura_persistence_core::event::append(
                         tx,

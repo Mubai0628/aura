@@ -89,14 +89,46 @@ describe('the side panel', () => {
       ],
     };
     const { root, sent, press } = draw(awaiting);
-    expect(root.textContent).toContain('已共享给「Docs」');
+    // The shared current tab is the list's; no card above repeats it.
+    expect(root.querySelector('section.current')).toBeNull();
+    expect(root.textContent).not.toContain('已共享给');
+    expect(root.querySelector('li.share')?.textContent).toContain('Docs');
     expect(root.textContent).toContain('等待确认新网站');
     press('允许');
-    press('停止');
+    press('全部停止');
     expect(sent).toEqual([
       { type: 'answer_origin', tab_id: 7, origin: 'https://pay.example', allow: true },
       { type: 'stop' },
     ]);
+  });
+
+  it('stops one shared page from the list, and every page with 全部停止', () => {
+    const share = {
+      session_id: 'ses_one',
+      session_title: 'Docs',
+      origin: 'https://docs.example',
+      scope: 'session',
+    } as const;
+    const { root, sent, press } = draw(
+      {
+        ...connected,
+        shares: [
+          { ...share, tab_id: 7, state: 'active' },
+          { ...share, tab_id: 9, origin: 'https://wiki.example', state: 'with_user' },
+        ],
+      },
+      { ...TAB, tab_id: 3 },
+    );
+    const items = Array.from(root.querySelectorAll('li.share'));
+    expect(items).toHaveLength(2);
+    const stop = items[1]?.querySelector('button');
+    expect(stop?.textContent).toBe('停止共享');
+    stop?.click();
+    press('全部停止');
+    expect(sent).toEqual([{ type: 'unshare', tab_id: 9 }, { type: 'stop' }]);
+    expect(
+      Array.from(root.querySelectorAll('button')).some((node) => node.textContent === '停止'),
+    ).toBe(false);
   });
 
   it('shows a tab handed to the user with the time left and the user’s two answers', () => {

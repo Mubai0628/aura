@@ -216,8 +216,14 @@ test('L14 the extension pairs through the relay in Chrome for Testing and a mode
     expect(group).toEqual({ titles: ['Aura'], inGroup: true });
     const shared = await shares(page, session);
     expect(shared.tabs.map((item) => item.url)).toEqual([sites.b]);
+    // The side panel lists the shared page with a stop of its own, and stops everything below.
+    const listed = panel.locator('li.share');
+    await expect(listed).toHaveCount(1);
+    await expect(listed.getByRole('button', { name: '停止共享', exact: true })).toBeVisible();
+    await expect(panel.getByRole('button', { name: '全部停止', exact: true })).toBeVisible();
+    await panel.screenshot({ path: info.outputPath('panel-shares.png') });
 
-    // Stopping in Aura ends the share and Chrome lets go of the tab.
+    // Stopping in Aura ends the conversation's share and Chrome lets go of the tab.
     await page.locator('.session-row').first().click();
     const strip = page.getByRole('status', { name: 'Chrome' });
     await expect(strip).toContainText('Chrome · 1 个标签页');

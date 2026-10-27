@@ -36,6 +36,8 @@ pub trait Host {
     fn delete_credentials(&self, namespace: &BundleNamespace) -> io::Result<usize>;
     /// Removes Chrome's registration of the installation's relay; `false` when there was none.
     fn remove_chrome_host(&self, namespace: &BundleNamespace) -> io::Result<bool>;
+    /// Removes the name Windows heads the installation's notifications with.
+    fn remove_notification_identity(&self, namespace: &BundleNamespace) -> io::Result<bool>;
 }
 
 /// The entry key in Settings > Apps: `Aura` for the released product, its own key for a test
@@ -142,6 +144,10 @@ impl Host for SystemHost {
 
     fn remove_chrome_host(&self, namespace: &BundleNamespace) -> io::Result<bool> {
         installer::remove_chrome_native_host(&native_host_name(namespace.as_str()))
+    }
+
+    fn remove_notification_identity(&self, namespace: &BundleNamespace) -> io::Result<bool> {
+        installer::remove_notification_identity(namespace.as_str())
     }
 }
 
@@ -263,5 +269,9 @@ impl Host for FolderHost {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
         }
+    }
+
+    fn remove_notification_identity(&self, _namespace: &BundleNamespace) -> io::Result<bool> {
+        Ok(false)
     }
 }

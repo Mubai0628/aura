@@ -284,11 +284,13 @@ impl FrozenActivity {
 
     /// The exact bytes that become the fragment body.
     ///
-    /// The header line carries the sampling instant, the runtime, the revision and the
-    /// coverage state, so a reader can tell a busy runtime from a blind one without a second
-    /// request. It is a fixed, bounded preamble followed by the summarised rows; malicious
-    /// row text stays data inside the body and cannot introduce a new instruction block,
-    /// because the section serializer escapes it and the fragment is one `Source` element.
+    /// The header line carries the coverage state, so a reader can tell a busy runtime from a
+    /// blind one without a second request. The sampling instant, the runtime and the revision
+    /// stay in the inspector's view and out of the text: they change every step, and the task
+    /// state that holds this fragment has to stay the same from one step to the next for a
+    /// provider's prompt cache. It is a fixed, bounded preamble followed by the summarised rows;
+    /// malicious row text stays data inside the body and cannot introduce a new instruction
+    /// block, because the section serializer escapes it and the fragment is one `Source` element.
     pub(super) fn rendered_body(&self) -> String {
         self.fragments()
             .unwrap_or_default()
@@ -306,10 +308,7 @@ impl FrozenActivity {
             ActivityCoverageState::Unavailable => "unavailable",
         };
         let body = format!(
-            "sampled_at={} runtime={} revision={} coverage={} in_scope={} shown={} omitted={}",
-            header.sampled_at,
-            header.runtime_instance_id,
-            header.revision,
+            "coverage={} in_scope={} shown={} omitted={}",
             coverage,
             header.coverage.total_in_scope,
             shown,
@@ -475,7 +474,7 @@ mod tests {
         let second = frozen.rendered_body();
         assert_eq!(first, second, "a frozen body must not drift between renders");
         assert!(first.contains("coverage=complete"));
-        assert!(first.contains("revision=7"));
+        assert!(!first.contains("revision="), "nothing in it changes from step to step");
         // A complete, empty picture is still *sendable*: it tells the model that the index
         // really answered and found nothing, which is not the same as an index that is blind.
         assert!(frozen.summary.is_sendable());

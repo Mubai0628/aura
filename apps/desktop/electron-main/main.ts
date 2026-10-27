@@ -83,6 +83,7 @@ import { keepStorageWritten } from './storage-flush.js';
 import { restoreWindowState, WindowStateStore } from './window-state.js';
 import { createLauncherReadyReporter, type LauncherReadyReporter } from './launcher-ready.js';
 import { registerAppUpdates, type RegisteredAppUpdates } from './app-update/index.js';
+import { startNotifications, type RegisteredNotifications } from './notifications/start.js';
 import { createMainDispatch } from './main-dispatch.js';
 import { createProjectionRoutes } from './main-projection-routes.js';
 
@@ -176,6 +177,7 @@ let browserHost: BrowserHost | undefined;
 let windowStateStore: WindowStateStore | undefined;
 let launcherReady: LauncherReadyReporter | undefined;
 let appUpdates: RegisteredAppUpdates | undefined;
+let notifications: RegisteredNotifications | undefined;
 // The launcher starts Aura again when it exits with this code (after an update was applied).
 const APP_RESTART_EXIT_CODE = 75;
 let exitCode: number | undefined;
@@ -925,6 +927,14 @@ app.whenReady().then(async () => {
     });
     windowStateStore = new WindowStateStore(namespaceDataRoot(releaseContext));
     void refreshLoadedChromeExtension(namespaceDataRoot(releaseContext), appendMainLog);
+    notifications = startNotifications({
+      namespace: releaseContext.manifest.bundle_namespace,
+      dataRoot: namespaceDataRoot(releaseContext),
+      window: () => mainWindow,
+      trust: (event) => assertTrustedSender(event),
+      core: () => supervisor,
+      log: (event, fields) => void appendMainLog(event, fields),
+    });
     appUpdates = registerAppUpdates({
       appIsPackaged: app.isPackaged,
       manifestPath: releaseContext.manifestPath,
@@ -938,6 +948,7 @@ app.whenReady().then(async () => {
         app.quit();
       },
       log: (event, fields) => void appendMainLog(event, fields),
+      onState: (state) => notifications?.updateState(state),
     });
     if (app.isPackaged) {
       launcherReady = createLauncherReadyReporter({

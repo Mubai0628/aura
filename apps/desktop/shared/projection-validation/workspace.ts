@@ -178,10 +178,18 @@ const isCatalogStatus = (value: unknown): boolean =>
   value.partitions.every(isCatalogPartition);
 
 const isIndexingStatus = (value: unknown): boolean =>
-  recordWithOptional(value, ['listed_entries', 'state', 'unindexed_directories'], ['failure']) &&
+  recordWithOptional(
+    value,
+    ['listed_entries', 'state', 'unindexed_directories'],
+    ['failure', 'incomplete_reason', 'walking'],
+  ) &&
   ['building', 'incomplete', 'failed'].includes(value.state as string) &&
   isSafeUnsigned(value.listed_entries) &&
   isSafeUnsigned(value.unindexed_directories) &&
+  (value.incomplete_reason === undefined ||
+    value.incomplete_reason === null ||
+    ['memory_low', 'entry_limit'].includes(value.incomplete_reason as string)) &&
+  (value.walking === undefined || typeof value.walking === 'boolean') &&
   (value.failure === undefined || typeof value.failure === 'string');
 
 const isCatalogPartition = (value: unknown): boolean =>

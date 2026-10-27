@@ -319,6 +319,17 @@
   background: var(--canvas);
 }
 
+/* The page as it looked when a dialog or menu came over it, where the page itself would be. */
+.browser-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* While the model works the frame around the page breathes, so the user sees who is acting. */
 .browser-page[data-agent='active'] .browser-stage {
   background: var(--accent-soft);

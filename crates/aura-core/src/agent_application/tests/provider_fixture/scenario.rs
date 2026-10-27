@@ -41,6 +41,11 @@ pub enum Scenario {
     Sequence {
         calls: &'static [(&'static str, &'static str)],
     },
+    /// Several calls in one response, as a model writes a set of files at once, then an answer
+    /// once their results are in; each is a tool and its arguments as JSON text.
+    Batch {
+        calls: &'static [(&'static str, &'static str)],
+    },
     /// A PowerShell command with a long output, then `shell.query` for the part the result did
     /// not show, with the `tool_call_id` and `stdout_next` that result gave, then an answer.
     ShellReadRest,

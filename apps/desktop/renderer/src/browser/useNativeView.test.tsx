@@ -22,9 +22,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function Area({ onArea }: { onArea: (element: HTMLDivElement) => void }) {
+function Area({
+  onArea,
+  onPicture,
+}: {
+  onArea: (element: HTMLDivElement) => void;
+  onPicture?: (picture: string | undefined) => void;
+}) {
   const area = useRef<HTMLDivElement>(null);
-  useNativeView(area, S, 'tab-1', true);
+  const picture = useNativeView(area, S, 'tab-1', true);
+  onPicture?.(picture);
   return (
     <div className="panel" data-testid="panel">
       <div
@@ -82,4 +89,83 @@ it('never lays the page outside what its panel shows', async () => {
   );
   await act(async () => vi.advanceTimersByTimeAsync(50));
   expect(shows().at(-1)).toEqual({ x: 1445, y: 130, width: 470, height: 830 });
+});
+
+// A menu or dialog of Aura's drawn over the page would hide under the native view, so the page
+// steps aside for it; a picture of the page fills the area meanwhile instead of an empty space.
+it('steps aside for a menu over it and leaves a picture of itself in its place', async () => {
+  command.mockImplementation(async (value) =>
+    value.kind === 'picture'
+      ? { ok: true, picture: `data:image/jpeg;base64,${value.kind}` }
+      : { ok: true },
+  );
+  const pictures: (string | undefined)[] = [];
+  render(
+    <Area
+      onArea={(element) => {
+        element.getBoundingClientRect = () => new DOMRect(1262, 130, 653, 830);
+      }}
+      onPicture={(picture) => pictures.push(picture)}
+    />,
+  );
+  await act(async () => vi.advanceTimersByTimeAsync(50));
+  const kinds = () => command.mock.calls.map(([value]) => value.kind);
+  expect(kinds()).toEqual(['show']);
+
+  const menu = document.createElement('div');
+  menu.setAttribute('role', 'menu');
+  menu.getBoundingClientRect = () => new DOMRect(1300, 200, 160, 120);
+  await act(async () => {
+    document.body.append(menu);
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(kinds()).toEqual(['show', 'picture', 'hide']);
+  expect(pictures.at(-1)).toBe('data:image/jpeg;base64,picture');
+
+  // The page goes on running underneath; a menu left open gets a newer picture.
+  await act(async () => vi.advanceTimersByTimeAsync(2_100));
+  expect(kinds().filter((kind) => kind === 'picture')).toHaveLength(2);
+
+  menu.remove();
+  await act(async () => vi.advanceTimersByTimeAsync(50));
+  expect(kinds().at(-1)).toBe('show');
+  expect(pictures.at(-1)).toBeUndefined();
+  await act(async () => vi.advanceTimersByTimeAsync(5_000));
+  expect(kinds().filter((kind) => kind === 'picture')).toHaveLength(2);
+});
+
+// A menu that closes before the picture is ready leaves the page where it is.
+it('stays shown when the menu is gone before its picture arrives', async () => {
+  let deliver: (value: unknown) => void = () => undefined;
+  command.mockImplementation((value) =>
+    value.kind === 'picture'
+      ? new Promise((resolve) => {
+          deliver = resolve;
+        })
+      : Promise.resolve({ ok: true }),
+  );
+  render(
+    <Area
+      onArea={(element) => {
+        element.getBoundingClientRect = () => new DOMRect(1262, 130, 653, 830);
+      }}
+    />,
+  );
+  await act(async () => vi.advanceTimersByTimeAsync(50));
+  const menu = document.createElement('div');
+  menu.setAttribute('role', 'menu');
+  menu.getBoundingClientRect = () => new DOMRect(1300, 200, 160, 120);
+  await act(async () => {
+    document.body.append(menu);
+    await vi.advanceTimersByTimeAsync(50);
+    menu.remove();
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  await act(async () => {
+    deliver({ ok: true, picture: 'data:image/jpeg;base64,late' });
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  const kinds = command.mock.calls.map(([value]) => value.kind);
+  expect(kinds).not.toContain('hide');
+  expect(kinds.at(-1)).toBe('show');
 });

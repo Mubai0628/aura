@@ -602,7 +602,10 @@ fn not_started_message(evidence: &Value) -> &'static str {
     } else {
         ""
     };
-    if reason.contains("agent.resource_changed") || reason.contains("prepared domain facts changed")
+    if reason.contains("agent.resource_changed")
+        || reason.contains("prepared domain facts changed")
+        || reason.contains("agent.source_or_scope_changed")
+        || reason.contains("agent.file_changed")
     {
         concat!(
             "This call was not started: its target changed between being prepared and being ",

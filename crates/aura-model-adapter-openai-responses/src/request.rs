@@ -8,17 +8,28 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         validate_model_compilation_input(input, ModelApiFormat::OpenAiResponses)?;
         let tool_name_bindings = provider_tool_name_bindings(input.request)?;
         let layout = aura_model_transport::instruction_layout(input.request);
-        let mut history = history::compile_responses_history(
+        let state =
+            json!({"role":"developer","content":[{"type":"input_text","text":layout.current}]});
+        let conversation = history::compile_responses_history(
             input.request,
             input.snapshot,
             input.resolved_attachments,
         )?;
-        history.push(
-            json!({"role":"developer","content":[{"type":"input_text","text":layout.current}]}),
-        );
+        // At OpenAI's cache the task's current state goes before the conversation: it kept a
+        // turn's steps only as far as the instructions while a few hundred tokens or more followed
+        // the conversation, and as far as the last step once nothing did; the state changes rarely
+        // within a turn, so each step's input begins with the one before. Elsewhere it stays after
+        // the conversation, where DeepSeek cached nearly every step.
+        let history = if aura_model_transport::reaches_openai_cache(input.snapshot) {
+            std::iter::once(state).chain(conversation).collect::<Vec<_>>()
+        } else {
+            conversation.into_iter().chain(std::iter::once(state)).collect()
+        };
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));
-        if let Some(key) = aura_model_transport::openai_prompt_cache_key(input.snapshot, &layout) {
+        if let Some(key) =
+            aura_model_transport::prompt_cache_key(input.snapshot, input.request, &layout)
+        {
             body.insert("prompt_cache_key".to_owned(), Value::String(key));
         }
         body.insert("instructions".to_owned(), Value::String(layout.stable));

@@ -91,6 +91,8 @@ pub fn uninstall(host: &dyn Host, plan: &UninstallPlan, delete_data: bool) -> Re
     removed.entry = host.remove_entry(&plan.namespace)?;
     // Chrome would otherwise keep starting a relay that is about to be gone.
     removed.chrome = host.remove_chrome_host(&plan.namespace)?;
+    // Only a name for notifications; one that cannot be removed does not stop the uninstall.
+    let _ = host.remove_notification_identity(&plan.namespace);
     remove_program_folder(&plan.root)?;
     // Chrome's manifest for the relay and the copy of the extension Chrome loads belong to the
     // program, not to the user's data.

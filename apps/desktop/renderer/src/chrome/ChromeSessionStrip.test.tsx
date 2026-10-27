@@ -42,7 +42,7 @@ describe('the conversation’s Chrome tabs above the message box', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('count the shared tabs, flag a site to confirm, and stop everything', async () => {
+  it('count the shared tabs, flag a site to confirm, and stop this conversation', async () => {
     current = {
       connected: true,
       tabs: [tab(), tab({ tab: 't2', state: 'awaiting_origin' })],
@@ -52,6 +52,7 @@ describe('the conversation’s Chrome tabs above the message box', () => {
     expect(screen.getByText('等待确认网站')).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: '停止' }));
     expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith({ session_id: S });
   });
 
   it('show what the model asked the user to do in a tab, and pass on 完成', async () => {

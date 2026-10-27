@@ -1,0 +1,5 @@
+/* The switches of 设置 → 通知, one under the other. */
+.notification-settings-list {
+  display: grid;
+  gap: 14px;
+}

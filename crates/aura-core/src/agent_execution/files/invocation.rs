@@ -63,7 +63,15 @@ fn verify_start(
         );
     }
     let domain = files::inspect(service, call)?;
-    anyhow::ensure!(domain == request.plan.prepared.preparation["domain"], "agent.file_changed");
+    anyhow::ensure!(
+        super::fresh_facts::still_hold(
+            service,
+            call,
+            &request.plan.prepared.preparation["domain"],
+            &domain
+        )?,
+        "agent.file_changed"
+    );
     if domain.get("read_refusal").is_some() {
         return Err(anyhow::anyhow!("fs.operation_refused"));
     }

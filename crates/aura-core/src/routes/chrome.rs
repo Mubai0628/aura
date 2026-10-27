@@ -31,11 +31,12 @@ pub(crate) async fn dispatch(
             let _: aura_agent_domain::EmptyToolInput = serde_json::from_value(params)?;
             Ok(serde_json::to_value(chrome.revoke().await?)?)
         }
-        // The user's Stop in Aura: commands still out fail, every share ends, the tabs are left.
+        // The user's Stop on a conversation's line: its shares end and, when it holds Chrome, its
+        // commands still out fail; other conversations' shares go on.
         "chrome.stop" => {
-            let _: aura_agent_domain::EmptyToolInput = serde_json::from_value(params)?;
-            chrome.stop();
-            Ok(serde_json::to_value(chrome.status())?)
+            let input: aura_chrome_domain::ChromeSessionRequest = serde_json::from_value(params)?;
+            chrome.stop_session(input.session_id);
+            Ok(serde_json::to_value(chrome.session_shares(input.session_id))?)
         }
         "chrome.shares" => {
             let input: aura_chrome_domain::ChromeSessionRequest = serde_json::from_value(params)?;

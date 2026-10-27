@@ -2,6 +2,7 @@
 //! changeset and compensation journal. They never invoke an external shell.
 mod external_read;
 mod external_write;
+mod fresh_facts;
 pub(super) mod invocation;
 pub(crate) mod publication;
 mod rejection;

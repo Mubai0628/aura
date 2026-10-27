@@ -72,10 +72,13 @@ pub(crate) fn execute(
     if cancel.is_cancelled() {
         return Err(FsToolError::Cancelled);
     }
-    let (entries, catalog_revision) = {
+    let (mut entries, catalog_revision) = {
         let _catalog = StageTimer::start(&stages.catalog_micros);
         catalog.snapshot()?
     };
+    // Folders the index did not enter are read from disk, within a budget, as candidates.
+    let unindexed = catalog.read_unindexed(resolver, &request.root, true)?;
+    entries.extend(unindexed.entries);
     let candidates = freeze_candidates_from(entries, request)?;
     stages
         .catalog_candidates
@@ -138,12 +141,17 @@ pub(crate) fn execute(
         elapsed_ms: started.elapsed().as_millis(),
         cancelled: false,
     };
+    let skipped_scopes = crate::unindexed::skipped(resolver, &unindexed.unfinished);
+    let mut completion = completion(reasons);
+    if !skipped_scopes.is_empty() {
+        crate::unindexed::partial(&mut completion);
+    }
     Ok((
         FsSearchTextResult {
-            skipped_scopes: Vec::new(),
+            skipped_scopes,
             catalog_revision,
             matches,
-            completion: completion(reasons),
+            completion,
             candidate_file_count: u64::try_from(candidates.len()).unwrap_or(u64::MAX),
             scanned_file_count: stats.scanned_file_count,
             scanned_bytes: stats.scanned_bytes,

@@ -1,3 +1,4 @@
+mod child_windows;
 mod environment;
 mod input_and_paths;
 mod launch_failures;

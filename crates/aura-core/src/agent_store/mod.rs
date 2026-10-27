@@ -554,7 +554,7 @@ impl AgentStore {
         &self.diagnostics
     }
 
-    #[allow(dead_code)] // a caller asks for the retained result of its own invocation
+    /// The retained result of a write whose caller stopped waiting for it.
     #[must_use]
     pub(crate) fn receipt(&self, id: u64) -> Option<StoreReceipt> {
         self.receipts.lock().ok().and_then(|receipts| receipts.entries.get(&id).cloned())

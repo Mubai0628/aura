@@ -16,6 +16,8 @@ pub use build::{CatalogBuildPhase, CatalogBuildStatus};
 mod boundary;
 mod fuzzy;
 pub use boundary::children_beyond_index;
+mod unindexed;
+pub use unindexed::UnindexedListing;
 mod watch;
 pub(crate) use watch::{WatchDescription, changes_for_watch_events};
 pub(crate) mod reconcile;

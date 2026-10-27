@@ -3,7 +3,9 @@
 //! resolver finds them. The folders come from each call's stored operation, so a call made through
 //! `tools.call` and a call naming several paths count as the real call does. Each file is read for
 //! this step and named with its path and hash. One that cannot be used says why instead, and no
-//! file is cut short.
+//! file is cut short. The root file belongs with the instructions before the conversation; the
+//! folders' files change as the conversation moves between folders, so they go with the task's
+//! current state at the end and the part before it stays the same for the prompt cache.
 use super::*;
 use aura_workspace::{
     AgentsScopeError, AgentsScopeResolver, AgentsScopeTarget, AgentsScopeTargetKind,
@@ -29,6 +31,18 @@ pub(super) fn recent_calls(items: &[LogicalConversationItem]) -> Vec<ToolCallId>
         .flat_map(|calls| calls.iter().rev().map(|call| call.tool_call_id))
         .take(CALLS)
         .collect()
+}
+
+/// A step's AGENTS.md: the root file (or why it is missing), and the files of the folders worked in.
+pub(super) struct AgentsFragments {
+    pub root: Vec<ContextFragment>,
+    pub folders: Vec<ContextFragment>,
+}
+
+impl AgentsFragments {
+    fn root_only(fragment: ContextFragment) -> Self {
+        Self { root: vec![fragment], folders: Vec::new() }
+    }
 }
 
 fn note(content: String, revision: Revision) -> ContextFragment {
@@ -68,7 +82,7 @@ impl AgentApplication {
         workspace_id: WorkspaceId,
         revision: Revision,
         items: &[LogicalConversationItem],
-    ) -> Vec<ContextFragment> {
+    ) -> AgentsFragments {
         let calls = recent_calls(items);
         let paths = match self
             .store
@@ -78,15 +92,15 @@ impl AgentApplication {
             .await
         {
             Ok(paths) => paths.into_iter().filter(|path| !path.is_root()).take(PATHS).collect(),
-            Err(error) => return vec![unavailable(&error, revision)],
+            Err(error) => return AgentsFragments::root_only(unavailable(&error, revision)),
         };
         let resolver = match self.execution.workspace.resolver(workspace_id) {
             Ok(resolver) => (*resolver).clone(),
-            Err(error) => return vec![unavailable(&error, revision)],
+            Err(error) => return AgentsFragments::root_only(unavailable(&error, revision)),
         };
         tokio::task::spawn_blocking(move || fragments(resolver, workspace_id, revision, paths))
             .await
-            .unwrap_or_else(|error| vec![unavailable(&error, revision)])
+            .unwrap_or_else(|error| AgentsFragments::root_only(unavailable(&error, revision)))
     }
 }
 
@@ -105,7 +119,7 @@ fn fragments(
     workspace_id: WorkspaceId,
     revision: Revision,
     paths: Vec<WorkspacePath>,
-) -> Vec<ContextFragment> {
+) -> AgentsFragments {
     let note = |content: String| note(content, revision);
     let targets = paths
         .into_iter()
@@ -126,14 +140,15 @@ fn fragments(
         .and_then(|scope| scope.resolve_each(&targets))
     {
         Ok(outcomes) => outcomes,
-        Err(error) => return vec![unavailable(&error, revision)],
+        Err(error) => return AgentsFragments::root_only(unavailable(&error, revision)),
     };
-    let mut fragments = Vec::new();
+    let mut split = AgentsFragments { root: Vec::new(), folders: Vec::new() };
     if outcomes.first().is_none_or(|outcome| outcome.path.as_str() != "AGENTS.md") {
-        fragments.push(note("The workspace has no AGENTS.md at its root.".into()));
+        split.root.push(note("The workspace has no AGENTS.md at its root.".into()));
     }
     for outcome in outcomes {
         let path = outcome.path.as_str().to_owned();
+        let fragments = if path == "AGENTS.md" { &mut split.root } else { &mut split.folders };
         let document = match outcome.document {
             Ok(document) => document,
             Err(AgentsScopeError::DocumentTooLarge { .. }) => {
@@ -173,5 +188,5 @@ fn fragments(
             true,
         ));
     }
-    fragments
+    split
 }

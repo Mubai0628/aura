@@ -1,6 +1,9 @@
 //! The workspace's AGENTS.md reaches the model's instructions: the root file in every request,
 //! named with its path and hash, and the files of the folders the conversation works in from the
-//! next step on, root to deepest. A file that cannot be used says why instead of being cut short.
+//! next step on, root to deepest. The root file sits in the instructions before the conversation,
+//! which stay byte-identical for the prompt cache; the folders' files change as the conversation
+//! moves, so they come with the task's current state at the end. A file that cannot be used says
+//! why instead of being cut short.
 use super::*;
 use sha2::{Digest, Sha256};
 
@@ -14,6 +17,14 @@ fn agents_block(request: &Value) -> String {
     let start = text.find("<Workspace-AGENTS-Instructions>").expect("the AGENTS block");
     let end = text.find("</Workspace-AGENTS-Instructions>").expect("its end");
     text[start..end].to_owned()
+}
+
+/// The task's current state: the request's last message.
+fn task_state(request: &Value) -> String {
+    let state = request["messages"].as_array().and_then(|messages| messages.last());
+    let text = state.and_then(|state| state["content"].as_str()).expect("the last message");
+    assert!(text.contains("Current-Task-State"), "{text}");
+    text.to_owned()
 }
 
 fn short_hash(bytes: &[u8]) -> String {
@@ -75,9 +86,12 @@ async fn the_folders_worked_in_bring_their_agents_md_from_the_next_step_root_to_
     .await;
     let first = agents_block(&requests[0]);
     assert!(first.contains("root rule") && !first.contains("src rule"), "{first}");
-    let last = agents_block(requests.last().expect("a last request"));
+    assert!(!task_state(&requests[0]).contains("src rule"));
+    let last_request = requests.last().expect("a last request");
+    assert_eq!(agents_block(last_request), first, "the instructions before the conversation stay");
+    let last = task_state(last_request);
     let at = |text: &str| last.find(text).unwrap_or_else(|| panic!("{text} missing: {last}"));
-    assert!(at("root rule") < at("src rule") && at("src rule") < at("app rule"), "{last}");
+    assert!(at("src rule") < at("app rule"), "{last}");
     assert!(last.contains("src/app/AGENTS.md"), "{last}");
     assert!(!last.contains("docs rule"), "a folder not worked in: {last}");
 }
@@ -104,8 +118,10 @@ async fn a_folder_worked_in_through_tools_call_brings_its_agents_md_next_step() 
     assert!(requests.len() >= 2, "the call and the answer after it");
     let first = agents_block(&requests[0]);
     assert!(!first.contains("NESTED_SCOPE"), "{first}");
-    let last = agents_block(requests.last().expect("a last request"));
-    assert!(last.contains("root rule") && last.contains("NESTED_SCOPE rule"), "{last}");
+    let last_request = requests.last().expect("a last request");
+    assert!(agents_block(last_request).contains("root rule"));
+    let last = task_state(last_request);
+    assert!(last.contains("NESTED_SCOPE rule"), "{last}");
     assert!(last.contains("nested/AGENTS.md"), "{last}");
 }
 

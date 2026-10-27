@@ -3569,6 +3569,24 @@
         },
         "state": {
           "$ref": "#/$defs/AgentSessionActivityState"
+        },
+        "turn_task_ids": {
+          "description": "The conversation's turns under way.",
+          "items": {
+            "$ref": "#/$defs/TurnTaskId"
+          },
+          "type": "array"
+        },
+        "waiting_for": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentSessionWaitingFor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What it waits for, while it waits."
         }
       },
       "required": [
@@ -3723,10 +3741,34 @@
       ],
       "type": "object"
     },
+    "AgentSessionWaitingFor": {
+      "description": "What a waiting conversation waits for.",
+      "oneOf": [
+        {
+          "enum": [
+            "approval",
+            "question"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "context",
+          "description": "A decision about a context too large for the model.",
+          "type": "string"
+        }
+      ]
+    },
     "AgentSessionsActivity": {
       "additionalProperties": false,
       "description": "Only the conversations with a turn under way; every other one is idle.",
       "properties": {
+        "ended": {
+          "description": "Of the turns the request named, those that have ended.",
+          "items": {
+            "$ref": "#/$defs/AgentTurnEnded"
+          },
+          "type": "array"
+        },
         "sessions": {
           "items": {
             "$ref": "#/$defs/AgentSessionActivity"
@@ -3741,6 +3783,15 @@
     },
     "AgentSessionsActivityRequest": {
       "additionalProperties": false,
+      "properties": {
+        "ended_turns": {
+          "description": "Turns the caller saw under way that are no longer: those that have ended come back in\n`ended`, with how. At most 64 are read.",
+          "items": {
+            "$ref": "#/$defs/TurnTaskId"
+          },
+          "type": "array"
+        }
+      },
       "type": "object"
     },
     "AgentStartRequest": {
@@ -4473,6 +4524,26 @@
       ],
       "type": "object"
     },
+    "AgentTurnEnded": {
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/AgentTurnOutcome"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "turn_task_id": {
+          "$ref": "#/$defs/TurnTaskId"
+        }
+      },
+      "required": [
+        "session_id",
+        "turn_task_id",
+        "outcome"
+      ],
+      "type": "object"
+    },
     "AgentTurnHistoryCursor": {
       "additionalProperties": false,
       "properties": {
@@ -4504,6 +4575,24 @@
         "turn_task_id"
       ],
       "type": "object"
+    },
+    "AgentTurnOutcome": {
+      "description": "How a turn ended.",
+      "oneOf": [
+        {
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "recovery_required",
+          "description": "Stopped where it cannot go on by itself; the user decides how it continues.",
+          "type": "string"
+        }
+      ]
     },
     "AgentTurnView": {
       "additionalProperties": false,
@@ -64681,6 +64770,21 @@
     "WorkspaceId": {
       "type": "string"
     },
+    "WorkspaceIndexIncompleteReason": {
+      "description": "Why an index build did not enter every folder.",
+      "oneOf": [
+        {
+          "const": "memory_low",
+          "description": "Free memory ran low; the folders are indexed again once it comes back.",
+          "type": "string"
+        },
+        {
+          "const": "entry_limit",
+          "description": "The workspace holds more entries than an index keeps.",
+          "type": "string"
+        }
+      ]
+    },
     "WorkspaceIndexRebuildRequest": {
       "additionalProperties": false,
       "description": "Walks a workspace's folder again for its file index, after a build that failed.",
@@ -64729,6 +64833,17 @@
             "null"
           ]
         },
+        "incomplete_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceIndexIncompleteReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why the build did not enter every folder, when it did not."
+        },
         "listed_entries": {
           "description": "Entries the running or last walk listed.",
           "format": "uint64",
@@ -64743,6 +64858,10 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "walking": {
+          "description": "A walk of the whole folder runs now (a check, or one the user asked for); the index\nanswers meanwhile.",
+          "type": "boolean"
         }
       },
       "required": [

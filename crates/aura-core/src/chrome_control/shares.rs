@@ -120,7 +120,18 @@ impl Shares {
         ended.into_iter().filter_map(|tab_id| self.remove(tab_id)).collect()
     }
 
-    /// Every share ends, as when the user presses Stop.
+    /// Every share of the conversation ends, as when the user stops it in Aura.
+    pub(crate) fn end_session(&mut self, session_id: SessionId) -> Vec<Share> {
+        let ended = self
+            .by_tab
+            .values()
+            .filter(|share| share.session_id == session_id)
+            .map(|share| share.tab_id)
+            .collect::<Vec<_>>();
+        ended.into_iter().filter_map(|tab_id| self.remove(tab_id)).collect()
+    }
+
+    /// Every share ends, as when the user presses 全部停止.
     pub(crate) fn clear(&mut self) -> Vec<Share> {
         self.current.clear();
         std::mem::take(&mut self.by_tab).into_values().collect()

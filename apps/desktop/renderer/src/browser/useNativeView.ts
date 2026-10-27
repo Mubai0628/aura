@@ -1,10 +1,15 @@
-import { useLayoutEffect, type RefObject } from 'react';
+import { useLayoutEffect, useState, type RefObject } from 'react';
 
 import { browserApi } from './bridge';
 
 /** Renderer layers that, drawn over the page area, would hide under the native page view. */
 const COVERING =
   '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], .notification-toast';
+
+/** How long the page waits for its picture before stepping aside without one. */
+const PICTURE_WAIT_MS = 150;
+/** How often the picture is taken again while the page stays covered: it keeps running. */
+const PICTURE_REFRESH_MS = 2_000;
 
 const overlaps = (a: DOMRect, b: DOMRect) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
@@ -35,28 +40,67 @@ function shownRect(element: HTMLElement): DOMRect {
 /**
  * The page itself is a native view Main lays over the page area. While `showing`, it is kept
  * on that area, out of the way of dialogs and menus drawn over it; otherwise it is hidden.
+ * Returns a picture of the page to draw in the area while a dialog or menu covers it.
  */
 export function useNativeView(
   area: RefObject<HTMLDivElement | null>,
   sessionId: string,
   pageId: string,
   showing: boolean,
-): void {
+): string | undefined {
+  const [picture, setPicture] = useState<string>();
   useLayoutEffect(() => {
     const api = browserApi();
     const element = area.current;
     if (api === undefined || element === null || !showing) return;
     let pending: (() => void) | undefined;
     let shownAt = '';
+    let live = true;
+    // Which covering a step aside belongs to: one that outlasted its menu does nothing.
+    let coverings = 0;
+    let refresh: ReturnType<typeof setInterval> | undefined;
+    const picturing = () => {
+      const taken = api.command({ kind: 'picture', sessionId, pageId });
+      void taken.then((result) => {
+        if (live && shownAt === 'covered' && result.ok && result.picture !== undefined)
+          setPicture(result.picture);
+      });
+      return taken;
+    };
+    // The page stays in place until its picture is ready, briefly, so the area is never empty;
+    // the menu may be gone by then.
+    const stopRefresh = () => {
+      if (refresh !== undefined) clearInterval(refresh);
+      refresh = undefined;
+    };
+    const stepAside = async (covering: number) => {
+      const taken = picturing();
+      await Promise.race([taken, new Promise((done) => setTimeout(done, PICTURE_WAIT_MS))]);
+      if (!live || shownAt !== 'covered' || covering !== coverings) return;
+      void api.command({ kind: 'hide', sessionId, pageId });
+      stopRefresh();
+      refresh = setInterval(() => void picturing(), PICTURE_REFRESH_MS);
+    };
     const place = () => {
       pending = undefined;
       const rect = shownRect(element);
       const covered = [...document.querySelectorAll(COVERING)].some(
         (layer) => !element.contains(layer) && overlaps(layer.getBoundingClientRect(), rect),
       );
+      if (covered && rect.width >= 1 && rect.height >= 1) {
+        if (shownAt === 'covered') return;
+        // A page not shown yet has nothing to picture; it waits hidden.
+        const wasShown = shownAt !== '' && shownAt !== 'hidden';
+        shownAt = 'covered';
+        coverings += 1;
+        if (wasShown) void stepAside(coverings);
+        return;
+      }
+      stopRefresh();
       if (covered || rect.width < 1 || rect.height < 1) {
         if (shownAt !== 'hidden') void api.command({ kind: 'hide', sessionId, pageId });
         shownAt = 'hidden';
+        setPicture(undefined);
         return;
       }
       const bounds = {
@@ -68,7 +112,10 @@ export function useNativeView(
       const at = JSON.stringify(bounds);
       if (at === shownAt) return;
       shownAt = at;
-      void api.command({ kind: 'show', sessionId, pageId, bounds });
+      // The picture goes once the page is back over it.
+      void api.command({ kind: 'show', sessionId, pageId, bounds }).then(() => {
+        if (live && shownAt === at) setPicture(undefined);
+      });
     };
     // Once per frame, however many changes arrive in it.
     const schedule = () => {
@@ -101,7 +148,10 @@ export function useNativeView(
     window.addEventListener('pointerup', schedule, true);
     document.addEventListener('transitionend', schedule, true);
     return () => {
+      live = false;
       pending?.();
+      stopRefresh();
+      setPicture(undefined);
       resize?.disconnect();
       layers.disconnect();
       window.removeEventListener('resize', schedule);
@@ -112,4 +162,5 @@ export function useNativeView(
       void api.command({ kind: 'hide', sessionId, pageId });
     };
   }, [area, showing, sessionId, pageId]);
+  return picture;
 }

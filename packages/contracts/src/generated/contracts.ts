@@ -1733,6 +1733,13 @@ export type WorkspaceLifecycleState =
   | 'cancelled'
   | 'failed';
 /**
+ * Why an index build did not enter every folder.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorkspaceIndexIncompleteReason".
+ */
+export type WorkspaceIndexIncompleteReason = 'memory_low' | 'entry_limit';
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "WorkspaceIndexingState".
  */
@@ -7319,6 +7326,13 @@ export type TurnTaskState =
  */
 export type AgentSessionActivityState = 'running' | 'waiting';
 /**
+ * What a waiting conversation waits for.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentSessionWaitingFor".
+ */
+export type AgentSessionWaitingFor = ('approval' | 'question') | 'context';
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TodoItemId".
  */
@@ -7343,6 +7357,13 @@ export type UserMessageOrigin =
       origin: 'query_answer';
       query_id: UserQueryId;
     };
+/**
+ * How a turn ended.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTurnOutcome".
+ */
+export type AgentTurnOutcome = ('completed' | 'failed' | 'cancelled') | 'recovery_required';
 /**
  * What a turn is for. Only `/init` differs from an ordinary turn: it is a one-off
  * task that runs as Normal and leaves the session's Plan or Goal mode untouched.
@@ -11849,6 +11870,10 @@ export interface WorkspaceIndexingStatus {
    */
   failure?: string | null;
   /**
+   * Why the build did not enter every folder, when it did not.
+   */
+  incomplete_reason?: WorkspaceIndexIncompleteReason | null;
+  /**
    * Entries the running or last walk listed.
    */
   listed_entries: number;
@@ -11857,6 +11882,11 @@ export interface WorkspaceIndexingStatus {
    * Folders recorded but not entered: past the entry cap, or with memory low.
    */
   unindexed_directories: number;
+  /**
+   * A walk of the whole folder runs now (a check, or one the user asked for); the index
+   * answers meanwhile.
+   */
+  walking?: boolean;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -18154,6 +18184,14 @@ export interface AgentRunRequest {
 export interface AgentSessionActivity {
   session_id: SessionId;
   state: AgentSessionActivityState;
+  /**
+   * The conversation's turns under way.
+   */
+  turn_task_ids?: TurnTaskId[];
+  /**
+   * What it waits for, while it waits.
+   */
+  waiting_for?: AgentSessionWaitingFor | null;
 }
 /**
  * Branch this conversation at one of its finished turns. An authenticated user command; a model
@@ -18340,13 +18378,32 @@ export interface AgentSessionRequest {
  * via the `definition` "AgentSessionsActivity".
  */
 export interface AgentSessionsActivity {
+  /**
+   * Of the turns the request named, those that have ended.
+   */
+  ended?: AgentTurnEnded[];
   sessions: AgentSessionActivity[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTurnEnded".
+ */
+export interface AgentTurnEnded {
+  outcome: AgentTurnOutcome;
+  session_id: SessionId;
+  turn_task_id: TurnTaskId;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentSessionsActivityRequest".
  */
-export interface AgentSessionsActivityRequest {}
+export interface AgentSessionsActivityRequest {
+  /**
+   * Turns the caller saw under way that are no longer: those that have ended come back in
+   * `ended`, with how. At most 64 are read.
+   */
+  ended_turns?: TurnTaskId[];
+}
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentStartRequest".

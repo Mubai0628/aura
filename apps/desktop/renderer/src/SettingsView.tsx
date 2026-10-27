@@ -17,6 +17,7 @@ import { McpSettings } from './mcp-settings/McpSettings';
 import { PluginSettings } from './plugin-settings/PluginSettings';
 import { SkillSettings } from './skill-settings/SkillSettings';
 import { AboutUpdates } from './app-updates/AboutUpdates';
+import { NotificationSettings } from './notification-settings/NotificationSettings';
 import './settings-navigation.css';
 import type { WorkspaceId } from '@aura/contracts/generated';
 import { useSecurityControl } from './security-control-store';
@@ -74,6 +75,13 @@ const SETTINGS_NAVIGATION: readonly {
     label: '归档',
     value: 'archive',
     keywords: ['删除', '恢复', '会话', '工作区'],
+  },
+  {
+    group: '系统',
+    icon: 'bell',
+    label: '通知',
+    value: 'notifications',
+    keywords: ['提醒', '审批', '完成'],
   },
   {
     group: '系统',
@@ -163,7 +171,7 @@ export function SettingsView({
         </nav>
 
         <div className="settings-content">
-          {section !== 'about' ? (
+          {section !== 'about' && section !== 'notifications' ? (
             <>
               <ProjectionCompatibilityNotice surface={section} />
               <ConfigRecoveryPanel coreReady={coreReady} />
@@ -177,6 +185,7 @@ export function SettingsView({
           {section === 'environment' ? <EnvironmentSettings /> : null}
           {section === 'browser' ? <BrowserSettings coreReady={coreReady} /> : null}
           {section === 'archive' ? <ArchiveSettings /> : null}
+          {section === 'notifications' ? <NotificationSettings /> : null}
           {section === 'memory' ? (
             <MemorySettings
               key={workspaceId ?? 'global'}

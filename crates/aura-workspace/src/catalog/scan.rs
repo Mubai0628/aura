@@ -1605,7 +1605,7 @@ pub enum NameMatchMode {
 /// Case folding is applied to both sides rather than to the pattern alone,
 /// because the default is the platform's file-system convention, which is
 /// case-insensitive on Windows.
-enum NamePattern {
+pub(super) enum NamePattern {
     Exact { needle: String, case_sensitive: bool },
     Glob { pattern: globset::GlobMatcher, case_sensitive: bool },
 }
@@ -1616,7 +1616,7 @@ impl NamePattern {
     /// A pattern the matcher cannot compile must be an error: treating it as
     /// "matches nothing" turns a typo into the fact "this file does not exist",
     /// which is a wrong answer rather than a wrong page.
-    fn compile(
+    pub(super) fn compile(
         text: &str,
         mode: NameMatchMode,
         case_sensitive: bool,
@@ -1643,7 +1643,7 @@ impl NamePattern {
         }
     }
 
-    fn matches(&self, name: &str) -> bool {
+    pub(super) fn matches(&self, name: &str) -> bool {
         match self {
             Self::Exact { needle, case_sensitive } => {
                 if *case_sensitive {

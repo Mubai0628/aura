@@ -13,6 +13,7 @@ import { isIpcErrorEnvelope, preloadError } from './errors.js';
 import { toolCredentialBridge } from './tool-credentials.js';
 import { agentBridge } from './agent.js';
 import { appUpdateBridge } from './app-updates.js';
+import { notificationsBridge } from './notifications.js';
 import { gitBridge } from './git.js';
 import { packageBridge } from './package.js';
 import { memoryBridge } from './memory.js';
@@ -159,6 +160,7 @@ const api: AuraApiV1 = Object.freeze({
     invokeRecovery('config.recovery.apply', request),
 
   ...appUpdateBridge(),
+  notifications: notificationsBridge(),
   ...agentBridge(
     invokeRegistered,
     (code, message) => preloadError(code, message),

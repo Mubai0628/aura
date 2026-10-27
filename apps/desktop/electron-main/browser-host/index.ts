@@ -22,6 +22,7 @@ import type { CoreSupervisor } from '../core-supervisor.js';
 import { parseUserCommand } from './commands.js';
 import { DevToolsWindows, type DevToolsHostWindow, type DevToolsPage } from './devtools-window.js';
 import { modelPages } from './model-pages.js';
+import { pagePicture, type PicturedContents } from './page-picture.js';
 import { BrowserPages, type PageView, type PageViews } from './pages.js';
 import { BROWSER_PARTITION, guardProfile, type ProfileSession } from './profile.js';
 import { parsedRules } from './site-rules.js';
@@ -188,6 +189,13 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
       case 'hide':
         pages.hide(sessionId, pageId);
         return { ok: true };
+      case 'picture':
+        return {
+          ok: true,
+          picture: await pagePicture(
+            pages.contents(sessionId, pageId) as unknown as PicturedContents | undefined,
+          ),
+        };
       case 'navigate': {
         const refused = pages.navigate(sessionId, pageId, command.input);
         return refused === undefined ? { ok: true } : { ok: false, message: refused };

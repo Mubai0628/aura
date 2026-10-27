@@ -596,10 +596,32 @@ impl AgentExecution {
 
 /// What the model is told about calls a dispatch error left unexecuted. It quotes the error's top-level text, bounded.
 fn refusal_notice(error: &str) -> String {
+    if error.contains("agent.source_or_scope_changed") || error.contains("agent.file_changed") {
+        return "tool.dispatch_refused: This call was not started: its target changed after it was \
+                approved (another call of the same response, or another program, changed it at the \
+                same moment). Nothing was changed. Call it again if it is still needed."
+            .to_owned();
+    }
     let summary =
         error.chars().map(|c| if c.is_control() { ' ' } else { c }).take(240).collect::<String>();
     format!(
         "tool.dispatch_refused: Aura refused this call before running it ({summary}). Nothing \
          was changed. Check the current state before calling again."
     )
+}
+
+#[cfg(test)]
+mod refusal_tests {
+    use super::refusal_notice;
+
+    #[test]
+    fn a_target_changed_before_the_start_is_named_with_the_way_on() {
+        let notice =
+            refusal_notice("PreparationRejected { reason: \"agent.source_or_scope_changed\" }");
+        assert!(
+            notice.contains("its target changed") && notice.contains("Call it again"),
+            "{notice}"
+        );
+        assert!(refusal_notice("agent.mode_changed").contains("(agent.mode_changed)"));
+    }
 }

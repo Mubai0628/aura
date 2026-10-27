@@ -222,10 +222,11 @@ impl ChromeControl {
         self.inner.lock().inspections.get(&call).cloned()
     }
 
-    /// Stops everything Chrome is doing for Aura: commands still out fail, every share ends, the
-    /// lock is released, and the extension leaves the tabs.
-    pub(crate) fn stop(&self) {
-        let tab_ids = self.inner.stop_all();
+    /// Stops what Chrome is doing for one conversation: its shares end and the extension leaves
+    /// those tabs; when it holds Chrome, its commands still out fail and the lock is released.
+    /// Other conversations' shares and calls go on.
+    pub(crate) fn stop_session(&self, session: SessionId) {
+        let tab_ids = self.inner.stop_session(session);
         let state = self.inner.lock();
         if let Some(live) = state.live.as_ref() {
             // Fire and forget: id 0 is never a waiting command.
@@ -276,20 +277,44 @@ impl Inner {
         let tab_ids = {
             let mut state = self.lock();
             let tabs = state.shares.clear().into_iter().map(|share| share.tab_id).collect();
-            state.holder = None;
-            state.stops += 1;
-            if let Some(live) = state.live.as_mut() {
-                for (_, waiter) in std::mem::take(&mut live.pending) {
-                    let _ = waiter.send(CommandOutcome::Failed {
-                        code: "chrome.stopped".into(),
-                        message: "用户停止了 Aura 在 Chrome 里的操作。".into(),
-                    });
-                }
+            state.release_lock();
+            tabs
+        };
+        self.broadcast_shares();
+        tab_ids
+    }
+
+    /// Ends the conversation's shares; when it holds Chrome, every command still out is its own
+    /// and fails, and the lock is released. The tabs that were its shares.
+    pub(super) fn stop_session(&self, session: SessionId) -> Vec<u32> {
+        let tab_ids = {
+            let mut state = self.lock();
+            let tabs =
+                state.shares.end_session(session).into_iter().map(|share| share.tab_id).collect();
+            if state.holder.as_ref().is_some_and(|(holder, _)| *holder == session) {
+                state.release_lock();
             }
             tabs
         };
         self.broadcast_shares();
         tab_ids
+    }
+}
+
+impl super::State {
+    /// Releases the lock and fails the commands still out; calls begun before this release
+    /// nothing when they end.
+    fn release_lock(&mut self) {
+        self.holder = None;
+        self.stops += 1;
+        if let Some(live) = self.live.as_mut() {
+            for (_, waiter) in std::mem::take(&mut live.pending) {
+                let _ = waiter.send(CommandOutcome::Failed {
+                    code: "chrome.stopped".into(),
+                    message: "用户停止了 Aura 在 Chrome 里的操作。".into(),
+                });
+            }
+        }
     }
 }
 

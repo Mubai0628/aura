@@ -772,6 +772,36 @@ fn an_addition_stays_a_separate_user_message_after_function_output() {
     assert_ne!(body["instructions"], input.last().expect("current state")["content"][0]["text"]);
 }
 
+/// At OpenAI and at a local gateway the task's current state comes before the conversation, not
+/// after it: OpenAI's cache kept a turn's steps only as far as the instructions while anything
+/// sizeable followed the conversation, and as far as the last step once nothing did. A later
+/// step's input with the same state begins with the earlier step's input, item for item. Another
+/// provider's endpoint keeps the state after the conversation, where DeepSeek cached nearly all.
+#[test]
+fn the_task_state_comes_before_the_conversation_and_a_later_step_extends_the_input() {
+    let third_party = snapshot();
+    let body = wire_body(&logical_request(&third_party), &third_party);
+    let input = body["input"].as_array().expect("input");
+    assert_eq!(input.last().expect("an item")["role"], "developer", "{input:?}");
+    let mut snapshot = snapshot();
+    snapshot.resolved_request_url = "http://127.0.0.1:8317/v1/responses".to_owned();
+    let request = logical_request(&snapshot);
+    let earlier = wire_body(&request, &snapshot);
+    let earlier = earlier["input"].as_array().expect("input").clone();
+    assert_eq!(earlier[0]["role"], "developer", "{earlier:?}");
+    assert_ne!(earlier.last().expect("an item")["role"], "developer");
+    let mut later = request.clone();
+    later.conversation_items.push(LogicalConversationItem::User {
+        source_event_id: EventId::new(),
+        content: "And then?".to_owned(),
+        content_hash: ContentHash::sha256(b"And then?"),
+    });
+    let later = wire_body(&later, &snapshot);
+    let later = later["input"].as_array().expect("input");
+    assert_eq!(later.len(), earlier.len() + 1);
+    assert_eq!(&later[..earlier.len()], earlier.as_slice());
+}
+
 /// A profile's thinking level is `reasoning.effort`; none named sends none.
 #[test]
 fn a_thinking_level_is_sent_as_reasoning_effort() {
@@ -809,26 +839,47 @@ fn with_block(
     changed
 }
 
-/// OpenAI's own API is sent a cache key
-/// naming the stable instructions. A later step whose task state changed keeps it; changed stable
-/// instructions change it; any other endpoint is not sent it.
+/// OpenAI's own API and a local gateway are sent a cache key naming the stable instructions and the
+/// conversation's first item: through a gateway without one, the steps of a turn were cached
+/// erratically. A later step whose task state changed keeps the key; changed stable instructions or
+/// another conversation change it. Another provider's endpoint is not sent the field.
 #[test]
-fn openai_itself_is_sent_a_cache_key_for_the_stable_instructions() {
-    let mut snapshot = snapshot();
-    snapshot.base_url = "https://api.openai.com/v1".to_owned();
-    snapshot.resolved_request_url = "https://api.openai.com/v1/responses".to_owned();
-    let request = logical_request(&snapshot);
-    let key = wire_body(&request, &snapshot)["prompt_cache_key"]
-        .as_str()
-        .expect("a cache key")
-        .to_owned();
-    assert!(key.starts_with("aura-") && key.len() == 37, "{key}");
-    let later =
-        with_block(&request, LogicalInstructionKind::TaskState, "<TaskState>later</TaskState>");
-    assert_eq!(wire_body(&later, &snapshot)["prompt_cache_key"], json!(key));
-    let summarized =
-        with_block(&request, LogicalInstructionKind::HistoricalSnapshot, "<Summary>new</Summary>");
-    assert_ne!(wire_body(&summarized, &snapshot)["prompt_cache_key"], json!(key));
-    let other = self::snapshot();
-    assert!(wire_body(&logical_request(&other), &other).get("prompt_cache_key").is_none());
+fn openai_and_a_local_gateway_are_sent_a_cache_key_for_the_conversation() {
+    for url in ["https://api.deepseek.com/responses", "https://api.example.test/v1/responses"] {
+        let mut snapshot = snapshot();
+        snapshot.resolved_request_url = url.to_owned();
+        let body = wire_body(&logical_request(&snapshot), &snapshot);
+        assert!(body.get("prompt_cache_key").is_none(), "{url}");
+    }
+    for url in [
+        "https://api.openai.com/v1/responses",
+        "http://127.0.0.1:8317/v1/responses",
+        "http://localhost:8080/v1/responses",
+    ] {
+        let mut snapshot = snapshot();
+        snapshot.resolved_request_url = url.to_owned();
+        let request = logical_request(&snapshot);
+        let key = wire_body(&request, &snapshot)["prompt_cache_key"]
+            .as_str()
+            .unwrap_or_else(|| panic!("a cache key for {url}"))
+            .to_owned();
+        assert!(key.starts_with("aura-") && key.len() == 37, "{key}");
+        let later =
+            with_block(&request, LogicalInstructionKind::TaskState, "<TaskState>later</TaskState>");
+        assert_eq!(wire_body(&later, &snapshot)["prompt_cache_key"], json!(key));
+        let summarized = with_block(
+            &request,
+            LogicalInstructionKind::HistoricalSnapshot,
+            "<Summary>new</Summary>",
+        );
+        assert_ne!(wire_body(&summarized, &snapshot)["prompt_cache_key"], json!(key));
+        let mut other = request.clone();
+        let Some(LogicalConversationItem::User { source_event_id, .. }) =
+            other.conversation_items.first_mut()
+        else {
+            panic!("the conversation starts with the user's message")
+        };
+        *source_event_id = aura_domain_common::EventId::new();
+        assert_ne!(wire_body(&other, &snapshot)["prompt_cache_key"], json!(key));
+    }
 }

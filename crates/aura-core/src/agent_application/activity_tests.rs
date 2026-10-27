@@ -335,10 +335,7 @@ fn the_inspector_view_and_the_fragment_describe_one_snapshot() {
     let body = {
         let header = &summary.header;
         format!(
-            "sampled_at={} runtime={} revision={} coverage=complete in_scope={} shown={} omitted={}",
-            header.sampled_at,
-            header.runtime_instance_id,
-            header.revision,
+            "coverage=complete in_scope={} shown={} omitted={}",
             header.coverage.total_in_scope,
             summary.rows.len(),
             header.coverage.omitted_by_limit

@@ -84,12 +84,16 @@ impl AgentApplication {
         Ok(())
     }
 
-    /// The conversations with a turn under way, for the sidebar's running state.
-    pub async fn sessions_activity(self: &Arc<Self>) -> anyhow::Result<AgentSessionsActivity> {
+    /// The conversations with a turn under way, for the sidebar's running state, and how the
+    /// turns the caller saw under way ended, for its notifications.
+    pub async fn sessions_activity(
+        self: &Arc<Self>,
+        request: aura_agent_domain::AgentSessionsActivityRequest,
+    ) -> anyhow::Result<AgentSessionsActivity> {
         Ok(self
             .store
             .read(StoreStep::operation("agent.sessions.activity"), move |db| {
-                aura_persistence_v2::agent::under_way::sessions(db)
+                aura_persistence_v2::agent::under_way::activity(db, &request.ended_turns)
             })
             .await?)
     }

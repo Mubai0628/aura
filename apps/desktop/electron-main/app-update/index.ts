@@ -4,6 +4,7 @@ import {
   APP_UPDATE_CHANNEL,
   APP_UPDATE_STATE_CHANNEL,
   isAppUpdateCommand,
+  type AppUpdateState,
 } from '../../shared/app-updates.js';
 import { publishToRenderer } from '../publish-to-renderer.js';
 import { UPDATE_REPOSITORY, releasesUrl } from './feed.js';
@@ -38,6 +39,8 @@ export function registerAppUpdates(options: {
   trust: (event: IpcMainInvokeEvent) => void;
   requestRestart: () => void;
   log: (event: string, fields: Record<string, unknown>) => void;
+  /** Told of every state as it is published. */
+  onState?: (state: AppUpdateState) => void;
 }): RegisteredAppUpdates {
   const updatesSession = session.fromPartition('aura-updates');
   void updatesSession.setProxy({ mode: 'system' });
@@ -56,7 +59,10 @@ export function registerAppUpdates(options: {
     feedUrl: testFeed ?? releasesUrl(UPDATE_REPOSITORY),
     testFeed: testFeed !== undefined,
     userAgent: `Aura/${options.current}`,
-    publish: (state) => publishToRenderer(options.contents(), APP_UPDATE_STATE_CHANNEL, state),
+    publish: (state) => {
+      publishToRenderer(options.contents(), APP_UPDATE_STATE_CHANNEL, state);
+      options.onState?.(state);
+    },
     requestRestart: options.requestRestart,
     log: options.log,
   });

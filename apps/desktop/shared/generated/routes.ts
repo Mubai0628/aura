@@ -993,7 +993,7 @@ export type AgentMainParams = {
   'chrome.set_enabled': ChromeSetEnabledRequest;
   'chrome.pair.begin': EmptyToolInput;
   'chrome.revoke': EmptyToolInput;
-  'chrome.stop': EmptyToolInput;
+  'chrome.stop': ChromeSessionRequest;
   'chrome.shares': ChromeSessionRequest;
   'chrome.assist.finish': ChromeSessionRequest;
   'chrome.extension.open_folder': EmptyToolInput;
@@ -1105,7 +1105,7 @@ export type AgentMainResult = {
   'chrome.set_enabled': ChromeControlStatus;
   'chrome.pair.begin': ChromePairingCode;
   'chrome.revoke': ChromeControlStatus;
-  'chrome.stop': ChromeControlStatus;
+  'chrome.stop': ChromeSessionShares;
   'chrome.shares': ChromeSessionShares;
   'chrome.assist.finish': ChromeSessionShares;
   'chrome.extension.open_folder': ChromeExtensionFolder;
@@ -1275,7 +1275,7 @@ export type AgentCoreParams = {
   'chrome.set_enabled': ChromeSetEnabledRequest;
   'chrome.pair.begin': EmptyToolInput;
   'chrome.revoke': EmptyToolInput;
-  'chrome.stop': EmptyToolInput;
+  'chrome.stop': ChromeSessionRequest;
   'chrome.shares': ChromeSessionRequest;
   'chrome.assist.finish': ChromeSessionRequest;
   'media.host.read': MediaHostReadRequestV1;
@@ -1381,7 +1381,7 @@ export type AgentCoreResult = {
   'chrome.set_enabled': ChromeControlStatus;
   'chrome.pair.begin': ChromePairingCode;
   'chrome.revoke': ChromeControlStatus;
-  'chrome.stop': ChromeControlStatus;
+  'chrome.stop': ChromeSessionShares;
   'chrome.shares': ChromeSessionShares;
   'chrome.assist.finish': ChromeSessionShares;
   'media.host.read': MediaHostReadResultV1;
@@ -4379,8 +4379,8 @@ export const MAIN_ROUTES = {
     owner: 'agent',
     surface: 'main',
     auth: 'trusted_renderer',
-    request_type: 'EmptyToolInput',
-    response_type: 'ChromeControlStatus',
+    request_type: 'ChromeSessionRequest',
+    response_type: 'ChromeSessionShares',
     idempotency: 'command_invocation',
     cancellation: 'none',
     test_only: false,
@@ -7235,8 +7235,8 @@ export const CORE_ROUTES = {
     owner: 'agent',
     surface: 'core',
     auth: 'authenticated_main',
-    request_type: 'EmptyToolInput',
-    response_type: 'ChromeControlStatus',
+    request_type: 'ChromeSessionRequest',
+    response_type: 'ChromeSessionShares',
     idempotency: 'command_invocation',
     cancellation: 'none',
     test_only: false,

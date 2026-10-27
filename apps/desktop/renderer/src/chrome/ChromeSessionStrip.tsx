@@ -17,8 +17,8 @@ type Action = 'stop' | 'finish';
 
 /**
  * The conversation's tabs in the user's own Chrome, above the message box: how many, whether one
- * waits for the user to confirm a site, and Stop. A tab the model handed to the user shows what it
- * asked, with 完成.
+ * waits for the user to confirm a site, and Stop, which ends this conversation's shares only. A tab
+ * the model handed to the user shows what it asked, with 完成.
  */
 export function ChromeSessionStrip({ sessionId }: { sessionId: string }) {
   const [shares, setShares] = useState<ChromeSessionShares>();
@@ -81,7 +81,11 @@ export function ChromeSessionStrip({ sessionId }: { sessionId: string }) {
           className="button is-small chrome-strip-stop"
           disabled={pending !== undefined}
           onClick={() =>
-            void act('stop', () => chromeControl()?.stop(), 'Chrome 没有停止，请重试。')
+            void act(
+              'stop',
+              () => chromeControl()?.stop({ session_id: sessionId }),
+              'Chrome 没有停止，请重试。',
+            )
           }
           type="button"
         >

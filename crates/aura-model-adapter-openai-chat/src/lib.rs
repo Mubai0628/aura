@@ -58,7 +58,9 @@ impl ModelProtocolCompiler for OpenAiChatCompletionsAdapter {
 
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));
-        if let Some(key) = aura_model_transport::openai_prompt_cache_key(input.snapshot, &layout) {
+        if let Some(key) =
+            aura_model_transport::prompt_cache_key(input.snapshot, input.request, &layout)
+        {
             body.insert("prompt_cache_key".to_owned(), Value::String(key));
         }
         body.insert("messages".to_owned(), Value::Array(messages));

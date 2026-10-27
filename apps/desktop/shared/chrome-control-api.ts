@@ -12,8 +12,8 @@ export interface ChromeControlApiV1 {
   setEnabled: Request<'chrome.set_enabled'>;
   beginPairing: Read<'chrome.pair.begin'>;
   revoke: Read<'chrome.revoke'>;
-  /** Stops everything Chrome does for Aura: every share ends. */
-  stop: Read<'chrome.stop'>;
+  /** Stops what Chrome does for one conversation: its shares end; other conversations' go on. */
+  stop: Request<'chrome.stop'>;
   /** The folder the user loads in Chrome, in the file manager. */
   openExtensionFolder: Read<'chrome.extension.open_folder'>;
   shares: Request<'chrome.shares'>;

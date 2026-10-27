@@ -127,12 +127,12 @@ async fn a_real_provider_request_really_carries_the_activity_fragment() {
         );
 
     let (ordinal, tail) = carrier;
-    // The header is the frozen snapshot's own facts, so this is Core's sampling rather than a
-    // string a test could have written. The captured bytes really read
-    // `sampled_at=… runtime=run_… revision=5 coverage=complete in_scope=0 shown=0 omitted=0`.
+    // The header is the frozen snapshot's coverage, without the sampling instant, runtime or
+    // revision that change every step (they stay in the inspector's view). The captured bytes
+    // really read `coverage=complete in_scope=0 shown=0 omitted=0`.
     assert!(
-        tail.contains("sampled_at=") && tail.contains("runtime=") && tail.contains("revision="),
-        "the fragment carries the frozen snapshot's identity: {tail}"
+        !tail.contains("sampled_at=") && !tail.contains("runtime=") && !tail.contains("revision="),
+        "nothing in the fragment changes from step to step by itself: {tail}"
     );
     assert!(
         tail.contains("coverage="),
@@ -330,10 +330,9 @@ async fn every_connected_adapter_really_carries_the_fragment() {
                 )
             });
         assert!(
-            carrier.contains("sampled_at=")
-                && carrier.contains("revision=")
-                && carrier.contains("coverage="),
-            "{label}: the fragment carries the frozen snapshot's header: {carrier}"
+            carrier.contains("coverage=") && !carrier.contains("sampled_at="),
+            "{label}: the fragment carries the frozen snapshot's coverage, no sampling instant: \
+             {carrier}"
         );
         println!("R4 adapter {label}: fragment carried, {} captured bodies", bodies.len());
     }

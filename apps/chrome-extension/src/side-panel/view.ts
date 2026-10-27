@@ -1,7 +1,8 @@
 /**
  * The side panel, drawn from the service worker's state: the connection, pairing, sharing the
- * current tab, the shared tabs with their state, a tab handed to the user, and Stop. Only states
- * and button words; nothing explains itself in prose.
+ * current tab while it is not shared, the shared tabs with their state and a stop each, a tab
+ * handed to the user, and stopping every share. Only states and button words; nothing explains
+ * itself in prose.
  */
 import type { ConnectionState } from '../native.js';
 import type { PanelRequest, PanelState } from '../panel-messages.js';
@@ -108,19 +109,12 @@ function pairing(model: ViewModel, actions: Actions): HTMLElement {
   return section;
 }
 
-function currentTab(model: ViewModel, actions: Actions): HTMLElement {
-  const section = element('section', 'current');
+/** Sharing the current tab; none for a tab already shared, which the list below shows. */
+function currentTab(model: ViewModel, actions: Actions): HTMLElement | null {
   const { tab, state, form } = model;
-  if (tab === null) return section;
+  if (tab === null || state.shares.some((share) => share.tab_id === tab.tab_id)) return null;
+  const section = element('section', 'current');
   section.append(element('h2', 'tab-title', tab.title || tab.url));
-  const share = state.shares.find((candidate) => candidate.tab_id === tab.tab_id);
-  if (share !== undefined) {
-    section.append(
-      element('p', 'shared-with', `已共享给「${share.session_title}」`),
-      button('停止共享', () => actions.send({ type: 'unshare', tab_id: tab.tab_id })),
-    );
-    return section;
-  }
   if (!shareable(tab.url)) {
     section.append(element('p', 'muted', '此页面不能共享'));
     return section;
@@ -195,6 +189,10 @@ function sharedList(model: ViewModel, actions: Actions): HTMLElement {
           }),
         ),
       );
+    else
+      item.append(
+        button('停止共享', () => actions.send({ type: 'unshare', tab_id: share.tab_id })),
+      );
     list.append(item);
   }
   return list;
@@ -224,10 +222,11 @@ export function render(root: HTMLElement, model: ViewModel, actions: Actions): v
   if (connection.kind === 'connected') {
     const banner = assistBanner(model, actions);
     if (banner !== null) parts.push(banner);
-    parts.push(currentTab(model, actions));
+    const current = currentTab(model, actions);
+    if (current !== null) parts.push(current);
     if (model.state.shares.length > 0) {
       parts.push(sharedList(model, actions));
-      parts.push(button('停止', () => actions.send({ type: 'stop' }), 'button stop'));
+      parts.push(button('全部停止', () => actions.send({ type: 'stop' }), 'button stop'));
     }
   }
   root.replaceChildren(...parts);

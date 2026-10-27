@@ -416,8 +416,11 @@ impl AgentExecution {
         if !self.external_grants.bound_directory_grants_in_force(fingerprint)? {
             anyhow::bail!("agent.directory_grant_not_in_force");
         }
+        // Folders created since along a new file's path (another write of the same response,
+        // typically) anchor its target deeper; that is not a scope change.
         if content != call.operation.content
             && !directory_grant_adoption(&call.operation.content, &content)
+            && !self.folders_created_since(&call.operation.content, &content)?
         {
             anyhow::bail!("agent.source_or_scope_changed");
         }

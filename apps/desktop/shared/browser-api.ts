@@ -65,7 +65,9 @@ export type BrowserUserCommand =
         | 'assist-done'
         | 'assist-decline'
         /** The page's own Chromium DevTools, in a window of their own, for the user. */
-        | 'devtools';
+        | 'devtools'
+        /** A picture of the page as it is now, shown or hidden, to draw where it would be. */
+        | 'picture';
       sessionId: string;
       pageId: string;
     }
@@ -77,7 +79,13 @@ export type BrowserUserCommand =
   | { kind: 'clear-data' };
 
 export type BrowserCommandResult =
-  { ok: true; state?: BrowserPageState | undefined } | { ok: false; message: string };
+  | {
+      ok: true;
+      state?: BrowserPageState | undefined;
+      /** For 'picture': a JPEG data URL; absent when the page could not be pictured. */
+      picture?: string | undefined;
+    }
+  | { ok: false; message: string };
 
 type Request<M extends keyof AgentMainParams> = (
   request: AgentMainParams[M],

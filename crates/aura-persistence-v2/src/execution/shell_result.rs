@@ -46,7 +46,11 @@ fn result(
         exit_code: view.exit_code,
         stop_reason: view.stop_reason.filter(|reason| *reason != RunnerStopReason::Exited),
         background: view.background,
-        diagnostic: diagnostic(view),
+        diagnostic: match (diagnostic(view), opens_address(&view.original_input.script)) {
+            (Some(text), true) => Some(format!("{text}\n{OPENED_ADDRESS}")),
+            (None, true) => Some(OPENED_ADDRESS.to_owned()),
+            (text, false) => text,
+        },
         stdout,
         stderr,
         stdout_total: view.stdout_total,
@@ -90,6 +94,24 @@ fn diagnostic(view: &ShellExecutionView) -> Option<String> {
     })
 }
 
+const OPENED_ADDRESS: &str = "This script gave an address to Start-Process or start, which opens it in the user's own default browser, where you cannot see it. To look at a page, use browser.open, or chrome.open when the user shares Chrome.";
+
+/// Whether a statement of the script hands an http(s) address to a command that opens it in the
+/// user's default program. Only the statement holding the address counts, so a server started on
+/// one line and fetched on the next is not taken for it.
+fn opens_address(script: &str) -> bool {
+    script.to_ascii_lowercase().split(['\n', ';', '|', '&']).any(|statement| {
+        let Some(address) = statement.find("http://").or_else(|| statement.find("https://")) else {
+            return false;
+        };
+        statement[..address]
+            .split(|c: char| c.is_whitespace() || matches!(c, '(' | '{' | '=' | ','))
+            .any(|word| {
+                matches!(word, "start-process" | "saps" | "start" | "explorer" | "explorer.exe")
+            })
+    })
+}
+
 fn stream(
     db: &Connection,
     session: SessionId,
@@ -126,4 +148,35 @@ fn read(
             max_bytes: u32::try_from(bytes.clamp(1, 65_536)).unwrap_or(65_536),
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::opens_address;
+
+    #[test]
+    fn an_address_handed_to_start_process_or_start_is_noticed() {
+        for script in [
+            "Start-Process 'http://127.0.0.1:5173/rocket.html'",
+            "$p = Start-Process -FilePath \"https://example.com\" -PassThru",
+            "saps http://localhost:3000",
+            "start \"\" \"http://localhost:8080/\"",
+            "pnpm build\r\nexplorer.exe https://example.com",
+        ] {
+            assert!(opens_address(script), "{script}");
+        }
+    }
+
+    #[test]
+    fn a_server_started_and_fetched_separately_is_not_taken_for_it() {
+        for script in [
+            "Start-Process node -ArgumentList 'server.js'; Invoke-WebRequest http://127.0.0.1:3000",
+            "start /b node server.js & curl http://localhost:3000",
+            "Start-Process cmd.exe -ArgumentList '/c pnpm dev' -RedirectStandardOutput dev.log\ncurl.exe -s https://example.com",
+            "git remote add origin https://github.com/a/b.git",
+            "Write-Output 'see https://example.com to start'",
+        ] {
+            assert!(!opens_address(script), "{script}");
+        }
+    }
 }

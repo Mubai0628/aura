@@ -18,7 +18,7 @@ export function chromeBridge(
     setEnabled: (request) => invoke('chrome.set_enabled', request),
     beginPairing: () => invoke('chrome.pair.begin', {}),
     revoke: () => invoke('chrome.revoke', {}),
-    stop: () => invoke('chrome.stop', {}),
+    stop: (request) => invoke('chrome.stop', request),
     openExtensionFolder: () => invoke('chrome.extension.open_folder', {}),
     shares: (request) => invoke('chrome.shares', request),
     finishAssist: (request) => invoke('chrome.assist.finish', request),

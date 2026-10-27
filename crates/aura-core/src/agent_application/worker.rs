@@ -507,9 +507,10 @@ impl AgentApplication {
         reason: &'static str,
         cancelled: bool,
     ) -> Result<(), StoreError> {
-        let at = UtcTimestamp::now();
         self.store
             .write(StoreStep::run(run_id, "agent.interrupt"), move |journal| {
+                // Stamped when it runs, for the same reason as the run's failure record.
+                let at = UtcTimestamp::now();
                 journal
                     .database
                     .unit_of_work(|tx| store::interrupt(tx, run_id, reason, cancelled, at))

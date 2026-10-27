@@ -60,8 +60,9 @@ export function BrowserPage({
   }, [sessionId, pageId, visible]);
 
   const home = state !== undefined && !state.closed && state.url === BLANK;
-  // The native view is on the page area while it is shown and has something to show.
-  useNativeView(
+  // The native view is on the page area while it is shown and has something to show; while a
+  // dialog or menu covers it, its picture stands in for it.
+  const picture = useNativeView(
     area,
     sessionId,
     pageId,
@@ -219,6 +220,8 @@ export function BrowserPage({
             </div>
           ) : home ? (
             <BrowserHome focus={focus} onOpen={go} />
+          ) : picture !== undefined ? (
+            <img alt="" className="browser-picture" draggable={false} src={picture} />
           ) : null}
         </div>
       </div>

@@ -2,7 +2,8 @@
 //!
 //! `fs.find` answers "where is this file" without walking the disk: the catalog
 //! already holds every authorized path, so the result is deterministic, sorted and
-//! de-duplicated. It is deliberately not a text search and not a fuzzy match, and
+//! de-duplicated. Folders the index did not enter are read from disk, within a budget,
+//! on the last page. It is deliberately not a text search and not a fuzzy match, and
 //! it never claims that an unseen name is absent unless the scan actually
 //! finished.
 use crate::{FsToolError, FsToolService};
@@ -76,14 +77,16 @@ impl FsToolService {
             return Err(aura_workspace::WorkspaceError::WrongKind { path: directory }.into());
         }
         let after = input.cursor.as_ref().map(|cursor| cursor.after_path.relative().clone());
-        let page = self.catalog(workspace_id)?.find_names(
+        let mode = match input.match_mode {
+            AgentFileFindMatchMode::Exact => NameMatchMode::Exact,
+            AgentFileFindMatchMode::Glob => NameMatchMode::Glob,
+        };
+        let catalog = self.catalog(workspace_id)?;
+        let page = catalog.find_names(
             &directory,
             &input.file_names,
             input.recursive,
-            match input.match_mode {
-                AgentFileFindMatchMode::Exact => NameMatchMode::Exact,
-                AgentFileFindMatchMode::Glob => NameMatchMode::Glob,
-            },
+            mode,
             input.case_sensitive,
             after.as_ref(),
             input.limit as usize,
@@ -111,8 +114,28 @@ impl FsToolService {
         }
         let truncated = !page.complete;
         let resolver = self.resolver(workspace_id)?;
-        let matches = page
-            .matches
+        // The last page also looks, on disk, in the folders the index did not enter; what the
+        // read's budget or the page's room did not reach is named among the skipped scopes.
+        let (beyond, mut unread) = if page.complete {
+            catalog.find_names_unindexed(
+                &resolver,
+                &directory,
+                &input.file_names,
+                input.recursive,
+                mode,
+                input.case_sensitive,
+            )?
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        let room = (input.limit as usize).saturating_sub(page.matches.len());
+        if beyond.len() > room {
+            unread = beyond_room(&catalog, &directory, input.recursive)?;
+        }
+        let mut found = page.matches;
+        found.extend(beyond.into_iter().take(room));
+        found.sort_by(|left, right| left.path.cmp(&right.path));
+        let matches = found
             .into_iter()
             .filter(|entry| match resolver.resolve_existing(&entry.path) {
                 Ok(resolved) => crate::read_scope::allows(&resolved.info),
@@ -155,12 +178,7 @@ impl FsToolService {
                     root_identity: None,
                 }
             });
-        let skipped_scopes = crate::unindexed::skipped(
-            self.catalog(workspace_id)?.as_ref(),
-            &resolver,
-            &directory,
-            input.recursive,
-        )?;
+        let skipped_scopes = crate::unindexed::skipped(&resolver, &unread);
         Ok(AgentFileFindResult {
             complete: page.complete && skipped_scopes.is_empty(),
             skipped_scopes,
@@ -172,4 +190,18 @@ impl FsToolService {
             external: None,
         })
     }
+}
+
+/// The folders a full page left unread: the unindexed folders in reach, or the queried folder
+/// itself when it lies inside one.
+fn beyond_room(
+    catalog: &aura_workspace::PathCatalog,
+    directory: &aura_domain_common::WorkspacePath,
+    recursive: bool,
+) -> Result<Vec<aura_domain_common::WorkspacePath>, FsToolError> {
+    let named = catalog.unindexed_within(directory, recursive)?;
+    let inside = named
+        .iter()
+        .any(|folder| folder == directory || directory.as_str().starts_with(&format!("{folder}/")));
+    Ok(if inside { vec![directory.clone()] } else { named })
 }

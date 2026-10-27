@@ -106,9 +106,11 @@
               "indexed_at": "fixture",
               "indexing": {
                 "failure": "fixture",
+                "incomplete_reason": "memory_low",
                 "listed_entries": 1,
                 "state": "building",
-                "unindexed_directories": 1
+                "unindexed_directories": 1,
+                "walking": true
               },
               "partitions": [
                 {

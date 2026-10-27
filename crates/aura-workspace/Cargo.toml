@@ -4,6 +4,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[features]
+# Lets other crates' tests put an index into states a real machine reaches only with a huge
+# workspace or low memory.
+test-hooks = []
+
 [dependencies]
 aura-workspace-domain = { path = "../aura-workspace-domain" }
 aura-domain-common = { path = "../aura-domain-common" }

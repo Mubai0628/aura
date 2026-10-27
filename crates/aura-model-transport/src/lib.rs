@@ -43,7 +43,9 @@ pub use network::{
 };
 pub use output::NormalizedOutputBuilder;
 pub use reasoning_loop::REASONING_LOOP_REPEATS;
-pub use request_layout::{instruction_layout, openai_prompt_cache_key, ordered_tool_bindings};
+pub use request_layout::{
+    instruction_layout, ordered_tool_bindings, prompt_cache_key, reaches_openai_cache,
+};
 pub use retry::{MAX_TRANSPORT_ATTEMPTS, RetryDecision, TransportRetryPolicy};
 pub use sse::{ProviderStreamFrame, SseDecoder, SseLimits};
 pub use strict_schema::strict_schema_compatible;

@@ -65,8 +65,7 @@ section {
   overflow-wrap: anywhere;
 }
 
-.muted,
-.shared-with {
+.muted {
   margin: 0;
   color: var(--muted);
 }
@@ -138,6 +137,10 @@ select {
 .share-origin {
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+
+.share > .button:first-of-type {
+  margin-left: auto;
 }
 
 .share.awaiting_origin .share-state {

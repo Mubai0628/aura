@@ -5647,8 +5647,8 @@
     "owner": "agent",
     "surface": "main",
     "auth": "trusted_renderer",
-    "request_type": "EmptyToolInput",
-    "response_type": "ChromeControlStatus",
+    "request_type": "ChromeSessionRequest",
+    "response_type": "ChromeSessionShares",
     "idempotency": "command_invocation",
     "cancellation": "none",
     "test_only": false
@@ -5658,8 +5658,8 @@
     "owner": "agent",
     "surface": "core",
     "auth": "authenticated_main",
-    "request_type": "EmptyToolInput",
-    "response_type": "ChromeControlStatus",
+    "request_type": "ChromeSessionRequest",
+    "response_type": "ChromeSessionShares",
     "idempotency": "command_invocation",
     "cancellation": "none",
     "test_only": false

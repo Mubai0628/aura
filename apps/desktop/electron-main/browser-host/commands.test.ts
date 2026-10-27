@@ -22,6 +22,7 @@ describe('commands from the renderer', () => {
     ).toEqual({ kind: 'show', ...page, bounds: { x: 10, y: 20, width: 400, height: 300 } });
     for (const kind of [
       'devtools',
+      'picture',
       'back',
       'forward',
       'reload',

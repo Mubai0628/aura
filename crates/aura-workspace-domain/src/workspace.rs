@@ -88,9 +88,26 @@ pub struct WorkspaceIndexingStatus {
     pub listed_entries: u64,
     /// Folders recorded but not entered: past the entry cap, or with memory low.
     pub unindexed_directories: u64,
+    /// Why the build did not enter every folder, when it did not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub incomplete_reason: Option<WorkspaceIndexIncompleteReason>,
+    /// A walk of the whole folder runs now (a check, or one the user asked for); the index
+    /// answers meanwhile.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub walking: bool,
     /// Why the build failed, when it did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub failure: Option<String>,
+}
+
+/// Why an index build did not enter every folder.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkspaceIndexIncompleteReason {
+    /// Free memory ran low; the folders are indexed again once it comes back.
+    MemoryLow,
+    /// The workspace holds more entries than an index keeps.
+    EntryLimit,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

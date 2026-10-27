@@ -5,6 +5,7 @@ export type IconName =
   | 'archive'
   | 'arrow-left'
   | 'arrow-right'
+  | 'bell'
   | 'book'
   | 'bookmark'
   | 'browser'
@@ -186,6 +187,12 @@ const iconPaths: Record<IconName, React.ReactNode> = {
     </>
   ),
   bookmark: <path d="M7 4.5h10v15l-5-3.5-5 3.5z" {...strokeProps} />,
+  bell: (
+    <path
+      d="M6.5 16.5h11l-1.5-2.2V10.5a4 4 0 0 0-8 0v3.8zM10.3 19a1.8 1.8 0 0 0 3.4 0"
+      {...strokeProps}
+    />
+  ),
   plug: <path d="M9 4v4M15 4v4M7 8h10v3.5a5 5 0 0 1-10 0zM12 16.5V20" {...strokeProps} />,
   slash: (
     <>

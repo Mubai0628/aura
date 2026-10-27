@@ -39,6 +39,11 @@ impl Refusal {
 /// path's kind tells a directory from a file. A write's message says "Nothing was changed", so the
 /// caller records the refusal only when the call's side effect is `NoEffect`.
 pub(super) fn rejection(action: &str, before: &Value, error: &anyhow::Error) -> Option<Value> {
+    // The target changed between approval and start: nothing ran, and the call can be made again.
+    if matches!(error.to_string().as_str(), "agent.source_or_scope_changed" | "agent.file_changed")
+    {
+        return Some(render(action, target_changed()));
+    }
     // `fs.delete`'s own refusals are final: they say why nothing was deleted and what to
     // do next (the Recycle Bin could not take the item: ask the user before deleting for good).
     if action == "fs.delete" {
@@ -167,8 +172,42 @@ fn file_refusal(error: &F, action: &str, before: &Value) -> Option<Refusal> {
             "A binary range is limited to 64 KiB.",
         )
         .then("Ask for a smaller range."),
+        // A staged write that could not take hold of a file another program has open carries the
+        // operating system's code at the end of its text; no step of it applied.
+        F::ChangesetFailed { applied_steps: 0, cause, .. } if in_use(cause) => file_in_use(),
         _ => return None,
     })
+}
+
+fn in_use(cause: &str) -> bool {
+    [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION]
+        .iter()
+        .any(|code| cause.ends_with(&format!("(os error {code})")))
+}
+
+fn target_changed() -> Refusal {
+    Refusal {
+        retryable: true,
+        ..Refusal::new(
+            "fs.target_changed",
+            ErrorCategory::Conflict,
+            "The target changed after this call was approved: another call of the same response, \
+             or another program, changed it at the same moment.",
+        )
+        .then("Call it again if it is still needed.")
+    }
+}
+
+fn file_in_use() -> Refusal {
+    Refusal {
+        retryable: true,
+        ..Refusal::new(
+            "fs.file_in_use",
+            ErrorCategory::Conflict,
+            "Another program has this file open and does not share it.",
+        )
+        .then("Try again after that program closes it.")
+    }
 }
 
 fn workspace_refusal(error: &W, action: &str, before: &Value) -> Option<Refusal> {
@@ -192,15 +231,7 @@ const ERROR_LOCK_VIOLATION: i32 = 33;
 
 fn io_refusal(error: &std::io::Error, action: &str) -> Option<Refusal> {
     if matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION)) {
-        return Some(Refusal {
-            retryable: true,
-            ..Refusal::new(
-                "fs.file_in_use",
-                ErrorCategory::Conflict,
-                "Another program has this file open and does not share it.",
-            )
-            .then("Try again after that program closes it.")
-        });
+        return Some(file_in_use());
     }
     match error.kind() {
         std::io::ErrorKind::PermissionDenied => Some(Refusal::new(
@@ -240,5 +271,48 @@ fn wrong_kind(action: &str, before: &Value) -> &'static str {
         }
         _ if directory => "This path is a directory, so it cannot be written as a file.",
         _ => "A part of this path is a file, not a directory.",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A write to a file another program holds (a log Start-Process is writing) says why, as a
+    /// read of a file it holds without sharing already did.
+    #[test]
+    fn a_write_to_a_file_in_use_is_named_as_such() {
+        let error = anyhow::Error::from(F::ChangesetFailed {
+            failed_step: 0,
+            applied_steps: 0,
+            compensated_steps: 0,
+            cause: r"failed to hold workspace object for the staged move \\?\C:\w\server.log: The process cannot access the file because it is being used by another process. (os error 32)".into(),
+            journal_fault: String::new(),
+        });
+        let refusal = rejection("fs.write", &Value::Null, &error).expect("named");
+        assert_eq!(refusal["code"], "fs.file_in_use");
+        assert_eq!(refusal["retryable"], true);
+        assert!(refusal["message"].as_str().unwrap_or("").contains("Nothing was changed."));
+        let applied = anyhow::Error::from(F::ChangesetFailed {
+            failed_step: 1,
+            applied_steps: 1,
+            compensated_steps: 0,
+            cause: "(os error 32)".into(),
+            journal_fault: String::new(),
+        });
+        assert!(rejection("fs.write", &Value::Null, &applied).is_none(), "a step had applied");
+    }
+
+    /// A target that changed between approval and start says so and that the call may be made
+    /// again, not the generic "check the arguments".
+    #[test]
+    fn a_target_changed_since_approval_is_named_and_retryable() {
+        for code in ["agent.source_or_scope_changed", "agent.file_changed"] {
+            let refusal =
+                rejection("fs.write", &Value::Null, &anyhow::anyhow!(code)).expect("named");
+            assert_eq!(refusal["code"], "fs.target_changed");
+            assert_eq!(refusal["retryable"], true);
+            assert!(refusal["message"].as_str().unwrap_or("").contains("Call it again"));
+        }
     }
 }

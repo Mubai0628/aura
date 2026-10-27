@@ -26,7 +26,10 @@ use aura_model_transport::*;
 use aura_persistence_v2::model::agent_transport as store;
 use std::sync::Arc;
 
-use crate::agent_store::{AgentStore, StoreError, StoreStep};
+use crate::agent_store::{AgentStore, ReceiptState, StoreError, StoreStep};
+
+/// How long a record of the step that outlived its caller's wait is followed to its real end.
+const SETTLE_WITHIN: std::time::Duration = std::time::Duration::from_secs(300);
 
 #[derive(Clone)]
 pub(super) struct AgentModelStore {
@@ -57,6 +60,29 @@ fn detail(value: impl std::fmt::Display) -> ModelTransportError {
 }
 
 impl AgentModelStore {
+    /// The real answer of a record of the step. One that outlived its caller's bounded wait (the
+    /// store was busy) still commits under its own permit, so it is followed to its end instead
+    /// of being taken for a failure: a step failed that way would leave the record it committed
+    /// afterwards, with the run already past its end.
+    async fn settled(&self, answer: Result<(), StoreError>) -> Result<(), ModelTransportError> {
+        let Err(answer) = answer else {
+            return Ok(());
+        };
+        let Some(receipt) = answer.receipt() else {
+            return Err(error(answer));
+        };
+        let deadline = tokio::time::Instant::now() + SETTLE_WITHIN;
+        loop {
+            match self.store.receipt(receipt).map(|receipt| receipt.state) {
+                Some(ReceiptState::Settled { committed: true, .. }) => return Ok(()),
+                Some(ReceiptState::InFlight) if tokio::time::Instant::now() < deadline => {
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                }
+                _ => return Err(error(answer)),
+            }
+        }
+    }
+
     fn step(&self, operation: &'static str) -> StoreStep {
         match self.run {
             Some(run) => StoreStep::run(run, operation),
@@ -171,12 +197,13 @@ impl TransportStore for AgentModelStore {
     ) -> Result<(), ModelTransportError> {
         let value = value.clone();
         let snapshot = self.snapshot.clone();
-        self.store
+        let answer = self
+            .store
             .write(self.step("agent.model.attempt_record"), move |journal| {
                 journal.database.unit_of_work(|tx| store::record_attempt(tx, &snapshot, &value))
             })
-            .await
-            .map_err(error)
+            .await;
+        self.settled(answer).await
     }
 
     async fn record_failure(
@@ -185,12 +212,13 @@ impl TransportStore for AgentModelStore {
     ) -> Result<(), ModelTransportError> {
         let value = value.clone();
         let model_step_id = self.snapshot.model_step_id;
-        self.store
+        let answer = self
+            .store
             .write(self.step("agent.model.failure_record"), move |journal| {
                 journal.database.unit_of_work(|tx| store::record_failure(tx, model_step_id, &value))
             })
-            .await
-            .map_err(error)
+            .await;
+        self.settled(answer).await
     }
 
     async fn record_output(
@@ -205,14 +233,15 @@ impl TransportStore for AgentModelStore {
         let snapshot = snapshot.clone();
         let output = output.clone();
         let hold = self.hold_completion;
-        self.store
+        let answer = self
+            .store
             .write(self.step("agent.model.output_record"), move |journal| {
                 journal.database.unit_of_work(|tx| {
                     store::record_output(tx, &snapshot, id, &output, hold, UtcTimestamp::now())
                 })
             })
-            .await
-            .map_err(error)
+            .await;
+        self.settled(answer).await
     }
 }
 

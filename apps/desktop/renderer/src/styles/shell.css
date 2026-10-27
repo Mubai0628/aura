@@ -183,6 +183,30 @@
   background: var(--danger-soft);
 }
 
+/* Why the index is incomplete, over the page beside its badge. */
+.workspace-index-bubble {
+  position: fixed;
+  z-index: 60;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 8px 22px rgba(37, 43, 39, 0.12);
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.workspace-index-bubble p {
+  margin: 0;
+}
+
+.workspace-index-bubble p + p {
+  margin-top: 4px;
+}
+
 .session-list {
   padding: 3px 0 3px 27px;
   margin: 0;

@@ -53,6 +53,12 @@ mod l14_chrome;
 // The workspace's AGENTS.md in the model's instructions.
 #[path = "agents_instructions.rs"]
 mod agents_instructions;
+// Several new files written at once into a folder none of them has created yet.
+#[path = "write_batch.rs"]
+mod write_batch;
+// Store writes that finish after their callers stopped waiting.
+#[path = "late_store_writes.rs"]
+mod late_store_writes;
 // A Shell call's id, its output kept at a limit, and shell.query's errors.
 #[path = "shell_results.rs"]
 mod shell_results;

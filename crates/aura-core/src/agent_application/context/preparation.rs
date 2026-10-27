@@ -248,6 +248,11 @@ impl AgentApplication {
             turn.workspace_id,
             turn.revision,
         )?);
+        // The workspace's AGENTS.md, read again for every step: the folders' files with the task's
+        // state, which changes anyway, the root file before the conversation.
+        let agents =
+            self.workspace_agents(run_id, turn.workspace_id, turn.revision, &history.items).await;
+        task_state_fragments.extend(agents.folders);
         let mut sections = vec![
             section(
                 ContextSectionKind::RecentHistory,
@@ -260,10 +265,9 @@ impl AgentApplication {
                 ContextCompressibility::NeverCompress,
             ),
         ];
-        // The workspace's AGENTS.md, read again for every step.
         sections.push(section(
             ContextSectionKind::WorkspaceAgentsInstructions,
-            self.workspace_agents(run_id, turn.workspace_id, turn.revision, &history.items).await,
+            agents.root,
             ContextCompressibility::NeverCompress,
         ));
         if !hooks.injections.is_empty() {

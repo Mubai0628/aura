@@ -15,6 +15,8 @@ import {
 import type { ResultEnvelope } from '../shared/aura-api.js';
 
 const NOTICES = new Set(['blocked', 'download', 'popup', 'failed', 'crashed', 'closed']);
+/** A page's picture is only ever a JPEG Main encoded. */
+const PICTURE_PREFIX = 'data:image/jpeg;base64,';
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -83,7 +85,14 @@ function readCommandResult(value: unknown): BrowserCommandResult {
   if (isRecord(value) && value.ok === false && typeof value.message === 'string')
     return { ok: false, message: value.message };
   if (isRecord(value) && value.ok === true)
-    return { ok: true, state: value.state === undefined ? undefined : readPageState(value.state) };
+    return {
+      ok: true,
+      state: value.state === undefined ? undefined : readPageState(value.state),
+      picture:
+        typeof value.picture === 'string' && value.picture.startsWith(PICTURE_PREFIX)
+          ? value.picture
+          : undefined,
+    };
   return { ok: false, message: '浏览器没有回应' };
 }
 

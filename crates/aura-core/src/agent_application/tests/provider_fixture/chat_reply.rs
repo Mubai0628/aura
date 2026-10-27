@@ -87,6 +87,26 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
             _ => json!({"role":"assistant","content":"Done."}),
         };
     }
+    if let Scenario::Batch { calls } = scenario {
+        let answered = body["messages"]
+            .as_array()
+            .is_some_and(|messages| messages.iter().any(|m| m["role"] == "tool"));
+        if answered {
+            return json!({"role":"assistant","content":"Done."});
+        }
+        let tool_calls = calls
+            .iter()
+            .enumerate()
+            .map(|(index, (tool, arguments))| {
+                call(
+                    tool,
+                    serde_json::from_str(arguments).expect("the scenario's arguments"),
+                    index,
+                )
+            })
+            .collect::<Vec<_>>();
+        return json!({"role":"assistant","tool_calls":tool_calls});
+    }
     if let Scenario::Sequence { calls } = scenario {
         let done = body["messages"]
             .as_array()

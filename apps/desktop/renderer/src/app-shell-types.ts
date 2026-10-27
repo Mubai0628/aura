@@ -13,6 +13,7 @@ export type SettingsSection =
   | 'mcp'
   | 'skills'
   | 'archive'
+  | 'notifications'
   | 'about';
 
 export interface CoreStatusPresentation {

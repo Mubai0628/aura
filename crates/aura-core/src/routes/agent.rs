@@ -376,9 +376,9 @@ pub(crate) async fn dispatch(
             )?);
         }
         if request.method == "agent.sessions.activity" {
-            let _: aura_agent_domain::AgentSessionsActivityRequest =
+            let asked: aura_agent_domain::AgentSessionsActivityRequest =
                 serde_json::from_value(request.params.clone())?;
-            return Ok(serde_json::to_value(agent.sessions_activity().await?)?);
+            return Ok(serde_json::to_value(agent.sessions_activity(asked).await?)?);
         }
         if request.method == "agent.result" {
             return Ok(serde_json::to_value(

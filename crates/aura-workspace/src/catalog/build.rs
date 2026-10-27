@@ -10,7 +10,7 @@ use std::{
     collections::BTreeSet,
     sync::{
         Arc, Condvar, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -38,6 +38,11 @@ const YIELD: Duration = Duration::from_millis(50);
 const MAX_YIELD: Duration = Duration::from_secs(2);
 /// Below this much free memory, or a tenth of all memory, a build goes no deeper.
 const MIN_FREE_MEMORY: u64 = 512 * 1024 * 1024;
+/// A walk that has listed fewer entries than this never stops for memory: a small workspace's
+/// index costs little, and stopping it would only leave its lookups to read the disk.
+const MEMORY_GUARD_FROM: u64 = 50_000;
+/// How often an index left incomplete for want of memory looks whether memory has come back.
+const RETRY_EVERY: Duration = Duration::from_secs(30);
 /// Folders watched at most: each costs a handle and a 16 KB buffer, a quarter of the budget.
 pub(crate) const MAX_WATCHED_DIRECTORIES: usize = (MAX_INDEX_BYTES / 4 / (16 * 1024)) as usize;
 /// How often a running build reports its progress.
@@ -96,6 +101,10 @@ pub struct CatalogBuildStatus {
     pub listed_entries: u64,
     /// Folders the last walk recorded but did not enter.
     pub unindexed_directories: u64,
+    /// The last walk stopped going deeper because memory ran low, not at the entry cap.
+    pub memory_low: bool,
+    /// A whole walk runs now; an index that was usable answers meanwhile.
+    pub walking: bool,
 }
 
 pub(crate) struct CatalogBuild {
@@ -104,6 +113,8 @@ pub(crate) struct CatalogBuild {
     progress: Arc<BuildProgress>,
     deferred: Mutex<Vec<(WorkspacePath, CatalogChange)>>,
     report: Mutex<Option<super::CatalogReconcileReport>>,
+    /// When an index stopped for memory last looked whether memory has come back.
+    last_retry: Mutex<Option<Instant>>,
 }
 
 struct BuildState {
@@ -117,15 +128,63 @@ struct BuildState {
 pub(crate) struct BuildProgress {
     listed: AtomicU64,
     unindexed: Mutex<BTreeSet<WorkspacePath>>,
+    /// The walk stopped going deeper because memory ran low.
+    memory_low: AtomicBool,
     /// A smaller entry cap than the memory budget gives, for a test; 0 for none.
     cap: AtomicU64,
+    /// A lower entry count than [`MEMORY_GUARD_FROM`] from which memory is looked at, for a
+    /// test; 0 for none.
+    guard_from: AtomicU64,
 }
 
 impl BuildProgress {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-hooks"))]
     pub(crate) fn cap_at(&self, entries: u64) {
         self.cap.store(entries, Ordering::Release);
     }
+
+    #[cfg(test)]
+    pub(crate) fn guard_memory_from(&self, entries: u64) {
+        self.guard_from.store(entries, Ordering::Release);
+    }
+
+    fn memory_guard_from(&self) -> u64 {
+        match self.guard_from.load(Ordering::Acquire) {
+            0 => MEMORY_GUARD_FROM,
+            entries => entries,
+        }
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static PRETEND_MEMORY_LOW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Makes this thread's walks and retry checks see memory as low, or not, for a test.
+#[cfg(test)]
+pub(crate) fn pretend_memory_low(low: bool) {
+    PRETEND_MEMORY_LOW.with(|pretend| pretend.set(low));
+}
+
+/// Whether free memory is below where a walk goes no deeper: a floor, or a tenth of all memory.
+fn memory_low_now() -> bool {
+    #[cfg(test)]
+    if PRETEND_MEMORY_LOW.with(std::cell::Cell::get) {
+        return true;
+    }
+    aura_windows_platform::physical_memory()
+        .is_ok_and(|memory| memory.available < MIN_FREE_MEMORY.max(memory.total / 10))
+}
+
+/// Whether memory has come back well above where a walk stopped: twice that much free.
+fn memory_recovered() -> bool {
+    #[cfg(test)]
+    if PRETEND_MEMORY_LOW.with(std::cell::Cell::get) {
+        return false;
+    }
+    aura_windows_platform::physical_memory()
+        .is_ok_and(|memory| memory.available >= 2 * MIN_FREE_MEMORY.max(memory.total / 10))
 }
 
 impl CatalogBuild {
@@ -137,6 +196,7 @@ impl CatalogBuild {
             progress: Arc::default(),
             deferred: Mutex::new(Vec::new()),
             report: Mutex::new(None),
+            last_retry: Mutex::new(None),
         }
     }
 
@@ -170,16 +230,41 @@ impl CatalogBuild {
         Ok(())
     }
 
-    /// Marks a requested walk of a failed index as a first build, unless a walk is running;
-    /// says whether it did.
+    /// Marks a requested walk as running, unless one is; says whether it did. A failed index
+    /// holds nothing usable and builds anew; a usable one answers meanwhile.
     pub(crate) fn begin_requested(&self) -> Result<bool, WorkspaceError> {
         let mut state = self.state()?;
         if state.walking {
             return Ok(false);
         }
         state.walking = true;
-        state.phase = CatalogBuildPhase::Building;
+        if matches!(state.phase, CatalogBuildPhase::Failed { .. }) {
+            state.phase = CatalogBuildPhase::Building;
+        }
         Ok(true)
+    }
+
+    /// Whether an index left incomplete for want of memory is to be walked again now: memory
+    /// has come back, no walk runs, and it last looked a while ago.
+    pub(crate) fn retry_due(&self) -> bool {
+        self.retry_due_at(Instant::now(), RETRY_EVERY)
+    }
+
+    pub(crate) fn retry_due_at(&self, now: Instant, every: Duration) -> bool {
+        let Ok(state) = self.state() else { return false };
+        if state.walking
+            || state.phase != CatalogBuildPhase::Incomplete
+            || !self.progress.memory_low.load(Ordering::Acquire)
+        {
+            return false;
+        }
+        drop(state);
+        let Ok(mut last) = self.last_retry.lock() else { return false };
+        if last.is_some_and(|at| now.saturating_duration_since(at) < every) {
+            return false;
+        }
+        *last = Some(now);
+        memory_recovered()
     }
 
     /// Ends a whole walk. A first build that failed is a failure; any other walk that failed
@@ -200,10 +285,16 @@ impl CatalogBuild {
     }
 
     pub(crate) fn status(&self) -> Result<CatalogBuildStatus, WorkspaceError> {
+        let (phase, walking) = {
+            let state = self.state()?;
+            (state.phase.clone(), state.walking)
+        };
         Ok(CatalogBuildStatus {
-            phase: self.state()?.phase.clone(),
+            phase,
             listed_entries: self.progress.listed.load(Ordering::Acquire),
             unindexed_directories: self.unindexed_count()?,
+            memory_low: self.progress.memory_low.load(Ordering::Acquire),
+            walking,
         })
     }
 
@@ -347,6 +438,8 @@ struct Walk {
     max_entries: u64,
     cpu: Option<aura_windows_platform::CpuLoad>,
     stopped: bool,
+    /// Memory has been looked at since the walk passed its memory guard.
+    memory_checked: bool,
     reported: Instant,
     report: Box<dyn FnMut()>,
 }
@@ -372,6 +465,7 @@ pub(crate) fn with_walk<R>(
     let _turn = Turn::take(&stop);
     // Each walk is counted and capped on its own.
     progress.listed.store(0, Ordering::Release);
+    progress.memory_low.store(false, Ordering::Release);
     if let Ok(mut unindexed) = progress.unindexed.lock() {
         unindexed.clear();
     }
@@ -391,6 +485,7 @@ pub(crate) fn with_walk<R>(
             max_entries,
             cpu: aura_windows_platform::CpuLoad::start().ok(),
             stopped: false,
+            memory_checked: false,
             reported: now,
             report: Box::new(report),
         });
@@ -401,25 +496,33 @@ pub(crate) fn with_walk<R>(
 }
 
 /// Counts one folder's listing in the running build walk and paces the walk: after the first
-/// stretch it yields while the processors are busy, and it stops going deeper when memory runs
-/// low.
+/// stretch it yields while the processors are busy, and once it has listed many entries it stops
+/// going deeper when memory runs low.
 pub(crate) fn note_listed(children: usize) {
     WALK.with(|current| {
         let mut current = current.borrow_mut();
         let Some(walk) = current.as_mut() else { return };
-        walk.progress.listed.fetch_add(children as u64, Ordering::AcqRel);
+        let listed =
+            walk.progress.listed.fetch_add(children as u64, Ordering::AcqRel) + children as u64;
         walk.directories += 1;
         if walk.reported.elapsed() >= PROGRESS_EVERY {
             walk.reported = Instant::now();
             (walk.report)();
         }
-        if walk.directories % LOAD_CHECK_EVERY != 0 {
-            return;
-        }
-        if aura_windows_platform::physical_memory()
-            .is_ok_and(|memory| memory.available < MIN_FREE_MEMORY.max(memory.total / 10))
+        let periodic = walk.directories % LOAD_CHECK_EVERY == 0;
+        // Past the guard, memory is looked at right away and then with the machine's load.
+        if listed >= walk.progress.memory_guard_from()
+            && (periodic || !walk.memory_checked)
+            && !walk.stopped
         {
-            walk.stopped = true;
+            walk.memory_checked = true;
+            if memory_low_now() {
+                walk.stopped = true;
+                walk.progress.memory_low.store(true, Ordering::Release);
+            }
+        }
+        if !periodic {
+            return;
         }
         if walk.started.elapsed() < FULL_SPEED {
             return;
