@@ -121,6 +121,7 @@ export class ConfirmedCommands {
         const failure = readCommandFailure(error);
         const invocation = failure?.details.command_invocation_id;
         void this.#host.log('command_outcome_confirmation_skipped', {
+          ...(failure ? { code: failure.code } : {}),
           command: options.command,
           ...(typeof failure?.correlationId === 'string'
             ? { correlation_id: failure.correlationId }

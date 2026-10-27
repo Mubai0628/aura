@@ -51,6 +51,13 @@ export async function readInstallState(root: string): Promise<InstallState> {
 const FAILED_TRIAL = join('launcher', 'trial-failed.v1.json');
 const RESTORE_REQUEST = join('launcher', 'restore.v1.json');
 
+/**
+ * Whether the launcher copied data before `version` first started: it copies only the stores a
+ * newer version migrates, which the version before it can no longer read.
+ */
+export const copiedBefore = (dataRoot: string, version: string): boolean =>
+  existsSync(join(dataRoot, 'backups', `before-${version}`));
+
 /** The version the launcher last tried and put back, if the user has not dismissed it. */
 export async function readNotice(
   dataRoot: string,
@@ -72,7 +79,7 @@ export async function readNotice(
     kept_version: value.kept_version,
     detail: typeof value.detail === 'string' ? value.detail : '',
     going_back: goingBack,
-    data_restorable: goingBack && existsSync(join(dataRoot, 'backups', `before-${active}`)),
+    data_restorable: goingBack && copiedBefore(dataRoot, active),
   };
 }
 

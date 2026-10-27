@@ -1,6 +1,33 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
-import { compareVersions, encodeCrockford, releaseBundleId } from './layout.mjs';
+import { COMPONENTS, compareVersions, encodeCrockford, releaseBundleId } from './layout.mjs';
+import { SHIPPED } from './notices.mjs';
+
+test('every component kind is one the manifest contract and the installed programs know', () => {
+  const schema = JSON.parse(
+    readFileSync(
+      join(import.meta.dirname, '../../resources/schemas/aura-contracts.schema.json'),
+      'utf8',
+    ),
+  );
+  const kinds = schema.$defs.BuildComponentKind.enum;
+  for (const component of COMPONENTS) assert.ok(kinds.includes(component.kind), component.id);
+  assert.equal(new Set(COMPONENTS.map((component) => component.id)).size, COMPONENTS.length);
+});
+
+test('the third-party notices cover every program a release ships', () => {
+  const programs = COMPONENTS.filter((component) => component.from === 'binaries').map(
+    (component) => component.id,
+  );
+  assert.deepEqual([...programs].sort(), [...SHIPPED].sort());
+});
+
+test('the Chrome relay sits in the same folder as Core', () => {
+  const folder = (id) => dirname(COMPONENTS.find((component) => component.id === id).path);
+  assert.equal(folder('aura-chrome-host'), folder('aura-core'));
+});
 
 test('versions compare by number, not by text', () => {
   assert.equal(compareVersions('0.1.10', '0.1.9'), 1);

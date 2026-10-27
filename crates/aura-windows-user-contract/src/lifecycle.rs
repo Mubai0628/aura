@@ -43,6 +43,8 @@ pub struct RunnerBackgroundUpdate {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, JsonSchema, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShellQueryInput {
+    /// The tool_call_id of a shell.powershell or shell.cmd result in this session (tcl_…); not
+    /// the provider's call id, a tool name or an artifact id.
     pub tool_call_id: ToolCallId,
     /// Byte offset into stdout. Default 0.
     #[serde(default)]
@@ -61,6 +63,7 @@ fn default_query_bytes() -> u32 {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, JsonSchema, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShellStopInput {
+    /// The tool_call_id of a shell.powershell or shell.cmd result in this session (tcl_…).
     pub tool_call_id: ToolCallId,
 }
 

@@ -193,6 +193,7 @@ fn an_approval_after_the_window_closed_is_refused() {
             capability_limit: None,
             memory_consent: None,
             mcp_consent: None,
+            chrome_consent: None,
             file_consent: None,
         },
         allowed_decisions: vec![

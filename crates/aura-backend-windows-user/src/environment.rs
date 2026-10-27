@@ -18,7 +18,9 @@ const POWERSHELL_RUNNER: &str = include_str!("powershell-runner.ps1");
 /// The command file a PowerShell run executes - the
 /// bootstrap, then the runner that reads [`POWERSHELL_SCRIPT_FILE`] beside it. A parse error is
 /// reported by the script's own line before anything runs, and the script runs as a script block,
-/// so its errors name its own lines, in UTF-8 plain text; its exit code is the one it had inline.
+/// so its errors name its own lines, in UTF-8 plain text. It exits as a terminal shows it: `exit N`,
+/// 1 after an uncaught error, and otherwise the last statement's status, so a failing program last
+/// exits with its own code.
 #[must_use]
 pub fn powershell_command_file() -> String {
     format!("{}\n{POWERSHELL_RUNNER}", POWERSHELL_BOOTSTRAP.trim_end())

@@ -98,7 +98,8 @@ test('two handshake halves inside their own windows cannot exceed the recovery b
   });
 
   f.callbacks().onClosed(pipeClosed);
-  await waitUntil(() => loggedFields('core_reconnect_budget_exhausted').length > 0, 5_000);
+  // A slow machine took longer than five seconds to get there.
+  await waitUntil(() => loggedFields('core_reconnect_budget_exhausted').length > 0, 12_000);
   expect(loggedFields('core_transport_reconnected')).toHaveLength(0);
   expect(f.child.kill).toHaveBeenCalled();
   expect(f.transport.close.mock.calls.length).toBeGreaterThan(0);

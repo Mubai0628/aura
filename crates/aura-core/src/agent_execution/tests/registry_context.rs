@@ -57,8 +57,9 @@ async fn context_returns_actual_sources_and_keeps_tool_history_whole() {
     let f = Fixture::with_exposure(PermissionMode::ReadOnly, &["context.read_events"]).await;
     let input = AgentContextReadEventsInput {
         selectors: vec![ContextEventSelector::Event { event_id: f.turn.root_user_event_id }],
-        character_limit: 32,
+        character_limit: 64,
         cursor: None,
+        content_offset: None,
     };
     let batch = f.admit(&[(
         "context.read_events",
@@ -78,22 +79,52 @@ async fn context_returns_actual_sources_and_keeps_tool_history_whole() {
         }],
         character_limit: 1,
         cursor: None,
+        content_offset: None,
     };
-    let whole = store
-        .database
-        .unit_of_work(|tx| {
-            aura_persistence_v2::context::read::events(
-                tx,
-                f.turn.session_id,
-                f.turn.agent_run_id,
-                &group_input,
-                UtcTimestamp::now(),
-            )
-        })
-        .expect("Agent test setup and persisted assertion");
-    assert_eq!(whole.events.len(), 1);
-    assert!(whole.next_cursor.is_none());
+    let mut read = |input: &AgentContextReadEventsInput| {
+        store
+            .database
+            .unit_of_work(|tx| {
+                aura_persistence_v2::context::read::events(
+                    tx,
+                    f.turn.session_id,
+                    f.turn.agent_run_id,
+                    input,
+                    UtcTimestamp::now(),
+                )
+            })
+            .expect("Agent test setup and persisted assertion")
+    };
+    // An event longer than the page is named with its length, never cut and never past the page.
+    let named = read(&group_input);
+    assert_eq!(named.events.len(), 1);
+    assert!(named.next_cursor.is_none());
+    assert_eq!(named.character_count, 0);
+    assert!(named.events[0].content.is_empty());
+    let length = named.events[0].content_chars.expect("the event's length");
+    let whole = read(&AgentContextReadEventsInput { character_limit: length, ..group_input });
     assert!(whole.events[0].content.contains(&call.to_string()));
+    assert_eq!(whole.events[0].content_chars, None);
+    assert_eq!(whole.events[0].content_hash, named.events[0].content_hash);
+    // Read in parts, each part names where it is and where the next one starts.
+    let event_id = whole.events[0].event_id;
+    let mut text = String::new();
+    let mut offset = Some(0);
+    while let Some(at) = offset {
+        let part = read(&AgentContextReadEventsInput {
+            selectors: vec![ContextEventSelector::Event { event_id }],
+            character_limit: 40,
+            cursor: None,
+            content_offset: Some(at),
+        });
+        let view = &part.events[0];
+        assert_eq!((view.content_offset, view.content_chars), (Some(at), Some(length)));
+        assert!(view.content.chars().count() <= 40 && part.character_count <= 40);
+        assert_eq!(view.content_hash, named.events[0].content_hash);
+        text.push_str(&view.content);
+        offset = view.content_next_offset;
+    }
+    assert_eq!(text, whole.events[0].content);
     let result_input =
         AgentContextReadToolResultInput { tool_call_id: call, include_input: true, cursor: None };
     let result = store

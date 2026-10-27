@@ -14,6 +14,9 @@ async fn run(f: &mut Fixture, name: &str, arguments: Value) -> Value {
 
 #[tokio::test]
 async fn l03_b0_until_text_searches_all_new_pages_but_keeps_response_bounded() {
+    let _limit = crate::test_watchdog::limit(
+        "l03_b0_until_text_searches_all_new_pages_but_keeps_response_bounded",
+    );
     let mut f = Fixture::with_exposure_setup(
         PermissionMode::WorkspaceReadWrite,
         &["terminal.open", "terminal.write", "terminal.read", "terminal.close"],

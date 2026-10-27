@@ -813,8 +813,13 @@
                   "type": "object"
                 },
                 "ActivityResourceRelation": {
-                  "description": "What kind of access the executor has against one real target.\n\n`UnknownWriteSet` is not a placeholder for \"we did not look\": it is the honest\nanswer for a Shell whose write set cannot be proven. It never serialises\nglobally and it never disables Shell.",
-                  "enum": ["read", "write", "unknown_write_set"],
+                  "description": "What kind of access the executor has against one real target.\n\n`UnknownWriteSet` is not a placeholder for \"we did not look\": it is the honest\nanswer for a Shell whose write set cannot be proven, within its own workspace.\n`UnknownWriteSetOutsideWorkspace` is that answer for a Shell whose script names places\noutside its workspace. Neither serialises globally or disables Shell.",
+                  "enum": [
+                    "read",
+                    "write",
+                    "unknown_write_set",
+                    "unknown_write_set_outside_workspace"
+                  ],
                   "type": "string"
                 },
                 "ActivityResourceTarget": {
@@ -1167,7 +1172,7 @@
               },
               "$schema": "https://json-schema.org/draft/2020-12/schema",
               "additionalProperties": false,
-              "description": "R4: the result of the model-executable run-information query.\n\nIt is the wire response's own page, reused verbatim rather than re-shaped: a model, the\nInspector and a Renderer that read the same query must not be able to disagree about what it\nsaid. Nothing here is a permission decision - the page carries only rows the caller was already\nallowed to see.",
+              "description": "R4: the result of the model-executable run-information query.\n\nIt is the wire response's page type, holding only the calling session's own rows; rows of other\nsessions are counted as filtered. Nothing here is a permission decision - the page carries only\nrows the caller was already allowed to see.",
               "properties": {
                 "contract_version": {
                   "description": "The versioned contract this result is written under, so a reader can tell the shapes apart.",
@@ -1186,7 +1191,7 @@
             "schema_hash": {
               "algorithm": "sha256",
               "canonicalization_version": "rfc8785_jcs_v1",
-              "hex": "450d4b886d397aac57b0bb01601030844a1feef8d198e7b78b9f008c0deddb46"
+              "hex": "5a2d743130317321fcc960f05e8bb92f4ecafac80c3925d783007242be3235ed"
             }
           }
         }
@@ -1196,12 +1201,12 @@
       "definition_fingerprint": {
         "algorithm": "sha256",
         "canonicalization_version": "rfc8785_jcs_v1",
-        "hex": "65077fc14274c089ce097ca935706de23958700e1e3ff817471f420d80bdf1f5"
+        "hex": "574ac4e47ef8be883de6de98b92be21854aad91c36cb99d95b2fdc337cb01923"
       },
       "source_contract_fingerprint": {
         "algorithm": "sha256",
         "canonicalization_version": "rfc8785_jcs_v1",
-        "hex": "1cc767d62f463066a3d9324bb0311dc36dd136b8e8a8eb8cac7397784a93ca2b"
+        "hex": "00355268aca8c645943ab50af9f5ef94dc0da398de7ab8ceefdd819eb5ab48f9"
       },
       "execution_binding": {
         "type": "built_in_core_handler",

@@ -113,6 +113,16 @@
   height: 24px;
 }
 
+.file-tree-filter .icon-button.is-refreshing svg {
+  animation: file-tree-refresh-spin 0.9s linear infinite;
+}
+
+@keyframes file-tree-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .file-tree-indexing {
   margin: 2px 9px 4px;
   color: var(--quiet);
@@ -136,10 +146,67 @@
 }
 
 .file-tree-list {
+  --file-row-height: 24px;
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 2px 4px 8px;
+}
+
+/* The tree's lines all have one height and are placed by index (TreeRows.ROW_HEIGHT); only those
+   near the view are drawn. */
+.file-tree-rows {
+  position: relative;
+}
+
+.file-tree-rows > li {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: var(--file-row-height);
+}
+
+.file-tree-rows .file-tree-row {
+  height: 100%;
+}
+
+.file-tree-rows > .file-tree-note {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.file-tree-rows > .file-tree-note > span,
+.file-tree-locate > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-locate {
+  margin: 0 4px;
+}
+
+/* A locate that is answered at once shows nothing and takes no room, so the tree does not move;
+   a slower one says what it is doing. */
+.file-tree-locate.is-pending {
+  overflow: hidden;
+  animation: file-tree-locate-in 120ms ease-out 250ms both;
+}
+
+@keyframes file-tree-locate-in {
+  from {
+    max-height: 0;
+    padding-block: 0;
+    opacity: 0;
+  }
+
+  to {
+    max-height: 32px;
+    padding-block: 4px;
+    opacity: 1;
+  }
 }
 
 .file-tree-row {
@@ -249,6 +316,15 @@
   background: var(--surface);
   font-size: 11px;
   cursor: pointer;
+}
+
+.file-tree-note button:disabled {
+  color: var(--quiet);
+  cursor: default;
+}
+
+.file-tree-note [role='alert'] {
+  color: var(--danger);
 }
 
 .file-view {

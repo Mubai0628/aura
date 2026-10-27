@@ -11,8 +11,8 @@ mod resource_facts;
 mod service;
 
 pub use agents::{
-    AgentsInstructionDocument, AgentsScopeError, AgentsScopeResolution, AgentsScopeResolver,
-    AgentsScopeTarget, AgentsScopeTargetKind,
+    AgentsDocumentOutcome, AgentsInstructionDocument, AgentsScopeError, AgentsScopeResolution,
+    AgentsScopeResolver, AgentsScopeTarget, AgentsScopeTargetKind,
 };
 pub use buffer::{
     BufferCommitFact, BufferCommitPhase, BufferCommitPublisher, BufferLifecyclePreflight,

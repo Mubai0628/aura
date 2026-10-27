@@ -8,6 +8,8 @@ mod backends;
 mod batch;
 mod broker;
 pub(crate) mod browser;
+mod chrome;
+pub(crate) use chrome::inspect_before_admission as inspect_chrome_calls;
 mod command_tools;
 mod control;
 mod control_resources;
@@ -127,6 +129,8 @@ pub(crate) struct AgentExecution {
     /// The channel to the browser host and the browser settings it reads.
     pub browser: Arc<browser::BrowserBridge>,
     pub media: Arc<media::MediaBridge>,
+    /// The user's own Chrome, through Aura's extension; set once at startup.
+    pub chrome: std::sync::OnceLock<Arc<crate::chrome_control::ChromeControl>>,
 }
 
 #[cfg(test)]
@@ -218,6 +222,7 @@ impl AgentExecution {
             plugins: std::sync::OnceLock::new(),
             browser: Arc::default(),
             media: Arc::default(),
+            chrome: std::sync::OnceLock::new(),
         })
     }
 

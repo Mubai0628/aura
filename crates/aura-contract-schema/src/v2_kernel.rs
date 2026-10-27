@@ -86,6 +86,7 @@ pub fn v2_kernel_fixture() -> anyhow::Result<V2KernelFixture> {
         capability_limit: None,
         memory_consent: None,
         mcp_consent: None,
+        chrome_consent: None,
         file_consent: None,
     };
     let grant = AuthorizationGrant {

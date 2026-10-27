@@ -17,6 +17,7 @@ export function turnStatus(
   if (state === 'awaiting_query') return '等待回答';
   if (state === 'pending') return '准备开始';
   const latest = item.assistant_messages.at(-1);
+  if (latest?.partial && latest.context_compacting) return '正在压缩上下文';
   if (
     latest?.tool_call_ids.some((id) => {
       const call = calls.get(id)?.summary;

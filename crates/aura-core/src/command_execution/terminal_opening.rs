@@ -244,6 +244,7 @@ impl super::CommandExecution {
                         rows: input.rows,
                     },
                     output_limit: 16 * 1024 * 1024,
+                    secret_environment: Vec::new(),
                 },
                 opening.0.cancelled.subscribe(),
                 Arc::new(move || ready.runtime_ready()),

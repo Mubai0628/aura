@@ -40,6 +40,12 @@ pub struct AgentTerminalOpenInput {
     #[serde(default)]
     #[schemars(length(max = 120))]
     pub title: String,
+    /// Default none. Credentials of the user's environment this terminal needs, by variable name
+    /// (names with TOKEN, KEY, SECRET, PASSWORD, PASS, PWD or the like, or holding a
+    /// user:password@ address). Only these are passed; their values and every other
+    /// credential's are hidden in the output.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub secret_environment: Vec<String>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

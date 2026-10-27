@@ -111,7 +111,9 @@ test('M2: a pure read and a not_sent failure start no outcome query', async () =
     readFailure,
   );
   expect(f.transport.queryCommandOutcome).not.toHaveBeenCalled();
+  // The failure's code says why it failed; a message never enters the log.
   expect(skipRecords().at(-1)).toMatchObject({
+    code: readFailure.envelope.code,
     command: 'models.settings.get_snapshot',
     reason: 'route-not-a-command',
   });

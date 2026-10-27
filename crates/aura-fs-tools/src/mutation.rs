@@ -3516,8 +3516,8 @@ fn move_logical(
         copy_receipt::verify_members(resolver, source, expected)?;
     }
     // `fail if it exists`: a competitor that created the destination name wins the refusal rather
-    // than being replaced by this move.
-    handle_bound_move_existing(&held, &parent, &parent_validated.leaf_name)
+    // than being replaced by this move; a program that only briefly blocks the rename is waited out.
+    crate::held_rename::move_held(&held, &parent, &parent_validated.leaf_name)
         .map_err(|error| FsToolError::ReconciliationRequired(error.to_string()))?;
     drop(held);
     staging_fault::reached(staging_fault::Stage::ObjectMoved, &resolver.absolute_path(destination));

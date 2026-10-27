@@ -3,6 +3,9 @@ use crate::{StartupMode, r03_tests};
 
 #[tokio::test]
 async fn l02_b2_user_routes_bind_to_session_and_release_closed_records() {
+    let _limit = crate::test_watchdog::limit(
+        "l02_b2_user_routes_bind_to_session_and_release_closed_records",
+    );
     let host = r03_tests::Fixture::new();
     let runtime = host.start().await;
     let StartupMode::Ready(services) = &runtime.startup_mode else { panic!("ready") };

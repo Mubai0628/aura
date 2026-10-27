@@ -54,6 +54,10 @@ pub struct AgentAssistantView {
     /// step's context was compacted first — older history became a summary.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_compacted: Option<AgentContextCompactedView>,
+    /// The context is being compacted before this step's request: since when, and how many
+    /// parts are already done. Absent once the compaction ends.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_compacting: Option<AgentContextCompactingView>,
     /// This step's request first gave older tool results' room back, with
     /// nothing summarized.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -71,6 +75,16 @@ pub struct AgentAssistantView {
 }
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+/// A compaction under way before a step.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentContextCompactingView {
+    /// When the part running now started.
+    pub since: UtcTimestamp,
+    /// The parts of this compaction already done, when it is done in parts.
+    pub finished_parts: u32,
 }
 
 /// A compaction just before a step: who asked for it and how much recent history stayed as it was.

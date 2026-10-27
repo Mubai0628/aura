@@ -17,6 +17,9 @@ impl Drop for Release {
 
 #[test]
 fn l03_b0_cancel_pool_queued_user_open_finishes_cancelled_and_never_launches() {
+    let _limit = crate::test_watchdog::limit(
+        "l03_b0_cancel_pool_queued_user_open_finishes_cancelled_and_never_launches",
+    );
     tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .max_blocking_threads(1)

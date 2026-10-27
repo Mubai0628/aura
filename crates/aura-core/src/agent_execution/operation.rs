@@ -160,6 +160,7 @@ impl AgentExecution {
             H::TerminalOpen => {
                 let mut input: aura_windows_user_contract::AgentTerminalOpenInput =
                     serde_json::from_value(action)?;
+                check_secret_environment(&input.secret_environment)?;
                 let relative = WorkspacePath::parse(&input.working_directory)?;
                 let resolved =
                     self.workspace.resolver(workspace_id)?.resolve_existing(&relative)?;
@@ -204,6 +205,7 @@ impl AgentExecution {
             H::PowerShell | H::Cmd => {
                 let input: aura_windows_user_contract::ShellExecuteInput =
                     serde_json::from_value(action)?;
+                check_secret_environment(&input.secret_environment)?;
                 let relative = WorkspacePath::parse(&input.working_directory)?;
                 let resolved =
                     self.workspace.resolver(workspace_id)?.resolve_existing(&relative)?;
@@ -287,6 +289,30 @@ impl AgentExecution {
                 network = resolved.network;
                 risks = resolved.risks;
                 resolved.resources
+            }
+            H::ChromeOpen
+            | H::ChromeNavigate
+            | H::ChromeSnapshot
+            | H::ChromeScreenshot
+            | H::ChromeClick
+            | H::ChromeType
+            | H::ChromePress
+            | H::ChromeScroll
+            | H::ChromeHover
+            | H::ChromeSelect
+            | H::ChromeWait
+            | H::ChromeConsole
+            | H::ChromeClose
+            | H::ChromeRequestUser => {
+                network = OperationNetwork::None;
+                self.resolve_chrome(
+                    entry.handler,
+                    call.call.tool_call_id,
+                    &mut action,
+                    &mut capabilities,
+                    snapshot,
+                )?
+                .resources
             }
             H::Registry(handler) => {
                 let mut resources = vec![ResourceDescriptor::ToolRegistrySnapshot {
@@ -495,6 +521,21 @@ pub(super) fn stored_form<T: serde::Serialize>(input: &T) -> Result<serde_json::
 
 /// Below 完全访问 a Shell deletion asks every time, a download once per session (its capability
 /// is what the session answer covers) and a write outside the workspace every time.
+/// A command may declare only credentials the user's environment really has, and never one of
+/// Aura's own; anything else is refused here, before an approval is asked or anything runs.
+fn check_secret_environment(names: &[String]) -> Result<()> {
+    if names.is_empty() {
+        return Ok(());
+    }
+    ensure!(
+        aura_windows_user_contract::valid_secret_names(names),
+        "shell.secret_environment: name at most 32 variables, each by its plain name"
+    );
+    let trusted = aura_windows_platform::current_user_environment()?;
+    aura_backend_windows_user::compat::environment::check_declared(&trusted, names)
+        .map_err(|why| anyhow::anyhow!("shell.secret_environment: {why}"))
+}
+
 fn shell_risks(
     found: &super::shell_risks::ShellRisks,
     risks: &mut Vec<OperationRiskFlag>,
@@ -517,5 +558,23 @@ fn shell_risks(
     }
     if !found.outside.is_empty() {
         risks.push(OperationRiskFlag::OutsideWorkspaceWrite);
+    }
+}
+
+#[cfg(test)]
+mod secret_environment_tests {
+    #[test]
+    fn a_declaration_the_environment_cannot_satisfy_is_refused_before_anything_runs() {
+        assert!(super::check_secret_environment(&[]).is_ok(), "declaring nothing changes nothing");
+        let missing = super::check_secret_environment(&["ZZ_NEVER_SET_FIXTURE_TOKEN".into()])
+            .expect_err("missing");
+        assert!(
+            missing.to_string().starts_with(
+                "shell.secret_environment: ZZ_NEVER_SET_FIXTURE_TOKEN is not set in the user's"
+            ),
+            "{missing}"
+        );
+        let invalid = super::check_secret_environment(&["A=B".into()]).expect_err("invalid");
+        assert!(invalid.to_string().contains("plain name"), "{invalid}");
     }
 }

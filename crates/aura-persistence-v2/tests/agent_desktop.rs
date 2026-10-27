@@ -476,17 +476,14 @@ fn a_large_sealed_body_is_paged_through_windows_without_assembling_it() {
     assert_eq!(reasoning.from, from);
     assert_eq!(reasoning.total_bytes, thoughts.len() as u64);
     assert!(reasoning.copied_bytes <= 4096 + 9);
-    // A sealed cursor inside a character is still a bad request, not something to resync.
+    // A sealed cursor inside a character starts the page at that character, as a live one does:
+    // a reader asking for the last bytes of a body cannot know where its characters begin.
     read.offset = 1;
-    assert!(matches!(
-        desktop_messages::text(db, &read),
-        Err(PersistenceCoreError::Invalid("text byte cursor"))
-    ));
+    let page = desktop_messages::text(db, &read).expect("snapped page");
+    assert_eq!((page.from_offset, page.text.chars().next()), (0, Some('有')));
     read.source = AgentMessageTextSource::Reasoning { model_step_id: f.step.model_step_id };
-    assert!(matches!(
-        desktop_messages::text(db, &read),
-        Err(PersistenceCoreError::Invalid("text byte cursor"))
-    ));
+    let page = desktop_messages::text(db, &read).expect("snapped page");
+    assert_eq!((page.from_offset, page.text.chars().next()), (0, Some('思')));
 }
 
 #[test]

@@ -30,6 +30,7 @@ fn file_grant(
             capability_limit: None,
             memory_consent: None,
             mcp_consent: None,
+            chrome_consent: None,
             file_consent: Some(FileSessionConsentRef {
                 approval_id: ApprovalRequestId::new(),
                 session_id: session,

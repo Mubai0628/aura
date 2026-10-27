@@ -94,6 +94,7 @@ fn a_session_approval_of_a_restricted_backend_does_not_mint_a_consent() {
             capability_limit: None,
             memory_consent: None,
             mcp_consent: None,
+            chrome_consent: None,
             file_consent: None,
         },
         allowed_decisions: vec![

@@ -416,7 +416,9 @@ fn classify_invalid(
         other
             if other.starts_with("tools.")
                 || other.starts_with("task_lineage.")
-                || other.starts_with("skills.") =>
+                || other.starts_with("skills.")
+                || other.starts_with("shell.")
+                || other.starts_with("context.") =>
         {
             (ToolSchemaErrorCode::ArgumentsInvalid.error_code(), ErrorCategory::Validation)
         }

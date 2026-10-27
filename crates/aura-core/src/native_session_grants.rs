@@ -334,6 +334,7 @@ mod tests {
                 capability_limit: None,
                 memory_consent: None,
                 mcp_consent: None,
+                chrome_consent: None,
                 file_consent: None,
             },
             issued_at,

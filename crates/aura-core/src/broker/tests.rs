@@ -41,6 +41,7 @@ fn authority(op: &SecuredOperation, backend: &BackendDescriptor) -> Authorizatio
             capability_limit: None,
             memory_consent: None,
             mcp_consent: None,
+            chrome_consent: None,
             file_consent: None,
         },
         decided_at: now,

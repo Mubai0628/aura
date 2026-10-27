@@ -207,6 +207,7 @@ fn distinct_unicode_names_really_overlap_and_the_live_index_keeps_them_separate(
                 None,
                 0,
                 10,
+                false,
             )
             .expect("real query consumer");
             assert_eq!(

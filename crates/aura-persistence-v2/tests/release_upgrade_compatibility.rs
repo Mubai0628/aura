@@ -146,8 +146,9 @@ fn every_changed_definition_took_a_new_revision_and_a_new_instance_identity() {
     // context, workflow and file inputs given documented defaults and shorter descriptions;
     // a question takes the user's own words, a refusal or no response; fs.write and
     // fs.patch name the file's hash after the change; tools.load and tools.unload apply
-    // from the next turn, tools.search name the unified entry, tools.call, and the completion tools
-    // take the evidence a model can cite.
+    // from the next turn, tools.search name the unified entry, tools.call, the completion tools
+    // take the evidence a model can cite, and task_lineage.reconcile says where a reference keeps
+    // its link.
     // Every other existing Tool must retain its published identity.
     let mut changed_names = changed.iter().map(|name| name.as_str().to_owned()).collect::<Vec<_>>();
     changed_names.sort();
@@ -170,6 +171,7 @@ fn every_changed_definition_took_a_new_revision_and_a_new_instance_identity() {
             "shell.powershell".to_owned(),
             "shell.query".to_owned(),
             "shell.stop".to_owned(),
+            "task_lineage.reconcile".to_owned(),
             "task_lineage.review_completion".to_owned(),
             "todo.replace".to_owned(),
             "tools.load".to_owned(),

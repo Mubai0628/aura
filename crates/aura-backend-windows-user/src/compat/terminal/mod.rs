@@ -25,4 +25,6 @@ pub struct TerminalOptions {
     pub working_directory: PathBuf,
     pub size: TerminalSize,
     pub output_limit: usize,
+    /// Credentials an Agent terminal declared; a user's own terminal gets its whole environment.
+    pub secret_environment: Vec<String>,
 }

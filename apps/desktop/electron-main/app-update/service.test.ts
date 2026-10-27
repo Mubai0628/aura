@@ -276,6 +276,35 @@ test('going back with the data from before asks the launcher for it, then restar
   });
 });
 
+// The launcher copies only the stores the new version migrates; the version before cannot read
+// them migrated, so going back without the copy would start a version that never gets ready.
+test('after an update that copied data before it started, going back takes that data with it', async () => {
+  const install = await installation({ active: '0.1.1', previous: '0.1.0', pending: null });
+  await mkdir(join(install.dataRoot, 'backups', 'before-0.1.1'), { recursive: true });
+  const runs: string[][] = [];
+  const restarts: number[] = [];
+  const { updates } = service(install, runs, restarts);
+  await updates.start();
+  updates.stop();
+  expect(updates.state.rollback_needs_data).toBe(true);
+  const refused = await updates.handle({ command: 'roll_back', restore_data: false });
+  expect(refused.phase).toBe('error');
+  expect(refused.error).toMatch(/恢复更新前的数据/u);
+  expect(runs).toEqual([]);
+  expect(restarts).toHaveLength(0);
+  await updates.handle({ command: 'roll_back', restore_data: true });
+  expect(runs).toEqual([['--roll-back']]);
+  expect(restarts).toHaveLength(1);
+});
+
+test('without a copy from before the update, going back may keep the data as it is', async () => {
+  const install = await installation({ active: '0.1.1', previous: '0.1.0', pending: null });
+  const { updates } = service(install, [], []);
+  await updates.start();
+  updates.stop();
+  expect(updates.state.rollback_needs_data).toBe(false);
+});
+
 function failingService(
   install: Awaited<ReturnType<typeof installation>>,
   restarts: number[],

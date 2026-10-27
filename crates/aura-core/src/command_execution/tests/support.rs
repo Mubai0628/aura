@@ -31,6 +31,7 @@ impl Case {
             stdin: String::new(),
             timeout_ms: 1000,
             max_output_bytes: 1024,
+            secret_environment: Vec::new(),
         })
         .unwrap();
         let operation = SecuredOperation::new(SecurityOperationId::new(), content).unwrap();

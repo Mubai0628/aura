@@ -179,6 +179,10 @@ const fn risk_flag_order(flag: aura_security_contract::OperationRiskFlag) -> u8 
         Risk::InlineScript => 15,
         Risk::UntrustedSource => 16,
         Risk::PermanentFileDeletion => 17,
+        Risk::ChromeCredentialField => 18,
+        Risk::ChromeCaptcha => 19,
+        Risk::ChromePasskey => 20,
+        Risk::ChromeFileChooser => 21,
     }
 }
 

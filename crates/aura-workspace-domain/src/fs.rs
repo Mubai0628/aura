@@ -54,6 +54,20 @@ pub struct FsListRequest {
     pub workspace_id: WorkspaceId,
     pub session_id: SessionId,
     pub target: WorkspaceFileTarget,
+    /// The page after this child of the folder: a listing's `next_after`. None for the first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<WorkspacePath>,
+}
+
+impl FsListRequest {
+    /// A folder's first page.
+    pub fn first_page(
+        workspace_id: WorkspaceId,
+        session_id: SessionId,
+        target: WorkspaceFileTarget,
+    ) -> Self {
+        Self { workspace_id, session_id, target, after: None }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -73,6 +87,9 @@ pub struct FsListEntry {
 pub struct FsListResult {
     pub entries: Vec<FsListEntry>,
     pub catalog_revision: Revision,
+    /// Where the next page starts, when the folder holds more: pass it back as `after`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_after: Option<WorkspacePath>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]

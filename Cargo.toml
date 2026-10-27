@@ -12,6 +12,8 @@ members = [
     "crates/aura-execution-maintainer",
     "crates/aura-web-domain",
     "crates/aura-browser-domain",
+    "crates/aura-chrome-domain",
+    "crates/aura-chrome-host",
     "crates/aura-web-runtime",
     "crates/aura-execution-helper",
     "crates/aura-windows-user-contract",
@@ -79,7 +81,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 rust-version = "1.97.1"
 

@@ -18,6 +18,7 @@ fn command(directory: &Path) -> ManagedShellCommand {
         stdin: String::new(),
         timeout_ms: 20_000,
         max_output_bytes: 4096,
+        secret_environment: Vec::new(),
     }
 }
 

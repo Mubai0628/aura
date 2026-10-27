@@ -106,6 +106,7 @@ pub(crate) async fn dispatch(
         input.expected_revision,
         input.offset,
         input.effective_limit(),
+        false,
     )?;
     Ok(serde_json::to_value(ActivityQueryResponseV1 {
         contract_version: ACTIVITY_QUERY_CONTRACT_VERSION,

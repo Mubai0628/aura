@@ -53,11 +53,11 @@ fn subkey(key: &str) -> io::Result<Vec<u16>> {
     Ok(wide_null(&format!(r"{UNINSTALL}\{key}")))
 }
 
-fn check(status: WIN32_ERROR) -> io::Result<()> {
+pub(super) fn check(status: WIN32_ERROR) -> io::Result<()> {
     if status == ERROR_SUCCESS { Ok(()) } else { Err(io::Error::from_raw_os_error(status as i32)) }
 }
 
-struct Key(HKEY);
+pub(super) struct Key(pub(super) HKEY);
 
 impl Drop for Key {
     fn drop(&mut self) {
@@ -67,7 +67,7 @@ impl Drop for Key {
 }
 
 impl Key {
-    fn set_string(&self, name: &str, value: &str) -> io::Result<()> {
+    pub(super) fn set_string(&self, name: &str, value: &str) -> io::Result<()> {
         let name = wide_null(name);
         let value = wide_null(value);
         let bytes = u32::try_from(value.len() * 2)

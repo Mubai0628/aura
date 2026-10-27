@@ -52,7 +52,7 @@ pub(crate) fn shell_background_record(
             target: ActivityResourceTarget::Unproven {
                 hint: format!("managed background of {}", request.operation.content.action_kind),
             },
-            relation: ActivityResourceRelation::UnknownWriteSet,
+            relation: super::shell_relation(&request.operation.content.risks),
             display_name: "managed background".to_owned(),
             display_name_truncated: false,
         }],

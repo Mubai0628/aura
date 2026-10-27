@@ -479,8 +479,24 @@ impl AgentApplication {
         let previous = exposure::load(db, &scope)?;
         let purpose = aura_persistence_v2::agent::application::purpose(db, turn.agent_run_id)?;
         let dynamic = session_tools::load(db, turn.session_id)?;
-        let (settings, fixed) = self.tool_configuration()?;
+        let (settings, mut fixed) = self.tool_configuration()?;
         let release = aura_tool_registry::agent_release::release()?;
+        // The user's Chrome is offered while its extension is connected, and loaded for a
+        // conversation the user shared a tab with.
+        let chrome = self.execution.chrome.get();
+        let chrome_connected = chrome.is_some_and(|chrome| chrome.connected());
+        if chrome_connected && chrome.is_some_and(|chrome| chrome.has_shares(turn.session_id)) {
+            fixed.extend(
+                release
+                    .manifest()
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.handler.name().starts_with("chrome."))
+                    .map(|entry| entry.definition.tool_id),
+            );
+            fixed.sort();
+            fixed.dedup();
+        }
         let mode_hash = crate::agent_execution::registry_mode_hash(permission)?;
         let authority = self.execution.persistence.tool_authority_snapshot(
             Some(turn.workspace_id),
@@ -500,6 +516,14 @@ impl AgentApplication {
         }
         let git_available = crate::git::runtime::available();
         crate::git::runtime::constrain_candidates(&mut candidates, git_available);
+        if !chrome_connected {
+            for candidate in &mut candidates {
+                if candidate.definition.canonical_name.as_str().starts_with("chrome.") {
+                    candidate.instance.runtime_health =
+                        aura_tool_domain::ToolRuntimeHealthV1::Unavailable;
+                }
+            }
+        }
         // Installed, trusted, enabled package tools. Like every non-built-in tool
         // they are discoverable and loaded per session; a tool whose declared credential
         // is not bound stays a visible exclusion.

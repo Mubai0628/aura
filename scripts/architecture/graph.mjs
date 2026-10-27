@@ -58,6 +58,7 @@ const kernelDependencies = {
   ],
   'aura-web-domain': ['aura-domain-common'],
   'aura-browser-domain': ['aura-domain-common'],
+  'aura-chrome-domain': ['aura-domain-common'],
   'aura-web-runtime': ['aura-domain-common', 'aura-web-domain'],
   'aura-net-tools': [
     'aura-domain-common',

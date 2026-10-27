@@ -69,8 +69,14 @@ export class PageDebugger {
   readonly #urls = new Map<string, string>();
   #enabled: Promise<void> | undefined;
 
-  constructor(devtools: DevTools) {
+  /**
+   * The tool that reads the page again, as the model is told to call it when a ref is unknown.
+   */
+  readonly snapshotTool: string;
+
+  constructor(devtools: DevTools, snapshotTool = 'browser.snapshot') {
     this.#devtools = devtools;
+    this.snapshotTool = snapshotTool;
     devtools.on('message', (_event, method, params) => this.#message(method, record(params)));
     devtools.on('detach', () => {
       this.#enabled = undefined;

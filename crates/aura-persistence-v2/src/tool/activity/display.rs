@@ -121,6 +121,9 @@ fn target(name: &str, arguments: Option<&Value>) -> Option<String> {
     if name.starts_with("browser.") {
         return super::browser::target(name, arguments);
     }
+    if name.starts_with("chrome.") {
+        return super::chrome::target(name, arguments);
+    }
     let arguments = arguments?;
     let named = arguments
         .get("path")
@@ -145,6 +148,8 @@ fn input_details(name: &str, arguments: Option<&Value>) -> Vec<String> {
         super::query::details(arguments)
     } else if name.starts_with("browser.") {
         super::browser::details(name, arguments)
+    } else if name.starts_with("chrome.") {
+        super::chrome::details(name, arguments)
     } else if name == "terminal.write" {
         arguments
             .and_then(|value| value["input"].as_str())
@@ -259,6 +264,7 @@ fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) {
         }
         super::workspace_init::NAME => super::workspace_init::summarize(view, value),
         name if name.starts_with("browser.") => super::browser::summarize(view, name, value),
+        name if name.starts_with("chrome.") => super::chrome::summarize(view, name, value),
         "terminal.request_sensitive_input" => {
             view.summary = match value["status"].as_str() {
                 Some("completed") => "安全输入已完成",
@@ -361,7 +367,16 @@ fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) {
             }
         }
         "shell.powershell" | "shell.cmd" => {
-            if let Some(code) = value.get("exit_code").and_then(Value::as_i64) {
+            // A command Aura stopped has a result, but it did not exit by itself.
+            let stopped = match value["stop_reason"].as_str() {
+                Some("output_limit") => Some("已停止：输出超过上限"),
+                Some("timed_out") => Some("已停止：超过时限"),
+                Some("core_disconnected") => Some("已停止：Core 连接中断"),
+                _ => None,
+            };
+            if let Some(stopped) = stopped {
+                view.summary = stopped.into();
+            } else if let Some(code) = value.get("exit_code").and_then(Value::as_i64) {
                 view.summary = format!("进程退出，退出码 {code}");
             }
         }
@@ -395,6 +410,7 @@ pub(crate) fn title(name: &str) -> &str {
         // Shown while the model writes the call; once admitted it is the tool it names.
         "tools.call" => "调用工具",
         name if name.starts_with("browser.") => super::browser::title(name).unwrap_or(name),
+        name if name.starts_with("chrome.") => super::chrome::title(name).unwrap_or(name),
         _ => name,
     }
 }

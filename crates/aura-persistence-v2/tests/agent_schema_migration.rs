@@ -122,6 +122,23 @@ fn an_indexed_predecessor_gains_the_locatable_rows_without_rewriting_events() {
 }
 
 #[test]
+fn a_store_from_before_the_session_indexes_gains_them_and_keeps_its_events() {
+    let (_root, directory) = predecessor_store("\nCREATE INDEX turn_tasks_session");
+    assert_eq!(object_count(&directory, "turn_tasks_session"), 0);
+    assert_eq!(object_count(&directory, "agent_runs_turn"), 0);
+    V2Store::open(&directory).expect("the predecessor opens");
+    assert_eq!(object_count(&directory, "turn_tasks_session"), 1);
+    assert_eq!(object_count(&directory, "agent_runs_turn"), 1);
+    let current = blake3::hash(include_str!("../src/agent.sql").as_bytes()).to_hex().to_string();
+    assert_eq!(agent_digest(&directory), current);
+    let payload: String = Connection::open(directory.join("aura-v2.db"))
+        .expect("connection")
+        .query_row("SELECT payload FROM events WHERE event_id='evt-keep'", [], |row| row.get(0))
+        .expect("event");
+    assert_eq!(payload, "{}");
+}
+
+#[test]
 fn an_unknown_agent_digest_is_rejected_without_rewrite() {
     let root = tempfile::tempdir().expect("root");
     let directory = root.path().join("v2");

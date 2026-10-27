@@ -246,6 +246,38 @@ fn compacted_before(
     }))
 }
 
+/// The compaction running before a step still being prepared: since when, and how many parts of
+/// it are done. The wait it causes is shown as compaction, not as the model thinking.
+fn compacting_before(
+    db: &Connection,
+    step: &ModelStep,
+    session: SessionId,
+) -> StoreResult<Option<aura_projection_contract::AgentContextCompactingView>> {
+    if step.state != ModelStepState::Preparing {
+        return Ok(None);
+    }
+    let row: Option<(String, u32)> = db
+        .query_row(
+            concat!(
+                "SELECT json_extract(c.payload,'$.created_at'), ",
+                "(SELECT COUNT(*) FROM context_compactions d WHERE d.session_id=?2 ",
+                "AND d.state='completed' AND json_extract(d.payload,'$.source_step_id')=?1) ",
+                "FROM context_compactions c WHERE c.session_id=?2 AND c.state='running' ",
+                "AND json_extract(c.payload,'$.source_step_id')=?1 LIMIT 1"
+            ),
+            params![step.model_step_id.to_string(), session.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    row.map(|(since, finished_parts)| {
+        Ok(aura_projection_contract::AgentContextCompactingView {
+            since: since.parse().map_err(|_| Error::Conflict)?,
+            finished_parts,
+        })
+    })
+    .transpose()
+}
+
 fn assistant(
     db: &Connection,
     step: &ModelStep,
@@ -320,6 +352,7 @@ fn assistant(
         sealed_revision,
         context_usage: meter.usage,
         context_compaction_running: meter.compaction_running,
+        context_compacting: compacting_before(db, step, session)?,
         context_compacted,
         context_cleared,
         backup_connection: crate::model::connections::backup_of(db, step.model_step_id)?,
@@ -344,7 +377,7 @@ pub fn text(
         return Ok(page);
     }
     let limit = u64::from(request.limit);
-    let (window, body_id, sealed_revision, sealed) = match request.source {
+    let (window, body_id, sealed_revision) = match request.source {
         AgentMessageTextSource::Completion { turn_task_id } => {
             let (session_id, state): (String, String) = db.query_row(
                 "SELECT session_id, state FROM turn_tasks WHERE id=?1",
@@ -498,7 +531,7 @@ pub fn text(
                     limit,
                     &seal,
                 )? {
-                    Some(window) => (window, None, Some(seal.revision.to_string()), true),
+                    Some(window) => (window, None, Some(seal.revision.to_string())),
                     None => {
                         let output = history::output(db, model_step_id)?;
                         let window = if reasoning {
@@ -506,7 +539,7 @@ pub fn text(
                         } else {
                             history::visible_window(&output, request.offset, limit)
                         };
-                        (window, None, Some(seal.revision.to_string()), true)
+                        (window, None, Some(seal.revision.to_string()))
                     }
                 }
             } else {
@@ -523,15 +556,13 @@ pub fn text(
                 )?;
                 let body_id = windows.body_id;
                 let window = if reasoning { windows.reasoning } else { windows.text };
-                (window, body_id, None, false)
+                (window, body_id, None)
             }
         }
     };
-    if sealed && window.from != request.offset.min(window.total_bytes) {
-        // Sealed pages keep the strict cursor: an offset inside a character is a bad
-        // request, not something to resync from, because the text cannot have moved.
-        return Err(Error::Invalid("text byte cursor"));
-    }
+    // An offset inside a character starts the page at that character, sealed or live, and
+    // `from_offset` says where it really starts: a reader asking for the last bytes of a body
+    // cannot know where its characters begin.
     Ok(AgentMessageTextPage {
         source: request.source,
         text: window.text,

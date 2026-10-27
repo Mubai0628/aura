@@ -8,6 +8,9 @@ pub(super) mod screenshots;
 // The capability modules each loaded tool brings to the prompt.
 #[path = "prompt_capabilities.rs"]
 mod prompt_capabilities;
+// The workspace's AGENTS.md, read for each step.
+#[path = "agents.rs"]
+mod agents;
 
 impl AgentApplication {
     pub(in crate::agent_application) async fn prepare(
@@ -257,6 +260,12 @@ impl AgentApplication {
                 ContextCompressibility::NeverCompress,
             ),
         ];
+        // The workspace's AGENTS.md, read again for every step.
+        sections.push(section(
+            ContextSectionKind::WorkspaceAgentsInstructions,
+            self.workspace_agents(run_id, turn.workspace_id, turn.revision, &history.items).await,
+            ContextCompressibility::NeverCompress,
+        ));
         if !hooks.injections.is_empty() {
             sections.push(section(
                 ContextSectionKind::HookInjections,
@@ -503,6 +512,7 @@ impl AgentApplication {
         let frozen_model_snapshot = snapshot.clone();
         let artifacts = prepared.artifacts;
         let prompt_inspector = prepared.prompt_inspector;
+        let activity_sources = activity_summary.sources();
         {
             let journal = Arc::clone(&self.execution.journal);
             self.store
@@ -588,6 +598,12 @@ impl AgentApplication {
                                 aura_persistence_v2::agent::inspector::freeze(
                                     tx,
                                     &prompt_inspector,
+                                    at,
+                                )?;
+                                aura_persistence_v2::agent::inspector::freeze_activity_sources(
+                                    tx,
+                                    step.model_step_id,
+                                    &activity_sources,
                                     at,
                                 )?;
                                 let mut next_run = run.clone();

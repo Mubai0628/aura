@@ -3,11 +3,16 @@ mod backend;
 mod background;
 mod control;
 pub mod environment;
+#[cfg(test)]
+mod environment_tests;
 mod execution;
 mod job_owner;
 mod monitor;
 mod output;
 mod preparation;
+pub mod redaction;
+#[cfg(test)]
+mod redaction_tests;
 mod registry;
 mod runtime;
 mod service;

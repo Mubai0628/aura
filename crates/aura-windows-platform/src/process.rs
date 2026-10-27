@@ -134,6 +134,18 @@ pub fn validate_named_pipe_client(
     Ok(actual)
 }
 
+/// The process at the server end of a connected pipe, for a client that cannot know its process
+/// in advance and checks its image and session instead.
+pub fn named_pipe_server_identity(pipe: &NamedPipeClient) -> io::Result<ProcessIdentity> {
+    let mut process_id = 0_u32;
+    // SAFETY: Tokio owns a connected client handle for this call and `process_id` is writable
+    // storage.
+    if unsafe { GetNamedPipeServerProcessId(pipe.as_raw_handle().cast(), &mut process_id) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    snapshot_process(process_id)
+}
+
 pub fn validate_named_pipe_server(
     pipe: &NamedPipeClient,
     expected: &ProcessIdentity,

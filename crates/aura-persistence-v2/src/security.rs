@@ -229,7 +229,8 @@ pub fn grants_for_operation(
 ///    for a permission the user already gave. Handing them to policy is safe
 ///    because policy re-checks the consent binding, the Core runtime instance, the
 ///    live session permission revision, the principal and the Shell. An MCP
-///    turn answer is found the same way; policy binds it to its turn and server.
+///    turn answer is found the same way; policy binds it to its turn and server, and a Chrome
+///    turn answer to its turn and shared tab.
 ///
 /// A consent Grant for another session is never returned: consent reuse is bounded
 /// by the session the user approved, not by the installation.
@@ -252,7 +253,8 @@ pub fn grants_for_call(
          OR json_extract(payload,'$.scope.file_consent.session_id')=?1 \
          OR json_extract(payload,'$.scope.memory_consent.session_id')=?1 \
          OR json_extract(payload,'$.scope.network_consent.session_id')=?1 \
-         OR json_extract(payload,'$.scope.mcp_consent.session_id')=?1 ORDER BY id",
+         OR json_extract(payload,'$.scope.mcp_consent.session_id')=?1 \
+         OR json_extract(payload,'$.scope.chrome_consent.session_id')=?1 ORDER BY id",
     )?;
     let mut seen =
         grants.iter().map(|grant| grant.grant_id).collect::<std::collections::BTreeSet<_>>();

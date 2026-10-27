@@ -49,6 +49,7 @@ pub(super) fn handle(
         stdin: input["stdin"].as_str().unwrap_or_default().into(),
         timeout_ms: input["timeout_ms"].as_u64().unwrap_or(5000),
         max_output_bytes: input["max_output_bytes"].as_u64().unwrap_or(65536),
+        secret_environment: Vec::new(),
     };
     let mut execution = if let Some(fault) = input["fault"].as_str() {
         backend.launch_with_fault(

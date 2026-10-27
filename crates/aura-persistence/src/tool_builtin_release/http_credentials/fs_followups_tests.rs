@@ -55,12 +55,10 @@ fn s10_write_and_patch_revision7_carry_configuration_without_crossing_tool_ident
         .map(|entry| {
             let new = release.entry(entry.handler.name()).expect("same filesystem Tool").clone();
             assert_eq!(new.definition.tool_id, entry.definition.tool_id);
-            let current = aura_tool_registry::agent_release::revisions::PUBLISHED
-                .iter()
-                .filter(|row| row.name == entry.handler.name())
-                .map(|row| row.revision)
-                .max()
-                .expect("published filesystem Tool");
+            let current =
+                aura_tool_registry::agent_release::revisions::current(entry.handler.name())
+                    .expect("published filesystem Tool")
+                    .revision;
             assert!(current > 6, "the release moved past the saved revision 6");
             assert_eq!(new.definition.tool_version.definition_revision, Revision::new(current));
             assert_ne!(new.instance.tool_instance_id, entry.instance.tool_instance_id);

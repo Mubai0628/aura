@@ -1,0 +1,23 @@
+[package]
+name = "aura-chrome-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "aura-chrome-host"
+path = "src/main.rs"
+
+[features]
+# Lets a test name the pipe and the Core image; a release build reads neither variable.
+test-server = []
+
+[dependencies]
+anyhow.workspace = true
+aura-chrome-domain = { path = "../aura-chrome-domain" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-std"] }
+
+[lints]
+workspace = true

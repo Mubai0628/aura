@@ -125,6 +125,8 @@ function Composer({
     queuePending,
     onChanged,
     preparation,
+    // A new conversation's default model is still on its way while its list is read.
+    draftModelPicker !== undefined && draftModelPicker.loading && !draftModelPicker.selectedId,
   );
   const { draft, setDraft } = submission;
   // The thinking level of the model a new conversation is about to use.

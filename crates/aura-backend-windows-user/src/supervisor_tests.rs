@@ -661,8 +661,7 @@ impl Rig {
         self.boundary.advance_on_allocate_ms.store(milliseconds, Ordering::Release);
     }
 
-    /// Shift the scripted wall clock directly; deadline races advance it
-    /// while a gated boundary wait is already pending.
+    /// Shift the scripted clock; deadline races advance it while a boundary wait is pending.
     pub(crate) fn advance_clock_ms(&self, milliseconds: i64) {
         self.boundary.clock_offset_ms.fetch_add(milliseconds, Ordering::AcqRel);
     }
@@ -694,6 +693,7 @@ fn build_request(workspace: &Path, prepared: &WindowsUserPreparation) -> Dispatc
         stdin: String::new(),
         timeout_ms: 60_000,
         max_output_bytes: 64 * 1024,
+        secret_environment: Vec::new(),
     })
     .unwrap();
     let operation = SecuredOperation::new(aura_domain_common::SecurityOperationId::new(), content)

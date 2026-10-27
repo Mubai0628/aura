@@ -60,6 +60,7 @@ fn a_command_stopped_before_it_started_has_its_result() {
         stdin: String::new(),
         timeout_ms: 1000,
         max_output_bytes: 4096,
+        secret_environment: Vec::new(),
     };
     let batch =
         f.admit(&mut store, vec![("shell.powershell", serde_json::to_value(&input).unwrap())]);

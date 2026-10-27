@@ -39,6 +39,9 @@ async fn pending(f: &Fixture) -> Value {
 }
 #[tokio::test]
 async fn l02_b4_sensitive_cancellation_returns_status_only_and_clears_pending() {
+    let _limit = crate::test_watchdog::limit(
+        "l02_b4_sensitive_cancellation_returns_status_only_and_clears_pending",
+    );
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let opened = run(&mut f, "terminal.open", json!({"shell":"cmd"})).await;
     let batch = f.admit(&[(
@@ -72,6 +75,9 @@ async fn l02_b4_sensitive_cancellation_returns_status_only_and_clears_pending() 
 }
 #[tokio::test]
 async fn l02_b4_sensitive_echo_is_not_in_the_model_record_or_later_output_and_cannot_be_replayed() {
+    let _limit = crate::test_watchdog::limit(
+        "l02_b4_sensitive_echo_is_not_in_the_model_record_or_later_output_and_cannot_be_replayed",
+    );
     use aura_windows_user_contract::TerminalSensitiveReplyV1;
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let opened = run(&mut f, "terminal.open", json!({"shell":"cmd"})).await;
@@ -145,6 +151,9 @@ async fn l02_b4_sensitive_echo_is_not_in_the_model_record_or_later_output_and_ca
 }
 #[tokio::test]
 async fn l02_b4_sensitive_tool_deadline_cancels_without_sending_any_input() {
+    let _limit = crate::test_watchdog::limit(
+        "l02_b4_sensitive_tool_deadline_cancels_without_sending_any_input",
+    );
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let opened = run(&mut f, "terminal.open", json!({"shell":"cmd"})).await;
     f.settings = ToolSettingsSnapshotV1::new(
@@ -175,6 +184,9 @@ async fn l02_b4_sensitive_tool_deadline_cancels_without_sending_any_input() {
 }
 #[tokio::test]
 async fn l02_b4_sensitive_wrong_session_is_rejected_and_takeover_cancels_the_live_request() {
+    let _limit = crate::test_watchdog::limit(
+        "l02_b4_sensitive_wrong_session_is_rejected_and_takeover_cancels_the_live_request",
+    );
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let opened = run(&mut f, "terminal.open", json!({"shell":"cmd"})).await;
     let batch = f.admit(&[(
@@ -206,6 +218,9 @@ async fn l02_b4_sensitive_wrong_session_is_rejected_and_takeover_cancels_the_liv
 }
 #[tokio::test]
 async fn l02_b4_process_page_lists_only_running_agent_work_and_stops_the_owned_job() {
+    let _limit = crate::test_watchdog::limit(
+        "l02_b4_process_page_lists_only_running_agent_work_and_stops_the_owned_job",
+    );
     let mut f = Fixture::with_exposure(
         PermissionMode::WorkspaceReadWrite,
         &["terminal.open", "terminal.close", "shell.cmd"],

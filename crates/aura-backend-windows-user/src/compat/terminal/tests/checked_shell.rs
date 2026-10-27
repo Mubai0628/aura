@@ -20,6 +20,7 @@ fn a_powershell_terminal_that_failed_to_start_checks_it_again_and_says_so() {
         working_directory: directory.path().to_path_buf(),
         size: TerminalSize { columns: 80, rows: 24 },
         output_limit: 65_536,
+        secret_environment: Vec::new(),
     };
     let refused =
         backend.launch_terminal_with_fault(&options, None, crate::compat::LaunchFault::Resume);

@@ -43,6 +43,8 @@ aura-web-runtime = { path = "../aura-web-runtime" }
 aura-backend-api = { path = "../aura-backend-api" }
 aura-backend-core = { path = "../aura-backend-core" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-chrome-domain = { path = "../aura-chrome-domain" }
+aura-chrome-host = { path = "../aura-chrome-host" }
 aura-windows-user-contract = { path = "../aura-windows-user-contract" }
 aura-execution-contract = { path = "../aura-execution-contract" }
 aura-commands = { path = "../aura-commands" }

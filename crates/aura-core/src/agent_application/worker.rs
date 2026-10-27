@@ -91,7 +91,14 @@ impl AgentApplication {
                     app.persist_run_panic(run, generation, kind).await;
                 }
             }
-            if let Ok(turn) = app.turn(run).await
+            let turn = app.turn(run).await;
+            // The tabs shared for this turn only stop being shared with it.
+            if let (Ok(turn), Some(chrome)) = (&turn, app.execution.chrome.get())
+                && turn.state.terminal()
+            {
+                chrome.turn_ended(turn.session_id);
+            }
+            if let Ok(turn) = turn
                 && matches!(turn.state, TurnTaskState::Completed { .. })
                 && let Err(error) = app.schedule_inbox(turn.session_id).await
             {
@@ -421,6 +428,7 @@ impl AgentApplication {
                     // handed to the execution service, which runs it whole on the one bounded Agent
                     // Store owner instead of on this reactive task.
                     self.decide_tool_calls(run_id, model_step_id).await?;
+                    self.inspect_chrome_calls(run_id, model_step_id).await?;
                     let batch =
                         Arc::clone(&self.execution).admit_output(model_step_id, tools).await?;
                     anyhow::ensure!(batch.batch.tool_batch_id == batch_id, "agent.batch_changed");

@@ -692,6 +692,7 @@ fn invoke_handler_inner(
                 request.expected_revision,
                 request.offset,
                 request.effective_limit(),
+                true,
             )
             .map_err(|_| ToolRegistryControlErrorV1::RequestInvalid)?;
             let response = aura_activity_domain::AgentActivityQueryResultV1 {

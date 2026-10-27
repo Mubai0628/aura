@@ -1,4 +1,4 @@
-//! The built-in browser's newest screenshots
+//! The newest screenshots of the built-in browser and of the user's Chrome
 //! go to a model that takes images, each with the tool result it belongs to. They are read once
 //! per step; before each compilation pass only those whose results are still in the history, not
 //! cleared and not compacted away, are attached. A screenshot travels as its tool's result, on the
@@ -115,7 +115,7 @@ fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
                     ));
                 }
             }
-        } else if tool_name == "browser.screenshot"
+        } else if matches!(tool_name.as_str(), "browser.screenshot" | "chrome.screenshot")
             && !*is_error
             && screenshots < SENT
             && let Some(id) = serde_json::from_str::<serde_json::Value>(content)
@@ -124,7 +124,8 @@ fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
                 .and_then(shown_screenshot)
         {
             screenshots += 1;
-            images.push((id, "browser screenshot".to_owned()));
+            let shown = if tool_name == "chrome.screenshot" { "Chrome" } else { "browser" };
+            images.push((id, format!("{shown} screenshot")));
         }
         if !images.is_empty() {
             groups.push(

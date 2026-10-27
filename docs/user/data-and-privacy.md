@@ -13,8 +13,9 @@ Aura 不收集使用数据，没有统计或遥测。
 | 内容 | 位置 |
 | --- | --- |
 | 程序 | `%LOCALAPPDATA%\Programs\Aura`（安装时可以改） |
-| 会话、设置、日志、更新前的数据备份 | `%LOCALAPPDATA%\Aura` 下这个安装对应的文件夹 |
-| API Key、MCP 登录凭据、工具凭据 | Windows 凭据管理器 |
+| 会话、日志、更新前的数据备份、Chrome 扩展文件夹 | `%LOCALAPPDATA%\Aura` 下这个安装对应的文件夹 |
+| 设置 | `%APPDATA%\Aura` 下这个安装对应的文件夹 |
+| API Key、MCP 登录凭据、工具凭据、Chrome 配对密钥 | Windows 凭据管理器 |
 | 全局记忆 | `%USERPROFILE%\.aura\memories` |
 | 工作区记忆 | 工作区里的 `.memories` 文件夹 |
 

@@ -4584,6 +4584,9 @@ export type ResolvedCapability =
       | 'memory_delete'
     )
   | 'ordinary_network'
+  | 'chrome_read'
+  | 'chrome_interaction'
+  | 'chrome_sensitive_action'
   | 'agent_task_read'
   | 'external_extension_call';
 /**
@@ -4630,7 +4633,11 @@ export type OperationRiskFlag =
       | 'inline_script'
       | 'untrusted_source'
     )
-  | 'permanent_file_deletion';
+  | 'permanent_file_deletion'
+  | 'chrome_credential_field'
+  | 'chrome_captcha'
+  | 'chrome_passkey'
+  | 'chrome_file_chooser';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ResolvedScope".
@@ -6884,13 +6891,15 @@ export type ActivityToolGroup = 'file_read' | 'file_write' | 'shell' | 'web' | '
  * What kind of access the executor has against one real target.
  *
  * `UnknownWriteSet` is not a placeholder for "we did not look": it is the honest
- * answer for a Shell whose write set cannot be proven. It never serialises
- * globally and it never disables Shell.
+ * answer for a Shell whose write set cannot be proven, within its own workspace.
+ * `UnknownWriteSetOutsideWorkspace` is that answer for a Shell whose script names places
+ * outside its workspace. Neither serialises globally or disables Shell.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ActivityResourceRelation".
  */
-export type ActivityResourceRelation = 'read' | 'write' | 'unknown_write_set';
+export type ActivityResourceRelation =
+  'read' | 'write' | 'unknown_write_set' | 'unknown_write_set_outside_workspace';
 /**
  * One picture or file the composer sends with a message.
  *
@@ -7743,6 +7752,19 @@ export type ResourceDescriptor =
       scope_kind: 'agent_task';
       session_id: SessionId;
       turn_task_id: TurnTaskId;
+    }
+  | {
+      scope_kind: 'chrome_share';
+      share_id: string;
+    }
+  | {
+      scope_kind: 'chrome_tab';
+      tab_ref: string;
+    }
+  | {
+      confirmed: boolean;
+      origin: string;
+      scope_kind: 'chrome_origin';
     };
 /**
  * How a package tool reaches the outside: through Core's controlled HTTP, or as a
@@ -7981,7 +8003,8 @@ export type ConfigModule =
   | 'browser'
   | 'memory'
   | 'diagnostics'
-  | 'update';
+  | 'update'
+  | 'chrome';
 /**
  * Which recovery action the user is asking for.
  *
@@ -7999,6 +8022,43 @@ export type CancelDisposition = 'accepted' | 'too_late_to_cancel' | 'unknown_req
  * via the `definition` "CapabilityReadiness".
  */
 export type CapabilityReadiness = 'ready' | 'unavailable';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeAssistOutcome".
+ */
+export type ChromeAssistOutcome = 'done' | 'declined' | 'timed_out' | 'closed';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeConnectionState".
+ */
+export type ChromeConnectionState = 'connected' | 'off' | 'waiting' | 'pairing';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeConsoleLevel".
+ */
+export type ChromeConsoleLevel = 'error' | 'warning' | 'all';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeHistoryAction".
+ */
+export type ChromeHistoryAction = 'back' | 'forward' | 'reload';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeMouseButton".
+ */
+export type ChromeMouseButton = 'left' | 'right' | 'middle';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeScrollDirection".
+ */
+export type ChromeScrollDirection = 'up' | 'down' | 'left' | 'right';
+/**
+ * What a shared tab is doing now.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSharedTabState".
+ */
+export type ChromeSharedTabState = 'active' | 'awaiting_origin' | 'with_user';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "CommandKind".
@@ -16291,6 +16351,10 @@ export interface FsInspectResult {
  * via the `definition` "FsListRequest".
  */
 export interface FsListRequest {
+  /**
+   * The page after this child of the folder: a listing's `next_after`. None for the first.
+   */
+  after?: string | null;
   session_id: SessionId;
   target: WorkspaceFileTarget;
   workspace_id: WorkspaceId;
@@ -16302,6 +16366,10 @@ export interface FsListRequest {
 export interface FsListResult {
   catalog_revision: Revision;
   entries: FsListEntry[];
+  /**
+   * Where the next page starts, when the folder holds more: pass it back as `after`.
+   */
+  next_after?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -17124,6 +17192,11 @@ export interface AgentAssistantView {
    */
   context_compacted?: AgentContextCompactedView | null;
   /**
+   * The context is being compacted before this step's request: since when, and how many
+   * parts are already done. Absent once the compaction ends.
+   */
+  context_compacting?: AgentContextCompactingView | null;
+  /**
    * `compaction.state == running` from that same inspection, when recorded.
    */
   context_compaction_running?: boolean;
@@ -17195,6 +17268,22 @@ export interface AgentContextCompactedView {
    */
   manual: boolean;
   retained_recent_tokens: number;
+}
+/**
+ * A compaction under way before a step.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentContextCompactingView".
+ */
+export interface AgentContextCompactingView {
+  /**
+   * The parts of this compaction already done, when it is done in parts.
+   */
+  finished_parts: number;
+  /**
+   * When the part running now started.
+   */
+  since: string;
 }
 /**
  * A tool call a running step is writing: the tool's name as the conversation shows it, the file
@@ -17306,9 +17395,16 @@ export interface AgentContextReadCompactionInput {
  */
 export interface AgentContextReadEventsInput {
   /**
-   * Characters per page. Default 8192.
+   * Characters per page, default 8192, at most 262144. An event's text is never cut to fit a
+   * page: an event longer than this comes with an empty content and its length in
+   * content_chars.
    */
   character_limit?: number;
+  /**
+   * With a single event selector and no cursor: read that event's text from this character
+   * on, character_limit characters at most; content_next_offset continues it.
+   */
+  content_offset?: number | null;
   cursor?: string | null;
   selectors: ContextEventSelector[];
 }
@@ -17529,6 +17625,10 @@ export interface AgentFileSearchInput {
    * Maximum matches returned, 1..=100 (default 100). This searches text, not filenames.
    */
   limit?: number;
+  /**
+   * Only files matching this glob. Without `/` it matches file names in any folder (`*.rs`,
+   * `*.{ts,tsx}`); with `/`, the path below root (`src/** /*.rs`).
+   */
   path_glob?: string | null;
   pattern: FsSearchPattern;
   /**
@@ -17776,6 +17876,10 @@ export interface AgentNetworkProxyTestResult {
  * via the `definition` "AgentPromptInspection".
  */
 export interface AgentPromptInspection {
+  /**
+   * Which session runs each other task the step's task state numbered.
+   */
+  activity_sources?: PromptInspectorActivitySourceView[];
   context: ContextProjectionSnapshot;
   execution: ModelExecutionSnapshot;
   projection: PromptInspectorProjection;
@@ -17783,6 +17887,23 @@ export interface AgentPromptInspection {
    * The whole conversation's cache use when the step was read.
    */
   session_cache?: SessionCacheUsageView | null;
+}
+/**
+ * Which session runs a task that a step's task state names only by its number.
+ *
+ * It is kept beside the step's frozen inspector for the person reading it; the model never
+ * receives it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PromptInspectorActivitySourceView".
+ */
+export interface PromptInspectorActivitySourceView {
+  /**
+   * The task's `another_task` number in the step's task state.
+   */
+  another_task: number;
+  session_id: SessionId;
+  workspace_id: WorkspaceId;
 }
 /**
  * What the conversation's
@@ -18292,6 +18413,13 @@ export interface AgentTerminalCloseInput {
  */
 export interface AgentTerminalOpenInput {
   requires_network?: boolean;
+  /**
+   * Default none. Credentials of the user's environment this terminal needs, by variable name
+   * (names with TOKEN, KEY, SECRET, PASSWORD, PASS, PWD or the like, or holding a
+   * user:password@ address). Only these are passed; their values and every other
+   * credential's are hidden in the output.
+   */
+  secret_environment?: string[];
   shell?: 'powershell' | 'cmd';
   title?: string;
   working_directory?: string;
@@ -18632,6 +18760,10 @@ export interface AuthorizationScope {
    * approvals omit this field; their exact operation fingerprint remains authoritative.
    */
   capability_limit?: ResolvedCapability[] | null;
+  /**
+   * A ReadOnly answer covering one shared Chrome tab for the rest of the turn.
+   */
+  chrome_consent?: ChromeTurnConsentRef | null;
   consent?: NativeSessionConsentRef | null;
   /**
    * The reusable file consent, present only when an ordinary file approval recorded one.
@@ -18656,6 +18788,23 @@ export interface AuthorizationScope {
 export interface BackendRequirement {
   allowed_classes: BackendClass[];
   guarantees: EnforcementGuarantee[];
+}
+/**
+ * A ReadOnly answer for one shared tab: reading it and acting on it ask no more for the rest
+ * of the turn. It never covers a sensitive action, a site the user has not confirmed, another
+ * share, or anything that is not Chrome.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTurnConsentRef".
+ */
+export interface ChromeTurnConsentRef {
+  approval_id: ApprovalRequestId;
+  approved_operation_fingerprint: CanonicalSha256HashV1;
+  grant_revision: Revision;
+  principal_id: PrincipalId;
+  session_id: SessionId;
+  share_id: string;
+  turn_task_id: TurnTaskId;
 }
 /**
  * The immutable identity of the approval that first produced a reusable Native
@@ -19743,6 +19892,499 @@ export interface CapabilityStatus {
   capability: string;
   readiness: CapabilityReadiness;
   reason_code: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeAssistResult".
+ */
+export interface ChromeAssistResult {
+  /**
+   * What the user answered. Aura does not check whether what they did worked.
+   */
+  outcome: 'done' | 'declined' | 'timed_out' | 'closed';
+  /**
+   * The tab afterwards; refs from before are no longer valid.
+   */
+  page?: ChromePageResult | null;
+}
+/**
+ * What the tab looks like after an action.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromePageResult".
+ */
+export interface ChromePageResult {
+  /**
+   * Console messages, page errors and failed loads since the previous result for this tab.
+   */
+  console: ChromeConsoleEntryV1[];
+  /**
+   * Dialogs the page opened during the action, and how they were answered.
+   */
+  dialogs: string[];
+  /**
+   * What stopped or changed the action, such as a new site waiting for the user.
+   */
+  notice?: string | null;
+  /**
+   * The page's accessibility snapshot. Elements carry refs (e3) for click, type and the rest.
+   * Password, one-time-code and payment fields show no value.
+   */
+  snapshot: string;
+  snapshot_truncated: boolean;
+  tab: string;
+  title: string;
+  url: string;
+}
+/**
+ * One thing the page reported: a console message, an uncaught error or a load that failed.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeConsoleEntryV1".
+ */
+export interface ChromeConsoleEntryV1 {
+  /**
+   * log, info, warning, error, exception or failed_load.
+   */
+  level: string;
+  /**
+   * Where it came from (address and line), when the page said.
+   */
+  source?: string | null;
+  text: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeClickInput".
+ */
+export interface ChromeClickInput {
+  button?: 'left' | 'right' | 'middle';
+  double?: boolean;
+  /**
+   * The element to click: a ref from the latest snapshot, such as e12.
+   */
+  ref?: string | null;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+  /**
+   * Or a point in the tab's viewport, in CSS pixels (x with y).
+   */
+  x?: number | null;
+  y?: number | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeCloseInput".
+ */
+export interface ChromeCloseInput {
+  /**
+   * A tab the model opened (a ref from chrome.tabs); the current tab when omitted. A tab the
+   * user shared is not closed: stopping the share is the user's.
+   */
+  tab?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeCloseResult".
+ */
+export interface ChromeCloseResult {
+  closed: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeConsoleInput".
+ */
+export interface ChromeConsoleInput {
+  /**
+   * Only errors, errors and warnings, or everything (default all).
+   */
+  level?: ChromeConsoleLevel | null;
+  /**
+   * The latest this many entries (default 50, at most 200).
+   */
+  max_entries?: number | null;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeConsoleResult".
+ */
+export interface ChromeConsoleResult {
+  entries: ChromeConsoleEntryV1[];
+  tab: string;
+  /**
+   * Older entries were dropped to stay within the limit.
+   */
+  truncated: boolean;
+  url: string;
+}
+/**
+ * Chrome control as the settings page shows it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeControlStatus".
+ */
+export interface ChromeControlStatus {
+  connection: ChromeConnectionState;
+  enabled: boolean;
+  /**
+   * Why the settings cannot be read, in the user's words.
+   */
+  issue?: string | null;
+  paired?: ChromePairedExtension | null;
+  /**
+   * When the pairing code the page showed stops working, while one is waiting.
+   */
+  pairing_expires_at?: UtcTimestamp | null;
+  /**
+   * Whether Chrome can find Aura's relay.
+   */
+  registered: boolean;
+  /**
+   * The settings revision the page changes next; `None` while the settings cannot be read.
+   */
+  revision?: number | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromePairedExtension".
+ */
+export interface ChromePairedExtension {
+  extension_id: string;
+  paired_at: string;
+}
+/**
+ * The extension folder the user loads in Chrome, and whether the file manager opened it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeExtensionFolder".
+ */
+export interface ChromeExtensionFolder {
+  /**
+   * False when the folder is missing or could not be opened.
+   */
+  opened: boolean;
+  path: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeHoverInput".
+ */
+export interface ChromeHoverInput {
+  ref: string;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeNavigateInput".
+ */
+export interface ChromeNavigateInput {
+  /**
+   * Or back, forward or reload.
+   */
+  action?: ChromeHistoryAction | null;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+  /**
+   * An address to go to in that tab. Give url or action, not both.
+   */
+  url?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeOpenInput".
+ */
+export interface ChromeOpenInput {
+  /**
+   * An http(s) address, or a host such as localhost:5173. It opens in a new tab of the
+   * "Aura" tab group, which becomes the current tab.
+   */
+  url: string;
+}
+/**
+ * A code the user types into the extension once; it works for five minutes and five tries.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromePairingCode".
+ */
+export interface ChromePairingCode {
+  code: string;
+  expires_at: UtcTimestamp;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromePressInput".
+ */
+export interface ChromePressInput {
+  /**
+   * Keep it held this long, in milliseconds, as a game expects (at most 3000).
+   */
+  hold_ms?: number | null;
+  /**
+   * A key or a chord: Enter, Escape, Tab, ArrowLeft, Space, a, Control+a, Shift+Tab.
+   */
+  key: string;
+  /**
+   * Press it this many times (default 1, at most 20).
+   */
+  repeat?: number | null;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeRequestUserInput".
+ */
+export interface ChromeRequestUserInput {
+  /**
+   * What the user should do in the tab, in a sentence (sign in, enter a code, choose).
+   */
+  reason: string;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+  /**
+   * How long to wait for them, in seconds (default 300; the settings set the most).
+   */
+  timeout_seconds?: number | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeScreenshotInput".
+ */
+export interface ChromeScreenshotInput {
+  /**
+   * The whole page instead of what is on screen.
+   */
+  full_page?: boolean;
+  /**
+   * Only this element (a ref from the latest snapshot, such as e7).
+   */
+  ref?: string | null;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeScreenshotResult".
+ */
+export interface ChromeScreenshotResult {
+  height: number;
+  /**
+   * The image, kept with this call for the user to see.
+   */
+  image_artifact_id: string;
+  note: string;
+  /**
+   * Whether the image was attached for the model to look at.
+   */
+  shown_to_model: boolean;
+  tab: string;
+  title: string;
+  url: string;
+  width: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeScrollInput".
+ */
+export interface ChromeScrollInput {
+  /**
+   * How far, in CSS pixels (default 600).
+   */
+  amount?: number | null;
+  direction: ChromeScrollDirection;
+  /**
+   * Scroll inside this element (a ref) instead of the page.
+   */
+  ref?: string | null;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSelectInput".
+ */
+export interface ChromeSelectInput {
+  /**
+   * The select element (a ref).
+   */
+  ref: string;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+  /**
+   * The options to choose, by value or by visible text.
+   */
+  values: string[];
+}
+/**
+ * A conversation, for what Aura shows about its shared tabs.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSessionRequest".
+ */
+export interface ChromeSessionRequest {
+  session_id: SessionId;
+}
+/**
+ * The conversation's shared tabs, for the line above its message box.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSessionShares".
+ */
+export interface ChromeSessionShares {
+  /**
+   * Whether the extension is connected now.
+   */
+  connected: boolean;
+  tabs: ChromeSharedTab[];
+}
+/**
+ * One tab the user shared with the conversation, or that the model opened for it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSharedTab".
+ */
+export interface ChromeSharedTab {
+  /**
+   * What the model asked the user to do, while the user has the tab.
+   */
+  assist_reason?: string | null;
+  state: ChromeSharedTabState;
+  /**
+   * The conversation's name for the tab (t1, t2…).
+   */
+  tab: string;
+  /**
+   * The share ends with the conversation's turn.
+   */
+  this_turn_only: boolean;
+  title: string;
+  url: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSetEnabledRequest".
+ */
+export interface ChromeSetEnabledRequest {
+  enabled: boolean;
+  expected_revision: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSnapshotInput".
+ */
+export interface ChromeSnapshotInput {
+  /**
+   * Longest snapshot to return, in characters (default 12000, at most 60000).
+   */
+  max_chars?: number | null;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+}
+/**
+ * One tab the session may act on.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTabV1".
+ */
+export interface ChromeTabV1 {
+  /**
+   * The tab the tools act on when they are not given one.
+   */
+  current: boolean;
+  /**
+   * Opened by `chrome.open`, so `chrome.close` may close it.
+   */
+  opened_by_aura: boolean;
+  /**
+   * The tab's ref for the other tools, such as t2.
+   */
+  tab: string;
+  title: string;
+  url: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTabsInput".
+ */
+export interface ChromeTabsInput {}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTabsResult".
+ */
+export interface ChromeTabsResult {
+  tabs: ChromeTabV1[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTypeInput".
+ */
+export interface ChromeTypeInput {
+  /**
+   * Replace the field's current text instead of adding to it.
+   */
+  clear?: boolean;
+  /**
+   * The field to type into (a ref); without it, the focused element.
+   */
+  ref?: string | null;
+  /**
+   * Press Enter afterwards.
+   */
+  submit?: boolean;
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+  text: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeWaitInput".
+ */
+export interface ChromeWaitInput {
+  /**
+   * The tab (a ref from chrome.tabs); the current tab when omitted.
+   */
+  tab?: string | null;
+  /**
+   * Wait until this text is on the page.
+   */
+  text?: string | null;
+  /**
+   * Wait until this text is gone.
+   */
+  text_gone?: string | null;
+  /**
+   * Or simply wait this long, in milliseconds (at most 10000).
+   */
+  time_ms?: number | null;
+  /**
+   * Give up after this long, in milliseconds (default 10000, at most 30000).
+   */
+  timeout_ms?: number | null;
 }
 /**
  * Text the user asked to copy.
@@ -21039,6 +21681,10 @@ export interface ManagedProcessStopResultV1 {
 export interface ManagedShellCommand {
   max_output_bytes: number;
   script: string;
+  /**
+   * Credentials the command declared; absent when it declared none.
+   */
+  secret_environment?: string[];
   shell: ManagedShell;
   stdin: string;
   timeout_ms: number;
@@ -22982,7 +23628,9 @@ export interface SessionRenameRequest {
  */
 export interface ShellExecuteInput {
   /**
-   * Default 65536. Bytes of stdout and stderr kept, up to 1048576.
+   * Default 65536. Bytes of stdout and of stderr kept, up to 1048576. A command that writes
+   * more is stopped then, and its result says so (stop_reason output_limit) with the output
+   * kept; send large output to a file and read that instead.
    */
   max_output_bytes?: number;
   /**
@@ -22995,6 +23643,13 @@ export interface ShellExecuteInput {
    * The script to run.
    */
   script: string;
+  /**
+   * Default none. Credentials of the user's environment this command needs, by variable name
+   * (names with TOKEN, KEY, SECRET, PASSWORD, PASS, PWD or the like, or holding a
+   * user:password@ address). Only these are passed; their values and every other
+   * credential's are hidden in the output.
+   */
+  secret_environment?: string[];
   /**
    * Text for standard input. Default empty.
    */
@@ -23058,7 +23713,11 @@ export interface ShellQueryInput {
    * Byte offset into stdout. Default 0.
    */
   stdout_offset?: number;
-  tool_call_id: ToolCallId;
+  /**
+   * The tool_call_id of a shell.powershell or shell.cmd result in this session (tcl_…); not
+   * the provider's call id, a tool name or an artifact id.
+   */
+  tool_call_id: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -23073,7 +23732,10 @@ export interface ShellQueryRequest {
  * via the `definition` "ShellStopInput".
  */
 export interface ShellStopInput {
-  tool_call_id: ToolCallId;
+  /**
+   * The tool_call_id of a shell.powershell or shell.cmd result in this session (tcl_…).
+   */
+  tool_call_id: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema

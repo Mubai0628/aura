@@ -195,6 +195,11 @@ impl AgentApplication {
             .read(StoreStep::operation("agent.history"), move |db| {
                 let mut projection =
                     aura_persistence_v2::agent::desktop::projection(db, &input, runtime)?;
+                // The newest page is the one the desktop polls and compares; an earlier page is
+                // merged into it and keeps the store's revision.
+                if input.before_turn_task_id.is_none() && input.within_turn.is_none() {
+                    super::history_revision::settle(&mut projection, input.limit)?;
+                }
                 aura_persistence_v2::agent::desktop::with_tool_input(db, &mut projection, &live)?;
                 Ok(projection)
             })

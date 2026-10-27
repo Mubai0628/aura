@@ -159,8 +159,8 @@ pub use pipe::{create_secure_byte_pipe_server, open_secure_byte_pipe_client};
 pub use process::process_account_sid;
 pub use process::{
     ProcessIdentity, ProcessWorkingSet, RetainedProcess, current_process_thread_count,
-    current_process_working_set, named_pipe_client_identity, retain_process, snapshot_process,
-    validate_named_pipe_client, validate_named_pipe_server,
+    current_process_working_set, named_pipe_client_identity, named_pipe_server_identity,
+    retain_process, snapshot_process, validate_named_pipe_client, validate_named_pipe_server,
 };
 pub use progress_dialog::{Progress, with_progress_window};
 pub use release_trust::{

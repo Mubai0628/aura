@@ -21,6 +21,7 @@ pub(super) fn run(root: &Path, args: &[OsString]) -> Result<()> {
         stdin: String::new(),
         timeout_ms: 15000,
         max_output_bytes: 4096,
+        secret_environment: Vec::new(),
     };
     let mut execution = backend.launch(&command, None)?;
     let deadline = Instant::now() + Duration::from_secs(10);

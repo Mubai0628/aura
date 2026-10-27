@@ -41,11 +41,12 @@ fn result(
 ) -> ShellResultV1 {
     let script = view.original_input.script.to_ascii_lowercase();
     ShellResultV1 {
+        tool_call_id: view.tool_call_id,
         state: view.state,
         exit_code: view.exit_code,
         stop_reason: view.stop_reason.filter(|reason| *reason != RunnerStopReason::Exited),
         background: view.background,
-        diagnostic: view.diagnostic.clone(),
+        diagnostic: diagnostic(view),
         stdout,
         stderr,
         stdout_total: view.stdout_total,
@@ -60,6 +61,33 @@ fn result(
             .cloned()
             .collect(),
     }
+}
+
+/// Why Aura stopped a command and what can be done next, before any diagnostic the run recorded.
+/// A stopped command's kept output is in the result, so none of these is a failure to read.
+fn diagnostic(view: &ShellExecutionView) -> Option<String> {
+    let input = &view.original_input;
+    let stopped = match view.stop_reason {
+        Some(RunnerStopReason::OutputLimit) => format!(
+            "Aura stopped the command when its output passed max_output_bytes ({} bytes); the output up to then is kept here. Write large output to a file and read the file, or run the command again with a larger max_output_bytes (at most 1048576).",
+            input.max_output_bytes
+        ),
+        Some(RunnerStopReason::TimedOut) => format!(
+            "Aura stopped the command after timeout_ms ({} ms); the output up to then is kept here. If it needs longer, run it again with a larger timeout_ms.",
+            input.timeout_ms
+        ),
+        Some(RunnerStopReason::CoreDisconnected) => "Aura stopped the command because Aura's Core stopped while it ran; it may have done part of its work. Check what it changed before running it again.".to_owned(),
+        Some(RunnerStopReason::Cancelled) => {
+            "The command was stopped (by shell.stop or by the user) before it finished.".to_owned()
+        }
+        Some(RunnerStopReason::Exited | RunnerStopReason::Unknown) | None => {
+            return view.diagnostic.clone();
+        }
+    };
+    Some(match &view.diagnostic {
+        Some(recorded) => format!("{stopped}\n{recorded}"),
+        None => stopped,
+    })
 }
 
 fn stream(

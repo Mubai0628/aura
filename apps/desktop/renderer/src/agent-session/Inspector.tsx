@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { userMessage } from './user-message';
-import type { AgentPromptInspection } from '@aura/contracts/generated';
+import type {
+  AgentPromptInspection,
+  PromptInspectorActivitySourceView,
+} from '@aura/contracts/generated';
+import type { WorkspaceNavigationItem } from '../app-shell-types';
 import { PromptInspectorShell } from '../PromptInspectorShell';
 import { PixelBar, PixelCard } from '../inspector/PixelBar';
 import { FORMAT_LABELS, SECTION_LABELS, amount, share } from '../inspector/inspector-labels';
@@ -10,12 +14,25 @@ import { SnapshotJson } from '../inspector/SnapshotJson';
 /** How many of the step's tools are drawn; the rest are counted. */
 const TOP_TOOLS = 6;
 
+/** The workspace and conversation that run another task, by the names the sidebar shows. */
+function sourceName(
+  workspaces: readonly WorkspaceNavigationItem[],
+  source: PromptInspectorActivitySourceView,
+): string {
+  const workspace = workspaces.find((item) => item.id === source.workspace_id);
+  const session = workspace?.sessions.find((item) => item.id === source.session_id);
+  return `${workspace?.name ?? '未知工作区'} › ${session ? session.title || '新会话' : '未知会话'}`;
+}
+
 export function Inspector({
   view,
   error,
+  workspaces = [],
 }: {
   view: AgentPromptInspection | undefined;
   error: string | undefined;
+  /** Names the conversations behind the other tasks; the model never sees them. */
+  workspaces?: readonly WorkspaceNavigationItem[] | undefined;
 }) {
   // The snapshot is laid out only once its details are opened.
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -106,6 +123,18 @@ export function Inspector({
                   )}`}
                 />
                 <b>{amount(section.estimated_tokens)}</b>
+              </li>
+            ))}
+          </ol>
+        </PixelCard>
+      ) : null}
+      {view.activity_sources?.length ? (
+        <PixelCard title="其它任务" figure={view.activity_sources.length}>
+          <ol className="pixel-rows is-sources">
+            {view.activity_sources.map((source) => (
+              <li key={source.another_task}>
+                <span className="pixel-row-name">任务 {source.another_task}</span>
+                <b>{sourceName(workspaces, source)}</b>
               </li>
             ))}
           </ol>

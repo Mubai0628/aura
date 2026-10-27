@@ -13,3 +13,5 @@ CREATE TABLE turn_poll(id TEXT PRIMARY KEY, revision INTEGER NOT NULL, state TEX
 CREATE TABLE agent_visible_repair(owner TEXT NOT NULL, attempt TEXT NOT NULL, sequence INTEGER NOT NULL, text_copied INTEGER NOT NULL, reasoning_copied INTEGER NOT NULL, text_len INTEGER NOT NULL, reasoning_len INTEGER NOT NULL, PRIMARY KEY(owner, attempt, sequence)) STRICT;
 CREATE TABLE agent_visible_repair_turn(id INTEGER PRIMARY KEY CHECK(id=1), owner TEXT NOT NULL) STRICT;
 CREATE TABLE turn_poll_capture(id TEXT PRIMARY KEY, revision INTEGER NOT NULL, state TEXT NOT NULL, total_len INTEGER NOT NULL, copied INTEGER NOT NULL, payload BLOB NOT NULL) STRICT;
+CREATE INDEX turn_tasks_session ON turn_tasks(session_id);
+CREATE INDEX agent_runs_turn ON agent_runs(turn_task_id);

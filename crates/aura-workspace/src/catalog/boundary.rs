@@ -1,15 +1,17 @@
 //! Where the index stops: a folder `.gitignore` excludes is recorded as itself, and what lies
 //! below it is read from disk when asked for.
+use super::artifacts::is_internal_component;
 use super::build::CatalogBuildStatus;
 use super::delta::CatalogView;
 use super::scan::{
-    CatalogEntry, PathCatalog, inherited_ignores, is_generated_path, list_directory_once,
-    listing_version,
+    CatalogEntry, EntryFacts, PathCatalog, build_entry, inherited_ignores, is_generated_path,
+    push_ignore_matcher, version_of,
 };
+use crate::error::io_error;
 use crate::{SecurePathResolver, WorkspaceError};
 use aura_domain_common::{Revision, WorkspacePath};
 use aura_workspace_domain::CatalogEntryKind;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 /// Whether a folder above `path` (not `path` itself, not the root) is one the index records
 /// as ignored: the index does not reach below such a folder.
@@ -35,6 +37,12 @@ pub(super) fn ignored_directory(state: &CatalogView, path: &WorkspacePath) -> bo
 /// The children of `directory` read from disk, one level and one page, when the index stops
 /// above them (an ignored folder, or a folder below one); `None` when the index holds them.
 /// Nothing is written to the index and nothing is watched.
+///
+/// Only the page's entries are inspected. Naming the folder's children is cheap; inspecting one
+/// (its identity, metadata and ignore rules) is the cost, which made a 10,001-file folder take
+/// about two seconds to list however few entries were returned. The folder's version is taken
+/// from the names and kinds of all its children, so a page cursor still holds exactly while the
+/// set of children does.
 pub fn children_beyond_index(
     catalog: &PathCatalog,
     resolver: &SecurePathResolver,
@@ -51,24 +59,125 @@ pub fn children_beyond_index(
     if !resolved.info.is_directory || resolved.info.is_reparse_point {
         return Err(WorkspaceError::NotFound { path: directory.clone() });
     }
+    let absolute = resolver.absolute_path(directory);
+    let children = named_children(directory, &absolute)?;
+    let facts = children
+        .iter()
+        .map(|(path, kind)| (path.as_str(), *kind, None, None, None))
+        .collect::<Vec<EntryFacts<'_>>>();
+    let version = version_of(&facts)?;
+    let start = after.map_or(0, |after| children.partition_point(|(path, _)| path <= after));
     let mut ignores = inherited_ignores(resolver, directory)?;
-    let (mut pending, mut stats, mut watched) = (Vec::new(), BTreeMap::new(), Vec::new());
-    list_directory_once(
-        resolver,
-        directory,
-        directory,
-        &mut ignores,
-        &mut pending,
-        &mut stats,
-        &mut watched,
-    )?;
-    let mut entries = pending.iter().map(CatalogEntry::from_record).collect::<Vec<_>>();
-    // The whole folder's version, so a page cursor holds while the folder's children do.
-    let version = listing_version(&entries)?;
-    entries.retain(|entry| after.is_none_or(|after| &entry.path > after));
-    entries.sort_by(|left, right| left.path.cmp(&right.path));
-    entries.truncate(limit);
+    let pushed = push_ignore_matcher(&absolute, directory.is_root(), &mut ignores)?;
+    let mut entries = Vec::new();
+    for (path, _) in children.iter().skip(start).take(limit) {
+        let name = path.as_str().rsplit('/').next().unwrap_or(path.as_str()).to_owned();
+        let child_absolute = absolute.join(&name);
+        // The listed folder is the partition, as a one-level listing of it always was.
+        let pending = build_entry(
+            &ignores,
+            directory.clone(),
+            directory.clone(),
+            path.clone(),
+            name,
+            &child_absolute,
+        )?;
+        #[cfg(test)]
+        INSPECTED.with(|count| count.set(count.get() + 1));
+        entries.push(CatalogEntry::from_record(&pending));
+    }
+    if pushed {
+        ignores.pop();
+    }
     Ok(Some((entries, version)))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The entries `children_beyond_index` inspected on this thread, for the tests that bound it.
+    pub(super) static INSPECTED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// The index entries `PathCatalog::children_after` iterated on this thread.
+    pub(super) static VISITED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// A folder's children by name, in path order, with the kind the enumeration itself reports.
+/// Aura's own staging entries are never listed.
+fn named_children(
+    directory: &WorkspacePath,
+    absolute: &std::path::Path,
+) -> Result<Vec<(WorkspacePath, CatalogEntryKind)>, WorkspaceError> {
+    let mut children = Vec::new();
+    for child in std::fs::read_dir(absolute)
+        .map_err(|source| io_error("enumerate workspace directory", absolute, source))?
+    {
+        let child =
+            child.map_err(|source| io_error("read workspace directory entry", absolute, source))?;
+        let name = child.file_name().into_string().map_err(|name| {
+            WorkspaceError::Watcher(format!(
+                "workspace path is not representable in JSON: {}",
+                std::path::PathBuf::from(name).display()
+            ))
+        })?;
+        if is_internal_component(&name) {
+            continue;
+        }
+        let path = if directory.is_root() {
+            WorkspacePath::parse(&name)
+        } else {
+            WorkspacePath::parse(format!("{directory}/{name}"))
+        }
+        .map_err(|error| WorkspaceError::Watcher(format!("unsafe workspace entry: {error}")))?;
+        let kind = match child.file_type() {
+            Ok(kind) if kind.is_symlink() => CatalogEntryKind::ReparsePoint,
+            Ok(kind) if kind.is_dir() => CatalogEntryKind::Directory,
+            _ => CatalogEntryKind::File,
+        };
+        children.push((path, kind));
+    }
+    children.sort_by(|left, right| left.0.cmp(&right.0));
+    Ok(children)
+}
+
+impl PathCatalog {
+    /// One page of `parent`'s indexed children in path order, after `after`, without the folder's
+    /// version (the file tree pages with `after` and needs none). Only the part of the index from
+    /// the cursor through the end of `parent`'s subtree is walked.
+    pub fn children_after(
+        &self,
+        parent: &WorkspacePath,
+        after: Option<&WorkspacePath>,
+        limit: usize,
+    ) -> Result<(Vec<CatalogEntry>, Revision), WorkspaceError> {
+        use std::ops::Bound::{Excluded, Included, Unbounded};
+        let state = self.state.read().map_err(|_| WorkspaceError::LockPoisoned("path catalog"))?;
+        // Below the root, a folder's subtree is exactly the index range from `dir/` up to `dir0`,
+        // '0' being the character after '/': a sibling such as `src.bak` sorts before it and
+        // `src2` after it, and an empty folder's range is empty. The root's children are spread
+        // over the whole index, which is walked from its start.
+        let (start, end) = if parent.is_root() {
+            (None, None)
+        } else {
+            (Some(format!("{parent}/")), Some(format!("{parent}0")))
+        };
+        let lower = match (after, &start) {
+            (Some(after), _) => Excluded(after.as_str()),
+            (None, Some(start)) => Included(start.as_str()),
+            (None, None) => Unbounded,
+        };
+        let upper = end.as_deref().map_or(Unbounded, Excluded);
+        let mut entries = Vec::new();
+        for (_, entry) in state.entries.range::<str, _>((lower, upper)) {
+            #[cfg(test)]
+            VISITED.with(|count| count.set(count.get() + 1));
+            if &entry.parent_path == parent {
+                entries.push(entry.clone());
+                if entries.len() == limit {
+                    break;
+                }
+            }
+        }
+        Ok((entries, state.revision))
+    }
 }
 
 impl PathCatalog {

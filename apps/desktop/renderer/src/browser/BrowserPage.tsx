@@ -213,7 +213,7 @@ export function BrowserPage({
           ) : state?.closed ? (
             <div className="browser-empty">
               <p role="status">{state.notice?.text ?? '页面已关闭'}</p>
-              <button className="secondary-button" onClick={open} type="button">
+              <button className="button" onClick={open} type="button">
                 重新打开
               </button>
             </div>

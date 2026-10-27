@@ -3,7 +3,10 @@
 use super::ActivityResourceKey;
 use aura_activity_domain::*;
 use aura_domain_common::{Revision, RuntimeInstanceId, SessionId, UtcTimestamp, WorkspaceId};
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct ActivitySnapshot {
@@ -229,7 +232,8 @@ impl Default for ActivitySummaryBudget {
 pub enum ActivityRelevance {
     /// Own session, or the target this reader already named.
     Direct,
-    /// Reachable through a resource this reader may touch, or an unknown write set.
+    /// Reachable through a resource this reader may touch, in this reader's workspace, or an
+    /// unknown write set outside its own workspace.
     Related,
     /// Not selected.
     Irrelevant,
@@ -253,6 +257,9 @@ pub struct ActivityVisibility {
     pub authorized_targets: BTreeSet<ActivityResourceKey>,
     /// Complete known targets for directory containment; lookup hints remain non-authorizing.
     pub relevant_resources: Vec<ActivityResourceTarget>,
+    /// This reader's own spelling of targets it already named. Another session's row touching one
+    /// carries this name, never its owner's.
+    pub relevant_names: BTreeMap<ActivityResourceKey, String>,
 }
 
 impl ActivityVisibility {
@@ -270,6 +277,7 @@ impl ActivityVisibility {
             cross_session_visible: false,
             authorized_targets: BTreeSet::new(),
             relevant_resources: Vec::new(),
+            relevant_names: BTreeMap::new(),
         }
     }
 
@@ -285,8 +293,12 @@ impl ActivityVisibility {
                 if self.is_related(&resource.target) {
                     let mut projected = resource.clone();
                     // A physical key is not authority over another session's spelling of that file.
-                    // Authorized aliases are supplied by the reader's own task, never copied here.
-                    projected.display_name.clear();
+                    // The name shown is the reader's own, supplied by its own task.
+                    projected.display_name = self
+                        .relevant_names
+                        .get(&ActivityResourceKey::of(&resource.target))
+                        .cloned()
+                        .unwrap_or_default();
                     projected.display_name_truncated = false;
                     // Names not already carried by the requesting session remain private,
                     // including prospective child names discovered through a directory hint.
@@ -298,12 +310,20 @@ impl ActivityVisibility {
                         projected.target = self.reader_entry(&resource.target);
                     }
                     Some(projected)
-                } else if resource.relation == ActivityResourceRelation::UnknownWriteSet {
+                } else if resource.relation.is_unknown_write_set() {
+                    // The folder a command runs in is metadata of its own workspace, shown to a
+                    // reader there; elsewhere only the unprovable writer itself is reported.
+                    let folder = record.owner.workspace_id == self.workspace_id
+                        && resource.relation == ActivityResourceRelation::UnknownWriteSet;
                     Some(ActivityResource {
                         target: ActivityResourceTarget::Unproven { hint: String::new() },
                         relation: resource.relation,
-                        display_name: String::new(),
-                        display_name_truncated: false,
+                        display_name: if folder {
+                            resource.display_name.clone()
+                        } else {
+                            String::new()
+                        },
+                        display_name_truncated: folder && resource.display_name_truncated,
                     })
                 } else {
                     None
@@ -377,7 +397,7 @@ impl ActivityVisibility {
             ActivityRelevance::Direct
         } else if record.owner.workspace_id == self.workspace_id
             || self.names_a_relevant_target(record)
-            || Self::is_unknown_write_set(record)
+            || Self::writes_outside_unknown(record)
         {
             ActivityRelevance::Related
         } else {
@@ -388,14 +408,11 @@ impl ActivityVisibility {
     /// wider than visibility: a same-physical-target row from another workspace
     /// is *in scope*, so it can be reported as filtered rather than pretended away.
     ///
-    /// R4: AN UNKNOWN WRITE SET IS IN SCOPE FROM ANYWHERE.
-    /// A Shell whose write set cannot be proven is exactly the row that might be touching the
-    /// reader's file, so "another session" and "another workspace" are not evidence that it is
-    /// irrelevant. The previous predicate required a session, a workspace or a named target to
-    /// match, so such a row was not merely filtered - it was never counted, and a reader saw a
-    /// complete-looking picture that silently omitted the one writer it most needed to know about.
-    /// It is now in scope, and it stays subject to the real visibility rule below, which is where
-    /// its private content is decided.
+    /// An unknown write set is in scope in its own workspace. A Shell runs in its session's
+    /// workspace, so a writer whose set cannot be proven shares this reader's files only when it
+    /// shares this reader's workspace - unless its script names places outside its workspace, which
+    /// puts it in every reader's scope. Any other command in another workspace reaches this reader
+    /// only through a physical target the reader already reached, like any other row there.
     #[must_use]
     pub fn scope_matches(&self, record: &ActivityRecord) -> bool {
         if record.runtime_instance_id != self.runtime_instance_id {
@@ -403,10 +420,8 @@ impl ActivityVisibility {
         }
         record.owner.session_id == self.session_id
             || record.owner.workspace_id == self.workspace_id
-            || record.resources.iter().any(|resource| {
-                resource.relation == ActivityResourceRelation::UnknownWriteSet
-                    || self.is_related(&resource.target)
-            })
+            || record.resources.iter().any(|resource| self.is_related(&resource.target))
+            || Self::writes_outside_unknown(record)
     }
 
     /// Whether the named physical target is one this reader already reached (R4).
@@ -428,10 +443,15 @@ impl ActivityVisibility {
     /// Whether this row's write set cannot be proven (R4).
     #[must_use]
     fn is_unknown_write_set(record: &ActivityRecord) -> bool {
-        record
-            .resources
-            .iter()
-            .any(|resource| resource.relation == ActivityResourceRelation::UnknownWriteSet)
+        record.resources.iter().any(|resource| resource.relation.is_unknown_write_set())
+    }
+
+    /// Whether this row's unprovable write set reaches outside its own workspace.
+    #[must_use]
+    fn writes_outside_unknown(record: &ActivityRecord) -> bool {
+        record.resources.iter().any(|resource| {
+            resource.relation == ActivityResourceRelation::UnknownWriteSetOutsideWorkspace
+        })
     }
 
     /// The visibility decision, applied *before* relevance and budget.
@@ -447,8 +467,10 @@ impl ActivityVisibility {
     ///
     /// * it names a physical target this reader already reached - the reader has an independent
     ///   reason to know that object exists, and
-    /// * its write set cannot be proven, in which case only the **minimum permitted** fact is
-    ///   admitted: that an unprovable writer exists, never its private display names or parameters.
+    /// * its write set cannot be proven and it runs in this reader's workspace or writes outside its
+    ///   own, in which case only the **minimum permitted** fact is admitted: that an unprovable
+    ///   writer exists, never its private parameters. Another workspace's unprovable writer that
+    ///   stays inside its workspace is not shown.
     ///
     /// Every other other-session row is counted as filtered rather than shown, which is what makes
     /// "there is something here you may not see" a real, disclosed fact instead of a silent gap.
@@ -460,10 +482,13 @@ impl ActivityVisibility {
         // `cross_session_visible` is a caller-supplied widening, and it is deliberately **not**
         // sufficient on its own: a caller that asks a broad question still only reaches another
         // session's row when that row names a physical target the caller already reached, so the
-        // widening cannot be manufactured by the shape of a query. An unprovable write set is the
-        // one case admitted without such an association, because the row's mere existence is the
-        // fact that matters - and `may_see_private_fields` still keeps its private content out.
-        self.names_a_relevant_target(record) || Self::is_unknown_write_set(record)
+        // widening cannot be manufactured by the shape of a query. An unprovable write set in this
+        // reader's workspace is the one case admitted without such an association, because the
+        // row's mere existence is the fact that matters - and `may_see_private_fields` still keeps
+        // its private content out.
+        self.names_a_relevant_target(record)
+            || record.owner.workspace_id == self.workspace_id && Self::is_unknown_write_set(record)
+            || Self::writes_outside_unknown(record)
     }
 
     /// Whether this row may contribute its **private** fields - display names, paths and
@@ -488,11 +513,11 @@ impl ActivityVisibility {
         if row.workspace_id == self.workspace_id {
             return ActivityRelevance::Related;
         }
-        // A row from another workspace stays relevant when it touches a target
-        // this reader named, or when its write set is not provable. Hiding either
-        // would present an unrelated-looking picture of the same physical file.
+        // A row from another workspace stays relevant when it touches a target this reader
+        // named, or writes outside its workspace: hiding it would present an unrelated-looking
+        // picture of the same physical file.
         if row.resources.iter().any(|resource| {
-            resource.relation == ActivityResourceRelation::UnknownWriteSet
+            resource.relation == ActivityResourceRelation::UnknownWriteSetOutsideWorkspace
                 || self.is_related(&resource.target)
         }) {
             return ActivityRelevance::Related;
@@ -516,6 +541,9 @@ fn render_row(row: &ActivityRow, relevance: ActivityRelevance, private: bool) ->
             ActivityResourceRelation::Read => "read",
             ActivityResourceRelation::Write => "write",
             ActivityResourceRelation::UnknownWriteSet => "unknown-write-set",
+            ActivityResourceRelation::UnknownWriteSetOutsideWorkspace => {
+                "unknown-write-set-outside-workspace"
+            }
         })
         .collect::<BTreeSet<_>>()
         .into_iter()
@@ -604,10 +632,9 @@ fn matches_query(row: &ActivityRow, query: &ActivityQuery) -> bool {
         ActivityQuery::Session => true,
         ActivityQuery::Exact { id } => row.id == *id,
         ActivityQuery::Group { group } => row.tool_group == *group,
-        ActivityQuery::UnknownWriteSet => row
-            .resources
-            .iter()
-            .any(|resource| resource.relation == ActivityResourceRelation::UnknownWriteSet),
+        ActivityQuery::UnknownWriteSet => {
+            row.resources.iter().any(|resource| resource.relation.is_unknown_write_set())
+        }
         ActivityQuery::Resource { target } => {
             row.resources.iter().any(|resource| targets_related(&resource.target, target))
         }

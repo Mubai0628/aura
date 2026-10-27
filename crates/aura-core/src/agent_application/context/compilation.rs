@@ -50,6 +50,10 @@ impl AgentApplication {
         // starts, by the user or because the request no longer fits, it goes on until all but the
         // recent history is summarized, not only until the request fits again.
         let mut deep = false;
+        // A compaction this step asked for itself fell short. It is not asked again here: the
+        // request goes as it is when it fits, and otherwise old results are cleared, then the user
+        // decides - the turn never ends for it.
+        let mut fell_short = false;
         // What this preparation gave back, for the line the conversation shows -
         // the request's estimate when it first did not fit, results cleared, history compacted.
         let mut reduction: Option<PromptInspectorReductionView> = None;
@@ -157,6 +161,23 @@ impl AgentApplication {
                 self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
                 return Ok(None);
             }
+            if fell_short && manual.is_none() {
+                match over {
+                    None => {
+                        deep = false;
+                        continue;
+                    }
+                    Some((plan, budget)) => {
+                        let cleared = super::clearing::clear_next(&mut input, &budget, true)?;
+                        if cleared > 0 {
+                            note_cleared(&mut reduction, cleared);
+                            continue;
+                        }
+                        self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
+                        return Ok(None);
+                    }
+                }
+            }
             let compacted = self
                 .compact(
                     &input,
@@ -182,6 +203,23 @@ impl AgentApplication {
                     deep = !whole;
                     None
                 }
+                Ok(Compacted::FellShort { code }) if manual.is_none() => {
+                    crate::append_core_log(
+                        "context.compaction_fell_short",
+                        serde_json::json!({
+                            "agent_run_id": run_id,
+                            "model_step_id": step.model_step_id,
+                            "code": code,
+                        }),
+                    );
+                    fell_short = true;
+                    deep = false;
+                    passes += 1;
+                    continue;
+                }
+                Ok(Compacted::FellShort { code }) => {
+                    Some(anyhow::anyhow!("context.compaction_failed: {code}"))
+                }
                 // Nothing left to
                 // compact never ends the turn. A request that fits is sent as it is; one that does
                 // not first gives up the recent history it kept, then waits for the user's decision
@@ -198,11 +236,7 @@ impl AgentApplication {
                     // is lost for all that follows; they go only when compaction cannot make room.
                     let cleared = super::clearing::clear_next(&mut input, over_budget, true)?;
                     if cleared > 0 {
-                        if let Some(reduced) = reduction.as_mut() {
-                            reduced.cleared_tool_results = reduced
-                                .cleared_tool_results
-                                .saturating_add(u32::try_from(cleared).unwrap_or(u32::MAX));
-                        }
+                        note_cleared(&mut reduction, cleared);
                         continue;
                     }
                     match over {
@@ -354,5 +388,13 @@ impl AgentApplication {
                 },
             )
             .await
+    }
+}
+
+/// Counts the old results a preparation cleared, for the line the conversation shows.
+fn note_cleared(reduction: &mut Option<PromptInspectorReductionView>, cleared: usize) {
+    if let Some(reduced) = reduction.as_mut() {
+        reduced.cleared_tool_results =
+            reduced.cleared_tool_results.saturating_add(u32::try_from(cleared).unwrap_or(u32::MAX));
     }
 }

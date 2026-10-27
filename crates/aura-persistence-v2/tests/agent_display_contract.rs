@@ -223,3 +223,47 @@ fn projection_owns_the_single_assistant_view_definition() {
     assert_eq!(view.assistant_messages.len(), 1);
     let _: &AgentAssistantView = &view.assistant_messages[0];
 }
+
+/// While the context is compacted before a step, the step says so instead of looking like the
+/// model thinking: since when the part running now began, and how many parts are done.
+#[test]
+fn a_step_waiting_on_a_compaction_says_since_when_and_how_many_parts_are_done() {
+    let root = tempfile::tempdir().expect("directory");
+    let mut store = V2Store::create(&root.path().join("v2")).expect("store");
+    let f = support::Fixture::preflight(&mut store, AgentTaskMode::Normal);
+    let insert = |store: &mut V2Store, state: &str, at: &str| {
+        let payload = json!({"source_step_id": f.step.model_step_id, "created_at": at}).to_string();
+        let id = ContextProjectionSnapshotId::new().to_string();
+        store
+            .database
+            .unit_of_work(|tx| -> rusqlite::Result<usize> {
+                tx.execute(
+                    "INSERT INTO context_compactions VALUES(?1,?2,?3,1,?4)",
+                    [id, f.turn.session_id.to_string(), state.to_owned(), payload],
+                )
+            })
+            .expect("compaction row");
+    };
+    insert(&mut store, "completed", "2026-09-07T00:00:01Z");
+    insert(&mut store, "running", "2026-09-07T00:01:00Z");
+    let view = history_of(&store, f.turn.session_id);
+    let assistant = view.turns[0].assistant_messages.last().expect("the step being prepared");
+    assert!(assistant.partial);
+    let compacting = assistant.context_compacting.as_ref().expect("the compaction under way");
+    assert_eq!(compacting.since, "2026-09-07T00:01:00Z".parse().unwrap());
+    assert_eq!(compacting.finished_parts, 1);
+    let wire: Value = serde_json::to_value(assistant).expect("assistant wire");
+    assert_eq!(wire["context_compacting"]["finished_parts"], json!(1));
+
+    store
+        .database
+        .unit_of_work(|tx| -> rusqlite::Result<usize> {
+            tx.execute("UPDATE context_compactions SET state='completed' WHERE state='running'", [])
+        })
+        .expect("compaction finished");
+    let view = history_of(&store, f.turn.session_id);
+    let assistant = view.turns[0].assistant_messages.last().expect("the step being prepared");
+    assert!(assistant.context_compacting.is_none());
+    let wire: Value = serde_json::to_value(assistant).expect("assistant wire");
+    assert!(wire.get("context_compacting").is_none());
+}

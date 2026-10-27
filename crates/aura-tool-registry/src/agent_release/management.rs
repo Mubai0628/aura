@@ -17,16 +17,15 @@ pub(super) fn entry(
             schema_value::<aura_agent_domain::EmptyToolInput>()?,
             "List fixed and dynamic tools in this request. Fixed tools are user-managed and cannot be changed by the model.",
         ),
-        // The request's tool list stays the same for a whole turn (the Provider reuses its
-        // cached prefix), so a load or unload applies from the next turn and a tool needed now is
-        // called through tools.call.
+        // A load or unload applies from the next turn (the Provider reuses its cached prefix), so
+        // a tool needed now is called through tools.call.
         BuiltinCoreHandlerV1::ToolsLoad => (
             schema_value::<AgentToolLoadInput>()?,
-            "Add tool_ids to this session's tool list from the next turn on; the list does not change during a turn, so call a tool you need now through tools.call. Membership persists across restarts. Fixed tools do not use dynamic capacity. To replace dynamic tools atomically put their IDs in replace; otherwise use replace=[]. At capacity explicitly unload or replace; never copy registry hashes.",
+            "Add tool_ids to this session's tool list from the next turn on; a load does not change this turn's list, so call a tool you need now through tools.call. Membership persists across restarts. Fixed tools do not use dynamic capacity. To replace dynamic tools atomically put their IDs in replace; otherwise use replace=[]. At capacity explicitly unload or replace; never copy registry hashes.",
         ),
         BuiltinCoreHandlerV1::ToolsUnload => (
             schema_value::<AgentToolUnloadInput>()?,
-            "Remove dynamic tool_ids from this session's tool list from the next turn on; this turn's list does not change. Cannot remove fixed tools. Unavailable dynamic members may be removed by ID. Existing execution snapshots remain unchanged.",
+            "Remove dynamic tool_ids from this session's tool list from the next turn on, not during this turn. Cannot remove fixed tools. Unavailable dynamic members may be removed by ID. Existing execution snapshots remain unchanged.",
         ),
         // Its input stays the signed one; the description names tools.call.
         BuiltinCoreHandlerV1::ToolsSearch => (
@@ -41,7 +40,7 @@ pub(super) fn entry(
         // by naming one.
         BuiltinCoreHandlerV1::ActivityQuery => (
             activity_query_schema()?,
-            "Ask which real activities the runtime is running. Use by=resource with a verified target to find another writer of a file you just operated on, by=unknown_write_set to find a Shell whose write set cannot be proven, by=group or by=session to list your own running tools. Read-only: it takes no file protection, starts and stops nothing, and does not disclose another session's private aliases or parameters. A verified target selects related activity; it grants no authority.",
+            "Ask which activities your own session is running. Use by=session to list them, by=group for one tool group, by=resource with a verified target for those touching one file, and by=unknown_write_set for commands whose write set cannot be proven. Other sessions' tasks are not listed: the task state you get each step names the files they may be writing. Read-only: it takes no file protection, starts and stops nothing, and grants no authority.",
         ),
     };
     let invalid = || BuiltinToolDefinitionSetError::InvalidDocument;

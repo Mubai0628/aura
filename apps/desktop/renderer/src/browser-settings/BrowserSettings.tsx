@@ -9,6 +9,7 @@ import { ConfirmationDialog } from '../ConfirmationDialog';
 import { userMessage } from '../agent-session/user-message';
 import { browserApi } from '../browser/browser-store';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
+import { ChromeSettings } from './ChromeSettings';
 import './browser-settings.css';
 
 type SiteField = 'allowed_sites' | 'blocked_sites';
@@ -84,7 +85,7 @@ function SiteList({
           value={draft}
         />
         <button
-          className="secondary-button"
+          className="button is-small"
           disabled={disabled || draft.trim() === ''}
           type="submit"
         >
@@ -159,7 +160,7 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
           <span>启用内置浏览器</span>
         </label>
         <button
-          className="secondary-button"
+          className="button is-small is-danger"
           disabled={!ready}
           onClick={() => setConfirming('clear')}
           type="button"
@@ -199,6 +200,7 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
           {error ?? snapshot?.issue}
         </p>
       ) : null}
+      <ChromeSettings coreReady={coreReady} />
       {confirming === 'debugging' ? (
         <ConfirmationDialog
           busy={saving}

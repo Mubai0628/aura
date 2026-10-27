@@ -65,15 +65,29 @@ pub fn operation_for_call(
     Ok(Some(operation))
 }
 
+/// What shell.query and shell.stop say about an id that names no Shell call of the session.
+pub const NOT_A_SHELL_CALL: &str = "shell.tool_call_id: no shell.powershell or shell.cmd call in this session has this tool_call_id. Pass the tool_call_id field of that call's result (tcl_...), not the provider's call id, a tool name or an artifact id";
+
+/// A missing call, another session's call and another tool's call are all the same wrong id.
+fn not_a_shell_call(error: Error) -> Error {
+    match error {
+        Error::Sqlite(rusqlite::Error::QueryReturnedNoRows) | Error::Conflict => {
+            Error::Invalid(NOT_A_SHELL_CALL)
+        }
+        other => other,
+    }
+}
+
 pub fn query(
     db: &Connection,
     session: SessionId,
     input: &ShellQueryInput,
 ) -> StoreResult<ShellExecutionView> {
     if input.max_bytes == 0 || input.max_bytes > 65536 {
-        return Err(Error::Invalid("shell query limit"));
+        return Err(Error::Invalid("shell.query.max_bytes: max_bytes is 1 to 65536"));
     }
-    let operation = operation_for_call(db, session, input.tool_call_id)?;
+    let operation =
+        operation_for_call(db, session, input.tool_call_id).map_err(not_a_shell_call)?;
     let call = crate::tool::execution::call(db, input.tool_call_id)?;
     let reference = call.call.definition_ref.as_ref().ok_or(Error::Conflict)?;
     let aura_tool_contract::NormalizedToolCallInputStateV1::Ready { arguments, .. } =
@@ -96,7 +110,7 @@ pub fn query(
         let shell = match entry.canonical_name.as_str() {
             "shell.powershell" => ManagedShell::PowerShell,
             "shell.cmd" => ManagedShell::Cmd,
-            _ => return Err(Error::Conflict),
+            _ => return Err(Error::Invalid(NOT_A_SHELL_CALL)),
         };
         original_input.clone().command(shell).map_err(|_| Error::Invalid("original shell input"))?
     };

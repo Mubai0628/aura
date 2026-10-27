@@ -50,6 +50,7 @@ fn queued_shell_has_immutable_input_and_session_bound_pagination_then_interrupti
         stdin: "原始输入".into(),
         timeout_ms: 1000,
         max_output_bytes: 4096,
+        secret_environment: Vec::new(),
     };
     let batch = f.admit(
         &mut store,
@@ -127,6 +128,7 @@ fn received_output_survives_missing_exit_and_late_snapshot_does_not_duplicate_it
         stdin: "original stdin".into(),
         timeout_ms: 1000,
         max_output_bytes: 4096,
+        secret_environment: Vec::new(),
     };
     let batch =
         f.admit(&mut store, vec![("shell.powershell", serde_json::to_value(&original).unwrap())]);
@@ -261,6 +263,7 @@ fn shell_diagnostic_reason_is_persisted_and_queried() {
         stdin: String::new(),
         timeout_ms: 1000,
         max_output_bytes: 4096,
+        secret_environment: Vec::new(),
     };
     let batch =
         f.admit(&mut store, vec![("shell.powershell", serde_json::to_value(&original).unwrap())]);

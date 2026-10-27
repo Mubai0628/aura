@@ -6,6 +6,7 @@ use aura_windows_platform::TerminalSize;
 
 #[tokio::test]
 async fn l02_b1_core_owner_teardown_reaps_all_terminal_jobs() {
+    let _limit = crate::test_watchdog::limit("l02_b1_core_owner_teardown_reaps_all_terminal_jobs");
     let host = crate::r03_tests::Fixture::new();
     let runtime = host.start().await;
     let StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
@@ -22,6 +23,7 @@ async fn l02_b1_core_owner_teardown_reaps_all_terminal_jobs() {
                     working_directory: host.root.path().to_path_buf(),
                     size: TerminalSize { columns: 80, rows: 24 },
                     output_limit: 1024 * 1024,
+                    secret_environment: Vec::new(),
                 },
             )
             .await

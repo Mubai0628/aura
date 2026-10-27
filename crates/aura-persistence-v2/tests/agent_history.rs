@@ -268,10 +268,8 @@ fn long_turn_pages_preserve_all_sources_steps_and_exact_utf8_text() {
     }
     assert_eq!(text, long);
     read.offset = 1;
-    assert!(
-        desktop_messages::text(store.database.connection(), &read).is_err(),
-        "reject mid UTF-8 cursor"
-    );
+    let page = desktop_messages::text(store.database.connection(), &read).expect("snapped page");
+    assert!(page.from_offset <= 1 && long[page.from_offset as usize..].starts_with(&page.text));
     read.offset = 0;
     read.session_id = foreign;
     assert!(

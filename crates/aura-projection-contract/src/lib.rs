@@ -13,8 +13,8 @@ pub use compatibility_keys::*;
 pub use readiness::*;
 
 pub use agent_display::{
-    AgentAssistantView, AgentContextClearedView, AgentContextCompactedView, AgentSessionProjection,
-    AgentToolInputView, AgentTurnView,
+    AgentAssistantView, AgentContextClearedView, AgentContextCompactedView,
+    AgentContextCompactingView, AgentSessionProjection, AgentToolInputView, AgentTurnView,
 };
 pub use change::{ProjectionChange, ProjectionChangeValidationError};
 pub use routing::{ProjectionKey, ProjectionKind, ProjectionRouteError, ProjectionScope};

@@ -4,6 +4,8 @@ mod browser;
 pub use browser::{
     BROWSER_SITE_LIST_MAX, BrowserSettings, BrowserSettingsSnapshot, BrowserSettingsUpdate,
 };
+mod chrome;
+pub use chrome::{ChromeControlSettings, ChromeControlSettingsSnapshot, ChromePairing};
 mod commands;
 pub use commands::DisabledCommands;
 mod hooks;

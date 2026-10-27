@@ -96,6 +96,8 @@ struct RenderedActivity {
     fragments: Vec<ContextFragment>,
     shown: u32,
     extra_omitted: u64,
+    /// Which session runs each other task the body numbers, for the Inspector only.
+    sources: Vec<aura_context_domain::PromptInspectorActivitySourceView>,
 }
 
 impl FrozenActivity {
@@ -117,18 +119,30 @@ impl FrozenActivity {
         Ok(self.render()?.fragments)
     }
 
+    /// Which session runs each other task the body numbers. The model never receives it.
+    pub(super) fn sources(&self) -> Vec<aura_context_domain::PromptInspectorActivitySourceView> {
+        self.render().map(|rendered| rendered.sources).unwrap_or_default()
+    }
+
     fn render(&self) -> anyhow::Result<RenderedActivity> {
         if !self.summary.is_sendable() {
-            return Ok(RenderedActivity { fragments: Vec::new(), shown: 0, extra_omitted: 0 });
+            return Ok(RenderedActivity {
+                fragments: Vec::new(),
+                shown: 0,
+                extra_omitted: 0,
+                sources: Vec::new(),
+            });
         }
         let mut metadata = Vec::new();
         let mut workspace = Vec::new();
         let mut personal = Vec::new();
         let mut omitted = 0;
+        let mut sources = Vec::new();
         // A row is an indivisible bundle. Its private fields never lose their original class.
         // The budget includes the real headers, JSON escaping and all fragments.
         for selected in &self.summary.rows {
             let row = &selected.row;
+            let own = selected.relevance == aura_activity_runtime::ActivityRelevance::Direct;
             let targets = row
                 .resources
                 .iter()
@@ -148,11 +162,44 @@ impl FrozenActivity {
                     serde_json::json!({"target":identity,"relation":resource.relation})
                 })
                 .collect::<Vec<_>>();
-            let public = serde_json::json!({"activity_id":row.id,"tool":if row.tool_name.is_empty(){row.tool_id.to_string()}else{row.tool_name.clone()},
-                "group":row.tool_group,"started_at":row.started_at,"targets":targets});
-            let private = (!row.parameters.is_empty() || row.resources.iter().any(|resource| !resource.display_name.is_empty())).then(|| {
-                serde_json::json!({"activity_id":row.id,"resources":row.resources.iter().map(|resource| serde_json::json!({"display_name":resource.display_name,"truncated":resource.display_name_truncated})).collect::<Vec<_>>(),"parameters":row.parameters})
-            });
+            let names = row
+                .resources
+                .iter()
+                .map(|resource| serde_json::json!({"display_name":resource.display_name,"truncated":resource.display_name_truncated}))
+                .collect::<Vec<_>>();
+            let named = row.resources.iter().any(|resource| !resource.display_name.is_empty());
+            // Another session's task is named by what it may touch, never by its session, tool or
+            // id: this step can neither query nor stop it, only keep clear of what it writes. Its
+            // number is local to this body and pairs the row with its classified names.
+            let (public, private) = if own {
+                let tool_call_id = match &row.execution {
+                    aura_activity_domain::ActivityExecutionRef::AgentToolCall {
+                        tool_call_id,
+                        ..
+                    } => Some(*tool_call_id),
+                    _ => None,
+                };
+                (
+                    serde_json::json!({"activity_id":row.id,"tool_call_id":tool_call_id,"tool":if row.tool_name.is_empty(){row.tool_id.to_string()}else{row.tool_name.clone()},
+                        "group":row.tool_group,"started_at":row.started_at,"targets":targets}),
+                    (!row.parameters.is_empty() || named).then(|| {
+                        serde_json::json!({"activity_id":row.id,"resources":names,"parameters":row.parameters})
+                    }),
+                )
+            } else {
+                let another_task = u32::try_from(sources.len() + 1).unwrap_or(u32::MAX);
+                sources.push(aura_context_domain::PromptInspectorActivitySourceView {
+                    another_task,
+                    session_id: row.session_id,
+                    workspace_id: row.workspace_id,
+                });
+                (
+                    serde_json::json!({"another_task":another_task,"targets":targets}),
+                    named.then(
+                        || serde_json::json!({"another_task":another_task,"resources":names}),
+                    ),
+                )
+            };
             metadata.push(public);
             if let Some(value) = private.as_ref() {
                 match row.private_source {
@@ -171,6 +218,9 @@ impl FrozenActivity {
                 + 4;
             if bytes > aura_activity_domain::MAX_ACTIVITY_SUMMARY_BYTES {
                 metadata.pop();
+                if !own {
+                    sources.pop();
+                }
                 if private.is_some() {
                     match row.private_source {
                         aura_activity_domain::ActivityPrivateSource::WorkspaceMetadata => {
@@ -210,6 +260,7 @@ impl FrozenActivity {
             fragments,
             shown: u32::try_from(metadata.len()).unwrap_or(u32::MAX),
             extra_omitted: u64::try_from(omitted).unwrap_or(u64::MAX),
+            sources,
         })
     }
 
@@ -265,9 +316,7 @@ impl FrozenActivity {
             coverage_omitted(&header.coverage)
                 .saturating_add(u64::try_from(extra_omitted).unwrap_or(u64::MAX)),
         );
-        format!(
-            "{body}; query=agent.activity.query(by=exact,activity_id=<id>); read-only observation; not authorization"
-        )
+        format!("{body}; read-only observation; not authorization")
     }
 
     /// Whether the model step's fragment must not be built at all.
@@ -324,9 +373,18 @@ impl AgentApplication {
         let mut visibility =
             ActivityVisibility::for_session(self.execution.runtime, session_id, workspace_id);
         visibility.relevant_targets = self.run_relevant_targets(run_id);
-        visibility.relevant_resources = self
-            .execution
-            .task_resource_references(run_id)
+        let references = self.execution.task_resource_references(run_id);
+        visibility.relevant_names = references
+            .iter()
+            .filter(|resource| !resource.display_name.is_empty())
+            .map(|resource| {
+                (
+                    aura_activity_runtime::ActivityResourceKey::of(&resource.target),
+                    resource.display_name.clone(),
+                )
+            })
+            .collect();
+        visibility.relevant_resources = references
             .into_iter()
             .take(aura_activity_domain::MAX_ACTIVITY_RELEVANT_HINTS)
             .map(|resource| resource.target)

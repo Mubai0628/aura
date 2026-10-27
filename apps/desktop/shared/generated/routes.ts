@@ -69,6 +69,12 @@ import type {
   BufferOpenCommand,
   BufferSaveCommand,
   BundleRecoveryPlan,
+  ChromeControlStatus,
+  ChromeExtensionFolder,
+  ChromePairingCode,
+  ChromeSessionRequest,
+  ChromeSessionShares,
+  ChromeSetEnabledRequest,
   ClipboardWriteRequest,
   ClipboardWritten,
   CommandCatalog,
@@ -983,6 +989,14 @@ export type AgentMainParams = {
   'browser.settings.get': EmptyToolInput;
   'browser.settings.update': BrowserSettingsUpdate;
   'browser.screenshot.read': BrowserScreenshotReadRequest;
+  'chrome.status': EmptyToolInput;
+  'chrome.set_enabled': ChromeSetEnabledRequest;
+  'chrome.pair.begin': EmptyToolInput;
+  'chrome.revoke': EmptyToolInput;
+  'chrome.stop': EmptyToolInput;
+  'chrome.shares': ChromeSessionRequest;
+  'chrome.assist.finish': ChromeSessionRequest;
+  'chrome.extension.open_folder': EmptyToolInput;
   'agent.attachments.text': AttachmentTextRequest;
 };
 export type AgentMainResult = {
@@ -1087,6 +1101,14 @@ export type AgentMainResult = {
   'browser.settings.get': BrowserSettingsSnapshot;
   'browser.settings.update': BrowserSettingsSnapshot;
   'browser.screenshot.read': BrowserScreenshotImageV1;
+  'chrome.status': ChromeControlStatus;
+  'chrome.set_enabled': ChromeControlStatus;
+  'chrome.pair.begin': ChromePairingCode;
+  'chrome.revoke': ChromeControlStatus;
+  'chrome.stop': ChromeControlStatus;
+  'chrome.shares': ChromeSessionShares;
+  'chrome.assist.finish': ChromeSessionShares;
+  'chrome.extension.open_folder': ChromeExtensionFolder;
   'agent.attachments.text': AttachmentText;
 };
 export type AgentMainCommand = keyof AgentMainParams;
@@ -1249,6 +1271,13 @@ export type AgentCoreParams = {
   'browser.settings.update': BrowserSettingsUpdate;
   'browser.screenshot.read': BrowserScreenshotReadRequest;
   'browser.host.result': BrowserHostResultV1;
+  'chrome.status': EmptyToolInput;
+  'chrome.set_enabled': ChromeSetEnabledRequest;
+  'chrome.pair.begin': EmptyToolInput;
+  'chrome.revoke': EmptyToolInput;
+  'chrome.stop': EmptyToolInput;
+  'chrome.shares': ChromeSessionRequest;
+  'chrome.assist.finish': ChromeSessionRequest;
   'media.host.read': MediaHostReadRequestV1;
   'media.host.result': MediaHostResultV1;
   'agent.attachments.text': AttachmentTextRequest;
@@ -1348,6 +1377,13 @@ export type AgentCoreResult = {
   'browser.settings.update': BrowserSettingsSnapshot;
   'browser.screenshot.read': BrowserScreenshotImageV1;
   'browser.host.result': BrowserHostResultAck;
+  'chrome.status': ChromeControlStatus;
+  'chrome.set_enabled': ChromeControlStatus;
+  'chrome.pair.begin': ChromePairingCode;
+  'chrome.revoke': ChromeControlStatus;
+  'chrome.stop': ChromeControlStatus;
+  'chrome.shares': ChromeSessionShares;
+  'chrome.assist.finish': ChromeSessionShares;
   'media.host.read': MediaHostReadResultV1;
   'media.host.result': MediaHostResultAck;
   'agent.attachments.text': AttachmentText;
@@ -4294,6 +4330,94 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'chrome.status': {
+    method: 'chrome.status',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.set_enabled': {
+    method: 'chrome.set_enabled',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ChromeSetEnabledRequest',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.pair.begin': {
+    method: 'chrome.pair.begin',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromePairingCode',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.revoke': {
+    method: 'chrome.revoke',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.stop': {
+    method: 'chrome.stop',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.shares': {
+    method: 'chrome.shares',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ChromeSessionRequest',
+    response_type: 'ChromeSessionShares',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.assist.finish': {
+    method: 'chrome.assist.finish',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ChromeSessionRequest',
+    response_type: 'ChromeSessionShares',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.extension.open_folder': {
+    method: 'chrome.extension.open_folder',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeExtensionFolder',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.attachments.text': {
     method: 'agent.attachments.text',
     owner: 'agent',
@@ -7062,6 +7186,83 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'chrome.status': {
+    method: 'chrome.status',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.set_enabled': {
+    method: 'chrome.set_enabled',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ChromeSetEnabledRequest',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.pair.begin': {
+    method: 'chrome.pair.begin',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromePairingCode',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.revoke': {
+    method: 'chrome.revoke',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.stop': {
+    method: 'chrome.stop',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeControlStatus',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.shares': {
+    method: 'chrome.shares',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ChromeSessionRequest',
+    response_type: 'ChromeSessionShares',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.assist.finish': {
+    method: 'chrome.assist.finish',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ChromeSessionRequest',
+    response_type: 'ChromeSessionShares',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'media.host.read': {
     method: 'media.host.read',
     owner: 'agent',
@@ -7134,4 +7335,4 @@ export function coreRoute(method: string) {
     ? CORE_ROUTES[method as keyof typeof CORE_ROUTES]
     : undefined;
 }
-export const ROUTE_COUNTS = { main: 256, core: 256 } as const;
+export const ROUTE_COUNTS = { main: 264, core: 263 } as const;

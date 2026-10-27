@@ -1,0 +1,20 @@
+{
+  "name": "@aura/chrome-extension",
+  "version": "0.1.4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "build:test": "cross-env AURA_CHROME_TARGET=test vite build",
+    "test:unit": "vitest run --configLoader native --pool=threads --maxWorkers=2",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "cross-env": "catalog:",
+    "jsdom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -42,7 +42,7 @@ export function EnableDebuggingOffer() {
   return (
     <div className="tool-offer">
       <button
-        className="secondary-button"
+        className="button is-small"
         disabled={state.busy}
         onClick={() => setConfirming(true)}
         type="button"

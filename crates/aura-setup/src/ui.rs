@@ -222,7 +222,7 @@ pub fn confirm_uninstall(plan: &UninstallPlan) -> Option<bool> {
     let instruction = format!("卸载 Aura {}", plan.version);
     let check = format!(
         "同时删除我的数据（会话、设置和记忆 {}，凭据 {} 条）",
-        size_text(plan.data_bytes),
+        size_text(plan.data_bytes + plan.config_bytes),
         plan.credentials
     );
     let answer = ask(
@@ -245,9 +245,11 @@ pub fn confirm_uninstall(plan: &UninstallPlan) -> Option<bool> {
         return Some(false);
     }
     let details = format!(
-        "将删除：\n· 数据文件夹 {}（{}）\n· 这个 Aura 保存的凭据 {} 条\n工作区里的文件不会被删除。",
+        "将删除：\n· 数据文件夹 {}（{}）\n· 设置文件夹 {}（{}）\n· 这个 Aura 保存的凭据 {} 条\n工作区里的文件不会被删除。",
         plan.data_root.display(),
         size_text(plan.data_bytes),
+        plan.config_root.display(),
+        size_text(plan.config_bytes),
         plan.credentials
     );
     let confirmed = ask(

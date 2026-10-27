@@ -14,6 +14,8 @@
 //!   other session's status can ever see.
 mod activity;
 #[cfg(test)]
+mod activity_other_tasks_tests;
+#[cfg(test)]
 mod activity_tests;
 mod approval_expiry;
 pub(crate) mod attachment_entries;
@@ -21,6 +23,7 @@ mod attachment_files;
 mod attachments;
 mod branch;
 mod browser_screenshot;
+mod chrome_calls;
 mod compaction;
 mod configuration;
 mod connections;
@@ -29,6 +32,7 @@ mod context_window;
 mod derived_backfill;
 mod desktop;
 pub(crate) mod fault;
+mod history_revision;
 mod hook_events;
 mod inbox;
 mod media_host;
@@ -406,6 +410,15 @@ impl AgentApplication {
         let stored = classified.stored_text();
         let diagnostic = classified.structured();
         let stored: String = stored.chars().take(500).collect();
+        // The code only: the text can quote paths and content, and stays in the store.
+        crate::append_core_log(
+            "agent.run_failure",
+            serde_json::json!({
+                "agent_run_id": run,
+                "code": stored.split([':', ' ']).next().unwrap_or_default(),
+                "cancelled": cancelled,
+            }),
+        );
         let payload = match &diagnostic {
             Some(diagnostic) => serde_json::json!({"error": stored, "diagnostic": diagnostic}),
             None => serde_json::json!({"error": stored}),

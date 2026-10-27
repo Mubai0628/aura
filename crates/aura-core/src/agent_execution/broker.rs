@@ -225,6 +225,19 @@ impl BrokerPort for Port {
                 drop(lifetime);
                 return result;
             }
+            if request.operation.content.action_kind.starts_with("chrome.")
+                && request.operation.content.action_kind != "chrome.tabs"
+            {
+                let lifetime = service
+                    .active_calls
+                    .retain_worker(call.validated.call.tool_call_id)
+                    .map_err(rejected)?;
+                let result = super::chrome::invoke(service, call, request, start_lease)
+                    .await
+                    .map_err(rejected);
+                drop(lifetime);
+                return result;
+            }
             if request.operation.content.action_kind.starts_with("media.") {
                 let lifetime = service
                     .active_calls
@@ -279,10 +292,18 @@ impl BrokerPort for Port {
                     serde_json::from_value(request.operation.content.action.clone())
                         .map_err(rejected)?;
                 let _activity = crate::agent_activity::execution::observe_current_execution();
-                commands
-                    .stop_call(call.snapshot.session_id, input.tool_call_id)
-                    .await
-                    .map_err(rejected)?;
+                // An id that names no Shell call of this session stops nothing; the ledger step
+                // below records that refusal as this call's result instead of leaving it open.
+                if let Err(error) =
+                    commands.stop_call(call.snapshot.session_id, input.tool_call_id).await
+                    && !error.chain().any(|cause| {
+                        cause
+                            .to_string()
+                            .contains(aura_persistence_v2::execution::shell::NOT_A_SHELL_CALL)
+                    })
+                {
+                    return Err(rejected(error));
+                }
                 // Boundary: the shell-stop ledger transaction, one bounded write.
                 {
                     let stopper = Arc::clone(&service);

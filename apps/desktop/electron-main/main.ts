@@ -46,6 +46,7 @@ import { dispatchGitCommand } from './git-requests.js';
 import { dispatchPackageCommand } from './package-requests.js';
 import { dispatchMemoryCommand } from './memory-requests.js';
 import { agentRouteHandler } from './command-directory.js';
+import { refreshLoadedChromeExtension } from './chrome-extension-folder.js';
 import { installBrowserHost, type BrowserHost } from './browser-host/index.js';
 
 import type {
@@ -165,6 +166,8 @@ const pendingLifecycleArms = new Map<string, Promise<BeginWorkspaceLifecycleResu
 let mainWindow: BrowserWindow | undefined;
 const windowContents = () => liveContents(mainWindow);
 let releaseContext: ReleaseContext | undefined;
+const namespaceDataRoot = (release: ReleaseContext) =>
+  resolve(localAppData, 'Aura/namespaces', release.namespaceObjectHash);
 let supervisor: CoreSupervisor | undefined;
 const { workspaceMedia, mediaHost } = createMediaHosts(() => mainWindow);
 // An attached file outside the workspace, for the 文件 tab and its menu.
@@ -701,6 +704,7 @@ const registerIpc = (): void => {
               supervisor,
               (e) => requireActiveAuraWindow(e, 'Hook folder selection'),
               (snapshot) => browserHost?.applySettings(snapshot),
+              () => releaseContext && namespaceDataRoot(releaseContext),
             ),
           }),
         };
@@ -919,13 +923,12 @@ app.whenReady().then(async () => {
       currentDirectory,
       executablePath: process.execPath,
     });
-    windowStateStore = new WindowStateStore(
-      resolve(localAppData, 'Aura/namespaces', releaseContext.namespaceObjectHash),
-    );
+    windowStateStore = new WindowStateStore(namespaceDataRoot(releaseContext));
+    void refreshLoadedChromeExtension(namespaceDataRoot(releaseContext), appendMainLog);
     appUpdates = registerAppUpdates({
       appIsPackaged: app.isPackaged,
       manifestPath: releaseContext.manifestPath,
-      dataRoot: resolve(localAppData, 'Aura/namespaces', releaseContext.namespaceObjectHash),
+      dataRoot: namespaceDataRoot(releaseContext),
       current: releaseContext.manifest.product_version,
       namespace: releaseContext.manifest.bundle_namespace,
       contents: windowContents,
@@ -938,7 +941,7 @@ app.whenReady().then(async () => {
     });
     if (app.isPackaged) {
       launcherReady = createLauncherReadyReporter({
-        dataRoot: resolve(localAppData, 'Aura/namespaces', releaseContext.namespaceObjectHash),
+        dataRoot: namespaceDataRoot(releaseContext),
         releaseBundleId: releaseContext.manifest.release_bundle_id,
         productVersion: releaseContext.manifest.product_version,
       });

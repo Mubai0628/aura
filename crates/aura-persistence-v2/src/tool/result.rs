@@ -246,12 +246,19 @@ fn execution_evidence(
                     | "agent-memory-vault-v1"
                     // The browser's refusals and failures, in Core's and the host's words.
                     | "agent-browser-v1"
+                    // The user's Chrome: what failed, and whether the step may have run.
+                    | "agent-chrome-v1"
             )
         ))
         || result.outcome == ExecutionOutcome::Unknown
             && matches!(
                 evidence["domain_journal"]["schema"].as_str(),
-                Some("agent-native-git-v1" | "agent-package-tool-v1" | "agent-mcp-tool-v1")
+                Some(
+                    "agent-native-git-v1"
+                        | "agent-package-tool-v1"
+                        | "agent-mcp-tool-v1"
+                        | "agent-chrome-v1"
+                )
             ))
     .then(|| evidence["domain_journal"]["error"].as_str())
     .flatten()
@@ -321,6 +328,18 @@ fn failed_runtime_code(receipt: &Value, named: Option<&str>) -> ToolRuntimeError
         ToolRuntimeErrorCode::HttpGatewayFailed
     }
 }
+/// Whether a Shell command Aura stopped keeps its output as its result: one stopped at its own
+/// output or time limit, or because Core went away, says so in that result. A stop the user or the
+/// model asked for stays a cancellation.
+pub(super) fn kept_after_stop(outcome: ExecutionOutcome, receipt: &Value, output: &Value) -> bool {
+    matches!(outcome, ExecutionOutcome::Cancelled | ExecutionOutcome::TimedOut)
+        && receipt["schema"] == "windows-user-execution-evidence-v2"
+        && matches!(
+            output["stop_reason"].as_str(),
+            Some("output_limit" | "timed_out" | "core_disconnected")
+        )
+}
+
 pub(super) fn output_valid(
     db: &Connection,
     call_id: ToolCallId,
@@ -393,8 +412,13 @@ pub fn materialize(
     } else {
         None
     };
+    let outcome = if kept_after_stop(evidence.outcome, &receipt, &output) {
+        ExecutionOutcome::Succeeded
+    } else {
+        evidence.outcome
+    };
     let invalid_output =
-        evidence.outcome == ExecutionOutcome::Succeeded && !output_valid(tx, call_id, &output)?;
+        outcome == ExecutionOutcome::Succeeded && !output_valid(tx, call_id, &output)?;
     let code = if invalid_output {
         ToolResultErrorCode::SchemaValidationFailed.error_code()
     } else if evidence.outcome == ExecutionOutcome::Unknown {
@@ -443,7 +467,7 @@ pub fn materialize(
             ModelVisibleToolResultOutcomeV1::OperationRejected { error: rejection },
         )
     } else {
-        match evidence.outcome {
+        match outcome {
             ExecutionOutcome::Succeeded if invalid_output => (
                 ToolResultOutcomeV1::Failed { error: error.clone() },
                 ModelVisibleToolResultOutcomeV1::Failed { error: safe },

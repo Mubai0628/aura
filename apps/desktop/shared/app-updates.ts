@@ -56,6 +56,11 @@ export interface AppUpdateState {
   checked_at: string | null;
   auto_check: boolean;
   notice: AppUpdateNotice | null;
+  /**
+   * The update to this version copied the data it migrates before it started: the version before
+   * cannot read that data migrated, so going back puts the copy back.
+   */
+  rollback_needs_data: boolean;
 }
 
 const PHASES: readonly AppUpdatePhase[] = [
@@ -109,6 +114,7 @@ export const UNAVAILABLE_UPDATE_STATE: AppUpdateState = {
   checked_at: null,
   auto_check: false,
   notice: null,
+  rollback_needs_data: false,
 };
 
 function readRelease(value: unknown): AppUpdateRelease | null | undefined {
@@ -173,7 +179,8 @@ export function readAppUpdateState(value: unknown): AppUpdateState {
     progress === undefined ||
     !isTextOrNull(value.error) ||
     !isTextOrNull(value.checked_at) ||
-    typeof value.auto_check !== 'boolean'
+    typeof value.auto_check !== 'boolean' ||
+    typeof value.rollback_needs_data !== 'boolean'
   ) {
     return UNAVAILABLE_UPDATE_STATE;
   }
@@ -189,5 +196,6 @@ export function readAppUpdateState(value: unknown): AppUpdateState {
     checked_at: value.checked_at,
     auto_check: value.auto_check,
     notice,
+    rollback_needs_data: value.rollback_needs_data,
   };
 }

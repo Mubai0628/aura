@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod browser;
+mod chrome;
 pub mod dispatch_guard;
 pub mod mode_ceiling;
 pub mod network;
@@ -328,6 +329,7 @@ fn requires_forced_once_approval(plan: &OperationSecurityPlan) -> bool {
                     | ResolvedCapability::ScheduledTaskManagement
                     | ResolvedCapability::DriverManagement
                     | ResolvedCapability::WindowsSoftwareInstall
+                    | ResolvedCapability::ChromeSensitiveAction
                     | ResolvedCapability::ElevatedOperation
             )
         })
@@ -584,6 +586,15 @@ fn capability_baseline_within_mode(
         | C::AgentTaskRead
         | C::AgentTaskWrite => Allow,
         C::MemoryRead | C::MemoryWrite | C::MemoryDelete => Ask,
+        C::ChromeRead => Allow,
+        C::ChromeInteraction => {
+            if mode == ReadOnly {
+                Ask
+            } else {
+                Allow
+            }
+        }
+        C::ChromeSensitiveAction => Ask,
         C::ExternalExtensionCall => {
             if mode == ReadOnly {
                 Ask

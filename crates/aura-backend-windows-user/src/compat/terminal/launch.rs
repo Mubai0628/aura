@@ -1,6 +1,7 @@
 //! Verified images/directories and interactive shell policy; no user input enters the argv.
 use super::{TerminalKind, TerminalOptions, TerminalSession};
 use crate::checked_program::{self, Links};
+use crate::compat::redaction::{Cover, Redactor};
 use crate::compat::{CompatBackend, environment};
 use anyhow::{Result, ensure};
 use aura_windows_platform::{
@@ -77,12 +78,17 @@ impl CompatBackend {
         } else {
             self.trusted_environment.clone()
         };
-        let environment = terminal_environment(trusted, options.kind, proxy)?;
+        // An Agent terminal shows a credential's value as stars of the same width, so the
+        // screen the console laid out for the original text stays in place.
+        let hidden = matches!(options.kind, TerminalKind::Agent { .. })
+            .then(|| Redactor::new(&environment::secret_values(&trusted), Cover::Stars));
+        let environment =
+            terminal_environment(trusted, options.kind, proxy, &options.secret_environment)?;
         let arguments = terminal_arguments(options.shell, options.kind)
             .into_iter()
             .map(|value| value.encode_utf16().collect())
             .collect::<Vec<_>>();
-        TerminalSession::start(options, vec![directory_file, image_file], |output| {
+        TerminalSession::start(options, vec![directory_file, image_file], hidden, |output| {
             Ok(spawn(
                 NativeTerminalLaunch {
                     executable: Path::new(&image.path),
@@ -131,13 +137,18 @@ pub(super) fn terminal_environment(
     trusted: Vec<(OsString, OsString)>,
     kind: TerminalKind,
     proxy: Option<&str>,
+    declared: &[String],
 ) -> Result<Vec<NativeEnvironmentEntry>> {
     match kind {
         TerminalKind::Agent { requires_network } => {
             if !requires_network {
                 ensure!(proxy.is_some(), "terminal.owned_offline_proxy_required");
             }
-            environment::build(trusted, if requires_network { None } else { proxy })
+            environment::build_declared(
+                trusted,
+                if requires_network { None } else { proxy },
+                declared,
+            )
         }
         TerminalKind::User => {
             let mut entries = Vec::new();

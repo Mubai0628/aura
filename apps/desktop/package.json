@@ -1,6 +1,6 @@
 {
   "name": "@aura/desktop",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "main": "dist/electron-main/main.js",
@@ -14,7 +14,7 @@
     "dev:electron": "corepack pnpm build:electron && wait-on tcp:127.0.0.1:5175 && cross-env NODE_USE_ENV_PROXY=1 AURA_ALLOW_DEV_COMPONENT_MISMATCH=1 AURA_RENDERER_URL=http://127.0.0.1:5175 electron .",
     "dev:renderer": "vite --host 127.0.0.1 --port 5175 --strictPort",
     "package:dir": "node ../../scripts/package-desktop.mjs",
-    "test:e2e": "cargo build -p aura-core -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper && node ../../scripts/verify-p08-production-surface.mjs core && cargo build -p aura-core -p aura-tool-fixtures -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper --bins --features aura-core/p08-contract-driver && cross-env AURA_E2E_BUILD=1 corepack pnpm build && node ../../scripts/verify-p08-production-surface.mjs desktop && cross-env NODE_USE_ENV_PROXY=1 playwright test",
+    "test:e2e": "cargo build -p aura-core -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper -p aura-chrome-host &&node ../../scripts/verify-p08-production-surface.mjs core && cargo build -p aura-core -p aura-tool-fixtures -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper --bins --features aura-core/p08-contract-driver && cross-env AURA_E2E_BUILD=1 corepack pnpm build && node ../../scripts/verify-p08-production-surface.mjs desktop && cross-env NODE_USE_ENV_PROXY=1 playwright test",
     "test:unit": "vitest run --configLoader native --pool=threads --maxWorkers=6",
     "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.renderer.json --noEmit && tsc --project tsconfig.tools.json --noEmit && tsc --project tsconfig.e2e.json --noEmit && tsc --project tsconfig.e2e-preload.json --noEmit"
   },

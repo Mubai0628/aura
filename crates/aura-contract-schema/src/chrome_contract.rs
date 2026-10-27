@@ -1,0 +1,30 @@
+//! The `chrome.*` tools: tabs the user shared from their own Chrome.
+pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
+    generator.subschema_for::<aura_chrome_domain::ChromeTabsInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeTabsResult>();
+    generator.subschema_for::<aura_chrome_domain::ChromeOpenInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeNavigateInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeSnapshotInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeScreenshotInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeClickInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeTypeInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromePressInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeScrollInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeHoverInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeSelectInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeWaitInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeConsoleInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeCloseInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromeRequestUserInput>();
+    generator.subschema_for::<aura_chrome_domain::ChromePageResult>();
+    generator.subschema_for::<aura_chrome_domain::ChromeScreenshotResult>();
+    generator.subschema_for::<aura_chrome_domain::ChromeConsoleResult>();
+    generator.subschema_for::<aura_chrome_domain::ChromeCloseResult>();
+    generator.subschema_for::<aura_chrome_domain::ChromeAssistResult>();
+    generator.subschema_for::<aura_chrome_domain::ChromeControlStatus>();
+    generator.subschema_for::<aura_chrome_domain::ChromeSetEnabledRequest>();
+    generator.subschema_for::<aura_chrome_domain::ChromePairingCode>();
+    generator.subschema_for::<aura_chrome_domain::ChromeSessionRequest>();
+    generator.subschema_for::<aura_chrome_domain::ChromeSessionShares>();
+    generator.subschema_for::<aura_chrome_domain::ChromeExtensionFolder>();
+}

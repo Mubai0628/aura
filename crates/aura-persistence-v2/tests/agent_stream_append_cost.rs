@@ -88,17 +88,50 @@ fn steps_per_append(
 fn a_late_delta_of_a_long_stream_costs_about_the_same_as_an_early_one() {
     let (_root, mut store, fixture, attempt) = setup();
     let early = steps_per_append(&mut store, &fixture, attempt, 1, 100);
-    for n in 101..3_000 {
+    for n in 101..4_000 {
         append(&mut store, &fixture, attempt, n);
     }
-    let late = steps_per_append(&mut store, &fixture, attempt, 3_000, 100);
-    // Counting the index rows to detect a removed one is the only work that still grows,
-    // by a few steps per row; re-reading the stream grew by more than a hundred per row.
+    // The window holds the 4096th row, where the index rows are counted once to find a removed
+    // one; averaged over the window that count is small. Counting on every append, as before,
+    // added a few steps per row to each of them.
+    let late = steps_per_append(&mut store, &fixture, attempt, 4_000, 200);
     assert!(
-        late < early * 4 + 20_000,
-        "an append after 3000 deltas ran {late} SQLite steps; an early one ran {early}"
+        late < early * 2 + 500,
+        "an append after 4000 deltas ran {late} SQLite steps; an early one ran {early}"
     );
     let body = stream::partial(store.database.connection(), fixture.step.model_step_id).unwrap();
-    assert_eq!(body.reasoning.len(), 3_099 * 4, "the stored stream is still the whole body");
-    assert_eq!(body.sequence, Some(3_099));
+    assert_eq!(body.reasoning.len(), 4_199 * 4, "the stored stream is still the whole body");
+    assert_eq!(body.sequence, Some(4_199));
+}
+
+/// A row removed from the middle of the index is found when the index has doubled, and the full
+/// path puts it back; the stored text is whole throughout.
+#[test]
+fn a_removed_middle_row_is_found_at_the_next_doubling_and_put_back() {
+    let (_root, mut store, fixture, attempt) = setup();
+    let rows = |store: &V2Store| -> i64 {
+        store
+            .database
+            .connection()
+            .query_row("SELECT COUNT(*) FROM agent_visible_index", [], |row| row.get(0))
+            .unwrap()
+    };
+    for n in 1..=5 {
+        append(&mut store, &fixture, attempt, n);
+    }
+    store
+        .database
+        .connection()
+        .execute("DELETE FROM agent_visible_index WHERE sequence=3", [])
+        .unwrap();
+    for n in 6..=8 {
+        append(&mut store, &fixture, attempt, n);
+    }
+    assert_eq!(rows(&store), 7, "not yet counted: the index holds 8 by its watermark");
+    let body = stream::partial(store.database.connection(), fixture.step.model_step_id).unwrap();
+    assert_eq!(body.reasoning.len(), 8 * 4, "the text is whole before the count");
+    append(&mut store, &fixture, attempt, 9);
+    assert_eq!(rows(&store), 9, "counted at 8 rows, and the removed row is back");
+    let body = stream::partial(store.database.connection(), fixture.step.model_step_id).unwrap();
+    assert_eq!(body.reasoning.len(), 9 * 4);
 }

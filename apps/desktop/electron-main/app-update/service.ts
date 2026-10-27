@@ -5,6 +5,7 @@ import { UNAVAILABLE_UPDATE_STATE } from '../../shared/app-updates.js';
 import { downloadPackage, type FetchFunction } from './download.js';
 import { newestRelease, type FeedRelease } from './feed.js';
 import {
+  copiedBefore,
   dismissNotice,
   readInstallState,
   readNotice,
@@ -142,6 +143,7 @@ export class AppUpdates {
       previous: install.previous,
       waiting,
       notice,
+      rollback_needs_data: copiedBefore(installation.dataRoot, installation.current),
       ...(waiting && this.#state.phase === 'idle' ? { phase: 'ready' as const } : {}),
     });
   }
@@ -305,6 +307,13 @@ export class AppUpdates {
   async rollBack(restoreData: boolean): Promise<AppUpdateState> {
     const installation = this.dependencies.installation;
     if (!installation || !this.#state.previous) return this.#state;
+    if (!restoreData && copiedBefore(installation.dataRoot, installation.current)) {
+      return this.#set({
+        phase: 'error',
+        error: `更新到 ${installation.current} 时升级了数据，${this.#state.previous} 读不了升级后的数据；回到上一版本要同时恢复更新前的数据。`,
+        rollback_needs_data: true,
+      });
+    }
     let waiting: string;
     try {
       // The user's choice now decides; a request an earlier attempt left must not outlive it.

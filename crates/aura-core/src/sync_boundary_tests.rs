@@ -4010,10 +4010,18 @@ fn a_models_configuration_change_reaches_storage_on_the_boundary_while_control_a
         .collect();
     assert_eq!(completed.len(), 1, "exactly one Models maintenance section really ran");
     let span = completed.into_iter().next().expect("a completed Models maintenance section");
+    // The hold parks the first write to reach the writer; under load that can be another write
+    // the section's own commit queues behind, so the section may start after the hold did. It did
+    // its storage work inside the hold if it was still running when the hold let go, on the wall
+    // clock where the barrier and the span both record their instants.
+    let held = hold.arrivals().into_iter().find(|arrival| arrival.held).expect("a held write");
+    let released_ms = held.at_ms + held.hold_micros / 1_000;
+    let started_ms = span.at_ms.saturating_sub(span.elapsed_ms);
     assert!(
-        span.elapsed_ms >= MAINTENANCE_HOLD_MS - 250,
-        "the section's own elapsed time shows it really did its storage work inside the hold: {}",
-        span.elapsed_ms
+        started_ms <= released_ms + 20 && span.at_ms + 20 >= released_ms,
+        "the section was doing its storage work when the hold let go: ran {started_ms}..{} ms, \
+         the hold let go at {released_ms} ms",
+        span.at_ms
     );
     // The section is a real boundary section: the boundary records it, with its own method, by
     // the thread that ran it. (The boundary records the thread's NAME only, and this Tokio names

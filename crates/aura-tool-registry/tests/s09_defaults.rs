@@ -48,6 +48,7 @@ fn a_shell_call_needs_only_its_script() {
             stdin: String::new(),
             timeout_ms: TIMEOUT,
             max_output_bytes: OUTPUT,
+            secret_environment: Vec::new(),
         }
     );
     // The description promises that the default tool time limit is 10 minutes, that long commands may raise timeout_ms, and a Shell call that keeps its own

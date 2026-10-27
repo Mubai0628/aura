@@ -7,6 +7,7 @@ export function RollbackDialog({
   target,
   busy,
   valid,
+  needsData,
   error,
   onCancel,
   onConfirm,
@@ -14,6 +15,8 @@ export function RollbackDialog({
   target: string;
   busy: boolean;
   valid: boolean;
+  /** The update changed the data, so going back always puts the copy from before it back. */
+  needsData: boolean;
   error: string | undefined;
   onCancel: () => void;
   onConfirm: (restoreData: boolean) => Promise<boolean>;
@@ -21,7 +24,8 @@ export function RollbackDialog({
   const titleId = useId();
   const warningId = useId();
   const cancel = useRef<HTMLButtonElement>(null);
-  const [restoreData, setRestoreData] = useState(false);
+  const [chosen, setRestoreData] = useState(false);
+  const restoreData = needsData || chosen;
   const confirm = async () => {
     if (busy || !valid) return;
     await onConfirm(restoreData);
@@ -57,7 +61,7 @@ export function RollbackDialog({
           <input
             aria-describedby={restoreData ? warningId : undefined}
             checked={restoreData}
-            disabled={busy}
+            disabled={busy || needsData}
             onChange={(event) => setRestoreData(event.target.checked)}
             type="checkbox"
           />
@@ -65,7 +69,10 @@ export function RollbackDialog({
         </label>
         {restoreData ? (
           <p className="update-error" id={warningId}>
-            将恢复更新到当前版本之前的备份，更新之后的新会话和改动会丢失。
+            {needsData
+              ? `这次更新升级了数据，${target} 读不了升级后的数据，所以会一起恢复更新前的备份；`
+              : '将恢复更新到当前版本之前的备份，'}
+            更新之后的新会话和改动会丢失。
           </p>
         ) : null}
         {!valid ? <p role="alert">版本状态已变化，请关闭后重新确认。</p> : null}

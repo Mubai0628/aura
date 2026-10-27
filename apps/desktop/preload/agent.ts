@@ -1,6 +1,7 @@
 import type { IpcErrorEnvelope } from '@aura/contracts/generated';
 import { terminalBridge } from './terminal.js';
 import { browserBridge } from './browser.js';
+import { chromeBridge } from './chrome.js';
 import { attachmentFile, attachmentPath, messagePicture, workspaceMediaUrl } from './media.js';
 import { setMcpSecret } from './mcp-secret.js';
 import type { ResultEnvelope } from '../shared/aura-api.js';
@@ -55,6 +56,7 @@ export function agentBridge(
   return {
     terminal: terminalBridge(invoke, error, isError),
     browser: browserBridge(invoke),
+    chrome: chromeBridge(invoke),
     workspaceMediaUrl,
     attachmentPath,
     attachmentFile,

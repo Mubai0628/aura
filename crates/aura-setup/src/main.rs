@@ -175,7 +175,7 @@ fn run() -> Result<ExitCode> {
             {
                 Ok(removed) => {
                     report(
-                        json!({ "uninstalled": root, "data": removed.data, "credentials": removed.credentials }),
+                        json!({ "uninstalled": root, "chrome": removed.chrome, "data": removed.data, "credentials": removed.credentials }),
                     );
                     ExitCode::SUCCESS
                 }

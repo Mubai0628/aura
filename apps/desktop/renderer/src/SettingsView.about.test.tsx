@@ -29,6 +29,7 @@ function fixture(change: Partial<AppUpdateState> = {}) {
     checked_at: null,
     auto_check: true,
     notice: null,
+    rollback_needs_data: false,
     ...change,
   } satisfies AppUpdateState;
 }
@@ -192,6 +193,21 @@ test('rollback defaults to program only and data restoration is explicitly confi
   dialog = screen.getByRole('dialog', { name: '回到上一版本' });
   await userEvent.click(within(dialog).getByRole('checkbox', { name: '同时恢复更新前的数据' }));
   expect(within(dialog).getByText(/更新之后的新会话和改动/u)).toBeTruthy();
+  await userEvent.click(within(dialog).getByRole('button', { name: '恢复数据并回退' }));
+  expect(command).toHaveBeenCalledWith({ command: 'roll_back', restore_data: true });
+});
+
+test('after an update that changed the data, going back always takes the data from before', async () => {
+  const { command } = setup(fixture({ rollback_needs_data: true }));
+  await screen.findByText('0.1.0');
+  await userEvent.click(screen.getByRole('button', { name: '回到上一版本' }));
+  const dialog = screen.getByRole('dialog', { name: '回到上一版本' });
+  const box = within(dialog).getByRole('checkbox', {
+    name: '同时恢复更新前的数据',
+  }) as HTMLInputElement;
+  expect(box.checked).toBe(true);
+  expect(box.disabled).toBe(true);
+  expect(within(dialog).getByText(/升级了数据/u)).toBeTruthy();
   await userEvent.click(within(dialog).getByRole('button', { name: '恢复数据并回退' }));
   expect(command).toHaveBeenCalledWith({ command: 'roll_back', restore_data: true });
 });

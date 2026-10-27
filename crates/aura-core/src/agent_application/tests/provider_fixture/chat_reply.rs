@@ -59,6 +59,34 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
     if let Some(reply) = entry_reply(scenario, ordinal, body, call) {
         return reply;
     }
+    if matches!(scenario, Scenario::ShellReadRest) {
+        let results = body["messages"]
+            .as_array()
+            .map(|messages| messages.iter().filter(|m| m["role"] == "tool").cloned().collect())
+            .unwrap_or_else(Vec::new);
+        return match results.as_slice() {
+            [] => json!({"role":"assistant","tool_calls":[call(
+                "shell.powershell",
+                json!({"script":"1..3000 | ForEach-Object { 'line ' + $_ }"}),
+                0,
+            )]}),
+            [shell] => {
+                let view: Value = serde_json::from_str(shell["content"].as_str().unwrap_or("{}"))
+                    .unwrap_or_default();
+                let result = &view["outcome"]["payload"]["value"];
+                json!({"role":"assistant","tool_calls":[call(
+                    "shell.query",
+                    json!({
+                        "tool_call_id": result["tool_call_id"],
+                        "stdout_offset": result["stdout_next"],
+                        "max_bytes": 4096
+                    }),
+                    1,
+                )]})
+            }
+            _ => json!({"role":"assistant","content":"Done."}),
+        };
+    }
     if let Scenario::Sequence { calls } = scenario {
         let done = body["messages"]
             .as_array()

@@ -41,6 +41,9 @@ pub enum Scenario {
     Sequence {
         calls: &'static [(&'static str, &'static str)],
     },
+    /// A PowerShell command with a long output, then `shell.query` for the part the result did
+    /// not show, with the `tool_call_id` and `stdout_next` that result gave, then an answer.
+    ShellReadRest,
     /// `goal.complete` citing the files it wrote
     /// as its evidence, then - if that was refused - `normal.complete`, as DeepSeek did.
     GoalWithPaths,
@@ -64,6 +67,9 @@ pub enum Scenario {
     Goal,
     Compact,
     CompactHold,
+    /// The first two requests stream only reasoning that keeps coming back to one paragraph; the
+    /// third is answered plainly.
+    ReasoningLoopThenText,
     /// Plain answers, and a compaction answered the first time it is asked.
     CompactOnPrefix,
     /// Plain answers; the first compaction is answered with a write that must never run.

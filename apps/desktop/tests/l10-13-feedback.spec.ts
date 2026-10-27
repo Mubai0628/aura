@@ -109,6 +109,8 @@ test('L10.13 bubbles fit their words, a finished process folds, switching keeps 
     await answered(page, source, 2);
     await send(page, source, LONG);
     await answered(page, source, 3);
+    // The history says the turn is done before the page has read and drawn it.
+    await expect(page.locator('.agent-turn')).toHaveCount(3);
     const bubbles = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLElement>('.agent-turn')].map((element) => {
         const bubble = element.querySelector<HTMLElement>(

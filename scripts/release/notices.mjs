@@ -17,6 +17,7 @@ export const SHIPPED = [
   'aura-egress-proxy',
   'aura-elevated-helper',
   'aura-setup',
+  'aura-chrome-host',
 ];
 const LICENSE_FILE = /^(licen[cs]e|copying|notice)/iu;
 

@@ -14,6 +14,12 @@ pub use browser::{
     browser_mode_covers, browser_navigation, browser_site, browser_tool, built_in_browser,
     network_caller_for,
 };
+mod chrome;
+pub use chrome::{
+    ChromeTurnConsentRef, built_in_chrome, chrome_capability, chrome_consent_covers,
+    chrome_hard_risk, chrome_mode_covers, chrome_origin_blocked, chrome_origin_confirmed,
+    chrome_share, chrome_tool,
+};
 mod git_native;
 mod native_session;
 mod shell_consent;

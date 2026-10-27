@@ -45,17 +45,23 @@ async fn l04_uninstalling_keeps_a_running_calls_content_until_the_call_ends() {
     let operation = batch.calls[&id].operation.operation_id;
     let (stop, cancel) = tokio::sync::watch::channel(false);
     let engine = f.service().agent_execution_required().clone();
+    let scratch = crate::agent_execution::package_tools::scratch_root(&engine).expect("scratch");
     let commands = f.service().commands_required().clone();
     let running = tokio::spawn(async move { engine.execute_batch(batch, commands, cancel).await });
-    // The uninstall comes once the call holds its content, not a fixed half second after
-    // its attempt was recorded (the audit saw the start take longer, and the content go first);
-    // the half second is now the program's own staging and launch after that.
+    // The uninstall comes once the call holds its content and its program really runs, not a
+    // fixed pause after either: a loaded machine can take longer than any pause to stage and
+    // launch the program, and a call stopped before its program ran changed nothing.
     let until = std::time::Instant::now() + std::time::Duration::from_secs(30);
     while !holds_content(&f, operation) {
         assert!(std::time::Instant::now() < until, "the program must start");
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    while aura_windows_platform::installer::programs_running_in(&scratch)
+        .map_or(true, |running| running.is_empty())
+    {
+        assert!(std::time::Instant::now() < until, "the program must run");
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
 
     let removed = uninstall(f.service(), installed.summary.package_id);
     assert!(removed.installed.is_none(), "uninstall takes effect at once");

@@ -426,8 +426,9 @@ fn activity_private_sources_remain_classified_and_the_real_render_is_bounded() {
         .expect("activity projection fixture");
     assert!(!public.content.contains("private-canary") && !public.content.contains("</context>"));
     assert!(
-        public.content.contains("agent.activity.query")
+        !public.content.contains("agent.activity.query")
             && public.content.contains("activity_id")
+            && public.content.contains("tool_call_id")
             && public.content.contains("fs.write")
     );
     for class in [NetworkDataClass::WorkspaceMetadata, NetworkDataClass::PersonalData] {

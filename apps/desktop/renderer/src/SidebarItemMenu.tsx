@@ -47,6 +47,7 @@ export function SidebarItemMenu({
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const titleId = useId();
   const local = session?.id.startsWith('draft_');
   const close = () => {
@@ -70,8 +71,11 @@ export function SidebarItemMenu({
       setBusy(false);
     }
   };
-  // Archiving is reversible in 设置 → 归档, so it runs at once.
+  // Archiving is reversible in 设置 → 归档, so it runs at once; one request at a time. A failure
+  // opens the menu again with its reason, so it is seen and can be tried again.
   const archive = async () => {
+    if (archiving) return;
+    setArchiving(true);
     setError(undefined);
     try {
       if (session) {
@@ -81,6 +85,9 @@ export function SidebarItemMenu({
       setOpen(false);
     } catch (reason) {
       setError(userMessage(reason, '归档没有完成，请刷新后查看。'));
+      setOpen(true);
+    } finally {
+      setArchiving(false);
     }
   };
   return (
@@ -137,9 +144,10 @@ export function SidebarItemMenu({
               type="button"
               role="menuitem"
               title="归档后可在“设置 → 归档”里恢复或删除"
+              disabled={archiving}
               onClick={() => void archive()}
             >
-              归档会话
+              {archiving ? '正在归档…' : '归档会话'}
             </button>
           ) : null}
           {session ? null : (
@@ -170,9 +178,10 @@ export function SidebarItemMenu({
                 type="button"
                 role="menuitem"
                 title="归档后可在“设置 → 归档”里恢复或删除"
+                disabled={archiving}
                 onClick={() => void archive()}
               >
-                归档工作区
+                {archiving ? '正在归档…' : '归档工作区'}
               </button>
             </>
           )}

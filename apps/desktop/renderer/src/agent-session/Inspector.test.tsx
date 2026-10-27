@@ -85,6 +85,32 @@ function inspection(
 }
 
 describe('Inspector', () => {
+  test("names the session behind each other task the step's task state numbered", () => {
+    const view = inspection({ stable_prefix_estimate_tokens: 4_000 });
+    view.activity_sources = [
+      { another_task: 1, session_id: 'ses_aioj', workspace_id: 'wsp_aioj' },
+      { another_task: 2, session_id: 'ses_gone', workspace_id: 'wsp_gone' },
+    ];
+    render(
+      <Inspector
+        view={view}
+        error={undefined}
+        workspaces={[
+          {
+            id: 'wsp_aioj',
+            name: 'aioj',
+            root: 'C:/Dev/aioj',
+            sessions: [{ id: 'ses_aioj', state: 'running', title: '启动 Docker' }],
+          },
+        ]}
+      />,
+    );
+    const others = screen.getByRole('region', { name: '其它任务' });
+    expect(others.textContent).toContain('任务 1');
+    expect(others.textContent).toContain('aioj › 启动 Docker');
+    expect(others.textContent).toContain('未知工作区 › 未知会话');
+  });
+
   // The provider's own count of the step's input, beside the part of
   // it the provider's cache supplied; as a share and a pixel bar.
   test('heads the panel with the model and its format, and shows the cache hit as a share', () => {

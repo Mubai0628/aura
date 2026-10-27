@@ -48,6 +48,7 @@ const DOMAINS: Record<string, string> = {
   'settings-prompt': '提示词',
   'settings-security': '权限与安全',
   'settings-browser': '浏览器',
+  'settings-chrome': 'Chrome',
   'settings-memory': '记忆',
   'settings-diagnostics': '诊断',
   'settings-update': '更新',

@@ -321,11 +321,11 @@ fn read_namespace_and_artifact_capture_preserve_session_logical_views() {
     assert_eq!(stat.kind, FsNodeKind::File);
     let listed = harness
         .fs
-        .list(FsListRequest {
-            workspace_id: harness.workspace_id,
-            session_id: harness.session_a,
-            target: harness.target("src"),
-        })
+        .list(FsListRequest::first_page(
+            harness.workspace_id,
+            harness.session_a,
+            harness.target("src"),
+        ))
         .expect("list");
     assert_eq!(listed.entries.len(), 1);
     assert_eq!(

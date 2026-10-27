@@ -80,6 +80,7 @@ mod agent_mcp;
 mod agent_plugins;
 mod agent_skills;
 mod browser;
+mod chrome;
 mod git;
 mod media;
 mod memory;
@@ -112,6 +113,7 @@ pub fn registry() -> impl Iterator<Item = &'static RouteDescriptor> {
         .chain(terminal_input::ROUTES)
         .chain(ui::ROUTES)
         .chain(browser::ROUTES)
+        .chain(chrome::ROUTES)
         .chain(media::ROUTES)
 }
 pub fn core_route(method: &str) -> Option<&'static RouteDescriptor> {
@@ -177,7 +179,7 @@ mod tests {
     /// against the declarations, against the generated
     /// `resources/ipc/routes.v1.json` (301 entries = this registry minus the single
     /// test-only driver route) and against the generated preload bindings.
-    const MAIN_PER_MODULE: [(&str, usize); 18] = [
+    const MAIN_PER_MODULE: [(&str, usize); 19] = [
         // `agent.attachments.text` (ReadOnly, both surfaces), the preload's
         // `readAttachmentText`: the text of a text file one of the conversation's messages
         // carried, found by its artifact in that session. Where an outside attachment is now
@@ -187,6 +189,11 @@ mod tests {
         // CommandInvocation, both surfaces). They open no page; a model cannot reach them.
         // And read a screenshot of the conversation's own browser calls.
         ("browser", 3),
+        // Settings → 网络与浏览器 → Chrome: status, the switch, a pairing code, forgetting the
+        // paired extension, opening the extension's folder (Main only), and stopping everything
+        // Chrome does for Aura; a conversation's shared tabs and the user's "done" for a tab
+        // handed to them. None of them reaches a page or a model.
+        ("chrome", 8),
         ("memory", 10),
         // desktop-only user terminals: explicit Main/Core binding, no model authority.
         ("terminal", 7),
@@ -292,8 +299,10 @@ mod tests {
     /// a Core command: the native directory dialog and folder operations, the local
     /// read models, and attaching the file the user picked as a read-only external
     /// grant.
-    const MAIN_ONLY: [&str; 23] = [
+    const MAIN_ONLY: [&str; 24] = [
         "agent.commands.open_directory",
+        // Main opens the Chrome extension's folder in the file manager.
+        "chrome.extension.open_folder",
         "agent.files.open_outside",
         "agent.links.open",
         "agent.clipboard.write",
@@ -395,9 +404,10 @@ mod tests {
         // to be accepted here on purpose. A stale count is how this inventory went
         // unnoticed before, so the per-module table is compared rather than the
         // total alone.
-        let modules: [(&str, &[RouteDescriptor]); 18] = [
+        let modules: [(&str, &[RouteDescriptor]); 19] = [
             ("media", media::ROUTES),
             ("browser", browser::ROUTES),
+            ("chrome", chrome::ROUTES),
             ("memory", memory::ROUTES),
             ("workspace", workspace::ROUTES),
             ("git", git::ROUTES),

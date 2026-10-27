@@ -5,6 +5,7 @@ use aura_tool_contract::*;
 use aura_tool_projection::*;
 use rusqlite::{Connection, OptionalExtension};
 mod browser;
+mod chrome;
 mod display;
 pub(crate) use display::title as tool_title;
 mod git;

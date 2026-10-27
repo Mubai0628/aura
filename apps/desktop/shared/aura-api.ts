@@ -134,6 +134,7 @@ export interface AuraApiV1 extends SessionConsentsApi {
   projectionCompatibility?: import('./projection-compatibility-api.js').ProjectionCompatibilityApiV1;
   terminal?: import('./terminal-api.js').TerminalApiV1;
   browser?: import('./browser-api.js').BrowserApiV1;
+  chrome?: import('./chrome-control-api.js').ChromeControlApiV1;
   updateToolCredentialOrigins(
     request: ToolCredentialMainParams['tools.credential.origins'],
   ): Promise<ResultEnvelope<ToolCredentialMainResult['tools.credential.origins']>>;

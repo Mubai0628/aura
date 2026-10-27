@@ -59,12 +59,29 @@ export function StepActivity({ item }: { item: AgentTurnView }) {
     (live?.text_total_bytes ?? 0) +
     (live?.reasoning_total_bytes ?? 0) +
     inputs.reduce((sum, input) => sum + input.received_bytes, 0);
-  // A step that has written nothing yet has been quiet since it started.
+  // A step whose context is being compacted waits on that, counted from when the part running now
+  // began; any other step that has written nothing yet has been quiet since it started.
+  const compacting = live?.context_compacting;
   const quiet = useQuietSeconds(
-    live ? `${live.model_step_id}:${arrived}` : undefined,
-    live && arrived === 0 ? Date.parse(live.at) : undefined,
+    live
+      ? compacting
+        ? `${live.model_step_id}:compacting:${compacting.since}`
+        : `${live.model_step_id}:${arrived}`
+      : undefined,
+    compacting
+      ? Date.parse(compacting.since)
+      : live && arrived === 0
+        ? Date.parse(live.at)
+        : undefined,
   );
   if (!live) return null;
+  if (compacting)
+    return (
+      <p className="agent-step-activity" role="status">
+        正在压缩上下文 · {quiet} 秒
+        {compacting.finished_parts > 0 ? ` · 已完成 ${compacting.finished_parts} 段` : ''}
+      </p>
+    );
   if (writing)
     return (
       <p className="agent-step-activity" role="status">

@@ -23,6 +23,10 @@ impl Deref for Backend {
     }
 }
 pub(super) fn backend() -> Backend {
+    backend_with(&[])
+}
+/// The test-owned environment and these variables.
+pub(super) fn backend_with(extra: &[(&str, &str)]) -> Backend {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../target/managed-runtimes/powershell-7.6.5-win-x64");
     let environment_root = tempfile::tempdir().expect("isolated environment");
@@ -35,6 +39,7 @@ pub(super) fn backend() -> Backend {
     .map(|entry| {
         (entry.name.into(), String::from_utf16(&entry.value_utf16).expect("fixture UTF16").into())
     })
+    .chain(extra.iter().map(|(name, value)| ((*name).into(), (*value).into())))
     .collect();
     Backend {
         raw: CompatBackend::with_environment(
@@ -53,6 +58,7 @@ pub(super) fn options(shell: ManagedShell, root: &Path) -> TerminalOptions {
         working_directory: root.to_path_buf(),
         size: TerminalSize { columns: 120, rows: 30 },
         output_limit: 16 * 1024 * 1024,
+        secret_environment: Vec::new(),
     }
 }
 pub(super) fn line(terminal: &TerminalSession, command: &str) {

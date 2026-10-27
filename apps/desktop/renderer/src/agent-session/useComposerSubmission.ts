@@ -1,5 +1,5 @@
 import type { AgentAttachmentDraft, AgentTaskMode, GoalBudget } from '@aura/contracts/generated';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
 import { copySessionReasoning, sessionReasoning } from '../reasoning-effort';
 import { getComposerDraft, updateComposerDraft } from './composer-drafts';
@@ -10,6 +10,14 @@ export interface SubmissionPreparation {
   prepare: (modelId: string) => Promise<string>;
   accepted: (sessionId: string, text: string) => void;
 }
+/** How long a message sent before the model list arrived waits for it. */
+const MODEL_WAIT_MS = 5_000;
+const MODEL_POLL_MS = 50;
+
+/**
+ * `modelPending`: the model is not known yet because the list it comes from is still being read
+ * (a new conversation's default). A message sent meanwhile waits for it instead of being refused.
+ */
 export function useComposerSubmission(
   sessionId: string,
   activeTurn: string | undefined,
@@ -17,7 +25,24 @@ export function useComposerSubmission(
   queuePending: boolean,
   onChanged: () => void,
   preparation?: SubmissionPreparation,
+  modelPending = false,
 ) {
+  const latestModel = useRef(modelId);
+  const latestPending = useRef(modelPending);
+  useEffect(() => {
+    latestModel.current = modelId;
+    latestPending.current = modelPending;
+  });
+  /** The model to start with: one still being read is waited for, for a few seconds. */
+  const settledModel = async (): Promise<string | undefined> => {
+    for (
+      let waited = 0;
+      !latestModel.current && latestPending.current && waited < MODEL_WAIT_MS;
+      waited += MODEL_POLL_MS
+    )
+      await new Promise((resolve) => setTimeout(resolve, MODEL_POLL_MS));
+    return latestModel.current;
+  };
   const [draft, updateDraft] = useState(() => getComposerDraft(sessionId)?.text ?? '');
   const [mode, setMode] = useState<AgentTaskMode>('normal');
   const [budgetTokens, setBudgetTokens] = useState('');
@@ -79,7 +104,8 @@ export function useComposerSubmission(
         max_tokens: budgetTokens ? Number(budgetTokens) : null,
         max_turns: budgetTurns ? Number(budgetTurns) : null,
       };
-      if (!activeTurn && !queuePending && !modelId) {
+      const model = activeTurn || queuePending || modelId ? modelId : await settledModel();
+      if (!activeTurn && !queuePending && !model) {
         setError('请先选择已配置的模型。');
         return false;
       }
@@ -102,19 +128,19 @@ export function useComposerSubmission(
         show(sessionId);
         updateDraft('');
       }
-      const targetSession = preparation && modelId ? await preparation.prepare(modelId) : sessionId;
+      const targetSession = preparation && model ? await preparation.prepare(model) : sessionId;
       show(targetSession);
       // The conversation's own thinking level for its model goes with the message; a new
       // conversation takes the one its draft chose.
       copySessionReasoning(sessionId, targetSession);
-      const level = modelId ? sessionReasoning(targetSession, modelId) : undefined;
+      const level = model ? sessionReasoning(targetSession, model) : undefined;
       const reasoning = level ? { reasoning_effort: level } : {};
       requestStarted = true;
       const result =
-        special && modelId
+        special && model
           ? await window.aura.v1.startAgent({
               session_id: targetSession,
-              model_profile_id: modelId,
+              model_profile_id: model,
               text: draft,
               mode,
               goal_budget: mode === 'goal' ? budget : null,
@@ -164,20 +190,21 @@ export function useComposerSubmission(
       setError('当前任务结束、排队消息处理完之后才能初始化。');
       return false;
     }
-    if (!modelId) {
-      setError('请先选择已配置的模型。');
-      return false;
-    }
     sending.current = true;
     setBusy(true);
     setError(undefined);
     let requestStarted = false;
     try {
-      const targetSession = preparation ? await preparation.prepare(modelId) : sessionId;
+      const model = modelId ?? (await settledModel());
+      if (!model) {
+        setError('请先选择已配置的模型。');
+        return false;
+      }
+      const targetSession = preparation ? await preparation.prepare(model) : sessionId;
       requestStarted = true;
       const result = await window.aura.v1.startWorkspaceInit({
         session_id: targetSession,
-        model_profile_id: modelId,
+        model_profile_id: model,
         text: draft,
       });
       if (!result.ok) {

@@ -105,6 +105,14 @@ impl fmt::Display for WorkspacePath {
     }
 }
 
+/// A path is compared, ordered and hashed as its text, so an ordered index of paths can also be
+/// ranged by text bounds that are not paths themselves, such as a folder's `dir/` prefix.
+impl std::borrow::Borrow<str> for WorkspacePath {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
 impl FromStr for WorkspacePath {
     type Err = WorkspacePathError;
 

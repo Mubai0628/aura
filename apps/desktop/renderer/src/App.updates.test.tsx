@@ -20,6 +20,7 @@ function updateBridge(change: Partial<AppUpdateState> = {}) {
     checked_at: null,
     auto_check: true,
     notice: null,
+    rollback_needs_data: false,
     ...change,
   };
   const listeners = new Set<(next: AppUpdateState) => void>();

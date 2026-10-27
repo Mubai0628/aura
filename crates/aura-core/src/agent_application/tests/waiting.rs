@@ -47,6 +47,18 @@ mod l13_2_attachments;
 mod l13_3_attachments;
 #[path = "l13_3_media/mod.rs"]
 mod l13_3_media;
+// The user's own Chrome, against a paired extension double.
+#[path = "l14_chrome/mod.rs"]
+mod l14_chrome;
+// The workspace's AGENTS.md in the model's instructions.
+#[path = "agents_instructions.rs"]
+mod agents_instructions;
+// A Shell call's id, its output kept at a limit, and shell.query's errors.
+#[path = "shell_results.rs"]
+mod shell_results;
+// The history revision moves with the conversation's own page only.
+#[path = "history_revision.rs"]
+mod history_revision;
 // A message's attachments read again for the 文件 tab.
 #[path = "l13_4_attachments.rs"]
 mod l13_4_attachments;
@@ -68,6 +80,12 @@ mod l13_6_files;
 // A new conversation's first request measured by another conversation's count.
 #[path = "l12_1_borrowed_count.rs"]
 mod l12_1_borrowed_count;
+// A compaction that falls short never ends the turn.
+#[path = "l12_4_compaction.rs"]
+mod l12_4_compaction;
+// Reasoning that loops before any answer is stopped and the step asked again.
+#[path = "l12_4_reasoning_loop.rs"]
+mod l12_4_reasoning_loop;
 
 /// The runtime, session and model profile a run needs, before anything has been
 /// started. Tests that must commit their own configuration first (the context

@@ -49,7 +49,16 @@ export const COMPONENTS = [
     path: 'aura-elevated-helper.exe',
     from: 'binaries',
   },
+  // Beside Core: the relay and Core accept each other only from the same folder.
+  {
+    id: 'aura-chrome-host',
+    kind: 'chrome_native_host',
+    path: 'aura-chrome-host.exe',
+    from: 'binaries',
+  },
 ];
+/** Where the Chrome extension the user loads sits in a release's folder. */
+export const CHROME_EXTENSION_PATH = 'resources/chrome-extension';
 /** Components that get Aura's icon (the desktop also its version information) once copied. */
 export const BRANDED = ['aura-launcher', 'aura-setup', 'aura-desktop'];
 

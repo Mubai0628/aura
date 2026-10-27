@@ -1114,7 +1114,7 @@ pub(crate) fn scan_directory_entries(
 /// bounded directory rescan and the exact-path rescan all share this one
 /// implementation, so an incremental update cannot record different facts than a
 /// rebuild would.
-fn build_entry(
+pub(super) fn build_entry(
     ignores: &[Gitignore],
     partition: WorkspacePath,
     parent: WorkspacePath,
@@ -1200,7 +1200,7 @@ fn record_stats(
     }
 }
 
-fn push_ignore_matcher(
+pub(super) fn push_ignore_matcher(
     directory: &Path,
     workspace_root: bool,
     matchers: &mut Vec<Gitignore>,
@@ -1500,25 +1500,6 @@ fn directory_version(
     version_of(&children)
 }
 
-/// The version of one folder's listing as read from disk, from the same facts as
-/// [`directory_version`]: it stays the same while the folder's own children do.
-pub(crate) fn listing_version(entries: &[CatalogEntry]) -> Result<Revision, WorkspaceError> {
-    let mut children = entries
-        .iter()
-        .map(|entry| {
-            (
-                entry.path.as_str(),
-                entry.kind,
-                entry.byte_length,
-                entry.modified_at.as_deref(),
-                entry.content_hash.as_ref().map(ToString::to_string),
-            )
-        })
-        .collect::<Vec<_>>();
-    children.sort_by(|left, right| left.0.cmp(right.0));
-    version_of(&children)
-}
-
 /// One version token for a filename lookup's scope.
 ///
 /// A non-recursive lookup is decided by one directory's direct children, which is
@@ -1561,9 +1542,10 @@ fn scope_version(
 /// hex digits is enough and keeps the token distinct across the whole prefix.
 /// One entry's comparable facts: path, kind, byte length, content hash and the
 /// decode failure that was recorded for it, if any.
-type EntryFacts<'a> = (&'a str, CatalogEntryKind, Option<u64>, Option<&'a str>, Option<String>);
+pub(super) type EntryFacts<'a> =
+    (&'a str, CatalogEntryKind, Option<u64>, Option<&'a str>, Option<String>);
 
-fn version_of(facts: &[EntryFacts<'_>]) -> Result<Revision, WorkspaceError> {
+pub(super) fn version_of(facts: &[EntryFacts<'_>]) -> Result<Revision, WorkspaceError> {
     let digest = canonical_sha256(&facts).map_err(|_| WorkspaceError::RevisionExhausted)?;
     let mut token = 0_u64;
     for character in digest.hex().chars().take(16) {

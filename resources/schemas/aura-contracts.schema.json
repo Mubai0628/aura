@@ -636,11 +636,12 @@
       "type": "object"
     },
     "ActivityResourceRelation": {
-      "description": "What kind of access the executor has against one real target.\n\n`UnknownWriteSet` is not a placeholder for \"we did not look\": it is the honest\nanswer for a Shell whose write set cannot be proven. It never serialises\nglobally and it never disables Shell.",
+      "description": "What kind of access the executor has against one real target.\n\n`UnknownWriteSet` is not a placeholder for \"we did not look\": it is the honest\nanswer for a Shell whose write set cannot be proven, within its own workspace.\n`UnknownWriteSetOutsideWorkspace` is that answer for a Shell whose script names places\noutside its workspace. Neither serialises globally or disables Shell.",
       "enum": [
         "read",
         "write",
-        "unknown_write_set"
+        "unknown_write_set",
+        "unknown_write_set_outside_workspace"
       ],
       "type": "string"
     },
@@ -1043,6 +1044,17 @@
             }
           ],
           "description": "This\nstep's context was compacted first — older history became a summary."
+        },
+        "context_compacting": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentContextCompactingView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The context is being compacted before this step's request: since when, and how many\nparts are already done. Absent once the compaction ends."
         },
         "context_compaction_running": {
           "description": "`compaction.state == running` from that same inspection, when recorded.",
@@ -1448,6 +1460,27 @@
       ],
       "type": "object"
     },
+    "AgentContextCompactingView": {
+      "additionalProperties": false,
+      "description": "A compaction under way before a step.",
+      "properties": {
+        "finished_parts": {
+          "description": "The parts of this compaction already done, when it is done in parts.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "since": {
+          "$ref": "#/$defs/UtcTimestamp",
+          "description": "When the part running now started."
+        }
+      },
+      "required": [
+        "since",
+        "finished_parts"
+      ],
+      "type": "object"
+    },
     "AgentContextReadCompactionInput": {
       "additionalProperties": false,
       "description": "Session/run authority is supplied by the Agent's admitted invocation.",
@@ -1473,10 +1506,19 @@
       "properties": {
         "character_limit": {
           "default": 8192,
-          "description": "Characters per page. Default 8192.",
+          "description": "Characters per page, default 8192, at most 262144. An event's text is never cut to fit a\npage: an event longer than this comes with an empty content and its length in\ncontent_chars.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "content_offset": {
+          "description": "With a single event selector and no cursor: read that event's text from this character\non, character_limit characters at most; content_next_offset continues it.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "cursor": {
           "type": [
@@ -2054,6 +2096,7 @@
           "type": "integer"
         },
         "path_glob": {
+          "description": "Only files matching this glob. Without `/` it matches file names in any folder (`*.rs`,\n`*.{ts,tsx}`); with `/`, the path below root (`src/**/*.rs`).",
           "type": [
             "string",
             "null"
@@ -2982,6 +3025,13 @@
       "additionalProperties": false,
       "description": "A historical inspector is bound to the exact execution and context that\nproduced that step, independent of the session's current configuration.",
       "properties": {
+        "activity_sources": {
+          "description": "Which session runs each other task the step's task state numbered.",
+          "items": {
+            "$ref": "#/$defs/PromptInspectorActivitySourceView"
+          },
+          "type": "array"
+        },
         "context": {
           "$ref": "#/$defs/ContextProjectionSnapshot"
         },
@@ -3839,6 +3889,13 @@
         "requires_network": {
           "default": false,
           "type": "boolean"
+        },
+        "secret_environment": {
+          "description": "Default none. Credentials of the user's environment this terminal needs, by variable name\n(names with TOKEN, KEY, SECRET, PASSWORD, PASS, PWD or the like, or holding a\nuser:password@ address). Only these are passed; their values and every other\ncredential's are hidden in the output.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "shell": {
           "$ref": "#/$defs/AgentTerminalShell",
@@ -6069,6 +6126,17 @@
             "array",
             "null"
           ]
+        },
+        "chrome_consent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChromeTurnConsentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A ReadOnly answer covering one shared Chrome tab for the rest of the turn."
         },
         "consent": {
           "anyOf": [
@@ -9634,6 +9702,1012 @@
       ],
       "type": "object"
     },
+    "ChromeAssistOutcome": {
+      "enum": [
+        "done",
+        "declined",
+        "timed_out",
+        "closed"
+      ],
+      "type": "string"
+    },
+    "ChromeAssistResult": {
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/ChromeAssistOutcome",
+          "description": "What the user answered. Aura does not check whether what they did worked."
+        },
+        "page": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChromePageResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The tab afterwards; refs from before are no longer valid."
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "ChromeClickInput": {
+      "additionalProperties": false,
+      "properties": {
+        "button": {
+          "$ref": "#/$defs/ChromeMouseButton",
+          "default": "left"
+        },
+        "double": {
+          "default": false,
+          "type": "boolean"
+        },
+        "ref": {
+          "default": null,
+          "description": "The element to click: a ref from the latest snapshot, such as e12.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "x": {
+          "default": null,
+          "description": "Or a point in the tab's viewport, in CSS pixels (x with y).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "y": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ChromeCloseInput": {
+      "additionalProperties": false,
+      "properties": {
+        "tab": {
+          "default": null,
+          "description": "A tab the model opened (a ref from chrome.tabs); the current tab when omitted. A tab the\nuser shared is not closed: stopping the share is the user's.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ChromeCloseResult": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "closed"
+      ],
+      "type": "object"
+    },
+    "ChromeConnectionState": {
+      "oneOf": [
+        {
+          "enum": [
+            "connected"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "off",
+          "description": "Chrome control is off.",
+          "type": "string"
+        },
+        {
+          "const": "waiting",
+          "description": "On, and no extension is connected.",
+          "type": "string"
+        },
+        {
+          "const": "pairing",
+          "description": "An extension is connected and has not paired or proved its pairing yet.",
+          "type": "string"
+        }
+      ]
+    },
+    "ChromeConsoleEntryV1": {
+      "additionalProperties": false,
+      "description": "One thing the page reported: a console message, an uncaught error or a load that failed.",
+      "properties": {
+        "level": {
+          "description": "log, info, warning, error, exception or failed_load.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Where it came from (address and line), when the page said.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "text"
+      ],
+      "type": "object"
+    },
+    "ChromeConsoleInput": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChromeConsoleLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only errors, errors and warnings, or everything (default all)."
+        },
+        "max_entries": {
+          "default": null,
+          "description": "The latest this many entries (default 50, at most 200).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ChromeConsoleLevel": {
+      "enum": [
+        "error",
+        "warning",
+        "all"
+      ],
+      "type": "string"
+    },
+    "ChromeConsoleResult": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/ChromeConsoleEntryV1"
+          },
+          "type": "array"
+        },
+        "tab": {
+          "type": "string"
+        },
+        "truncated": {
+          "description": "Older entries were dropped to stay within the limit.",
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tab",
+        "url",
+        "entries",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "ChromeControlStatus": {
+      "additionalProperties": false,
+      "description": "Chrome control as the settings page shows it.",
+      "properties": {
+        "connection": {
+          "$ref": "#/$defs/ChromeConnectionState"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "issue": {
+          "description": "Why the settings cannot be read, in the user's words.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "paired": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChromePairedExtension"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pairing_expires_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When the pairing code the page showed stops working, while one is waiting."
+        },
+        "registered": {
+          "description": "Whether Chrome can find Aura's relay.",
+          "type": "boolean"
+        },
+        "revision": {
+          "description": "The settings revision the page changes next; `None` while the settings cannot be read.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "registered",
+        "connection"
+      ],
+      "type": "object"
+    },
+    "ChromeExtensionFolder": {
+      "additionalProperties": false,
+      "description": "The extension folder the user loads in Chrome, and whether the file manager opened it.",
+      "properties": {
+        "opened": {
+          "description": "False when the folder is missing or could not be opened.",
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "opened"
+      ],
+      "type": "object"
+    },
+    "ChromeHistoryAction": {
+      "enum": [
+        "back",
+        "forward",
+        "reload"
+      ],
+      "type": "string"
+    },
+    "ChromeHoverInput": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "type": "string"
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "type": "object"
+    },
+    "ChromeMouseButton": {
+      "enum": [
+        "left",
+        "right",
+        "middle"
+      ],
+      "type": "string"
+    },
+    "ChromeNavigateInput": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChromeHistoryAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Or back, forward or reload."
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "default": null,
+          "description": "An address to go to in that tab. Give url or action, not both.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ChromeOpenInput": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "description": "An http(s) address, or a host such as localhost:5173. It opens in a new tab of the\n\"Aura\" tab group, which becomes the current tab.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    },
+    "ChromePageResult": {
+      "additionalProperties": false,
+      "description": "What the tab looks like after an action.",
+      "properties": {
+        "console": {
+          "description": "Console messages, page errors and failed loads since the previous result for this tab.",
+          "items": {
+            "$ref": "#/$defs/ChromeConsoleEntryV1"
+          },
+          "type": "array"
+        },
+        "dialogs": {
+          "description": "Dialogs the page opened during the action, and how they were answered.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "notice": {
+          "description": "What stopped or changed the action, such as a new site waiting for the user.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "snapshot": {
+          "description": "The page's accessibility snapshot. Elements carry refs (e3) for click, type and the rest.\nPassword, one-time-code and payment fields show no value.",
+          "type": "string"
+        },
+        "snapshot_truncated": {
+          "type": "boolean"
+        },
+        "tab": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tab",
+        "url",
+        "title",
+        "snapshot",
+        "snapshot_truncated",
+        "console",
+        "dialogs"
+      ],
+      "type": "object"
+    },
+    "ChromePairedExtension": {
+      "additionalProperties": false,
+      "properties": {
+        "extension_id": {
+          "type": "string"
+        },
+        "paired_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "extension_id",
+        "paired_at"
+      ],
+      "type": "object"
+    },
+    "ChromePairingCode": {
+      "additionalProperties": false,
+      "description": "A code the user types into the extension once; it works for five minutes and five tries.",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "expires_at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      },
+      "required": [
+        "code",
+        "expires_at"
+      ],
+      "type": "object"
+    },
+    "ChromePressInput": {
+      "additionalProperties": false,
+      "properties": {
+        "hold_ms": {
+          "default": null,
+          "description": "Keep it held this long, in milliseconds, as a game expects (at most 3000).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "key": {
+          "description": "A key or a chord: Enter, Escape, Tab, ArrowLeft, Space, a, Control+a, Shift+Tab.",
+          "type": "string"
+        },
+        "repeat": {
+          "default": null,
+          "description": "Press it this many times (default 1, at most 20).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
+    },
+    "ChromeRequestUserInput": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "description": "What the user should do in the tab, in a sentence (sign in, enter a code, choose).",
+          "type": "string"
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeout_seconds": {
+          "default": null,
+          "description": "How long to wait for them, in seconds (default 300; the settings set the most).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "type": "object"
+    },
+    "ChromeScreenshotInput": {
+      "additionalProperties": false,
+      "properties": {
+        "full_page": {
+          "default": false,
+          "description": "The whole page instead of what is on screen.",
+          "type": "boolean"
+        },
+        "ref": {
+          "default": null,
+          "description": "Only this element (a ref from the latest snapshot, such as e7).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ChromeScreenshotResult": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "image_artifact_id": {
+          "$ref": "#/$defs/ArtifactId",
+          "description": "The image, kept with this call for the user to see."
+        },
+        "note": {
+          "type": "string"
+        },
+        "shown_to_model": {
+          "description": "Whether the image was attached for the model to look at.",
+          "type": "boolean"
+        },
+        "tab": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "width": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tab",
+        "url",
+        "title",
+        "width",
+        "height",
+        "image_artifact_id",
+        "shown_to_model",
+        "note"
+      ],
+      "type": "object"
+    },
+    "ChromeScrollDirection": {
+      "enum": [
+        "up",
+        "down",
+        "left",
+        "right"
+      ],
+      "type": "string"
+    },
+    "ChromeScrollInput": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "default": null,
+          "description": "How far, in CSS pixels (default 600).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "direction": {
+          "$ref": "#/$defs/ChromeScrollDirection"
+        },
+        "ref": {
+          "default": null,
+          "description": "Scroll inside this element (a ref) instead of the page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "direction"
+      ],
+      "type": "object"
+    },
+    "ChromeSelectInput": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "description": "The select element (a ref).",
+          "type": "string"
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "values": {
+          "description": "The options to choose, by value or by visible text.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "ref",
+        "values"
+      ],
+      "type": "object"
+    },
+    "ChromeSessionRequest": {
+      "additionalProperties": false,
+      "description": "A conversation, for what Aura shows about its shared tabs.",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "ChromeSessionShares": {
+      "additionalProperties": false,
+      "description": "The conversation's shared tabs, for the line above its message box.",
+      "properties": {
+        "connected": {
+          "description": "Whether the extension is connected now.",
+          "type": "boolean"
+        },
+        "tabs": {
+          "items": {
+            "$ref": "#/$defs/ChromeSharedTab"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "connected",
+        "tabs"
+      ],
+      "type": "object"
+    },
+    "ChromeSetEnabledRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "ChromeSharedTab": {
+      "additionalProperties": false,
+      "description": "One tab the user shared with the conversation, or that the model opened for it.",
+      "properties": {
+        "assist_reason": {
+          "description": "What the model asked the user to do, while the user has the tab.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/ChromeSharedTabState"
+        },
+        "tab": {
+          "description": "The conversation's name for the tab (t1, t2…).",
+          "type": "string"
+        },
+        "this_turn_only": {
+          "description": "The share ends with the conversation's turn.",
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tab",
+        "title",
+        "url",
+        "state",
+        "this_turn_only"
+      ],
+      "type": "object"
+    },
+    "ChromeSharedTabState": {
+      "description": "What a shared tab is doing now.",
+      "oneOf": [
+        {
+          "enum": [
+            "active"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "awaiting_origin",
+          "description": "The tab moved to a site the user has not confirmed for this share.",
+          "type": "string"
+        },
+        {
+          "const": "with_user",
+          "description": "The model handed the tab to the user (`chrome.request_user`).",
+          "type": "string"
+        }
+      ]
+    },
+    "ChromeSnapshotInput": {
+      "additionalProperties": false,
+      "properties": {
+        "max_chars": {
+          "default": null,
+          "description": "Longest snapshot to return, in characters (default 12000, at most 60000).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ChromeTabV1": {
+      "additionalProperties": false,
+      "description": "One tab the session may act on.",
+      "properties": {
+        "current": {
+          "description": "The tab the tools act on when they are not given one.",
+          "type": "boolean"
+        },
+        "opened_by_aura": {
+          "description": "Opened by `chrome.open`, so `chrome.close` may close it.",
+          "type": "boolean"
+        },
+        "tab": {
+          "description": "The tab's ref for the other tools, such as t2.",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tab",
+        "title",
+        "url",
+        "current",
+        "opened_by_aura"
+      ],
+      "type": "object"
+    },
+    "ChromeTabsInput": {
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ChromeTabsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "tabs": {
+          "items": {
+            "$ref": "#/$defs/ChromeTabV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "tabs"
+      ],
+      "type": "object"
+    },
+    "ChromeTurnConsentRef": {
+      "additionalProperties": false,
+      "description": "A ReadOnly answer for one shared tab: reading it and acting on it ask no more for the rest\nof the turn. It never covers a sensitive action, a site the user has not confirmed, another\nshare, or anything that is not Chrome.",
+      "properties": {
+        "approval_id": {
+          "$ref": "#/$defs/ApprovalRequestId"
+        },
+        "approved_operation_fingerprint": {
+          "$ref": "#/$defs/CanonicalSha256HashV1"
+        },
+        "grant_revision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "principal_id": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "share_id": {
+          "type": "string"
+        },
+        "turn_task_id": {
+          "$ref": "#/$defs/TurnTaskId"
+        }
+      },
+      "required": [
+        "approval_id",
+        "session_id",
+        "turn_task_id",
+        "principal_id",
+        "share_id",
+        "approved_operation_fingerprint",
+        "grant_revision"
+      ],
+      "type": "object"
+    },
+    "ChromeTypeInput": {
+      "additionalProperties": false,
+      "properties": {
+        "clear": {
+          "default": false,
+          "description": "Replace the field's current text instead of adding to it.",
+          "type": "boolean"
+        },
+        "ref": {
+          "default": null,
+          "description": "The field to type into (a ref); without it, the focused element.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "submit": {
+          "default": false,
+          "description": "Press Enter afterwards.",
+          "type": "boolean"
+        },
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "ChromeWaitInput": {
+      "additionalProperties": false,
+      "properties": {
+        "tab": {
+          "default": null,
+          "description": "The tab (a ref from chrome.tabs); the current tab when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "default": null,
+          "description": "Wait until this text is on the page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text_gone": {
+          "default": null,
+          "description": "Wait until this text is gone.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time_ms": {
+          "default": null,
+          "description": "Or simply wait this long, in milliseconds (at most 10000).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "timeout_ms": {
+          "default": null,
+          "description": "Give up after this long, in milliseconds (default 10000, at most 30000).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "ClipboardWriteRequest": {
       "additionalProperties": false,
       "description": "Text the user asked to copy.",
@@ -10998,7 +12072,8 @@
         "browser",
         "memory",
         "diagnostics",
-        "update"
+        "update",
+        "chrome"
       ],
       "type": "string"
     },
@@ -16921,6 +17996,13 @@
     "FsListRequest": {
       "additionalProperties": false,
       "properties": {
+        "after": {
+          "description": "The page after this child of the folder: a listing's `next_after`. None for the first.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "session_id": {
           "$ref": "#/$defs/SessionId"
         },
@@ -16949,6 +18031,13 @@
             "$ref": "#/$defs/FsListEntry"
           },
           "type": "array"
+        },
+        "next_after": {
+          "description": "Where the next page starts, when the folder holds more: pass it back as `after`.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -21890,6 +22979,13 @@
         },
         "script": {
           "type": "string"
+        },
+        "secret_environment": {
+          "description": "Credentials the command declared; absent when it declared none.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "shell": {
           "$ref": "#/$defs/ManagedShell"
@@ -31614,6 +32710,26 @@
           "const": "permanent_file_deletion",
           "description": "A deletion that does not go to the Recycle Bin — a Shell command that\ndeletes files, or `fs.delete` asked to delete for good. Asked every time, never reused;\na Shell deletion in 完全访问 is not asked (its user was told when turning it on).",
           "type": "string"
+        },
+        {
+          "const": "chrome_credential_field",
+          "description": "A Chrome action on a password, one-time-code or payment field. Refused outright.",
+          "type": "string"
+        },
+        {
+          "const": "chrome_captcha",
+          "description": "A Chrome action inside a CAPTCHA frame. Refused outright.",
+          "type": "string"
+        },
+        {
+          "const": "chrome_passkey",
+          "description": "A Chrome action on a passkey or WebAuthn dialog. Refused outright.",
+          "type": "string"
+        },
+        {
+          "const": "chrome_file_chooser",
+          "description": "A Chrome action that would open a file chooser. Refused outright.",
+          "type": "string"
         }
       ]
     },
@@ -40947,6 +42063,30 @@
     "PromptBundleSnapshotId": {
       "type": "string"
     },
+    "PromptInspectorActivitySourceView": {
+      "additionalProperties": false,
+      "description": "Which session runs a task that a step's task state names only by its number.\n\nIt is kept beside the step's frozen inspector for the person reading it; the model never\nreceives it.",
+      "properties": {
+        "another_task": {
+          "description": "The task's `another_task` number in the step's task state.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "another_task",
+        "session_id",
+        "workspace_id"
+      ],
+      "type": "object"
+    },
     "PromptInspectorActivityView": {
       "additionalProperties": false,
       "description": "The Inspector's real projection of the frozen activity snapshot.\n\nEvery field is a fact the fragment was built from; nothing here is recomputed from a\nsecond read, so \"the Inspector and the request body agree\" is structural rather than a\nproperty someone has to remember to maintain.",
@@ -44673,6 +45813,21 @@
           "type": "string"
         },
         {
+          "const": "chrome_read",
+          "description": "Reading a tab the user shared from their own Chrome.",
+          "type": "string"
+        },
+        {
+          "const": "chrome_interaction",
+          "description": "Clicking, typing, and navigating inside that shared tab.",
+          "type": "string"
+        },
+        {
+          "const": "chrome_sensitive_action",
+          "description": "A sensitive Chrome action. Asked every time; the only yes is once.",
+          "type": "string"
+        },
+        {
           "const": "agent_task_read",
           "description": "Task-local bookkeeping and completion gates; never workspace mutation.",
           "type": "string"
@@ -46078,6 +47233,64 @@
             "session_id",
             "turn_task_id",
             "agent_run_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A tab the user shared from their own Chrome.",
+          "properties": {
+            "scope_kind": {
+              "const": "chrome_share",
+              "type": "string"
+            },
+            "share_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "share_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The shared tab this call acts on.",
+          "properties": {
+            "scope_kind": {
+              "const": "chrome_tab",
+              "type": "string"
+            },
+            "tab_ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "tab_ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Where that tab is. `confirmed` is false until the user keeps sharing this origin.",
+          "properties": {
+            "confirmed": {
+              "type": "boolean"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "scope_kind": {
+              "const": "chrome_origin",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "origin",
+            "confirmed"
           ],
           "type": "object"
         }
@@ -49266,7 +50479,7 @@
       "properties": {
         "max_output_bytes": {
           "default": 65536,
-          "description": "Default 65536. Bytes of stdout and stderr kept, up to 1048576.",
+          "description": "Default 65536. Bytes of stdout and of stderr kept, up to 1048576. A command that writes\nmore is stopped then, and its result says so (stop_reason output_limit) with the output\nkept; send large output to a file and read that instead.",
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
@@ -49279,6 +50492,13 @@
         "script": {
           "description": "The script to run.",
           "type": "string"
+        },
+        "secret_environment": {
+          "description": "Default none. Credentials of the user's environment this command needs, by variable name\n(names with TOKEN, KEY, SECRET, PASSWORD, PASS, PWD or the like, or holding a\nuser:password@ address). Only these are passed; their values and every other\ncredential's are hidden in the output.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "stdin": {
           "default": "",
@@ -49494,7 +50714,8 @@
           "type": "integer"
         },
         "tool_call_id": {
-          "$ref": "#/$defs/ToolCallId"
+          "$ref": "#/$defs/ToolCallId",
+          "description": "The tool_call_id of a shell.powershell or shell.cmd result in this session (tcl_…); not\nthe provider's call id, a tool name or an artifact id."
         }
       },
       "required": [
@@ -49522,7 +50743,8 @@
       "additionalProperties": false,
       "properties": {
         "tool_call_id": {
-          "$ref": "#/$defs/ToolCallId"
+          "$ref": "#/$defs/ToolCallId",
+          "description": "The tool_call_id of a shell.powershell or shell.cmd result in this session (tcl_…)."
         }
       },
       "required": [

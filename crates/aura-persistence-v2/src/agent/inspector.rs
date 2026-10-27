@@ -1,8 +1,8 @@
 use super::{facts, turns};
 use aura_agent_domain::{AgentInspectorRequest, ModelStepState};
 use aura_context_domain::{
-    AgentPromptInspection, ContextProjectionSnapshot, PromptInspectorProjection,
-    PromptInspectorTaskLineageView, SessionCacheUsageView,
+    AgentPromptInspection, ContextProjectionSnapshot, PromptInspectorActivitySourceView,
+    PromptInspectorProjection, PromptInspectorTaskLineageView, SessionCacheUsageView,
 };
 use aura_domain_common::*;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
@@ -86,6 +86,22 @@ pub fn freeze(
     facts::append(tx, EventId::new(), &step.to_string(), "agent.prompt_inspector", view, at)
 }
 
+/// The sessions behind the other tasks a step's task state numbered. It is a fact of its own, so
+/// the frozen inspector keeps the shape an earlier version reads.
+pub fn freeze_activity_sources(
+    tx: &Transaction<'_>,
+    step: ModelStepId,
+    sources: &[PromptInspectorActivitySourceView],
+    at: UtcTimestamp,
+) -> StoreResult<()> {
+    if sources.is_empty() {
+        return Ok(());
+    }
+    facts::append(tx, EventId::new(), &step.to_string(), ACTIVITY_SOURCES, &sources, at)
+}
+
+const ACTIVITY_SOURCES: &str = "agent.prompt_inspector.activity_sources";
+
 pub fn read(
     db: &Connection,
     request: &AgentInspectorRequest,
@@ -113,7 +129,9 @@ pub fn read(
     }
     // A read that cannot add up the conversation still shows the step.
     let session_cache = session_cache(db, request.session_id).ok();
-    Ok(AgentPromptInspection { projection, execution, context, session_cache })
+    let activity_sources =
+        facts::latest(db, &step.model_step_id.to_string(), ACTIVITY_SOURCES)?.unwrap_or_default();
+    Ok(AgentPromptInspection { projection, execution, context, session_cache, activity_sources })
 }
 
 /// The conversation's finished requests, and what their Providers read from the cache. Each

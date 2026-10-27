@@ -4,7 +4,7 @@ use aura_domain_common::jcs::CanonicalHashV1;
 use aura_domain_common::{
     AgentRunId, ContentHash, ContextProjectionSnapshotId, ModelProfileId, ModelStepId,
     PromptBundleSnapshotId, Revision, RuntimeInstanceId, SessionId, SkillInstanceId, TaskLineageId,
-    UtcTimestamp,
+    UtcTimestamp, WorkspaceId,
 };
 use aura_security_contract::{ModelChannelDataDisposition, NetworkDataClass};
 use schemars::JsonSchema;
@@ -306,6 +306,19 @@ pub struct SessionCacheUsageView {
     pub cached_input_tokens: u64,
 }
 
+/// Which session runs a task that a step's task state names only by its number.
+///
+/// It is kept beside the step's frozen inspector for the person reading it; the model never
+/// receives it.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PromptInspectorActivitySourceView {
+    /// The task's `another_task` number in the step's task state.
+    pub another_task: u32,
+    pub session_id: SessionId,
+    pub workspace_id: WorkspaceId,
+}
+
 /// A historical inspector is bound to the exact execution and context that
 /// produced that step, independent of the session's current configuration.
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -317,4 +330,7 @@ pub struct AgentPromptInspection {
     /// The whole conversation's cache use when the step was read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_cache: Option<SessionCacheUsageView>,
+    /// Which session runs each other task the step's task state numbered.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub activity_sources: Vec<PromptInspectorActivitySourceView>,
 }

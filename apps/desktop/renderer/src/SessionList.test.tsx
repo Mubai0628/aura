@@ -59,11 +59,12 @@ test('the first page of conversations is drawn at once and the next as the end c
   expect(rows()).toHaveLength(LIST_PAGE * 2);
 });
 
-test('the open conversation is drawn even beyond the first page', () => {
+test('the open conversation beyond the first page is drawn after it, without the rows between', () => {
   list('session-70');
-  expect(rows()).toHaveLength(71);
+  expect(rows()).toHaveLength(LIST_PAGE + 1);
   expect(screen.getByRole('button', { name: '会话 70' }).getAttribute('aria-current')).toBe('page');
   act(() => reached.at(-1)!());
-  // The next page follows the open conversation: 71 + 40 covers the remaining rows.
-  expect(rows()).toHaveLength(100);
+  // The pages reached it: it is in its place among them, once.
+  expect(rows()).toHaveLength(LIST_PAGE * 2);
+  expect(screen.getAllByRole('button', { name: '会话 70' })).toHaveLength(1);
 });

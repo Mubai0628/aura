@@ -194,6 +194,9 @@ pub struct AuthorizationScope {
     /// A ReadOnly answer covering one MCP server for the rest of the turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_consent: Option<crate::McpTurnConsentRef>,
+    /// A ReadOnly answer covering one shared Chrome tab for the rest of the turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chrome_consent: Option<crate::ChromeTurnConsentRef>,
     /// The missing capabilities actually shown in a composite approval. Historical exact
     /// approvals omit this field; their exact operation fingerprint remains authoritative.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -228,6 +231,7 @@ impl AuthorizationScope {
             && stored.network_consent.is_none()
             && stored.memory_consent.is_none()
             && stored.mcp_consent.is_none()
+            && stored.chrome_consent.is_none()
         {
             return None;
         }
@@ -242,6 +246,7 @@ impl AuthorizationScope {
             && self.network_consent.is_none()
             && self.memory_consent.is_none()
             && self.mcp_consent.is_none()
+            && self.chrome_consent.is_none()
     }
 }
 

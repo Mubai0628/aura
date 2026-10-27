@@ -207,3 +207,18 @@ pub(crate) fn flat_call(purpose: &str, fields: Value) -> String {
     call.insert("aura_purpose".into(), Value::String(purpose.into()));
     Value::Object(call).to_string()
 }
+
+/// A compaction answer in the frozen shape whose summary runs past four times the length the ask
+/// set for it, so it is refused however its headings and Truth-Index are counted.
+pub(super) fn long_compaction_answer(ask: &str, anchors: &str) -> String {
+    let target = ask
+        .split("Keep the summary text under ")
+        .nth(1)
+        .and_then(|rest| rest.split(' ').next())
+        .and_then(|number| number.parse::<usize>().ok())
+        .expect("the ask names the summary's length");
+    let summary = "Everything that happened, retold at length. ".repeat(target * 4 / 40 + 50);
+    format!(
+        "# Historical-Snapshot-Summary\n{summary}\n# Active-Turn-Progress-Summary\nFinish the request.\n# Structured-Compaction\n## Summary\nNo tools ran.\n## Full-Turn-Session-Line\nOne task.\n## Active-Turn-Segment-Line\nContinue.\n## Truth-Index\n{anchors}"
+    )
+}

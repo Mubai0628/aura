@@ -34,6 +34,7 @@ function List({ items, keep }: { items: readonly string[]; keep?: number }) {
         <li key={item}>{item}</li>
       ))}
       {pages.more ? <ListSentinel sentinel={pages.sentinel} /> : null}
+      {pages.kept ? <li key={pages.kept}>{pages.kept}</li> : null}
     </ul>
   );
 }
@@ -70,11 +71,16 @@ test('without IntersectionObserver every row is drawn', () => {
   expect(screen.getAllByText(/^skill-/u)).toHaveLength(100);
 });
 
-test('a row to keep is drawn beyond the first page, and the next page follows it', () => {
+test('a row to keep beyond the pages drawn is drawn on its own, not with every row before it', () => {
   render(<List items={names(200)} keep={99} />);
-  expect(screen.getAllByText(/^skill-/u)).toHaveLength(100);
+  expect(screen.getAllByText(/^skill-/u)).toHaveLength(LIST_PAGE + 1);
+  expect(screen.getByText('skill-99')).toBeTruthy();
   act(() => reached.at(-1)!());
-  expect(screen.getAllByText(/^skill-/u)).toHaveLength(100 + LIST_PAGE);
+  expect(screen.getAllByText(/^skill-/u)).toHaveLength(LIST_PAGE * 2 + 1);
+  act(() => reached.at(-1)!());
+  // The pages reached it: it is drawn in its place, once.
+  expect(screen.getAllByText(/^skill-/u)).toHaveLength(LIST_PAGE * 3);
+  expect(screen.getAllByText('skill-99')).toHaveLength(1);
 });
 
 test('the same list given again, as after acting on one of its rows, keeps the rows drawn', () => {

@@ -255,6 +255,7 @@ export function AboutUpdates() {
           busy={pending === 'roll_back'}
           error={failure}
           onCancel={() => setConfirmation(undefined)}
+          needsData={state?.rollback_needs_data ?? false}
           onConfirm={confirmRollback}
           target={confirmation.version}
           valid={supported && !working && confirmation.version === previous}

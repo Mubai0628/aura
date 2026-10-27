@@ -236,6 +236,12 @@ impl AgentExecution {
             {
                 safe_feedback.insert(call.call.tool_call_id, message);
             }
+            if handler.starts_with("chrome.")
+                && let Err(error) = &resolved
+                && let Some(message) = super::chrome::admission_feedback(error)
+            {
+                safe_feedback.insert(call.call.tool_call_id, message);
+            }
             let resources = match resolved {
                 Ok(context) => match planning::resources(self, &context) {
                     Ok(resources) => {

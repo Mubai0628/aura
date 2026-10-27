@@ -6,6 +6,7 @@ pub mod download;
 mod error;
 mod external;
 pub mod external_faults;
+mod held_rename;
 mod inspect;
 mod mutation;
 mod publication_receipt;
@@ -35,6 +36,7 @@ pub use external::{
     FsExternalTextReadRequest, FsExternalTextReadResult, FsExternalWriteRequest,
     FsExternalWriteResult, external_identity_revision, external_scope_revision,
 };
+pub use read::LISTED;
 /// The cancellation intent that reaches a **not-yet-started resource wait**.
 ///
 /// Exported so the real `aura.cancel` route records its intent where every entry's waiter can

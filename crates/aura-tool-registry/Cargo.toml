@@ -12,6 +12,7 @@ aura-workspace-domain = { path = "../aura-workspace-domain" }
 aura-context-domain = { path = "../aura-context-domain" }
 aura-web-domain = { path = "../aura-web-domain" }
 aura-browser-domain = { path = "../aura-browser-domain" }
+aura-chrome-domain = { path = "../aura-chrome-domain" }
 aura-windows-user-contract = { path = "../aura-windows-user-contract" }
 aura-security-contract = { path = "../aura-security-contract" }
 aura-domain-common = { path = "../aura-domain-common" }

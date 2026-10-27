@@ -1,0 +1,150 @@
+{
+  "commands": [
+    { "op": "open", "url": "https://shop.example/cart" },
+    { "op": "navigate", "tab_id": 7, "url": "https://shop.example/", "action": null },
+    { "op": "navigate", "tab_id": 7, "url": null, "action": "back" },
+    { "op": "snapshot", "tab_id": 7, "max_chars": 12000 },
+    { "op": "screenshot", "tab_id": 7, "element": "e3", "full_page": false },
+    { "op": "inspect", "tab_id": 7, "element": "e2", "x": null, "y": null, "intent": "click" },
+    { "op": "inspect", "tab_id": 7, "element": null, "x": 280.0, "y": 330.5, "intent": "click" },
+    {
+      "op": "click",
+      "tab_id": 7,
+      "element": null,
+      "x": 280.0,
+      "y": 330.5,
+      "button": "left",
+      "double": false
+    },
+    {
+      "op": "type",
+      "tab_id": 7,
+      "element": "e4",
+      "text": "aura",
+      "clear": true,
+      "submit": false
+    },
+    { "op": "press", "tab_id": 7, "key": "Control+a", "repeat": 1, "hold_ms": 0 },
+    { "op": "scroll", "tab_id": 7, "direction": "down", "element": null, "amount": 2 },
+    { "op": "hover", "tab_id": 7, "element": "e5" },
+    { "op": "select", "tab_id": 7, "element": "e6", "values": ["red", "blue"] },
+    {
+      "op": "wait",
+      "tab_id": 7,
+      "text": "Done",
+      "text_gone": null,
+      "time_ms": null,
+      "timeout_ms": 10000
+    },
+    { "op": "console", "tab_id": 7, "level": "error", "max_entries": 50 },
+    { "op": "close", "tab_id": 41 },
+    { "op": "assist", "tab_id": 7, "reason": "请在页面上登录", "timeout_seconds": 300 },
+    { "op": "release", "tab_ids": [7, 41] }
+  ],
+  "core": [
+    { "type": "pairing_required" },
+    { "type": "paired", "secret": "c2VjcmV0" },
+    { "type": "pair_refused", "reason": "too_many_attempts" },
+    { "type": "challenge", "nonce": "bm9uY2U=", "protocol": 1 },
+    { "type": "authenticated" },
+    { "type": "auth_refused", "reason": "mac_invalid" },
+    {
+      "type": "command",
+      "id": 3,
+      "command": { "op": "snapshot", "tab_id": 7, "max_chars": 12000 },
+      "origin": "https://shop.example"
+    },
+    { "type": "command", "id": 0, "command": { "op": "release", "tab_ids": [7] } },
+    { "type": "cancel", "id": 3 },
+    { "type": "ping", "id": 9 },
+    { "type": "revoked" },
+    {
+      "type": "sessions",
+      "sessions": [{ "session_id": "ses_one", "title": "Docs", "workspace": "Aura" }]
+    },
+    {
+      "type": "shares",
+      "shares": [
+        {
+          "tab_id": 7,
+          "session_id": "ses_one",
+          "session_title": "Docs",
+          "origin": "https://pay.example",
+          "state": "awaiting_origin",
+          "scope": "turn"
+        }
+      ]
+    },
+    { "type": "share_refused", "tab_id": 7, "reason": "这个页面不能共享给 Aura。" },
+    { "type": "assist_done", "tab_id": 7 }
+  ],
+  "extension": [
+    {
+      "type": "hello",
+      "extension_id": "bheiijocpacefhgapeegbnekchcpedkj",
+      "extension_version": "0.1.3"
+    },
+    { "type": "pair", "code": "12345678" },
+    { "type": "authenticate", "mac": "00ff" },
+    { "type": "result", "id": 3, "outcome": { "status": "done", "value": { "closed": true } } },
+    {
+      "type": "result",
+      "id": 4,
+      "outcome": {
+        "status": "failed",
+        "code": "chrome.refused",
+        "message": "这是验证码（CAPTCHA）"
+      }
+    },
+    { "type": "pong", "id": 9 },
+    { "type": "list_sessions" },
+    {
+      "type": "share",
+      "tab_id": 7,
+      "window_id": 1,
+      "url": "https://shop.example/cart",
+      "title": "Cart",
+      "session_id": "ses_one",
+      "scope": "session"
+    },
+    { "type": "unshare", "tab_id": 7 },
+    { "type": "tab_changed", "tab_id": 7, "url": "https://pay.example/", "title": "Pay" },
+    { "type": "tab_closed", "tab_id": 7 },
+    { "type": "stop" },
+    { "type": "answer_origin", "tab_id": 7, "origin": "https://pay.example", "allow": true }
+  ],
+  "reports": {
+    "inspection": { "refused": null, "sensitive": true, "origin": "https://shop.example" },
+    "page": {
+      "url": "https://shop.example/cart",
+      "title": "Cart",
+      "snapshot": "- button \"Checkout\" [ref=e2]",
+      "snapshot_truncated": false,
+      "console": [{ "level": "error", "text": "boom", "source": null }],
+      "dialogs": [],
+      "notice": null
+    },
+    "open": {
+      "tab": { "tab_id": 41, "window_id": 1, "url": "https://shop.example/cart", "title": "Cart" },
+      "page": {
+        "url": "https://shop.example/cart",
+        "title": "Cart",
+        "snapshot": "",
+        "snapshot_truncated": false,
+        "console": [],
+        "dialogs": [],
+        "notice": "页面仍在加载，下面是当前的样子"
+      }
+    },
+    "screenshot": {
+      "url": "https://shop.example/cart",
+      "title": "Cart",
+      "width": 2,
+      "height": 2,
+      "png_base64": "iVBORw0KGgo="
+    },
+    "console": { "url": "https://shop.example/cart", "entries": [], "truncated": false },
+    "assist": { "outcome": "timed_out", "page": null },
+    "close": { "closed": true }
+  }
+}

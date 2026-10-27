@@ -5,11 +5,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use aura_artifact_contract::ArtifactAccess;
 use aura_context_domain::{
     CompactionAnchorManifest, ContextCompactionStateView, ContextEventSelector,
-    ContextReadCompactionInput, ContextReadCompactionResult, ContextReadEventView,
-    ContextReadEventsInput, ContextReadEventsResult, ContextReadToolResultInput,
-    ContextReadToolResultResult, ContextReadToolResultView, ContextSearchInput, ContextSearchMatch,
-    ContextSearchMode, ContextSearchResult, ContextSectionUsageView, ContextSourceRef,
-    ContextStatusView, ModelEgressAuthorizationBasis, ModelEgressManifestV1, ModelEgressSourceKind,
+    ContextReadCompactionInput, ContextReadCompactionResult, ContextReadEventsInput,
+    ContextReadEventsResult, ContextReadToolResultInput, ContextReadToolResultResult,
+    ContextReadToolResultView, ContextSearchInput, ContextSearchMatch, ContextSearchMode,
+    ContextSearchResult, ContextSectionUsageView, ContextSourceRef, ContextStatusView,
+    ModelEgressAuthorizationBasis, ModelEgressManifestV1, ModelEgressSourceKind,
     SourceAuthorizationBinding, TaskLineageContextStatusView,
 };
 use aura_context_runtime::{
@@ -29,6 +29,7 @@ use aura_persistence::{
     ContextSearchStoredQuery, PersistenceCoordinator, PersistenceError,
 };
 use aura_security_contract::NetworkDataClass;
+mod event_view;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
@@ -316,17 +317,7 @@ impl ContextToolServices {
                 .ok_or(ContextToolError::ResultTooLarge)?;
             for row in unit {
                 last_sequence = Some(row.session_sequence);
-                events.push(ContextReadEventView {
-                    event_id: row.event_id,
-                    session_sequence: row.session_sequence,
-                    event_type: row.event_type,
-                    actor: row.actor,
-                    history_atomic_group_ref: row.history_atomic_group_ref,
-                    atomic_group_id: row.atomic_group_id,
-                    legacy_atomic_group_verification: row.legacy_atomic_group_verification,
-                    content: row.model_visible_content,
-                    content_hash: row.content_hash,
-                });
+                events.push(event_view::whole(row));
             }
         }
         let next_cursor = if has_more {

@@ -1,6 +1,6 @@
 //! The unified entry. `tools.call` is sent with every
-//! request so the tool list stays the same for a whole turn; any other tool of the step's registry
-//! is called through it. Its calls are rewritten into the tool they name before admission, so it
+//! request, and any other tool of the step's registry is called through it, so needing one does not
+//! change the request's tool list. Its calls are rewritten into the tool they name before admission, so it
 //! never runs anything itself and allows nothing that tool's own call would not.
 use super::definitions::entry;
 use super::{AgentBuiltinEntry, AgentBuiltinHandler as H, BuiltinToolDefinitionSetError};

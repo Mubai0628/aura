@@ -2,6 +2,7 @@ import type { AgentTurnView } from '@aura/contracts/generated';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import { StepActivity } from './StepActivity';
+import { turnStatus } from './turn-state';
 
 // "正文仍在生成，会持续补齐。" stayed for minutes with nothing moving, "让人感觉就像
 // 卡住了一样". The running turn says what it is doing: which tool call it is writing and how much
@@ -110,4 +111,21 @@ test('switching away and back keeps counting instead of starting again', () => {
   // And it goes on from there: the view that mounted again keeps the step's own start.
   act(() => vi.advanceTimersByTime(1_000));
   expect(screen.getByRole('status').textContent).toBe('正在思考下一步 · 11 秒');
+});
+
+// A long compaction is a wait of its own: it was shown as the model thinking for minutes.
+test('a step waiting on a compaction says so, how long its part has run, and the parts done', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+  const compacting = turn('running', [
+    {
+      model_step_id: 'step-compacting',
+      partial: true,
+      at: '2026-10-21T11:57:00Z',
+      context_compacting: { since: '2026-10-21T11:58:11Z', finished_parts: 2 },
+    },
+  ]);
+  render(<StepActivity item={compacting} />);
+  expect(screen.getByRole('status').textContent).toBe('正在压缩上下文 · 109 秒 · 已完成 2 段');
+  expect(turnStatus(compacting, new Map(), false)).toBe('正在压缩上下文');
 });

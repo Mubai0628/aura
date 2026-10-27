@@ -151,6 +151,19 @@ pub enum ResourceDescriptor {
         turn_task_id: TurnTaskId,
         agent_run_id: aura_domain_common::AgentRunId,
     },
+    /// A tab the user shared from their own Chrome.
+    ChromeShare {
+        share_id: String,
+    },
+    /// The shared tab this call acts on.
+    ChromeTab {
+        tab_ref: String,
+    },
+    /// Where that tab is. `confirmed` is false until the user keeps sharing this origin.
+    ChromeOrigin {
+        origin: String,
+        confirmed: bool,
+    },
 }
 
 fn is_false(value: &bool) -> bool {

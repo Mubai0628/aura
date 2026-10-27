@@ -15,6 +15,7 @@ export default defineConfig({
     // match, so a slow wait has room to finish while a query that can never
     // succeed still fails.
     setupFiles: ['./src/test-setup.ts'],
+    globalSetup: [resolve(import.meta.dirname, 'tests/electron-binary.global-setup.ts')],
     testTimeout: 15_000,
     hookTimeout: 15_000,
     include: [

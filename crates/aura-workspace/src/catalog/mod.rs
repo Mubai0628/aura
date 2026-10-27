@@ -33,6 +33,10 @@ mod publication_artifact_tests;
 mod ignored_directory_tests;
 
 #[cfg(test)]
+#[path = "tests/indexed_children.rs"]
+mod indexed_children_tests;
+
+#[cfg(test)]
 #[path = "tests/background_build.rs"]
 mod background_build_tests;
 

@@ -36,6 +36,13 @@ pub struct AgentsScopeResolution {
     pub documents: Vec<AgentsInstructionDocument>,
 }
 
+/// One applicable AGENTS.md that exists, read or not.
+#[derive(Debug)]
+pub struct AgentsDocumentOutcome {
+    pub path: WorkspacePath,
+    pub document: Result<AgentsInstructionDocument, AgentsScopeError>,
+}
+
 #[derive(Debug, Error)]
 pub enum AgentsScopeError {
     #[error(transparent)]
@@ -81,6 +88,22 @@ impl AgentsScopeResolver {
             }
         }
         Ok(AgentsScopeResolution { documents })
+    }
+
+    /// Every applicable file that exists, root first, each with its own outcome: one that cannot
+    /// be read does not hide the others.
+    pub fn resolve_each(
+        &self,
+        targets: &[AgentsScopeTarget],
+    ) -> Result<Vec<AgentsDocumentOutcome>, AgentsScopeError> {
+        let mut outcomes = Vec::new();
+        for path in candidates_for_targets(targets)? {
+            match self.read_document(&path) {
+                Err(AgentsScopeError::Workspace(WorkspaceError::NotFound { .. })) => {}
+                document => outcomes.push(AgentsDocumentOutcome { path, document }),
+            }
+        }
+        Ok(outcomes)
     }
 
     fn read_document(

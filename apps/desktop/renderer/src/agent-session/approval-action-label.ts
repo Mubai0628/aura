@@ -27,6 +27,19 @@ const LABELS: Record<string, string> = {
   'commands.save': '保存命令',
   'commands.delete': '删除命令',
   'workspace_init.complete': '初始化工作区',
+  'chrome.open': '在 Chrome 打开网页',
+  'chrome.navigate': 'Chrome 标签页跳转',
+  'chrome.snapshot': '读取 Chrome 标签页',
+  'chrome.screenshot': 'Chrome 标签页截图',
+  'chrome.click': '在 Chrome 中点击',
+  'chrome.type': '在 Chrome 中输入',
+  'chrome.press': '在 Chrome 中按键',
+  'chrome.scroll': '滚动 Chrome 标签页',
+  'chrome.hover': '在 Chrome 中悬停',
+  'chrome.select': '在 Chrome 中选择',
+  'chrome.wait': '等待 Chrome 标签页',
+  'chrome.console': '读取 Chrome 控制台',
+  'chrome.close': '关闭 Chrome 标签页',
 };
 
 export function approvalActionLabel(actionKind: string): string {

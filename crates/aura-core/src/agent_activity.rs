@@ -13,8 +13,9 @@
 //! A Shell's `cwd` is a *working directory*, not a write set. A script may write
 //! anywhere the process can reach, so [`project_resources`] never turns a Shell's
 //! cwd into a directory write scope. It reports [`ActivityResourceRelation::UnknownWriteSet`]
-//! with an [`ActivityResourceTarget::Unproven`] target instead, and the cwd is carried
-//! only as an allow-listed display parameter. The index therefore never serialises
+//! with an [`ActivityResourceTarget::Unproven`] target instead, named by the cwd relative to
+//! the workspace - or [`ActivityResourceRelation::UnknownWriteSetOutsideWorkspace`] when the
+//! script names places outside the workspace. The index therefore never serialises
 //! unknown Shells globally, never disables Shell, and never claims to cover an external
 //! program or an arbitrary child process.
 mod buffer;
@@ -23,6 +24,8 @@ mod main;
 #[cfg(test)]
 mod name_coordination_tests;
 mod p04;
+#[cfg(test)]
+mod query_tests;
 mod shell;
 pub(crate) use buffer::publish_buffer_commit_activity;
 pub(crate) use main::{MainFsActivitySubject, MainFsTarget, main_record};
@@ -92,14 +95,25 @@ pub(crate) fn project_resources(
     if group == ActivityToolGroup::Shell {
         // A Shell's write set is not provable from its cwd, its script or the model's
         // own declaration. It is published as unknown, in the honest sense: not
-        // "we did not look", but "this cannot be proven here".
+        // "we did not look", but "this cannot be proven here". Its cwd is always a
+        // workspace folder, so the set is taken to stay in the workspace unless the
+        // script names places outside it.
+        let folder = match &call.validated.call.input {
+            aura_tool_contract::NormalizedToolCallInputStateV1::Ready { arguments, .. } => {
+                arguments.get("working_directory").and_then(serde_json::Value::as_str)
+            }
+            aura_tool_contract::NormalizedToolCallInputStateV1::InvalidInput { .. } => None,
+        }
+        .filter(|folder| !folder.is_empty())
+        .unwrap_or(".");
         return vec![ActivityResource {
             target: ActivityResourceTarget::Unproven {
                 hint: format!("{} write set not provable", call.operation.content.action_kind),
             },
-            relation: ActivityResourceRelation::UnknownWriteSet,
-            display_name: call.operation.content.action_kind.clone(),
-            display_name_truncated: false,
+            relation: shell_relation(&call.operation.content.risks),
+            display_name: truncate_display(folder),
+            display_name_truncated: folder.len()
+                > aura_activity_domain::MAX_ACTIVITY_RESOURCE_DISPLAY_BYTES,
         }];
     }
     let relation = if call.operation.content.action_kind.starts_with("memory.") {
@@ -134,6 +148,18 @@ pub(crate) fn project_resources(
             display_name_truncated: false,
         })
         .collect()
+}
+
+/// The relation of a Shell whose write set cannot be proven: outside the workspace when its
+/// script names places there, in its workspace otherwise.
+pub(crate) fn shell_relation(
+    risks: &[aura_security_contract::OperationRiskFlag],
+) -> ActivityResourceRelation {
+    if risks.contains(&aura_security_contract::OperationRiskFlag::OutsideWorkspaceWrite) {
+        ActivityResourceRelation::UnknownWriteSetOutsideWorkspace
+    } else {
+        ActivityResourceRelation::UnknownWriteSet
+    }
 }
 
 /// Copies the identity facts A already verified into the index's own target shape.

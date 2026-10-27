@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use aura_artifact_contract::{ArtifactAccess, ArtifactScope, CaptureWorkspaceFileResult};
+use aura_domain_common::WorkspacePath;
 use aura_workspace::{DecodedText, DiskTextSnapshot, decode_text, decode_text_with_encoding};
 use aura_workspace_domain::{
     CaptureWorkspaceFileRequest, CatalogEntryKind, FileStorageSource, FsFindPathsRequest,
@@ -14,6 +15,18 @@ use aura_workspace_domain::{
 use crate::inspect::{inspect_bytes, render_binary};
 use crate::{FsToolError, FsToolService};
 use aura_persistence::ArtifactWriteRequest;
+
+/// The entries one page of a folder listing holds, what the file tree shows at once. A folder
+/// with more is read page by page with `after`, and a page inspects only its own entries.
+pub const LISTED: usize = 1_000;
+
+/// Whether `path` is a direct child of `folder`.
+fn is_child(folder: &WorkspacePath, path: &WorkspacePath) -> bool {
+    match path.as_str().rsplit_once('/') {
+        Some((parent, _)) => parent == folder.as_str(),
+        None => folder.is_root(),
+    }
+}
 
 impl FsToolService {
     pub fn stat(&self, request: FsStatRequest) -> Result<FsStatResult, FsToolError> {
@@ -50,6 +63,8 @@ impl FsToolService {
         })
     }
 
+    /// One page of a folder's entries, at most [`LISTED`], in path order; `next_after` says where
+    /// the next one starts.
     pub fn list(&self, request: FsListRequest) -> Result<FsListResult, FsToolError> {
         let resolver = self.resolver(request.workspace_id)?;
         let resolved = resolver.resolve_existing(&request.target.path)?;
@@ -58,22 +73,30 @@ impl FsToolService {
                 aura_workspace::WorkspaceError::WrongKind { path: request.target.path }.into()
             );
         }
+        let after = request.after.as_ref();
+        if after.is_some_and(|after| !is_child(&request.target.path, after)) {
+            return Err(FsToolError::InvalidRequest(
+                "after must be a child of the listed folder: a listing's next_after".into(),
+            ));
+        }
         let catalog = self.catalog(request.workspace_id)?;
         // A folder the index stops above (an ignored one, or one below it) is read from disk.
-        let (entries, revision) = match aura_workspace::children_beyond_index(
+        let (mut entries, revision) = match aura_workspace::children_beyond_index(
             &catalog,
             &resolver,
             &request.target.path,
-            None,
-            usize::MAX,
+            after,
+            LISTED + 1,
         )? {
             Some(page) => page,
-            None => {
-                let (entries, revision, _) =
-                    catalog.children_page(&request.target.path, None, usize::MAX)?;
-                (entries, revision)
-            }
+            None => catalog.children_after(&request.target.path, after, LISTED + 1)?,
         };
+        let next_after = (entries.len() > LISTED)
+            .then(|| {
+                entries.truncate(LISTED);
+                entries.last().map(|entry| entry.path.clone())
+            })
+            .flatten();
         let entries = entries
             .into_iter()
             .map(|entry| FsListEntry {
@@ -87,7 +110,7 @@ impl FsToolService {
             })
             .collect();
         self.record_path_use(request.workspace_id, &request.target.path)?;
-        Ok(FsListResult { entries, catalog_revision: revision })
+        Ok(FsListResult { entries, catalog_revision: revision, next_after })
     }
 
     pub fn find_paths(&self, request: FsFindPathsRequest) -> Result<PathSearchResult, FsToolError> {

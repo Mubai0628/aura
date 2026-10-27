@@ -8,7 +8,7 @@ fn closed_release_has_complete_unique_stable_identities() {
     assert_eq!(&generated, embedded.manifest());
     // The count is a completeness check on the closed release, so it moves when
     // the release legitimately gains a tool and the new entry is named below.
-    assert_eq!(generated.entries.len(), 94);
+    assert_eq!(generated.entries.len(), 109);
     // The built-in browser: sixteen tools, all the parent's (a child agent has no browser).
     // Acting on a page may change something there; reading it, scrolling and hovering do not,
     // and asking the user for help leaves what they do to them.
@@ -35,6 +35,47 @@ fn closed_release_has_complete_unique_stable_identities() {
     ] {
         let entry = embedded.entry(name).expect("L13 browser tool is published");
         assert_eq!(entry.definition.audience, aura_tool_contract::ToolAudienceV1::ParentAgentOnly);
+        assert_eq!(
+            entry.definition.execution_semantics.may_create_persistent_effects, acts,
+            "{name}"
+        );
+        assert!(!entry.definition.execution_semantics.automatic_retry_allowed, "{name}");
+    }
+    // The user's own Chrome: fifteen tools, all the parent's. Opening, navigating, clicking, typing,
+    // pressing, choosing and closing may change something in the user's signed-in browser.
+    for (name, acts) in [
+        ("chrome.tabs", false),
+        ("chrome.open", true),
+        ("chrome.navigate", true),
+        ("chrome.snapshot", false),
+        ("chrome.screenshot", false),
+        ("chrome.click", true),
+        ("chrome.type", true),
+        ("chrome.press", true),
+        ("chrome.scroll", false),
+        ("chrome.hover", false),
+        ("chrome.select", true),
+        ("chrome.wait", false),
+        ("chrome.console", false),
+        ("chrome.close", true),
+        ("chrome.request_user", false),
+    ] {
+        let entry = embedded.entry(name).expect("L14 Chrome tool is published");
+        assert_eq!(entry.definition.audience, aura_tool_contract::ToolAudienceV1::ParentAgentOnly);
+        // Listing the shares reads Core's own record; every other tool asks Chrome.
+        use aura_security_contract::ResolvedCapability as C;
+        let capabilities = &entry.definition.capabilities;
+        if name == "chrome.tabs" {
+            assert_eq!(capabilities, &[C::AgentTaskRead]);
+        } else {
+            assert!(
+                !capabilities.is_empty()
+                    && capabilities
+                        .iter()
+                        .all(|c| matches!(c, C::ChromeRead | C::ChromeInteraction)),
+                "{name}: {capabilities:?}"
+            );
+        }
         assert_eq!(
             entry.definition.execution_semantics.may_create_persistent_effects, acts,
             "{name}"
@@ -173,11 +214,12 @@ fn management_schema_versions_preserve_old_identity_without_reinterpreting_old_d
         ) {
             assert_eq!(entry.definition.tool_id, original.tool_id);
             assert_eq!(original.tool_version.definition_revision.value(), 1);
-            // Tools.load and tools.unload apply from the next turn (revision 3), tools.search
-            // names tools.call (revision 2), and the activity query's input descriptions say only
-            // what the model needs (revision 3).
+            // Tools.load and tools.unload apply from the next turn (revision 3) and say a load does
+            // not change this turn's list (revision 4), tools.search names tools.call (revision 2),
+            // and the activity query lists the calling session's own activities (revision 4).
             let revision = match entry.handler.name() {
-                "tools.load" | "tools.unload" | "agent.activity.query" => 3,
+                "tools.load" | "tools.unload" => 4,
+                "agent.activity.query" => 4,
                 _ => 2,
             };
             assert_eq!(entry.definition.tool_version.definition_revision.value(), revision);

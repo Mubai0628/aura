@@ -369,6 +369,7 @@ export function App() {
               onOpenSession={(sessionId, mustExist) =>
                 openSession(activeSession.workspace_id, sessionId, mustExist)
               }
+              workspaces={navigation}
             />
           ) : (
             <AppEmptyState

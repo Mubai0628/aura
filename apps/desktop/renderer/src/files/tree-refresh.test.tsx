@@ -128,3 +128,80 @@ test('an open folder the model deleted leaves the tree without an error row', as
   expect(within(tree).queryByRole('button', { name: '重试' })).toBeNull();
   expect(fileTrees.get(scope).expanded.has('src')).toBe(false);
 });
+
+test('an older listing that answers last does not replace a newer one', async () => {
+  const answers: ((entries: ReturnType<typeof fileEntry>[]) => void)[] = [];
+  api.listWorkspaceFiles.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        answers.push((entries) => resolve({ ok: true, value: { entries, catalog_revision: '1' } }));
+      }) as never,
+  );
+  const older = fileTrees.load(scope, '.');
+  const newer = fileTrees.load(scope, '.');
+  answers[1]!([fileEntry('new.txt')]);
+  await newer;
+  answers[0]!([fileEntry('old.txt')]);
+  await older;
+  const listed = fileTrees.get(scope).folders.get('.');
+  expect(listed?.entries?.map((entry) => entry.name)).toEqual(['new.txt']);
+  expect(listed?.loading).toBe(false);
+});
+
+test('the refresh button shows a listing in progress and takes no second click', async () => {
+  const { tree } = await openTree();
+  const answers: (() => void)[] = [];
+  api.listWorkspaceFiles.mockImplementation(
+    (request: { target: { path: string } }) =>
+      new Promise((resolve) => {
+        const entries = directories[request.target.path] ?? [];
+        answers.push(() => resolve({ ok: true, value: { entries, catalog_revision: '2' } }));
+      }) as never,
+  );
+  const user = userEvent.setup();
+  await user.click(within(tree).getByRole('button', { name: '刷新文件列表' }));
+  const busy = within(tree).getByRole('button', { name: '正在刷新文件列表' }) as HTMLButtonElement;
+  expect(busy.disabled).toBe(true);
+  expect(within(tree).getByRole('button', { name: 'main.rs' })).toBeTruthy();
+  const asked = api.listWorkspaceFiles.mock.calls.length;
+  await user.click(busy);
+  expect(api.listWorkspaceFiles.mock.calls.length).toBe(asked);
+  expect(answers).toHaveLength(2);
+  await act(async () => {
+    for (const answer of answers) answer();
+    await Promise.resolve();
+  });
+  expect(await within(tree).findByRole('button', { name: '刷新文件列表' })).toBeTruthy();
+});
+
+test('a folder read page by page offers the next page, sorted without a collator per comparison', async () => {
+  const compare = vi.spyOn(String.prototype, 'localeCompare');
+  api.listWorkspaceFiles.mockImplementation(
+    async (request: { target: { path: string }; after?: string }) =>
+      ({
+        ok: true,
+        value: request.after
+          ? { entries: [fileEntry('c2.txt')], catalog_revision: '1' }
+          : {
+              entries: [fileEntry('b10.txt'), fileEntry('b9.txt'), fileEntry('A1.txt')],
+              catalog_revision: '1',
+              next_after: 'b9.txt',
+            },
+      }) as never,
+  );
+  await fileTrees.load(scope, '.');
+  const listed = fileTrees.get(scope).folders.get('.');
+  expect(listed?.entries?.map((entry) => entry.name)).toEqual(['A1.txt', 'b9.txt', 'b10.txt']);
+  expect(compare).not.toHaveBeenCalled();
+  compare.mockRestore();
+  const user = userEvent.setup();
+  render(<Harness refreshKey="a" />);
+  const tree = await screen.findByRole('navigation', { name: '文件树' });
+  expect(within(tree).queryByText(/筛选查找/u)).toBeNull();
+  await user.click(await within(tree).findByRole('button', { name: '加载更多' }));
+  expect(api.listWorkspaceFiles).toHaveBeenLastCalledWith(
+    expect.objectContaining({ after: 'b9.txt', target: { path: '.' } }),
+  );
+  expect(await within(tree).findByRole('button', { name: 'c2.txt' })).toBeTruthy();
+  expect(within(tree).queryByRole('button', { name: '加载更多' })).toBeNull();
+});

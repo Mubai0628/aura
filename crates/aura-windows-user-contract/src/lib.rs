@@ -67,9 +67,17 @@ pub struct ShellExecuteInput {
     /// ends the call, so a value above that limit does not help. At most 86400000.
     #[serde(default = "default_timeout_ms")]
     pub timeout_ms: u64,
-    /// Default 65536. Bytes of stdout and stderr kept, up to 1048576.
+    /// Default 65536. Bytes of stdout and of stderr kept, up to 1048576. A command that writes
+    /// more is stopped then, and its result says so (stop_reason output_limit) with the output
+    /// kept; send large output to a file and read that instead.
     #[serde(default = "default_max_output_bytes")]
     pub max_output_bytes: u64,
+    /// Default none. Credentials of the user's environment this command needs, by variable name
+    /// (names with TOKEN, KEY, SECRET, PASSWORD, PASS, PWD or the like, or holding a
+    /// user:password@ address). Only these are passed; their values and every other
+    /// credential's are hidden in the output.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub secret_environment: Vec<String>,
 }
 
 fn workspace_root() -> String {
@@ -94,6 +102,7 @@ impl ShellExecuteInput {
             stdin: self.stdin.clone(),
             timeout_ms: self.timeout_ms,
             max_output_bytes: self.max_output_bytes,
+            secret_environment: self.secret_environment.clone(),
         };
         command.validate()?;
         Ok(command)
@@ -111,9 +120,15 @@ pub struct ManagedShellCommand {
     pub stdin: String,
     pub timeout_ms: u64,
     pub max_output_bytes: u64,
+    /// Credentials the command declared; absent when it declared none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub secret_environment: Vec<String>,
 }
 impl ManagedShellCommand {
     pub fn validate(&self) -> Result<(), RunnerProtocolError> {
+        if !valid_secret_names(&self.secret_environment) {
+            return Err(RunnerProtocolError::InvalidCommand);
+        }
         if self.script.trim().is_empty()
             || self.script.len() > 256 * 1024
             || self.script.contains('\0')
@@ -129,6 +144,14 @@ impl ManagedShellCommand {
         }
         Ok(())
     }
+}
+
+/// At most 32 declared credentials, each a plain variable name.
+pub fn valid_secret_names(names: &[String]) -> bool {
+    names.len() <= 32
+        && names.iter().all(|name| {
+            (1..=128).contains(&name.len()) && !name.contains(['=', '\0']) && name.trim() == name
+        })
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, JsonSchema, Serialize)]

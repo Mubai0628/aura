@@ -14,6 +14,12 @@ impl AgentExecution {
         if call.operation.content.action_kind.starts_with("browser.") {
             return browser::backend(Arc::clone(self), call);
         }
+        // `chrome.tabs` reads Core's own record and runs as task state.
+        if call.operation.content.action_kind.starts_with("chrome.")
+            && call.operation.content.action_kind != "chrome.tabs"
+        {
+            return chrome::backend(Arc::clone(self), call);
+        }
         let content = &call.operation.content;
         if mcp_tools::is_mcp(content) {
             return Ok(Arc::new(

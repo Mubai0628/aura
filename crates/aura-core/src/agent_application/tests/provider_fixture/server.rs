@@ -2,6 +2,16 @@ use super::*;
 
 impl Provider {
     pub async fn scenario(scenario: Scenario) -> Self {
+        Self::serve(scenario, false).await
+    }
+
+    /// The scenario, with every compaction answered in shape but past four times the summary
+    /// length it was asked for: each pass falls short.
+    pub async fn scenario_with_long_compactions(scenario: Scenario) -> Self {
+        Self::serve(scenario, true).await
+    }
+
+    async fn serve(scenario: Scenario, long_compactions: bool) -> Self {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("real Provider fixture request and response");
@@ -282,7 +292,9 @@ data: {overloaded}
                         send(&mut stream, ordinal, compaction_tool_call(&body)).await;
                         continue;
                     }
-                    let content = if compaction_ordinal == 0
+                    let content = if long_compactions {
+                        super::wire::long_compaction_answer(&asked, &anchors)
+                    } else if compaction_ordinal == 0
                         && !matches!(
                             scenario,
                             Scenario::CompactedAddition
@@ -291,7 +303,8 @@ data: {overloaded}
                                 | Scenario::PlainMeasuredRefusingSecond
                                 | Scenario::CompactOnPrefix
                                 | Scenario::ClearOldResults
-                        ) {
+                        )
+                    {
                         "Invalid output, to exercise the single bounded retry".to_string()
                     } else {
                         format!(
@@ -304,6 +317,16 @@ data: {overloaded}
                 }
                 let ordinal = normal_ordinal;
                 normal_ordinal += 1;
+                if matches!(scenario, Scenario::ReasoningLoopThenText) {
+                    let looping = "I should read the policy file once more before I decide.\n\n";
+                    let delta = if ordinal < 2 {
+                        json!({"role":"assistant","reasoning_content":looping.repeat(6)})
+                    } else {
+                        json!({"role":"assistant","content":"Answered after the loop."})
+                    };
+                    send(&mut stream, ordinal, delta).await;
+                    continue;
+                }
                 if matches!(scenario, Scenario::CachedText) {
                     let delta = json!({"role":"assistant","content":"Cached."});
                     super::wire::send_cached(&mut stream, ordinal, delta, 1000, 600).await;

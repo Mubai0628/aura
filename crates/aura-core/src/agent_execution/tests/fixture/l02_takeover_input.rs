@@ -65,6 +65,9 @@ async fn printed(
 
 #[tokio::test]
 async fn a_key_typed_into_a_taken_over_terminal_does_not_wait_for_output_persistence() {
+    let _limit = crate::test_watchdog::limit(
+        "a_key_typed_into_a_taken_over_terminal_does_not_wait_for_output_persistence",
+    );
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let opened = run(&mut f, "terminal.open", json!({"shell":"cmd"})).await;
     let id = opened["terminal_id"].as_str().expect("terminal id").to_owned();

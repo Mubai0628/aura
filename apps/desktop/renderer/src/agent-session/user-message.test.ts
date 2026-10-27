@@ -83,6 +83,24 @@ test('a Hook refusal of a message shows the Hook and its reason, not the code', 
   expect(userMessage('hooks.completion_blocked')).toContain('连续 3 次');
 });
 
+// A step that ended on an error Core did not expect, or a compaction that did not succeed, says
+// that the task paused and how to go on, instead of only "任务暂时中断".
+test('an unexpected step failure and a failed compaction say the task paused and how to go on', () => {
+  const fallback = '任务暂时中断。过程输出仍可阅读，请在输入框说明下一步。';
+  const unexpected = userMessage('agent.execution_interrupted', fallback);
+  expect(unexpected).not.toBe(fallback);
+  expect(unexpected).toContain('继续');
+  const compaction = userMessage('context.compaction_failed: Failed { .. }', fallback);
+  expect(compaction).toContain('压缩');
+  expect(compaction).toContain('继续');
+  const looped = userMessage(
+    'agent.provider_failed: model_reasoning_loop (StreamInterrupted, HTTP None)',
+    fallback,
+  );
+  expect(looped).toContain('同一段');
+  expect(looped).toContain('继续');
+});
+
 // Two tasks stopped with only "任务暂时中断"; Core had stored why.
 test('a model service that could not be reached says so and what to do next', () => {
   const fallback = '任务暂时中断。过程输出仍可阅读，请在输入框说明下一步。';

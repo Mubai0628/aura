@@ -1,4 +1,5 @@
 //! Verified current-user startup chain; product policy and journaling belong to the adapter.
+use super::redaction::{Cover, Redactor};
 use super::{CompatExecution, environment};
 use crate::checked_program::{self, Links};
 use anyhow::{Result, ensure};
@@ -142,8 +143,14 @@ impl CompatBackend {
         } else {
             self.trusted_environment.clone()
         };
-        let excluded_environment_names = environment::excluded_names(&selected);
-        let environment = environment::build(selected, offline_proxy)?;
+        let declared = &command.secret_environment;
+        let excluded_environment_names = environment::excluded_names(&selected)
+            .into_iter()
+            .filter(|name| !declared.iter().any(|wanted| wanted.eq_ignore_ascii_case(name)))
+            .collect();
+        let secrets = environment::secret_values(&selected);
+        let hidden = [Cover::Label, Cover::Label].map(|cover| Redactor::new(&secrets, cover));
+        let environment = environment::build_declared(selected, offline_proxy, declared)?;
         let scratch = tempfile::Builder::new().prefix("aura-compat-").tempdir()?;
         let script_path = scratch.path().join(if command.shell == ManagedShell::Cmd {
             "command.cmd"
@@ -226,6 +233,7 @@ impl CompatBackend {
                 timing,
                 timeout: Duration::from_millis(command.timeout_ms),
                 output_limit: command.max_output_bytes as usize,
+                hidden,
             },
         )
     }

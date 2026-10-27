@@ -14,6 +14,8 @@ mod l08_mcp;
 mod l13_4_deletion;
 #[path = "v2_policy/l13_browser.rs"]
 mod l13_browser;
+#[path = "v2_policy/l14_chrome.rs"]
+mod l14_chrome;
 #[path = "v2_policy/native.rs"]
 mod native;
 #[path = "v2_policy/network.rs"]

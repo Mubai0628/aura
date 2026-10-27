@@ -4,11 +4,12 @@
 //       [--channel Stable] [--namespace production | --namespace test:<run id>]
 //       [--desktop target/electron-builder-package/win-unpacked] [--binaries target/release]
 //       [--runtime target/managed-runtimes/<runtime id>] [--commit <sha>]
+//       [--extension apps/chrome-extension/dist/<production | test>]
 //
 // <folder>/payload is what an installer or update carries: Aura's icon and versions/<version>,
-// which holds the launcher and the setup program the installation copies to its root, the license
-// and the third-party notices. The manifest is written unsigned; scripts/release/sign-manifest.mjs
-// signs it.
+// which holds the launcher and the setup program the installation copies to its root, the Chrome
+// extension built for the release's namespace, the license and the third-party notices. The
+// manifest is written unsigned; scripts/release/sign-manifest.mjs signs it.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { copyFile, cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
@@ -16,9 +17,11 @@ import { existsSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ICON, brand } from './brand.mjs';
+import { checkExtension, extensionBuild } from './chrome-extension.mjs';
 import {
   BRANDED,
   CHANNELS,
+  CHROME_EXTENSION_PATH,
   COMPONENTS,
   MANIFEST_VERSION,
   PRODUCTION_NAMESPACE,
@@ -58,6 +61,7 @@ function parse(argv) {
         'binaries',
         'runtime',
         'commit',
+        'extension',
       ].includes(name) ||
       value === undefined
     ) {
@@ -138,6 +142,8 @@ export async function assemble(options) {
   }
   const files = await runtimeFiles(resolve(options.runtime));
   await verifyFiles(join(resolve(options.runtime), 'payload'), files);
+  const extension = resolve(options.extension ?? extensionBuild(namespace));
+  await checkExtension(extension, { namespace, version: options.version });
 
   const payload = join(out, 'payload');
   const version = join(payload, 'versions', options.version);
@@ -149,6 +155,15 @@ export async function assemble(options) {
       force: false,
     });
   }
+  await cp(extension, join(version, CHROME_EXTENSION_PATH), {
+    recursive: true,
+    errorOnExist: true,
+    force: false,
+  });
+  await checkExtension(join(version, CHROME_EXTENSION_PATH), {
+    namespace,
+    version: options.version,
+  });
   const runtime = join(version, 'managed-runtimes', RUNTIME_PIN.id);
   await cp(resolve(options.runtime), runtime, {
     recursive: true,

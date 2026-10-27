@@ -55,6 +55,23 @@ pub(super) fn execute(
                             Ok(prepared.output)
                         },
                     )
+                } else if request.operation.content.action_kind == "chrome.tabs" {
+                    aura_persistence_v2::agent::tool_state::execute_with(
+                        tx,
+                        request,
+                        &call.batch,
+                        call.validated.call.tool_call_id,
+                        at,
+                        |_tx, _name, _arguments| {
+                            super::chrome::tabs_result(service, call.snapshot.session_id).map_err(
+                                |_| {
+                                    aura_persistence_core::PersistenceCoreError::Invalid(
+                                        "chrome.tabs",
+                                    )
+                                },
+                            )
+                        },
+                    )
                 } else if request.operation.content.action_kind == "agent.activity.query" {
                     aura_persistence_v2::agent::tool_state::execute_with(
                         tx,
@@ -120,6 +137,7 @@ fn query_activity(
         input.expected_revision,
         input.offset,
         input.effective_limit(),
+        true,
     )
     .map_err(|_| {
         aura_persistence_core::PersistenceCoreError::Invalid("invalid activity query target")

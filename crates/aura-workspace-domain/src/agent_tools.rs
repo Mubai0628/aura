@@ -61,6 +61,8 @@ pub struct AgentFileSearchInput {
     /// Directory to search. Default: the workspace root.
     #[serde(default = "AgentWorkspacePath::root")]
     pub root: AgentWorkspacePath,
+    /// Only files matching this glob. Without `/` it matches file names in any folder (`*.rs`,
+    /// `*.{ts,tsx}`); with `/`, the path below root (`src/**/*.rs`).
     pub path_glob: Option<String>,
     /// Default false.
     #[serde(default)]

@@ -64,6 +64,7 @@ fn risky_once(op: &SecuredOperation) -> bool {
                     | ResolvedCapability::ScheduledTaskManagement
                     | ResolvedCapability::DriverManagement
                     | ResolvedCapability::WindowsSoftwareInstall
+                    | ResolvedCapability::ChromeSensitiveAction
                     | ResolvedCapability::ElevatedOperation
             )
         })

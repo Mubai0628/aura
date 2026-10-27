@@ -13,13 +13,14 @@ export interface Point {
 type Quads = { quads?: number[][] };
 type Described = { node?: { nodeName?: string; attributes?: string[] } };
 
-const stale = (ref: string) =>
-  `元素引用 ${ref} 已失效（元素已不在页面上）；请重新 browser.snapshot。`;
+const stale = (devtools: PageDebugger, ref: string) =>
+  `元素引用 ${ref} 已失效（元素已不在页面上）；请重新 ${devtools.snapshotTool}。`;
 
 /** The DOM node a ref names, or what is wrong. */
 export function nodeOf(devtools: PageDebugger, ref: string): number | string {
   return (
-    devtools.refs.node(ref) ?? `没有元素引用 ${ref}；请先 browser.snapshot，再用它给出的 ref。`
+    devtools.refs.node(ref) ??
+    `没有元素引用 ${ref}；请先 ${devtools.snapshotTool}，再用它给出的 ref。`
   );
 }
 
@@ -44,7 +45,7 @@ export async function elementBox(devtools: PageDebugger, ref: string): Promise<B
     if (quad === undefined) return `元素 ${ref} 现在看不见（没有显示区域），没有执行。`;
     return boxOf(quad);
   } catch {
-    return stale(ref);
+    return stale(devtools, ref);
   }
 }
 
@@ -106,7 +107,7 @@ export async function fieldAttributes(
       });
       return attributeMap(described?.attributes);
     } catch {
-      return stale(ref);
+      return stale(devtools, ref);
     }
   }
   const focused = await devtools.send<{ result?: { value?: Record<string, string> | null } }>(

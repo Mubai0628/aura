@@ -159,3 +159,44 @@ test('a write outside the workspace is said with its lines; a download offers th
   expect(screen.getByText(/「本会话允许」覆盖本会话之后的下载命令/)).toBeTruthy();
   expect(screen.queryByText(/写工作区以外的位置/)).toBeNull();
 });
+
+/** A command that declares credentials names them on the card itself. */
+test('a Shell approval names the credentials the command declared', async () => {
+  Object.defineProperty(window, 'aura', {
+    configurable: true,
+    value: {
+      v1: {
+        getAgentApproval: async () => ({
+          ok: true,
+          value: {
+            mode: 'read_only',
+            backend: { id: 'windows-user-compat-v1', class: 'native', guarantees: [] },
+            operation: {
+              content: {
+                action_kind: 'shell.powershell',
+                action: {
+                  script: 'npm run regression',
+                  secret_environment: ['MYSQL_PASSWORD', 'SANDBOX_TOKEN'],
+                },
+                resources: [],
+                capabilities: ['process_execute'],
+              },
+            },
+            requested_capabilities: ['process_execute'],
+            reasons: [],
+            approval: {
+              expires_at: '2026-10-12T00:00:00Z',
+              state: 'pending',
+              allowed_decisions: ['allow_once', 'deny'],
+              scope: {},
+            },
+          },
+        }),
+        resolveAgentApproval: async () => ({ ok: true, value: {} }),
+      },
+    },
+  });
+  render(<ApprovalPanel sessionId="session" approvalId="approval" onChanged={() => {}} />);
+  expect(await screen.findByText('密钥变量')).toBeTruthy();
+  expect(screen.getByText('MYSQL_PASSWORD、SANDBOX_TOKEN')).toBeTruthy();
+});

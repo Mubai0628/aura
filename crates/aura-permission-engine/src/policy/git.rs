@@ -8,6 +8,11 @@ pub(super) fn mode_permits(
     controlled_web: bool,
 ) -> bool {
     let c = &input.operation.content;
+    if crate::chrome::shape(input) {
+        return capabilities.iter().all(|cap| {
+            aura_security_contract::chrome_mode_covers(input.snapshot.mode, *cap, &c.resources)
+        });
+    }
     if crate::browser::shape(input) {
         return capabilities.iter().all(|cap| {
             aura_security_contract::browser_mode_covers(input.snapshot.mode, *cap, &c.resources)

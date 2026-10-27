@@ -151,8 +151,14 @@ export const isP03MainParams = <Command extends P03MainCommand>(
           value.discard_confirmation_nonce === null ||
           isSecretNonce(value.discard_confirmation_nonce))
       );
-    case 'fs.stat':
     case 'fs.list':
+      return (
+        recordWithOptional(value, ['session_id', 'target', 'workspace_id'], ['after']) &&
+        isWorkspaceSession(value) &&
+        isWorkspaceTarget(value.target) &&
+        (value.after === undefined || value.after === null || isWorkspacePath(value.after))
+      );
+    case 'fs.stat':
     case 'fs.hash':
     case 'fs.inspect':
       return isTargetReadRequest(value);

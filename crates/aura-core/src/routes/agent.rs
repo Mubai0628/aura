@@ -131,6 +131,17 @@ pub(crate) async fn dispatch(
             .await
             .map_err(|error| anyhow::anyhow!("browser_settings.interrupted: {error}"))?;
         }
+        // 设置 → 网络与浏览器 → Chrome. It starts nothing a model can reach.
+        if request.method.starts_with("chrome.") {
+            let command = request.command_invocation_id;
+            return super::chrome::dispatch(
+                &services.chrome,
+                &request.method,
+                request.params.clone(),
+                command,
+            )
+            .await;
+        }
         // A new conversation from one finished turn of this one.
         if request.method == "agent.session.branch" {
             return crate::session_branch::dispatch(services, request).await;

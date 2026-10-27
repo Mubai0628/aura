@@ -46,7 +46,7 @@ pub const BUILTIN_TOOL_DEFINITION_SET_SCHEMA_VERSION_V1: u32 = 1;
 pub const BUILTIN_CORE_HANDLER_DISPATCH_BINDING_VERSION_V1: u32 = 1;
 
 pub const BUILTIN_TOOL_DEFINITION_SET_SOURCE_SHA256_V1: &str =
-    "047d33cdb357130fa32dc106b030be018b39fbb287ae5f4c3d7f59370bc1f584";
+    "50e50c654def20846339cb8a842a9535ef42fdc12bbae685e956e4b2cc015616";
 
 const BUILTIN_TOOL_DEFINITION_SET_SOURCE: &[u8] =
     include_bytes!("../../../resources/tools/builtin-tool-definition-set.v1.json");

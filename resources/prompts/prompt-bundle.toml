@@ -1,5 +1,5 @@
 schema_version = 1
-bundle_version = "1.16.0"
+bundle_version = "1.17.0"
 serializer_version = 1
 
 [[modules]]
@@ -49,7 +49,7 @@ order = 40
 
 [[modules]]
 id = "core.tool-protocol"
-version = "1.2.0"
+version = "1.3.0"
 path = "core/tool-protocol.md"
 required = true
 section = "core"

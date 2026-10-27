@@ -11,7 +11,7 @@
 | `cargo test -p <crate>` | 一个 crate 的测试；终端、兼容执行等测试只在打开对应功能时编入，`--all-features` 全部打开 |
 | `cargo xtask test-isolated <cargo test 的参数>` | 带一份临时的独立 Git 配置运行 `cargo test`。打开 Git 测试功能（`--all-features`）后，Git 相关测试不读你自己的 Git 配置，必须这样运行，例如 `cargo xtask test-isolated -p aura-core --lib --all-features -- l03_git` |
 | `corepack pnpm test` | 桌面端与契约包的单元测试（Vitest）；其中几项走真实的命名管道，要先编出原生模块（`corepack pnpm --filter @aura/desktop build:native`，`pnpm dev` 与 `pnpm build` 也会编） |
-| `corepack pnpm test:e2e` | 桌面端端到端测试（Playwright + Electron），会先构建 Core 与桌面端 |
+| `corepack pnpm test:e2e` | 桌面端端到端测试（Playwright + Electron），会先构建 Core 与桌面端。Chrome 控制的测试（`l14-chrome.spec.ts`）用 Playwright 的 Chromium（Chrome for Testing，`npx playwright install chromium`）加载为这个检出的开发命名空间构建的测试扩展，在 HKCU 写这个命名空间的主机注册、在凭据管理器写配对密钥，结束时都删除；`AURA_E2E_CHROME_HEADED=1` 时显示 Chrome 窗口 |
 | `cargo xtask check-architecture` | 文件规模、依赖方向、Renderer 边界、契约基线与契约不变量、ESLint |
 | `cargo xtask check-fast` | 上一项，加 Rust 格式、契约确定性、资源清单与 TypeScript 类型检查 |
 | `cargo xtask check-all` | 完整检查：上面全部，加 Clippy、全部 Rust 测试（`--all-features`）、Prettier、构建与端到端测试；`--skip-e2e` 跳过端到端 |

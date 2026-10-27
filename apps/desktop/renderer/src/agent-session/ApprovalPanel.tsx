@@ -6,6 +6,8 @@ import { ShellApprovalFacts } from './ShellApprovalFacts';
 import { GitApprovalFacts } from './GitApprovalFacts';
 import { PackageApprovalFacts } from './PackageApprovalFacts';
 import { McpApprovalFacts } from './McpApprovalFacts';
+import { ChromeApprovalFacts } from './ChromeApprovalFacts';
+import { chromeFacts, chromeWarning } from './chrome-approval-facts';
 import { MemoryApprovalFacts } from './MemoryApprovalFacts';
 import { CommandApprovalFacts, WorkspaceInitApprovalFacts } from './WorkspaceInitApprovalFacts';
 import {
@@ -165,6 +167,8 @@ export function ApprovalPanel({
   const consent = view?.native_session_consent ?? undefined;
   const installed = view ? packageResource(view) : undefined;
   const mcp = view ? mcpResource(view) : undefined;
+  const chrome = view ? chromeFacts(view) : undefined;
+  const chromeAlert = chrome ? chromeWarning(chrome) : null;
   const memory =
     view?.operation.content.resources.some((r) => r.scope_kind === 'memory_vault') ?? false;
   const init = view?.operation.content.action_kind === 'workspace_init.complete';
@@ -195,6 +199,11 @@ export function ApprovalPanel({
     ((view?.operation.content.risks ?? []) as readonly string[]).includes(
       'outside_workspace_write',
     );
+  // The credentials a command declared reach it; their names are on the card itself.
+  const declared = shell ? (view?.operation.content.action as Record<string, unknown>) : undefined;
+  const secrets = Array.isArray(declared?.secret_environment)
+    ? declared.secret_environment.filter((name): name is string => typeof name === 'string')
+    : [];
   const shellText = (action: Record<string, unknown>) =>
     typeof action.script === 'string'
       ? action.script
@@ -255,6 +264,17 @@ export function ApprovalPanel({
                 />
               </>
             ) : null}
+            {chromeAlert ? (
+              <p className="agent-approval-warning" role="alert">
+                {chromeAlert}
+              </p>
+            ) : null}
+            {secrets.length ? (
+              <p className="agent-approval-purpose">
+                <span>密钥变量</span>
+                {secrets.join('、')}
+              </p>
+            ) : null}
             <details className="agent-approval-details">
               <summary>查看详情</summary>
               {memory ? (
@@ -271,6 +291,8 @@ export function ApprovalPanel({
                 <PackageApprovalFacts view={view} resource={installed} />
               ) : mcp ? (
                 <McpApprovalFacts view={view} server={mcp} />
+              ) : chrome ? (
+                <ChromeApprovalFacts view={view} facts={chrome} />
               ) : kind === 'native' ? (
                 <p className="agent-approval-mode">
                   将以当前 Windows

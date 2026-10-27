@@ -21,6 +21,7 @@ export const rendererApiKeys = [
   'cancelAgentRun',
   'cancelModelAvailabilityTest',
   'cancelModelDiscovery',
+  'chrome',
   'clearModelContextWindowOverride',
   'clearModelCredential',
   'clearSessionToolPin',

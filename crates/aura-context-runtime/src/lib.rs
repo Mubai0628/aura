@@ -3,6 +3,7 @@
 mod addition_coverage;
 mod attachment_sources;
 mod compaction;
+mod compaction_size;
 mod current_user;
 mod egress;
 mod estimator;
@@ -17,6 +18,7 @@ mod section;
 mod tool_result_clearing;
 
 pub use compaction::*;
+pub use compaction_size::*;
 pub use egress::*;
 pub use estimator::*;
 pub use history::*;

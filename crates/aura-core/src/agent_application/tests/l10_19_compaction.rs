@@ -30,7 +30,7 @@ async fn used(runtime: &crate::RuntimeState, session: SessionId, turn: usize) ->
 }
 
 /// Whether a request asks for a compaction rather than for the next step.
-fn asks_compaction(request: &Value) -> bool {
+pub(super) fn asks_compaction(request: &Value) -> bool {
     request["messages"].as_array().is_some_and(|messages| {
         messages.iter().any(|message| {
             message["content"]
@@ -52,6 +52,19 @@ async fn just_over_the_line(
     provider: &Provider,
     output: u64,
 ) -> (crate::RuntimeState, SessionId) {
+    let (runtime, session, model) = before_the_third(host, provider, output).await;
+    let done = |v: &AgentRunProjection| matches!(v.turn.state, TurnTaskState::Completed { .. });
+    let third = start(&runtime, session, model, "AURA-L1019-THIRD: answer at length").await;
+    waiting::wait(&runtime, &third, done).await;
+    (runtime, session)
+}
+
+/// The first two turns of [`just_over_the_line`], with the window set for the third.
+pub(super) async fn before_the_third(
+    host: &crate::r03_tests::Fixture,
+    provider: &Provider,
+    output: u64,
+) -> (crate::RuntimeState, SessionId, ModelProfileId) {
     let (runtime, session, model) =
         waiting::prepare_in_mode(host, provider, PermissionMode::WorkspaceReadWrite).await;
     let done = |v: &AgentRunProjection| matches!(v.turn.state, TurnTaskState::Completed { .. });
@@ -66,9 +79,7 @@ async fn just_over_the_line(
     let usable = continuing + 26_000;
     let window = (usable * 100).div_ceil(95).max(usable + 4_096);
     resize(&runtime, model, window, output).await;
-    let third = start(&runtime, session, model, "AURA-L1019-THIRD: answer at length").await;
-    waiting::wait(&runtime, &third, done).await;
-    (runtime, session)
+    (runtime, session, model)
 }
 
 #[tokio::test]
@@ -139,7 +150,12 @@ async fn a_tool_call_in_a_compaction_answer_never_runs() {
 }
 
 /// The model's window and output limit, set through the routes the settings page uses.
-async fn resize(runtime: &crate::RuntimeState, model: ModelProfileId, window: u64, output: u64) {
+pub(super) async fn resize(
+    runtime: &crate::RuntimeState,
+    model: ModelProfileId,
+    window: u64,
+    output: u64,
+) {
     let revision =
         call(runtime, "models.settings.get_snapshot", json!({})).await["models_revision"].clone();
     let updated = call(
@@ -214,7 +230,10 @@ async fn a_request_that_fits_with_the_floor_reserved_is_sent_with_the_room_left_
 }
 
 /// What the latest turn's last two steps were counted at, as their context meters show them.
-async fn last_two_steps(runtime: &crate::RuntimeState, session: SessionId) -> (u64, u64) {
+pub(super) async fn last_two_steps(
+    runtime: &crate::RuntimeState,
+    session: SessionId,
+) -> (u64, u64) {
     let page: AgentSessionProjection = serde_json::from_value(
         call(
             runtime,
@@ -242,7 +261,7 @@ async fn last_two_steps(runtime: &crate::RuntimeState, session: SessionId) -> (u
 }
 
 /// The tool results a chat request shows cleared, in order.
-fn cleared(request: &Value) -> Vec<String> {
+pub(super) fn cleared(request: &Value) -> Vec<String> {
     request["messages"]
         .as_array()
         .expect("messages")

@@ -1,0 +1,46 @@
+/* The conversation's tabs in the user's Chrome, one line above the message box. */
+.chrome-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.chrome-strip-count {
+  font-weight: 600;
+}
+
+.chrome-strip-badge {
+  padding: 1px 8px;
+  border: 1px solid var(--warning-line);
+  border-radius: 999px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  white-space: nowrap;
+}
+
+.chrome-strip-stop {
+  margin-left: auto;
+}
+
+.chrome-assist-tab {
+  overflow: hidden;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chrome-strip-failure {
+  margin: -4px 0 8px;
+  padding: 0 12px;
+  color: var(--danger);
+  font-size: 12px;
+}

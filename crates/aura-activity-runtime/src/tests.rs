@@ -3,6 +3,7 @@
 //! the fact it is asserting.
 use super::*;
 mod lookup;
+mod workspace_scope;
 use aura_domain_common::{
     AgentRunId, CommandId, CommandInvocationId, DeferredMutationId, EditorReservationId,
     RuntimeInstanceId, SecurityOperationId, SessionId, ToolCallId, TurnTaskId, WorkspaceId,
@@ -1716,45 +1717,37 @@ fn ending_an_activity_reclaims_its_index_entries() {
 // R4: visibility, field source, and the minimum permitted fact
 // ---------------------------------------------------------------------------
 
-/// **R4** — an unknown Shell in another session **and** another workspace stays in scope.
-///
-/// The shipped `scope_matches` required a session, a workspace or a named target to match, so this
-/// row was never counted at all. A reader then saw a `Complete` picture that silently omitted the
-/// one writer it most needed to know about.
+/// An unknown Shell is in scope in its own workspace only: a sibling session there learns that an
+/// unprovable writer exists, and a session in another workspace does not see it at all.
 #[test]
-fn an_unknown_write_set_shell_in_another_session_and_workspace_stays_in_scope() {
+fn an_unknown_write_set_shell_is_in_scope_in_its_own_workspace_only() {
     let index = ActivityIndex::new(16);
     let runtime_instance_id = runtime();
-    let reader_session = SessionId::new();
-    let reader_workspace = WorkspaceId::new();
-    let other_session = SessionId::new();
-    let other_workspace = WorkspaceId::new();
-    publish_agent_tool(
-        &index,
-        runtime_instance_id,
-        other_session,
-        other_workspace,
-        ActivityToolGroup::Shell,
-        1,
-        vec![resource(
-            ActivityResourceTarget::Unproven { hint: "shell write set not provable".to_owned() },
-            ActivityResourceRelation::UnknownWriteSet,
-            "shell.ps1",
-        )],
-    );
+    let (reader_session, reader_workspace) = (SessionId::new(), WorkspaceId::new());
+    for workspace in [WorkspaceId::new(), reader_workspace] {
+        publish_agent_tool(
+            &index,
+            runtime_instance_id,
+            SessionId::new(),
+            workspace,
+            ActivityToolGroup::Shell,
+            1,
+            vec![resource(
+                ActivityResourceTarget::Unproven {
+                    hint: "shell write set not provable".to_owned(),
+                },
+                ActivityResourceRelation::UnknownWriteSet,
+                "shell.ps1",
+            )],
+        );
+    }
     let reader = view(runtime_instance_id, reader_session, reader_workspace);
     let snapshot = index.snapshot(&reader);
-    assert_eq!(snapshot.header.coverage.total_in_scope, 1, "the unknown writer is really in scope");
+    assert_eq!(snapshot.header.coverage.total_in_scope, 1, "only this workspace's writer");
     assert_eq!(snapshot.rows.len(), 1, "and it is admitted as the minimum permitted fact");
     let body = snapshot.select_summary(&reader, ActivitySummaryBudget::default()).body;
-    assert!(
-        body.contains("unknown-write-set"),
-        "the model must learn that an unprovable writer exists: {body}"
-    );
-    assert!(
-        !body.contains("shell.ps1"),
-        "but never the other session's private display name: {body}"
-    );
+    assert!(body.contains("unknown-write-set"), "the sibling's unprovable writer: {body}");
+    assert!(!body.contains("shell.ps1"), "never its private display name: {body}");
 }
 
 /// **R4** — a same-workspace sibling's private path does not reach the model summary.

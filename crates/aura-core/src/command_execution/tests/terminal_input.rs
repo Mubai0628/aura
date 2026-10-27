@@ -4,6 +4,9 @@ use crate::{StartupMode, r03_tests};
 
 #[tokio::test]
 async fn l03_b0_five_thousand_keys_preserve_command_outcome_and_input_order() {
+    let _limit = crate::test_watchdog::limit(
+        "l03_b0_five_thousand_keys_preserve_command_outcome_and_input_order",
+    );
     let host = r03_tests::Fixture::new();
     let runtime = host.start().await;
     let StartupMode::Ready(services) = &runtime.startup_mode else { panic!("ready") };
@@ -53,12 +56,15 @@ async fn l03_b0_five_thousand_keys_preserve_command_outcome_and_input_order() {
             serde_json::json!({"session_id":session,"terminal_id":id,"input":key.to_string(),"interrupt":false}),
         ).await;
     }
+    // cmd creates the file before it has written the line, and a loaded machine echoes 5,000 keys
+    // slowly: the file is read until it holds the whole line, and only then compared.
     let path = host.root.path().join("ordered-keys.txt");
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
-    while !path.exists() && tokio::time::Instant::now() < deadline {
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    let read = || std::fs::read_to_string(&path).unwrap_or_default();
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
+    while read().trim_end() != expected && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    assert_eq!(std::fs::read_to_string(path).unwrap().trim_end(), expected);
+    assert_eq!(read().trim_end(), expected);
     let outcome = r03_tests::success(
         &runtime,
         "runtime.command_outcome",

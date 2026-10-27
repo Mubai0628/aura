@@ -16,6 +16,7 @@ pub(super) use git::dispatch as git;
 mod package;
 pub(super) use package::dispatch as package;
 mod browser_settings;
+mod chrome;
 mod media;
 mod memory;
 mod ui_settings;

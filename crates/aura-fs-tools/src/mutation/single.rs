@@ -1,5 +1,7 @@
 //! One-file writes and patches, each a changeset of one operation. The model's own calls also
 //! get the hash of the bytes they wrote, the expected state of its next change of the file.
+//! A file the model creates in a folder that does not exist yet gets that folder: the missing
+//! folders go first in the same changeset, each checked like any other target in the workspace.
 use super::*;
 use aura_workspace_domain::{AgentFileMutationResult, FsApplyChangesetResult};
 
@@ -26,7 +28,42 @@ impl FsToolService {
         request: FsWriteFileRequest,
         correlation_id: CorrelationId,
     ) -> Result<AgentFileMutationResult, FsToolError> {
-        Ok(for_agent(self.apply_changeset(write_changeset(request), correlation_id)?))
+        let folders = if request.expected == FsExpectedState::Absent {
+            self.missing_folders(request.workspace_id, &request.target.path)?
+        } else {
+            Vec::new()
+        };
+        let mut changeset = write_changeset(request);
+        changeset.operations.splice(
+            0..0,
+            folders.into_iter().map(|path| FsChangesetOperation::CreateDirectory {
+                target: WorkspaceFileTarget { path },
+            }),
+        );
+        Ok(for_agent(self.apply_changeset(changeset, correlation_id)?))
+    }
+
+    /// The folders above `path` that do not exist, outermost first; none when its parent exists.
+    fn missing_folders(
+        &self,
+        workspace_id: WorkspaceId,
+        path: &WorkspacePath,
+    ) -> Result<Vec<WorkspacePath>, FsToolError> {
+        let resolver = self.resolver(workspace_id)?;
+        let mut missing = Vec::new();
+        let mut current = path.as_str();
+        while let Some((parent, _)) = current.rsplit_once('/') {
+            let folder = WorkspacePath::parse(parent).map_err(|error| {
+                FsToolError::InvalidRequest(format!("invalid parent path: {error}"))
+            })?;
+            match resolver.open_existing(&folder, NativeFileAccess::Metadata) {
+                Err(WorkspaceError::NotFound { .. }) => missing.push(folder),
+                _ => break,
+            }
+            current = parent;
+        }
+        missing.reverse();
+        Ok(missing)
     }
 
     /// `fs.patch`: the mutation, and the file's logical_hash after it.
@@ -75,8 +112,9 @@ fn patch_changeset(request: FsApplyPatchRequest) -> FsApplyChangesetRequest {
     }
 }
 
-/// A deferred write has no step, and so no hash: the model reads the file again.
+/// A deferred write has no step, and so no hash: the model reads the file again. The file's step
+/// is the last one; the folders created for it come before.
 fn for_agent(applied: FsApplyChangesetResult) -> AgentFileMutationResult {
-    let hash = applied.steps.first().and_then(|step| step.after_hash.clone());
+    let hash = applied.steps.last().and_then(|step| step.after_hash.clone());
     AgentFileMutationResult::new(applied.mutation, hash)
 }

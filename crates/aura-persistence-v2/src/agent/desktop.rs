@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 mod poll_backfill;
 pub use poll_backfill::{PollBackfillCursor, backfill_turn_poll};
+mod revision;
 mod tool_input;
 pub use tool_input::{LiveToolInput, with_tool_input};
 
@@ -81,13 +82,10 @@ pub fn projection(
         let skip = active.model_steps.len().saturating_sub(10);
         active.model_steps.drain(..skip);
     }
-    // Every contributor is monotonic. Turn/run state-only CAS transitions and
-    // visible stream events both advance the projection across reconnects.
-    let revision: i64 = db.query_row("SELECT 1 + COALESCE((SELECT MAX(sequence) FROM events),0) + COALESCE((SELECT SUM(revision) FROM turn_tasks),0) + COALESCE((SELECT SUM(revision) FROM agent_runs),0)", [], |r| r.get(0))?;
     let projection = AgentSessionProjection {
         session_id: request.session_id,
         runtime_instance_id,
-        revision: Revision::new(u64::try_from(revision).map_err(|_| Error::Conflict)?),
+        revision: revision::revision(db, request.session_id)?,
         active,
         inbox: inbox::load(db, request.session_id)?,
         turns: ids

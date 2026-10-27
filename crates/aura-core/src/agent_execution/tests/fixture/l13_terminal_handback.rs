@@ -45,6 +45,8 @@ async fn control(f: &Fixture, id: &str, controller: &str) {
 
 #[tokio::test]
 async fn an_empty_write_waits_for_the_user_to_hand_the_terminal_back() {
+    let _limit =
+        crate::test_watchdog::limit("an_empty_write_waits_for_the_user_to_hand_the_terminal_back");
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let opened = run(&mut f, "terminal.open", json!({"shell":"cmd","title":"Agent CMD"})).await;
     let id = opened["terminal_id"].as_str().expect("terminal id").to_owned();

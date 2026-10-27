@@ -208,6 +208,35 @@ pub fn calls_awaiting_hooks(
     db: &Connection,
     step_id: aura_domain_common::ModelStepId,
 ) -> StoreResult<Vec<PendingToolCall>> {
+    Ok(step_calls(db, step_id)?
+        .into_iter()
+        .filter_map(|(call, decision)| decision.is_none().then_some(call))
+        .collect())
+}
+
+/// The step's calls as admission will run them: a Hook's changed arguments in place, and none a
+/// Hook blocked. Empty once the batch is admitted.
+pub fn calls_before_admission(
+    db: &Connection,
+    step_id: aura_domain_common::ModelStepId,
+) -> StoreResult<Vec<PendingToolCall>> {
+    Ok(step_calls(db, step_id)?
+        .into_iter()
+        .filter_map(|(mut call, decision)| match decision {
+            Some(ToolCallHookDecision::Blocked { .. }) => None,
+            Some(ToolCallHookDecision::Arguments { arguments }) => {
+                call.arguments = arguments;
+                Some(call)
+            }
+            _ => Some(call),
+        })
+        .collect())
+}
+
+fn step_calls(
+    db: &Connection,
+    step_id: aura_domain_common::ModelStepId,
+) -> StoreResult<Vec<(PendingToolCall, Option<ToolCallHookDecision>)>> {
     use aura_persistence_core::PersistenceCoreError as Error;
     let step = crate::agent::turns::step(db, step_id)?;
     let aura_agent_domain::ModelStepState::Completed { tool_batch_id: Some(batch_id), .. } =
@@ -246,10 +275,11 @@ pub fn calls_awaiting_hooks(
         else {
             continue;
         };
-        if tool_call_decision(db, call.tool_call_id)?.is_some() {
-            continue;
-        }
-        pending.push(PendingToolCall { tool_call_id: call.tool_call_id, tool_name, arguments });
+        let decision = tool_call_decision(db, call.tool_call_id)?;
+        pending.push((
+            PendingToolCall { tool_call_id: call.tool_call_id, tool_name, arguments },
+            decision,
+        ));
     }
     Ok(pending)
 }

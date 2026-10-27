@@ -21,16 +21,17 @@ pub(super) struct TrustedTail {
 
 /// The watermark, when the delta at `next_sequence` continues the tail it proves.
 ///
-/// Every check reads one key or one end of the attempt's index, except the row count,
-/// which the B-tree answers without reading any row's content. `None` sends the append
-/// down the full path, which re-proves the whole index and repairs it:
+/// Every check reads one key or one end of the attempt's index, except the row count, which
+/// is taken only when the index has doubled since the last one. `None` sends the append down
+/// the full path, which re-proves the whole index and repairs it:
 ///
 /// * the newest visible delta of this step is this attempt's and precedes `next_sequence`.
 ///   Deltas of one attempt are stored in sequence order, so no stored delta of the attempt
 ///   reaches `next_sequence` and this one cannot be a duplicate;
 /// * the watermark ends at that delta, and the epoch covers it;
 /// * the index's first and last rows are the watermark's, its last row carries the
-///   watermark's ends, and no row was removed since the watermark was written;
+///   watermark's ends, and, at each doubling, no row was removed since the watermark was
+///   written;
 /// * the event index ends where the watermark does.
 pub(super) fn trusted(
     tx: &Transaction<'_>,
@@ -80,13 +81,19 @@ pub(super) fn trusted(
         return Ok(None);
     }
     // A removed middle row leaves the first and last rows in place; only the count shows it.
-    let count: i64 = tx.query_row(
-        "SELECT COUNT(*) FROM agent_visible_index WHERE owner=?1 AND attempt=?2",
-        params![owner, attempt_text],
-        |row| row.get(0),
-    )?;
-    if count != index_count {
-        return Ok(None);
+    // Counting walks the attempt's rows, so it is done when the index has doubled since the
+    // last count: a stream's appends stay linear in all, and a removed row is found at the next
+    // doubling and repaired by the full path. Until then a page never drops its text: a page
+    // whose rows do not cover it reads the event index instead (`window_covers`).
+    if index_count > 0 && index_count.count_ones() == 1 {
+        let count: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM agent_visible_index WHERE owner=?1 AND attempt=?2",
+            params![owner, attempt_text],
+            |row| row.get(0),
+        )?;
+        if count != index_count {
+            return Ok(None);
+        }
     }
     let text_end = u64::try_from(text_end).map_err(|_| Error::Conflict)?;
     let reasoning_end = u64::try_from(reasoning_end).map_err(|_| Error::Conflict)?;

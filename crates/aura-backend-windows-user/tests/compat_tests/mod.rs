@@ -8,6 +8,7 @@ mod readonly_directory;
 mod recovery;
 mod s08_environment;
 mod script_errors;
+mod secret_environment;
 mod short_commands;
 mod support;
 mod tree_background;

@@ -37,7 +37,7 @@ pub(crate) fn freeze_candidates(
         if !under_root(&entry.path, root) {
             continue;
         }
-        if glob.as_ref().is_some_and(|matcher| !matcher.is_match(entry.path.as_str())) {
+        if glob.as_ref().is_some_and(|glob| !glob.matches(&entry.path, root)) {
             continue;
         }
         if entry.ignored && !include_ignored {
@@ -62,13 +62,39 @@ pub(crate) fn freeze_candidates(
     Ok(selected)
 }
 
-fn compile_glob(pattern: &str) -> Result<GlobMatcher, FsToolError> {
-    let glob = GlobBuilder::new(pattern)
+/// A `path_glob` as ripgrep reads one: without `/` it names files in any folder (`*.rs`,
+/// `*.{ts,tsx}`); with `/` it names a path below the search root (`src/**/*.rs`), or below the
+/// workspace root when the search root is not where it starts.
+enum PathGlob {
+    Name(GlobMatcher),
+    Path(GlobMatcher),
+}
+
+impl PathGlob {
+    fn matches(&self, path: &WorkspacePath, root: &WorkspacePath) -> bool {
+        let path = path.as_str();
+        match self {
+            Self::Name(matcher) => matcher.is_match(path.rsplit('/').next().unwrap_or(path)),
+            Self::Path(matcher) => {
+                matcher.is_match(path)
+                    || !root.is_root()
+                        && path
+                            .strip_prefix(root.as_str())
+                            .and_then(|below| below.strip_prefix('/'))
+                            .is_some_and(|below| matcher.is_match(below))
+            }
+        }
+    }
+}
+
+fn compile_glob(pattern: &str) -> Result<PathGlob, FsToolError> {
+    let glob = GlobBuilder::new(pattern.trim_start_matches("./"))
         .literal_separator(true)
         .backslash_escape(false)
         .build()
         .map_err(|error| FsToolError::InvalidRequest(format!("invalid path_glob: {error}")))?;
-    Ok(glob.compile_matcher())
+    let matcher = glob.compile_matcher();
+    Ok(if pattern.contains('/') { PathGlob::Path(matcher) } else { PathGlob::Name(matcher) })
 }
 
 fn under_root(path: &WorkspacePath, root: &WorkspacePath) -> bool {
@@ -79,3 +105,7 @@ fn under_root(path: &WorkspacePath, root: &WorkspacePath) -> bool {
         || path.as_str().starts_with(root.as_str())
             && path.as_str().as_bytes().get(root.as_str().len()) == Some(&b'/')
 }
+
+#[cfg(test)]
+#[path = "candidates_tests.rs"]
+mod tests;

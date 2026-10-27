@@ -15,6 +15,7 @@ import {
   selectPluginDirectory,
 } from './plugin-directory.js';
 import { signInMcpServer } from './mcp-sign-in.js';
+import { openChromeExtensionFolder } from './chrome-extension-folder.js';
 import { writeClipboard } from './clipboard.js';
 import { openExternalLink, openWorkspaceFileOutside } from './open-outside.js';
 
@@ -59,7 +60,8 @@ export async function openCommandDirectory(
 }
 
 /**
- * Agent routes: Main serves `agent.commands.open_directory`, the Hook, Skill and plugin dialogs,
+ * Agent routes: Main serves `agent.commands.open_directory`, the Chrome extension's folder, the Hook,
+ * Skill and plugin dialogs,
  * opening a listed Skill's or plugin's folder, starting an MCP sign-in and opening a
  * workspace file or a web link outside Aura itself; Core serves the rest.
  */
@@ -68,6 +70,8 @@ export function agentRouteHandler(
   owner: (event: IpcMainInvokeEvent) => BrowserWindow,
   /** The browser host reads the settings again from every reply that carries them. */
   browserSettings?: (snapshot: unknown) => void,
+  /** The installation's data folder, once the release is known. */
+  dataRoot?: () => string | undefined,
 ) {
   type Served = (
     event: IpcMainInvokeEvent,
@@ -93,6 +97,7 @@ export function agentRouteHandler(
       openExternalLink(params as AgentMainParams['agent.links.open']),
     'agent.clipboard.write': async (_event, params) =>
       writeClipboard(params as AgentMainParams['agent.clipboard.write']),
+    'chrome.extension.open_folder': () => openChromeExtensionFolder(dataRoot?.()),
     'browser.settings.get': async (_event, params) => {
       const snapshot = await supervisor.requestAgent('browser.settings.get', params as never);
       browserSettings?.(snapshot);

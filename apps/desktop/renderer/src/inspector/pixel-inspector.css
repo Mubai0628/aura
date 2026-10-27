@@ -255,6 +255,19 @@
   grid-template-columns: minmax(0, 11em) minmax(0, 1fr) auto;
 }
 
+/* Another task's number, then the workspace and conversation that run it. */
+.pixel-rows.is-sources li {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.pixel-rows.is-sources b {
+  overflow: hidden;
+  font-family: inherit;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pixel-rows .pixel-cell {
   aspect-ratio: auto;
   height: 8px;

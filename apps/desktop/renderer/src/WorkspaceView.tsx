@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppIcon } from './app-icons';
-import type { SessionNavigationItem } from './app-shell-types';
+import type { SessionNavigationItem, WorkspaceNavigationItem } from './app-shell-types';
 import { Conversation } from './agent-session/Conversation';
 import { ActivityNoteStack } from './ActivityNoteStack';
 import { keepSidebarRatio } from './activity/sidebar-ratio';
@@ -23,6 +23,7 @@ import { rememberFirstTitle } from './agent-session/session-titles';
 import type { SessionModelBinding } from '@aura/contracts/generated';
 import { ApprovalPanel } from './agent-session/ApprovalPanel';
 import { BrowserAssist } from './browser/BrowserAssist';
+import { ChromeSessionStrip } from './chrome/ChromeSessionStrip';
 import './agent-session/agent-session.css';
 import { useModelProjectionError, useScopedModelProjection } from './model-projection-store';
 import type { NotificationInput } from './notification-center-store';
@@ -81,6 +82,8 @@ interface WorkspaceViewProps {
    * from. With `mustExist`, nothing is opened and `false` is returned when it no longer exists.
    */
   onOpenSession?: ((sessionId: string, mustExist: boolean) => boolean) | undefined;
+  /** Every workspace and its conversations, to name whose tasks the Inspector shows. */
+  workspaces?: readonly WorkspaceNavigationItem[] | undefined;
 }
 
 export function WorkspaceView({
@@ -103,6 +106,7 @@ export function WorkspaceView({
   writeRightPanelWidth,
   onNotify: publishNotification,
   onOpenSession,
+  workspaces,
 }: WorkspaceViewProps) {
   const conversationViewportRef = useRef<HTMLDivElement>(null);
   const conversationCanvasRef = useRef<HTMLDivElement>(null);
@@ -336,6 +340,7 @@ export function WorkspaceView({
           promptInspector={promptInspector}
           inspection={inspection}
           inspectionError={inspectionError}
+          workspaces={workspaces}
           onNotify={notifyFileProblem}
           attachmentNamed={attachmentNamed}
         />
@@ -539,6 +544,12 @@ export function WorkspaceView({
               {!demoMode ? (
                 <BrowserAssist
                   key={`browser-assist:${selectedSession.id}`}
+                  sessionId={selectedSession.id}
+                />
+              ) : null}
+              {!demoMode ? (
+                <ChromeSessionStrip
+                  key={`chrome:${selectedSession.id}`}
                   sessionId={selectedSession.id}
                 />
               ) : null}

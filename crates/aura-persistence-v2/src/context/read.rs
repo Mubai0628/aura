@@ -1,6 +1,7 @@
 //! Model-readable V2 history, with opaque request-bound pagination. Raw
 //! Provider responses, reasoning, credentials and internal diagnostics are
-//! never selected. A Tool response group is returned whole or not at all.
+//! never selected. A Tool response group is returned whole or not at all: an event too long for
+//! the page comes with its length and no text, and a part of it only when asked for by offset.
 use aura_context_domain::*;
 use aura_domain_common::{
     jcs::{CanonicalHashV1, canonical_sha256},
@@ -121,6 +122,9 @@ pub fn events(
     {
         return Err(Error::Invalid("context read limits"));
     }
+    if let Some(offset) = input.content_offset {
+        return part(tx, session, input, offset);
+    }
     let request = canonical_sha256(&(&input.selectors, input.character_limit))
         .map_err(|_| Error::Conflict)?;
     let mut page = cursor(tx, run, input.cursor.as_deref(), "events", request)?;
@@ -174,25 +178,68 @@ pub fn events(
     }
     let mut events = vec![];
     let mut count = 0usize;
+    let limit = input.character_limit as usize;
     for index in &selected[page.position..] {
         let row = &rows[*index];
         let chars = row.view.content.chars().count();
-        if chars > HARD_CHARS {
-            return Err(Error::Invalid("context atomic group too large"));
-        }
-        if !events.is_empty()
-            && (count + chars > input.character_limit as usize || events.len() >= 128)
-        {
+        // A page never holds more text than character_limit: a longer event is named with its
+        // length, and read whole with a larger limit or in parts by offset.
+        let shown = if chars > limit { 0 } else { chars };
+        if events.len() >= 128 || (!events.is_empty() && count + shown > limit) {
             break;
         }
-        count += chars;
-        events.push(row.view.clone());
+        let mut view = row.view.clone();
+        if chars > limit {
+            view.content = String::new();
+            view.content_chars = Some(chars as u64);
+        }
+        count += shown;
+        events.push(view);
         page.position += 1;
     }
     let next_cursor =
         if page.position < selected.len() { Some(save_cursor(tx, run, &page, at)?) } else { None };
     Ok(ContextReadEventsResult { events, next_cursor, character_count: count as u64 })
 }
+/// One event's text from `offset`, at most character_limit characters, named as a part of it. The
+/// event keeps its identity and the hash of its whole text.
+fn part(
+    tx: &Transaction<'_>,
+    session: SessionId,
+    input: &AgentContextReadEventsInput,
+    offset: u64,
+) -> StoreResult<ContextReadEventsResult> {
+    let ([ContextEventSelector::Event { event_id }], None) =
+        (input.selectors.as_slice(), &input.cursor)
+    else {
+        return Err(Error::Invalid(
+            "context.read_events.content_offset: give one event selector and no cursor",
+        ));
+    };
+    let cutoff = tx.query_row("SELECT COALESCE(MAX(sequence),0) FROM events", [], |r| r.get(0))?;
+    let mut view = rows(tx, session, cutoff)?
+        .into_iter()
+        .find(|row| row.view.event_id == *event_id)
+        .ok_or(Error::Invalid("context source not found"))?
+        .view;
+    let chars = view.content.chars().count();
+    let start = usize::try_from(offset).ok().filter(|start| *start <= chars).ok_or(
+        Error::Invalid("context.read_events.content_offset: past the end of the event's text"),
+    )?;
+    let text: String =
+        view.content.chars().skip(start).take(input.character_limit as usize).collect();
+    let end = start + text.chars().count();
+    view.content = text;
+    view.content_chars = Some(chars as u64);
+    view.content_offset = Some(start as u64);
+    view.content_next_offset = (end < chars).then_some(end as u64);
+    Ok(ContextReadEventsResult {
+        events: vec![view],
+        next_cursor: None,
+        character_count: (end - start) as u64,
+    })
+}
+
 pub(crate) struct Row {
     pub(crate) turn: Option<TurnTaskId>,
     pub(crate) view: ContextReadEventView,
@@ -307,6 +354,9 @@ pub(crate) fn own_rows(db: &Connection, session: SessionId, cutoff: i64) -> Stor
                 legacy_atomic_group_verification: None,
                 content_hash: ContentHash::blake3(content.as_bytes()),
                 content,
+                content_chars: None,
+                content_offset: None,
+                content_next_offset: None,
             },
         });
     }

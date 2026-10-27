@@ -31,11 +31,24 @@ fn a_runtime_error_names_its_line_in_utf8_plain_text() {
     assert!(!text.contains('\u{1b}'), "no colour codes: {text}");
 }
 
+/// The exit code is the last command's, as a terminal shows it: a script that ends with a failing
+/// program (cargo test, npm, git) reports that program's code, not success.
 #[test]
-fn exit_codes_are_the_ones_the_script_had_inline() {
-    assert_eq!(run(ManagedShell::PowerShell, "exit 5").exit_code, Some(5));
-    // As before: a script that ends without `exit` reports success after a failed native command.
+fn the_exit_code_is_the_last_commands() {
+    let code = |script: &str| run(ManagedShell::PowerShell, script).exit_code;
+    assert_eq!(code("exit 5"), Some(5));
+    assert_eq!(code("cmd.exe /c exit 3"), Some(3), "a failing program last");
+    assert_eq!(code("if ($true) { cmd.exe /c exit 4 }"), Some(4), "inside a block");
+    assert_eq!(code("foreach ($i in 1..2) { cmd.exe /c exit 6 }"), Some(6), "inside a loop");
+    assert_eq!(code("cmd.exe /c exit 0"), Some(0));
+    assert_eq!(code("[Console]::WriteLine('ok')"), Some(0));
+    // A failure the script went on from, or handled, is not the last command's.
     let native = run(ManagedShell::PowerShell, "cmd.exe /c exit 3\n[Console]::WriteLine('after')");
     assert_eq!(native.exit_code, Some(0));
     assert!(String::from_utf8_lossy(&native.stdout).contains("after"));
+    assert_eq!(
+        code("cmd.exe /c exit 3\nif ($LASTEXITCODE -ne 0) { [Console]::WriteLine('handled') }"),
+        Some(0)
+    );
+    assert_eq!(code("throw 'boom'"), Some(1));
 }

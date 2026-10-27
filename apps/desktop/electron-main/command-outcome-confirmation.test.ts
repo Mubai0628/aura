@@ -404,21 +404,22 @@ test('a query that never answers is bounded by the attempt and then by the total
 });
 
 test('the total budget is not re-initialised for each attempt', async () => {
+  // Wide enough that a slow machine's late timers still leave room for the second attempt.
   const policy: CommandOutcomeConfirmationPolicy = {
-    attemptBudgetMs: 100,
+    attemptBudgetMs: 400,
     maxAttempts: 3,
     maxConcurrent: 4,
-    retryDelayMs: 20,
-    totalBudgetMs: 150,
+    retryDelayMs: 80,
+    totalBudgetMs: 600,
   };
   const h = harness(async () => new Promise<CommandOutcome>(() => {}), policy);
   const startedAt = performance.now();
   const result = await h.confirmation.confirm(ENTRY, 'owner');
   const elapsed = performance.now() - startedAt;
   expect(result.kind).toBe('unconfirmed');
-  // Per-attempt deadlines would have allowed 3 x 100 ms + 2 x 20 ms = 340 ms; the single budget
+  // Per-attempt deadlines would have allowed 3 x 400 ms + 2 x 80 ms = 1,360 ms; the single budget
   // holds the whole confirmation to one deadline instead.
-  expect(elapsed).toBeLessThan(300);
+  expect(elapsed).toBeLessThan(1_200);
   expect(h.queries.length).toBeGreaterThanOrEqual(2);
   expect(h.queries.length).toBeLessThanOrEqual(3);
 });

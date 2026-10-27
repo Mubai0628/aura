@@ -208,6 +208,8 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       // Aura's built-in browser (its own validated channel).
       'browser',
       'cancelAgentRun',
+      // Chrome control: settings, a conversation's shared tabs, Stop.
+      'chrome',
       'configureAgentTools',
       'controlAgentMode',
       'deleteCommand',

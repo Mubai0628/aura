@@ -56,6 +56,7 @@ fn running_grants(
             network_consent: None,
             memory_consent: None,
             mcp_consent: None,
+            chrome_consent: None,
             file_consent: None,
             capability_limit: Some(vec![ResolvedCapability::ProcessExecute]),
         },

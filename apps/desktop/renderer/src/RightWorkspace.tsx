@@ -2,6 +2,7 @@ import type { AgentPromptInspection, PromptInspectorProjection } from '@aura/con
 import { useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { AppIcon, type IconName } from './app-icons';
+import type { WorkspaceNavigationItem } from './app-shell-types';
 import { ConfirmationDialog } from './ConfirmationDialog';
 import { Inspector } from './agent-session/Inspector';
 import { useDismissablePopover } from './useDismissablePopover';
@@ -38,6 +39,8 @@ interface RightWorkspaceProps {
   completionKey?: string | undefined;
   sessionId?: string | undefined;
   inspection?: AgentPromptInspection | undefined;
+  /** Every workspace and its conversations, to name whose tasks the Inspector shows. */
+  workspaces?: readonly WorkspaceNavigationItem[] | undefined;
   inspectionError?: string | undefined;
   onToggleSidebar: () => void;
   promptInspector: PromptInspectorProjection | undefined;
@@ -98,6 +101,7 @@ export function RightWorkspace({
   sessionId,
   inspection,
   inspectionError,
+  workspaces,
   onToggleSidebar,
   expanded = false,
   onToggleExpanded,
@@ -287,7 +291,7 @@ export function RightWorkspace({
           <p className="right-panel-empty">选择会话后查看其工作区的改动。</p>
         )
       ) : active.kind === 'prompt-inspector' ? (
-        <Inspector view={inspection} error={inspectionError} />
+        <Inspector view={inspection} error={inspectionError} workspaces={workspaces} />
       ) : active.kind === 'browser' ? (
         sessionId ? (
           <BrowserPanel

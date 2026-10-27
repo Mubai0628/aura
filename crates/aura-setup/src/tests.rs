@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use aura_chrome_domain::protocol::{native_host_name, pairing_credential};
 use aura_domain_common::{ContentHash, ContentHashAlgorithm, ContractVersion, ReleaseBundleId};
 use aura_runtime_contract::{
     BuildComponent, BuildComponentKind, BuildComponentManifest, BundleNamespace, ReleaseChannel,
@@ -14,7 +15,7 @@ use sha2::{Digest, Sha256};
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 use crate::{
-    host::{FolderHost, Host},
+    host::{FolderHost, Host, credential_prefix},
     install::{self, Kind, Options, Signature},
     pack, payload,
     uninstall::{plan_uninstall, uninstall},
@@ -318,6 +319,76 @@ fn uninstalling_keeps_the_data_unless_asked_and_refuses_a_folder_that_is_not_aur
     fs::create_dir_all(&not_aura).unwrap();
     assert!(plan_uninstall(&host, &not_aura).is_err());
     assert!(not_aura.exists());
+}
+
+#[test]
+fn uninstalling_removes_chromes_registration_and_folder_and_with_the_data_the_settings() {
+    let work = Work::new();
+    work.install(&work.release("0.1.0"), None, false).unwrap();
+    let host = work.host();
+    let data = host.data_root(&namespace()).unwrap();
+    let config = host.config_root(&namespace()).unwrap();
+    let chrome = data.join("chrome");
+    fs::create_dir_all(chrome.join("extension")).unwrap();
+    let manifest = chrome.join("host.json");
+    fs::write(&manifest, b"{}").unwrap();
+    fs::write(chrome.join("extension/manifest.json"), b"{}").unwrap();
+    fs::write(data.join("aura-v2.db"), b"conversations").unwrap();
+    fs::create_dir_all(config.join("settings")).unwrap();
+    fs::write(config.join("settings/chrome.toml"), b"enabled = true\n").unwrap();
+    let own = native_host_name(NAMESPACE);
+    let other = native_host_name("aura.desktop.test.other");
+    host.register_chrome_host(&own, &manifest);
+    host.register_chrome_host(&other, &manifest);
+
+    let plan = plan_uninstall(&host, &work.root()).unwrap();
+    assert_eq!(plan.config_bytes, 15);
+    let removed = uninstall(&host, &plan, false).unwrap();
+    assert!(removed.chrome);
+    assert_eq!(host.chrome_host(&own), None);
+    assert_eq!(host.chrome_host(&other), Some(manifest.clone()));
+    assert!(!chrome.exists(), "Chrome's manifest and the extension copy go with the program");
+    assert_eq!(fs::read(data.join("aura-v2.db")).unwrap(), b"conversations");
+    assert!(config.join("settings/chrome.toml").is_file());
+
+    work.install(&work.release("0.1.0"), None, false).unwrap();
+    let plan = plan_uninstall(&host, &work.root()).unwrap();
+    let removed = uninstall(&host, &plan, true).unwrap();
+    assert!(!removed.chrome);
+    assert!(removed.data);
+    assert!(!data.exists());
+    assert!(!config.exists(), "the settings are part of the data the user chose to delete");
+}
+
+#[test]
+fn chromes_pairing_secret_is_among_the_credentials_deleting_the_data_removes() {
+    let reference = pairing_credential(
+        &namespace().object_name_hash(),
+        aura_domain_common::CredentialId::new(),
+    )
+    .unwrap();
+    assert!(reference.windows_target_name().starts_with(&credential_prefix(&namespace())));
+}
+
+#[test]
+fn uninstalling_waits_for_a_program_file_held_open_for_a_moment() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ: u32 = 1;
+    let work = Work::new();
+    work.install(&work.release("0.1.0"), None, false).unwrap();
+    let host = work.host();
+    let program = work.root().join("versions/0.1.0/aura-core.exe");
+    let held =
+        fs::OpenOptions::new().read(true).share_mode(FILE_SHARE_READ).open(&program).unwrap();
+    let releasing = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        drop(held);
+    });
+    let plan = plan_uninstall(&host, &work.root()).unwrap();
+    let removed = uninstall(&host, &plan, false);
+    releasing.join().unwrap();
+    removed.unwrap();
+    assert!(!work.root().exists());
 }
 
 /// Runs a copy of a system program from `folder` until the guard drops, so the folder has a

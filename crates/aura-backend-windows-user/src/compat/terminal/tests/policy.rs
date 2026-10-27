@@ -14,12 +14,13 @@ fn interactive_shell_policy_keeps_user_profiles_and_filters_only_agent_secrets()
         ("PATH".into(), "C:\\Windows\\System32".into()),
         ("HTTP_PROXY".into(), "http://127.0.0.1:8".into()),
     ];
-    let user =
-        terminal_environment(trusted.clone(), TerminalKind::User, None).expect("user environment");
+    let user = terminal_environment(trusted.clone(), TerminalKind::User, None, &[])
+        .expect("user environment");
     let agent = terminal_environment(
         trusted.clone(),
         TerminalKind::Agent { requires_network: false },
         Some("http://127.0.0.1:9"),
+        &[],
     )
     .expect("agent environment");
     assert!(user.iter().any(|entry| entry.name == "TEST_TOKEN"));
@@ -42,7 +43,7 @@ fn interactive_shell_policy_keeps_user_profiles_and_filters_only_agent_secrets()
         "http://127.0.0.1:9"
     );
     assert!(
-        terminal_environment(trusted, TerminalKind::Agent { requires_network: false }, None)
+        terminal_environment(trusted, TerminalKind::Agent { requires_network: false }, None, &[])
             .is_err()
     );
     let user = terminal_arguments(ManagedShell::PowerShell, TerminalKind::User);

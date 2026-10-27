@@ -2,7 +2,7 @@
 //! Registry/mode authority and no legacy execution/result dual write.
 use aura_domain_common::{
     SecurityOperationId, ToolBatchId, ToolCallId, ToolExecutionAttemptId, ToolId, TurnTaskId,
-    UtcTimestamp,
+    UtcTimestamp, WorkspaceId, WorkspacePath,
 };
 use aura_execution_contract::{AttemptState, AuthorizedDispatch, ExecutionOutcome};
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, event, record};
@@ -53,6 +53,41 @@ pub fn call(connection: &Connection, id: ToolCallId) -> StoreResult<CallExecutio
         result.validate().map_err(|_| Error::Invalid("Tool result"))?;
     }
     Ok(value)
+}
+/// The workspace paths these calls were authorized for, in the order the calls are given: what
+/// each call's operation names among its resources. The operation is that of the real call, so a
+/// call made through `tools.call` and a call naming several paths both count. Calls without an
+/// operation (refused before one existed, or not workspace tools) name nothing.
+pub fn workspace_paths(
+    connection: &Connection,
+    workspace: WorkspaceId,
+    calls: &[ToolCallId],
+) -> StoreResult<Vec<WorkspacePath>> {
+    let mut statement = connection.prepare(
+        "SELECT o.payload FROM tool_calls c JOIN operations o ON o.id=c.operation_id WHERE c.id=?1",
+    )?;
+    let mut paths: Vec<WorkspacePath> = Vec::new();
+    for call in calls {
+        let Some(payload) =
+            statement.query_row([call.to_string()], |r| r.get::<_, String>(0)).optional()?
+        else {
+            continue;
+        };
+        let operation: aura_execution_contract::SecuredOperation = serde_json::from_str(&payload)?;
+        for resource in operation.content.resources {
+            if let aura_security_contract::ResourceDescriptor::WorkspacePath {
+                workspace_id,
+                canonical_relative_path,
+                ..
+            } = resource
+                && workspace_id == workspace
+                && !paths.contains(&canonical_relative_path)
+            {
+                paths.push(canonical_relative_path);
+            }
+        }
+    }
+    Ok(paths)
 }
 /// Calls of one tool in a turn that ended without running: refused while planning or
 /// failed. A call still in flight has no result yet and is not counted.
@@ -290,8 +325,28 @@ pub fn complete_call(
             return Err(Error::Conflict);
         };
         let reference = &result.attempts[0];
+        // A Shell command Aura stopped at its own limit keeps its output as a succeeded result
+        // (`kept_after_stop`); every other outcome is the execution's own.
+        let outcome =
+            if matches!(evidence.outcome, ExecutionOutcome::Cancelled | ExecutionOutcome::TimedOut)
+            {
+                let receipt: serde_json::Value =
+                    serde_json::from_slice(&aura_persistence_core::artifact::read(
+                        tx,
+                        evidence.receipt.evidence_ref,
+                        &operation.to_string(),
+                    )?)?;
+                let (_, output) = super::result::execution_output(tx, result.tool_call_id)?;
+                if super::result::kept_after_stop(evidence.outcome, &receipt, &output) {
+                    ExecutionOutcome::Succeeded
+                } else {
+                    evidence.outcome
+                }
+            } else {
+                evidence.outcome
+            };
         let mut outcome_matches = matches!(
-            (&result.outcome, evidence.outcome),
+            (&result.outcome, outcome),
             (ToolResultOutcomeV1::OperationRejected { .. }, ExecutionOutcome::Failed)
                 | (ToolResultOutcomeV1::Succeeded, ExecutionOutcome::Succeeded)
                 | (ToolResultOutcomeV1::Failed { .. }, ExecutionOutcome::Failed)
@@ -302,7 +357,7 @@ pub fn complete_call(
                 )
                 | (ToolResultOutcomeV1::Indeterminate { .. }, ExecutionOutcome::Unknown)
         );
-        if evidence.outcome == ExecutionOutcome::Succeeded
+        if outcome == ExecutionOutcome::Succeeded
             && matches!(&result.outcome, ToolResultOutcomeV1::Failed { error } if error.code == ToolResultErrorCode::SchemaValidationFailed.error_code())
         {
             let (_, output) = super::result::execution_output(tx, result.tool_call_id)?;

@@ -1,0 +1,16 @@
+[package]
+name = "aura-chrome-domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+
+[lints]
+workspace = true

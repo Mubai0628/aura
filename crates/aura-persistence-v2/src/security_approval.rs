@@ -260,12 +260,41 @@ pub fn resolve(
             grant_revision: Revision::INITIAL,
         });
     }
+    // A ReadOnly answer for a Chrome call covers reading and acting in that shared tab for the rest
+    // of this turn; a sensitive action and a site the user has not confirmed still ask.
+    if choice == ApprovalDecisionKind::AllowForCurrentTurn
+        && aura_security_contract::built_in_chrome(
+            &operation.content.source,
+            &operation.content.action_kind,
+            &operation.content.capabilities,
+            &operation.content.resources,
+        )
+        && operation.content.capabilities.iter().all(|capability| {
+            matches!(
+                capability,
+                ResolvedCapability::ChromeRead | ResolvedCapability::ChromeInteraction
+            )
+        })
+        && let Some(share_id) = aura_security_contract::chrome_share(&operation.content.resources)
+        && let (Some(session_id), Some(turn_task_id)) = (identity.session_id, identity.turn_task_id)
+    {
+        scope.chrome_consent = Some(aura_security_contract::ChromeTurnConsentRef {
+            approval_id: id,
+            session_id,
+            turn_task_id,
+            principal_id: identity.principal_id,
+            share_id: share_id.to_owned(),
+            approved_operation_fingerprint: operation.fingerprint.clone(),
+            grant_revision: Revision::INITIAL,
+        });
+    }
     let grant_id = consent.as_ref().map_or_else(PermissionGrantId::new, |value| value.grant_id);
     crate::network_consents::attach(&mut scope, operation, id, grant_id)?;
     let expires_at = if scope.file_consent.is_some()
         || scope.network_consent.is_some()
         || scope.memory_consent.is_some()
         || scope.mcp_consent.is_some()
+        || scope.chrome_consent.is_some()
     {
         None
     } else {

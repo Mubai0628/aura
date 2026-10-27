@@ -1,0 +1,162 @@
+:root {
+  color-scheme: light;
+  --text: #1f2328;
+  --muted: #6b7280;
+  --line: #d9dde3;
+  --accent: #2563eb;
+  --stop: #dc2626;
+  --warn: #b45309;
+  font:
+    13px/1.5 'Segoe UI',
+    'Microsoft YaHei UI',
+    sans-serif;
+  color: var(--text);
+}
+
+body {
+  margin: 0;
+  background: #fff;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.status.connected::before {
+  background: #16a34a;
+}
+
+.status.refused::before,
+.status.pairing_required::before {
+  background: var(--warn);
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.tab-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.muted,
+.shared-with {
+  margin: 0;
+  color: var(--muted);
+}
+
+.problem {
+  margin: 0;
+  color: var(--stop);
+}
+
+input,
+select {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.code {
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.button {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.button.stop {
+  border-color: var(--stop);
+  background: var(--stop);
+  color: #fff;
+  font-weight: 600;
+}
+
+.shares {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.share-origin {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.share.awaiting_origin .share-state {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.assist {
+  border-color: var(--accent);
+  background: #eff6ff;
+}
+
+.assist-reason {
+  margin: 0;
+  font-weight: 600;
+}
+
+.assist-time {
+  margin: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

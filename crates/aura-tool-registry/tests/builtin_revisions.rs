@@ -1,13 +1,13 @@
 use aura_tool_registry::agent_release::{
     release,
-    revisions::{PUBLISHED, PUBLISHED_BROWSER, PUBLISHED_MEDIA, current},
+    revisions::{PUBLISHED, PUBLISHED_BROWSER, PUBLISHED_LATER, PUBLISHED_MEDIA, current},
 };
 
 #[test]
 fn every_published_key_and_fingerprint_is_retained_in_the_revision_table() {
     let release = release().expect("verified current release");
     assert!(
-        PUBLISHED.len() + PUBLISHED_BROWSER.len() + PUBLISHED_MEDIA.len()
+        PUBLISHED.len() + PUBLISHED_BROWSER.len() + PUBLISHED_MEDIA.len() + PUBLISHED_LATER.len()
             >= release.manifest().entries.len(),
         "historical rows are retained alongside current rows"
     );
@@ -33,7 +33,9 @@ fn every_published_key_and_fingerprint_is_retained_in_the_revision_table() {
 fn appended_revisions_take_fresh_identities_and_move_forward() {
     let mut instances = std::collections::BTreeSet::new();
     let mut by_name: std::collections::BTreeMap<&str, Vec<_>> = Default::default();
-    for row in PUBLISHED.iter().chain(PUBLISHED_BROWSER).chain(PUBLISHED_MEDIA) {
+    for row in
+        PUBLISHED.iter().chain(PUBLISHED_BROWSER).chain(PUBLISHED_MEDIA).chain(PUBLISHED_LATER)
+    {
         assert!(instances.insert(row.instance), "instance {} is published twice", row.instance);
         by_name.entry(row.name).or_default().push(row);
     }

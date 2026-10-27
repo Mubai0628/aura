@@ -26,6 +26,7 @@ mod agent_supervision;
 mod blocking_pool;
 mod broker;
 mod busy;
+mod chrome_control;
 mod command_claims;
 pub(crate) mod git;
 pub mod package_http;
@@ -55,6 +56,8 @@ mod ipc_session;
 mod r03_tests;
 mod readiness;
 mod runtime_pulse;
+#[cfg(test)]
+mod test_watchdog;
 pub(crate) use core_health::current_core_health_projection;
 pub(crate) use runtime_pulse::spawn_heartbeat;
 mod core_log;
@@ -675,6 +678,8 @@ struct RuntimeServices {
     skills: Arc<skills::SkillRuntime>,
     /// The installed plugins, for Settings → 插件.
     plugins: Arc<plugins::PluginRuntime>,
+    /// Chrome control: the relay's pipe, pairing and the connected extension.
+    chrome: Arc<chrome_control::ChromeControl>,
     /// The process's configuration-derived capability availability, passed
     /// on to the runtime state so the health projection and the tool-policy path
     /// read the same record rather than each re-deriving it.

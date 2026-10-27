@@ -83,10 +83,16 @@ pub struct ContextReadEventsInput {
 #[serde(deny_unknown_fields)]
 pub struct AgentContextReadEventsInput {
     pub selectors: Vec<ContextEventSelector>,
-    /// Characters per page. Default 8192.
+    /// Characters per page, default 8192, at most 262144. An event's text is never cut to fit a
+    /// page: an event longer than this comes with an empty content and its length in
+    /// content_chars.
     #[serde(default = "default_character_limit")]
     pub character_limit: u64,
     pub cursor: Option<String>,
+    /// With a single event selector and no cursor: read that event's text from this character
+    /// on, character_limit characters at most; content_next_offset continues it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_offset: Option<u64>,
 }
 fn default_character_limit() -> u64 {
     8_192
@@ -122,7 +128,18 @@ pub struct ContextReadEventView {
     pub atomic_group_id: Option<String>,
     pub legacy_atomic_group_verification: Option<crate::LegacyHistoryAtomicGroupVerificationV1>,
     pub content: String,
+    /// The hash of the event's whole text, also when `content` is a part of it or empty.
     pub content_hash: ContentHash,
+    /// The length in characters of the event's whole text, set when `content` is not all of it:
+    /// empty for an event longer than the page's character_limit, or the part content_offset read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_chars: Option<u64>,
+    /// Where a part read with content_offset starts in the event's text, in characters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_offset: Option<u64>,
+    /// The content_offset that reads on after this part, when the text goes on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_next_offset: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

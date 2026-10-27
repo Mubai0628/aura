@@ -50,6 +50,7 @@ impl CommandExecution {
                             working_directory: input.working_directory.clone().into(),
                             size: aura_windows_platform::TerminalSize { columns: 80, rows: 24 },
                             output_limit: 16 * 1024 * 1024,
+                            secret_environment: input.secret_environment.clone(),
                         },
                     )
                     .await?;

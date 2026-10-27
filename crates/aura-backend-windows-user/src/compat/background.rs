@@ -14,9 +14,7 @@ pub(super) fn follow(
 ) -> Result<()> {
     let mut sequence = 0;
     loop {
-        let (out, err, truncated) = execution.output_since(stdout, stderr)?;
-        stdout += out.len();
-        stderr += err.len();
+        let (mut out, mut err, truncated) = execution.output_since(stdout, stderr)?;
         let interrupted = *cancelled.borrow() || truncated;
         let active = execution.active_processes();
         let state = if interrupted || active.is_err() {
@@ -30,6 +28,17 @@ pub(super) fn follow(
         } else {
             BackgroundState::Running
         };
+        if state != BackgroundState::Running {
+            // Nothing can write any more: what was held as the possible start of a hidden value
+            // is released with the last update.
+            execution.finish_output();
+            let (rest_out, rest_err, _) =
+                execution.output_since(stdout + out.len(), stderr + err.len())?;
+            out.extend(rest_out);
+            err.extend(rest_err);
+        }
+        stdout += out.len();
+        stderr += err.len();
         if sequence == 0 || state != BackgroundState::Running || !out.is_empty() || !err.is_empty()
         {
             sequence += 1;

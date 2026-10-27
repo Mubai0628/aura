@@ -280,3 +280,28 @@ fn l13_3_media_images_accept_only_the_named_tools_typed_success_payload() {
     }
     assert!(tool_images(&[unnamed]).is_empty());
 }
+
+/// A screenshot of the user's Chrome shown to the model travels with its result like the built-in
+/// browser's, and counts toward the same newest three.
+#[tokio::test]
+async fn l14_chrome_screenshots_travel_with_their_results_like_the_browsers() {
+    let (_root, _runtime, app) = fixture().await;
+    let session = SessionId::new();
+    let ids = images(&app, session, 4);
+    let history = ids
+        .iter()
+        .enumerate()
+        .map(|(n, id)| {
+            let tool = if n % 2 == 0 { "chrome.screenshot" } else { "browser.screenshot" };
+            result(tool, json!({"image_artifact_id": id, "shown_to_model": true}))
+        })
+        .collect::<Vec<_>>();
+    let shots = app
+        .screenshots(AgentRunId::new(), session, &history, &[], true)
+        .await
+        .expect("load context images");
+    let mut request = input(history);
+    shots.attach(&mut request);
+    let attached = request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>();
+    assert_eq!(attached, ids[1..], "the newest three, Chrome's included");
+}

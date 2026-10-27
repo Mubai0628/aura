@@ -15,8 +15,8 @@ use crate::{
     engine::AttemptTerminal,
     failure::{
         adapter_failure, cancelled_failure, finalize_writer, header, protocol_failure,
-        provider_request_id, send_envelope, set_attempt_state, timeout_failure,
-        transport_error_failure, wait_optional_deadline,
+        provider_request_id, reasoning_loop_failure, send_envelope, set_attempt_state,
+        timeout_failure, transport_error_failure, wait_optional_deadline,
     },
 };
 
@@ -177,6 +177,7 @@ where
         let mut emitted_valid_event = false;
         let mut sequence = 0_u64;
         let mut pending_terminal = None;
+        let mut reasoning = crate::reasoning_loop::ReasoningLoopGuard::default();
         loop {
             let phase_deadline = stream_idle_deadline.unwrap_or(first_event_deadline);
             let chunk = tokio::select! {
@@ -270,6 +271,7 @@ where
                         });
                     }
                 };
+                let looped = reasoning.observe(&decoded);
                 if let Err(error) = emit_events(EmitEventsRequest {
                     store: &self.store,
                     channel: events,
@@ -293,6 +295,14 @@ where
                         sequence,
                         None,
                     );
+                }
+                if looped {
+                    abort_writer(raw_writer.take())?;
+                    return Ok(AttemptTerminal::Failed {
+                        failure: reasoning_loop_failure(attempt_id),
+                        emitted_valid_event,
+                        next_sequence: sequence,
+                    });
                 }
             }
             if emitted_valid_event {

@@ -54,3 +54,26 @@ test('renaming submits the original title and exposes a readable conflict withou
   });
   expect(screen.getByRole('dialog')).toBeTruthy();
 });
+test('archiving shows that it runs, takes one click, and says why it did not finish', async () => {
+  let answer: (value: unknown) => void = () => undefined;
+  const archiveSession = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+  Object.defineProperty(window, 'aura', {
+    configurable: true,
+    value: { v1: { archiveSession } },
+  });
+  render(
+    <SidebarItemMenu
+      workspace={workspace}
+      session={{ id: 'session', title: '会话', state: 'idle' }}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: '会话 更多操作' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '归档会话' }));
+  const running = await screen.findByRole('menuitem', { name: '正在归档…' });
+  expect((running as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(running);
+  expect(archiveSession).toHaveBeenCalledTimes(1);
+  answer({ ok: false, error: { message: 'session.busy' } });
+  expect((await screen.findByRole('alert')).textContent).toBe('归档没有完成，请刷新后查看。');
+  expect(screen.getByRole('menuitem', { name: '归档会话' })).toBeTruthy();
+});

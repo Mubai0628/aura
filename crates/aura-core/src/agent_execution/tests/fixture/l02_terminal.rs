@@ -41,6 +41,9 @@ const TOOLS: &[&str] =
     &["terminal.open", "terminal.write", "terminal.read", "terminal.close", "shell.cmd"];
 #[tokio::test]
 async fn real_agent_cmd_persists_plain_text_and_takeover_pauses_read_and_write() {
+    let _limit = crate::test_watchdog::limit(
+        "real_agent_cmd_persists_plain_text_and_takeover_pauses_read_and_write",
+    );
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let (_, opened) =
         run(&mut f, "terminal.open", json!({"shell":"cmd","title":"Agent CMD"})).await;
@@ -152,9 +155,13 @@ async fn real_agent_cmd_persists_plain_text_and_takeover_pauses_read_and_write()
 /// let a capture undo the takeover, so the model could read while the user had the terminal.
 #[tokio::test]
 async fn a_takeover_during_an_output_capture_keeps_both_changes() {
+    let limit =
+        crate::test_watchdog::limit("a_takeover_during_an_output_capture_keeps_both_changes");
     let mut f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
+    limit.step("open the terminal");
     let (_, opened) = run(&mut f, "terminal.open", json!({"shell":"cmd"})).await;
     let id = opened["terminal_id"].as_str().expect("terminal id").to_owned();
+    limit.step("write to the terminal");
     run(
         &mut f,
         "terminal.write",
@@ -165,9 +172,18 @@ async fn a_takeover_during_an_output_capture_keeps_both_changes() {
     let commands = f.service().commands_required();
     let before =
         commands.agent_terminal_record_for_test(session, &id).expect("record").view.revision;
-    let capture = commands
-        .agent_terminal_capture_in_progress_for_test(session, &id, 5)
-        .expect("the capture holds the live terminal");
+    // Waiting for the capture to take the terminal's lock happens on a thread of its own, not on
+    // this runtime's only thread, which work already holding that lock may need to finish.
+    limit.step("hold a capture");
+    let holder = Arc::clone(&commands);
+    let held = id.clone();
+    let capture = tokio::task::spawn_blocking(move || {
+        holder.agent_terminal_capture_in_progress_for_test(session, &held, 5)
+    })
+    .await
+    .expect("capture thread")
+    .expect("the capture holds the live terminal");
+    limit.step("take over during the capture");
     let runtime = f.runtime.clone();
     let terminal = id.clone();
     let takeover = tokio::spawn(async move {
@@ -180,11 +196,14 @@ async fn a_takeover_during_an_output_capture_keeps_both_changes() {
     });
     // Time for the takeover to reach the record; it once read it here, ahead of the lock.
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    limit.step("finish the capture");
     tokio::task::spawn_blocking(move || capture.finish())
         .await
         .expect("capture thread")
         .expect("the capture saved");
+    limit.step("wait for the takeover");
     takeover.await.expect("takeover");
+    limit.step("read after the takeover");
     let record = commands.agent_terminal_record_for_test(session, &id).expect("record");
     assert_eq!(record.view.controller, aura_windows_user_contract::TerminalControllerV1::User);
     assert_eq!(
@@ -197,6 +216,9 @@ async fn a_takeover_during_an_output_capture_keeps_both_changes() {
 }
 #[tokio::test]
 async fn readonly_terminal_asks_before_attempt_and_shell_session_approval_covers_open_and_write() {
+    let _limit = crate::test_watchdog::limit(
+        "readonly_terminal_asks_before_attempt_and_shell_session_approval_covers_open_and_write",
+    );
     let mut f = Fixture::with_exposure(PermissionMode::ReadOnly, TOOLS).await;
     let batch = f.admit(&[("terminal.open", json!({"shell":"cmd"}))]);
     let id = batch.batch.calls[0].tool_call_id;

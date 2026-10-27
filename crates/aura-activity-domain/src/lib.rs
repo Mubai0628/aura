@@ -47,6 +47,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
+mod relation;
 mod signed_schema;
 
 /// Upper bound on a single key-parameter value. The allowlist projects *keys of
@@ -376,8 +377,9 @@ pub struct ActivityOwnerScope {
 /// What kind of access the executor has against one real target.
 ///
 /// `UnknownWriteSet` is not a placeholder for "we did not look": it is the honest
-/// answer for a Shell whose write set cannot be proven. It never serialises
-/// globally and it never disables Shell.
+/// answer for a Shell whose write set cannot be proven, within its own workspace.
+/// `UnknownWriteSetOutsideWorkspace` is that answer for a Shell whose script names places
+/// outside its workspace. Neither serialises globally or disables Shell.
 #[derive(
     Clone, Copy, Debug, Deserialize, Eq, Hash, JsonSchema, Ord, PartialEq, PartialOrd, Serialize,
 )]
@@ -386,6 +388,7 @@ pub enum ActivityResourceRelation {
     Read,
     Write,
     UnknownWriteSet,
+    UnknownWriteSetOutsideWorkspace,
 }
 
 /// The physical resource a relation applies to.
@@ -1134,10 +1137,9 @@ pub const AGENT_ACTIVITY_QUERY_MODEL_DESCRIPTION_V1: &str = concat!(
 
 /// R4: the result of the model-executable run-information query.
 ///
-/// It is the wire response's own page, reused verbatim rather than re-shaped: a model, the
-/// Inspector and a Renderer that read the same query must not be able to disagree about what it
-/// said. Nothing here is a permission decision - the page carries only rows the caller was already
-/// allowed to see.
+/// It is the wire response's page type, holding only the calling session's own rows; rows of other
+/// sessions are counted as filtered. Nothing here is a permission decision - the page carries only
+/// rows the caller was already allowed to see.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentActivityQueryResultV1 {

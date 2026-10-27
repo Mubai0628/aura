@@ -120,6 +120,22 @@ pub(crate) fn timeout_failure(
     }
 }
 
+/// The reasoning came back to one paragraph again and again before any answer
+/// (`reasoning_loop`). It ends the attempt as a broken stream, so the step is asked again.
+pub(crate) fn reasoning_loop_failure(attempt_id: TransportAttemptId) -> NormalizedModelFailure {
+    NormalizedModelFailure {
+        category: ModelFailureCategory::StreamInterrupted,
+        code: "model_reasoning_loop".to_owned(),
+        message: "the reasoning repeated one paragraph without starting an answer".to_owned(),
+        retry_class: ModelRetryClass::NotRetryable,
+        provider_status: None,
+        provider_request_id: None,
+        provider_error_ref: None,
+        partial_output_ref: None,
+        transport_attempt_id: Some(attempt_id),
+    }
+}
+
 pub(crate) fn transport_error_failure(
     error: ModelTransportError,
     attempt_id: TransportAttemptId,

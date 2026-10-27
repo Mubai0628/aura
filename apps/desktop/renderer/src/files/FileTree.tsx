@@ -1,165 +1,14 @@
-import type { CSSProperties, MouseEvent } from 'react';
 import type { PathSearchMatch } from '@aura/contracts/generated';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppIcon } from '../app-icons';
 import { userMessage } from '../agent-session/user-message';
 import { fileTrees, ROOT, useFileTree, type FileScope } from './file-tree-store';
+import { TreeRows, type FileRowMenu } from './TreeRows';
 import { FileTreeIndexing } from './workspace-indexing';
 
-/** A file row's right-click menu, when the tree offers one. */
-export type FileRowMenu = (event: MouseEvent<HTMLElement>, path: string) => void;
+export type { FileRowMenu } from './TreeRows';
 
-/** A folder shows at most this many entries; the filter finds the rest. */
-const SHOWN = 1000;
-
-const depthStyle = (depth: number) => ({ '--file-depth': depth }) as CSSProperties;
-
-/** A file's row. The one 在文件树中显示 asked for is marked and brought to the middle; the file the page shows is marked too, and kept in view. */
-function FileRow({
-  path,
-  name,
-  depth,
-  ignored,
-  located,
-  open,
-  onPick,
-  onMenu,
-}: {
-  path: string;
-  name: string;
-  depth: number;
-  ignored: boolean;
-  located: boolean;
-  open: boolean;
-  onPick: (path: string) => void;
-  onMenu?: FileRowMenu | undefined;
-}) {
-  const ref = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (located) ref.current?.scrollIntoView?.({ block: 'center' });
-  }, [located]);
-  useEffect(() => {
-    if (open) ref.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [open]);
-  return (
-    <li>
-      <button
-        aria-current={located || undefined}
-        className="file-tree-row is-file"
-        data-ignored={ignored ? 'true' : undefined}
-        data-open={open || undefined}
-        onClick={() => onPick(path)}
-        onContextMenu={onMenu ? (event) => onMenu(event, path) : undefined}
-        ref={ref}
-        style={depthStyle(depth)}
-        title={path}
-        type="button"
-      >
-        <AppIcon name="file" size={13} />
-        <span>{name}</span>
-      </button>
-    </li>
-  );
-}
-
-function FolderRows({
-  scope,
-  path,
-  depth,
-  current,
-  onPick,
-  onMenu,
-}: {
-  scope: FileScope;
-  path: string;
-  depth: number;
-  /** The file the page shows. */
-  current?: string | undefined;
-  onPick: (path: string) => void;
-  onMenu?: FileRowMenu | undefined;
-}) {
-  const tree = useFileTree(scope);
-  const folder = tree.folders.get(path);
-  if (folder?.error && !folder.loading)
-    return (
-      <li className="file-tree-note" role="alert" style={depthStyle(depth)}>
-        <span>{folder.error}</span>
-        <button
-          aria-label="重新读取文件列表"
-          onClick={() => void fileTrees.load(scope, path)}
-          type="button"
-        >
-          重试
-        </button>
-      </li>
-    );
-  if (!folder?.entries)
-    return (
-      <li className="file-tree-note" style={depthStyle(depth)}>
-        正在读取…
-      </li>
-    );
-  const entries = folder.entries;
-  return (
-    <>
-      {entries.length === 0 ? (
-        <li className="file-tree-note" style={depthStyle(depth)}>
-          空文件夹
-        </li>
-      ) : null}
-      {entries.slice(0, SHOWN).map((entry) =>
-        entry.kind === 'directory' ? (
-          <li key={entry.path}>
-            <button
-              aria-expanded={tree.expanded.has(entry.path)}
-              className="file-tree-row"
-              data-ignored={entry.ignored || entry.generated ? 'true' : undefined}
-              onClick={() => fileTrees.toggle(scope, entry.path)}
-              style={depthStyle(depth)}
-              title={entry.path}
-              type="button"
-            >
-              <AppIcon
-                name={tree.expanded.has(entry.path) ? 'chevron-down' : 'chevron-right'}
-                size={13}
-              />
-              <span>{entry.name}</span>
-            </button>
-            {tree.expanded.has(entry.path) ? (
-              <ul>
-                <FolderRows
-                  scope={scope}
-                  path={entry.path}
-                  depth={depth + 1}
-                  current={current}
-                  onPick={onPick}
-                  onMenu={onMenu}
-                />
-              </ul>
-            ) : null}
-          </li>
-        ) : (
-          <FileRow
-            depth={depth}
-            ignored={entry.ignored || entry.generated}
-            key={entry.path}
-            located={tree.located === entry.path}
-            name={entry.name}
-            open={current === entry.path}
-            onMenu={onMenu}
-            onPick={onPick}
-            path={entry.path}
-          />
-        ),
-      )}
-      {entries.length > SHOWN ? (
-        <li className="file-tree-note" style={depthStyle(depth)}>
-          还有 {entries.length - SHOWN} 项未列出，可用上方筛选查找。
-        </li>
-      ) : null}
-    </>
-  );
-}
+const lastName = (path: string) => path.slice(path.lastIndexOf('/') + 1);
 
 function FilterResults({
   scope,
@@ -249,6 +98,9 @@ export function FileTree({
 }) {
   const [filter, setFilter] = useState('');
   const query = filter.trim();
+  const tree = useFileTree(scope);
+  // The folders a refresh lists again; while one is being read the button shows it.
+  const refreshing = [ROOT, ...tree.expanded].some((path) => tree.folders.get(path)?.loading);
   useEffect(() => fileTrees.ensure(scope, ROOT), [scope]);
   return (
     <nav aria-label="文件树" className="file-tree" id={id}>
@@ -262,38 +114,59 @@ export function FileTree({
           value={filter}
         />
         <button
-          aria-label="刷新文件列表"
-          className="icon-button"
+          aria-busy={refreshing}
+          aria-label={refreshing ? '正在刷新文件列表' : '刷新文件列表'}
+          className={refreshing ? 'icon-button is-refreshing' : 'icon-button'}
+          disabled={refreshing}
           onClick={() => fileTrees.refresh(scope)}
-          title="刷新文件列表"
+          title={refreshing ? '正在刷新文件列表' : '刷新文件列表'}
           type="button"
         >
           <AppIcon name="refresh" size={13} />
         </button>
       </div>
       <FileTreeIndexing workspaceId={scope.workspace} />
-      <ul className="file-tree-list">
-        {query ? (
+      {tree.locating?.error ? (
+        <div className="file-tree-note file-tree-locate" role="alert">
+          <span title={tree.locating.error}>{tree.locating.error}</span>
+          <button onClick={() => fileTrees.retryLocate(scope)} type="button">
+            重试
+          </button>
+          {tree.locating.from ? (
+            <button
+              onClick={() => {
+                setFilter(tree.locating?.from ?? '');
+                fileTrees.dismissLocate(scope);
+              }}
+              type="button"
+            >
+              重新选择
+            </button>
+          ) : null}
+          <button onClick={() => fileTrees.dismissLocate(scope)} type="button">
+            关闭
+          </button>
+        </div>
+      ) : tree.locating ? (
+        <p className="file-tree-note file-tree-locate is-pending" role="status">
+          正在定位 {lastName(tree.locating.path)}…
+        </p>
+      ) : null}
+      {query ? (
+        <ul className="file-tree-list">
           <FilterResults
             scope={scope}
             query={query}
             onPick={onPick}
             onReveal={(path) => {
-              fileTrees.reveal(scope, path);
+              fileTrees.locateFolder(scope, path, filter);
               setFilter('');
             }}
           />
-        ) : (
-          <FolderRows
-            scope={scope}
-            path={ROOT}
-            depth={0}
-            current={current}
-            onPick={onPick}
-            onMenu={onMenu}
-          />
-        )}
-      </ul>
+        </ul>
+      ) : (
+        <TreeRows current={current} onMenu={onMenu} onPick={onPick} scope={scope} tree={tree} />
+      )}
     </nav>
   );
 }

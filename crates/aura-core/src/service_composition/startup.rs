@@ -489,6 +489,22 @@ pub(crate) async fn initialize_services_at(
     if let Some(execution) = &agent_execution_for_state {
         let _ = execution.plugins.set(Arc::clone(&plugins));
     }
+    // Chrome control opens its pipe only when the user turned it on.
+    let chrome = Arc::new(crate::chrome_control::ChromeControl::new(
+        crate::chrome_control::ChromeControlOptions::for_installation(
+            release.release_descriptor.bundle_namespace.as_str(),
+            &paths.local_root,
+        ),
+        Arc::clone(&settings),
+        chrome_secrets(&release.release_descriptor.bundle_namespace),
+    ));
+    chrome.set_sessions(Arc::new(crate::chrome_control::PersistedSessions(Arc::clone(
+        &persistence_for_dependencies,
+    ))));
+    if let Some(execution) = &agent_execution_for_state {
+        let _ = execution.chrome.set(Arc::clone(&chrome));
+    }
+    chrome.start();
     let mut services = RuntimeServices {
         packages,
         broker,
@@ -530,6 +546,7 @@ pub(crate) async fn initialize_services_at(
         mcp,
         skills,
         plugins,
+        chrome,
         config_degradation,
         config_recovery,
         startup_ledger: Arc::clone(&startup_ledger),
@@ -560,4 +577,19 @@ pub(crate) async fn initialize_services_at(
     // Finish a conversation deletion or a Workspace removal an earlier run did not.
     crate::session_lifecycle::Purger::of(&services).spawn_resume();
     Ok(services)
+}
+
+/// The pairing secret lives in the Credential Manager; Core's own tests keep it in memory.
+fn chrome_secrets(
+    namespace: &aura_runtime_contract::BundleNamespace,
+) -> Arc<dyn crate::chrome_control::ChromeSecrets> {
+    #[cfg(test)]
+    return {
+        let _ = namespace;
+        Arc::new(crate::chrome_control::MemoryChromeSecrets::default())
+    };
+    #[cfg(not(test))]
+    Arc::new(crate::chrome_control::secret::WindowsChromeSecrets::for_installation(
+        namespace.object_name_hash(),
+    ))
 }

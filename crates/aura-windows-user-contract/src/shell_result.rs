@@ -15,6 +15,8 @@ pub const SHELL_HEAD_READ_BYTES: usize = SHELL_RESULT_HEAD_BYTES + 3;
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, JsonSchema, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShellResultV1 {
+    /// This Shell call: the tool_call_id shell.query and shell.stop take.
+    pub tool_call_id: aura_domain_common::ToolCallId,
     pub state: ShellCallState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<u32>,

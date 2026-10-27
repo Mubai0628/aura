@@ -79,7 +79,7 @@ async fn ordinary_full_reset_clears_only_its_own_unknown_bundle_judgement() {
         let plan = success(&state, "config.recovery.plan", json!({"domains": []})).await;
         assert_eq!(
             plan["modules"].as_array().expect("obtain the actual isolated recovery result").len(),
-            15
+            aura_config::ConfigModule::ALL.len()
         );
         let applied = success(
             &state,

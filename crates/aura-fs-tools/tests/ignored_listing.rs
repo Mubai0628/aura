@@ -86,11 +86,11 @@ fn the_file_tree_and_the_model_list_an_ignored_folder_from_disk() {
         "the index does not enter the ignored folder"
     );
     let tree = fs
-        .list(FsListRequest {
+        .list(FsListRequest::first_page(
             workspace_id,
             session_id,
-            target: WorkspaceFileTarget { path: path("target") },
-        })
+            WorkspaceFileTarget { path: path("target") },
+        ))
         .expect("list for the file tree");
     let names = tree.entries.iter().map(|entry| entry.path.as_str()).collect::<Vec<_>>();
     assert_eq!(names, ["target/a.txt", "target/debug"]);

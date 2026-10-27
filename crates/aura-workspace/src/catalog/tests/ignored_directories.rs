@@ -5,6 +5,7 @@ use aura_domain_common::{CorrelationId, RuntimeInstanceId, WorkspacePath};
 use aura_persistence::{PersistenceCoordinator, PersistenceOptions, PersistenceStartup};
 use aura_windows_platform::{FileWatchEvent, FileWatchEventKind};
 use aura_workspace_domain::{CatalogEntryKind, WorkspaceCreateCommand};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 struct Fixture {
@@ -169,4 +170,42 @@ fn an_ignored_folder_is_listed_from_disk_page_by_page() {
             .is_none(),
         "an indexed folder is listed from the catalog"
     );
+}
+
+/// Listing a large ignored folder inspects only the page's entries, and paging reaches every file
+/// exactly once; the version moves when the set of children does, not between pages.
+#[test]
+fn a_large_ignored_folder_is_inspected_one_page_at_a_time() {
+    let f = fixture();
+    let (catalog, resolver) = (f.catalog(), f.resolver());
+    let target = f._root.path().join("target");
+    for index in 0..600 {
+        std::fs::write(target.join(format!("big-{index:04}.txt")), "").expect("file");
+    }
+    let total = 600 + 2;
+    let mut seen = Vec::new();
+    let mut after: Option<WorkspacePath> = None;
+    let mut versions = BTreeSet::new();
+    loop {
+        crate::catalog::boundary::INSPECTED.with(|count| count.set(0));
+        let (page, version) =
+            crate::children_beyond_index(&catalog, &resolver, &path("target"), after.as_ref(), 50)
+                .expect("list")
+                .expect("read from disk");
+        let inspected = crate::catalog::boundary::INSPECTED.with(std::cell::Cell::get);
+        assert_eq!(inspected, page.len(), "only the page's entries are inspected");
+        assert!(page.len() <= 50);
+        versions.insert(version);
+        let Some(last) = page.last() else { break };
+        after = Some(last.path.clone());
+        seen.extend(page.into_iter().map(|entry| entry.path));
+    }
+    assert_eq!(seen.len(), total, "every child once");
+    assert!(seen.windows(2).all(|pair| pair[0] < pair[1]), "in path order, no repeats");
+    assert_eq!(versions.len(), 1, "one version across the pages");
+    std::fs::write(target.join("added.txt"), "").expect("a new child");
+    let (_, changed) = crate::children_beyond_index(&catalog, &resolver, &path("target"), None, 1)
+        .expect("list")
+        .expect("read from disk");
+    assert!(!versions.contains(&changed), "a new child moves the version");
 }

@@ -403,7 +403,7 @@ impl ActivityIndex {
             let key = ActivityResourceKey::of(&resource.target);
             state.by_resource.entry(key).or_default().insert(id);
             state.resources.insert(id, &resource.target);
-            if resource.relation == ActivityResourceRelation::UnknownWriteSet {
+            if resource.relation.is_unknown_write_set() {
                 state.unknown_write_set.insert(id);
             }
             index_directory_membership(&mut state, id, &resource.target);
@@ -672,9 +672,10 @@ impl ActivityIndex {
                     && match query {
                         ActivityQuery::Session => record.owner.session_id == view.session_id,
                         ActivityQuery::Group { group } => record.tool_group == *group,
-                        ActivityQuery::UnknownWriteSet => record.resources.iter().any(|resource| {
-                            resource.relation == ActivityResourceRelation::UnknownWriteSet
-                        }),
+                        ActivityQuery::UnknownWriteSet => record
+                            .resources
+                            .iter()
+                            .any(|resource| resource.relation.is_unknown_write_set()),
                         _ => true,
                     }
             },

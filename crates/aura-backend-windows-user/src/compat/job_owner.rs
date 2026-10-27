@@ -26,6 +26,8 @@ pub(super) struct ExecutionSetup {
     pub timing: JobLaunchTiming,
     pub timeout: Duration,
     pub output_limit: usize,
+    /// Hides the user's credentials in stdout and in stderr.
+    pub hidden: [super::redaction::Redactor; 2],
 }
 
 pub struct CompatExecution {
@@ -78,7 +80,7 @@ impl CompatExecution {
         job: RootJob,
         process: NativeSandboxProcess,
         resources: ExecutionResources,
-        setup: ExecutionSetup,
+        mut setup: ExecutionSetup,
     ) -> Result<Self> {
         let root = setup
             .timing
@@ -86,7 +88,11 @@ impl CompatExecution {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("compat missing creation identity"))?;
         ensure!(root.process_id == process.process_id(), "compat launch identity mismatch");
-        let output = Output::new(setup.output_limit);
+        let hidden = std::mem::replace(
+            &mut setup.hidden,
+            [super::redaction::Redactor::none(), super::redaction::Redactor::none()],
+        );
+        let output = Output::new(setup.output_limit, hidden);
         Ok(Self { job, process, root, resources, setup, output, input_error: None })
     }
 
@@ -129,6 +135,10 @@ impl CompatExecution {
             self.output.stderr.get(stderr..).unwrap_or_default().to_vec(),
             self.output.truncated,
         ))
+    }
+    /// Releases output held back as the possible start of a hidden value; no process may write.
+    pub fn finish_output(&mut self) {
+        self.output.finish();
     }
     pub fn active_processes(&self) -> Result<u32> {
         Ok(self.job.active_processes()?)
@@ -236,6 +246,9 @@ impl CompatExecution {
         self.drain()?;
         let active = self.job.active_processes()?;
         stop_confirmed |= active == 0;
+        if active == 0 {
+            self.output.finish();
+        }
         if stop_confirmed {
             let end = Instant::now() + Duration::from_millis(100);
             while self.resources.input.is_some() && Instant::now() < end {

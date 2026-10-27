@@ -14,6 +14,7 @@ path = "src/bin/pack.rs"
 
 [dependencies]
 anyhow.workspace = true
+aura-chrome-domain = { path = "../aura-chrome-domain" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-launcher = { path = "../aura-launcher" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }

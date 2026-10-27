@@ -60,6 +60,12 @@ pub enum ResolvedCapability {
     BrowserRead,
     BrowserInteraction,
     BrowserSensitiveAction,
+    /// Reading a tab the user shared from their own Chrome.
+    ChromeRead,
+    /// Clicking, typing, and navigating inside that shared tab.
+    ChromeInteraction,
+    /// A sensitive Chrome action. Asked every time; the only yes is once.
+    ChromeSensitiveAction,
     ConfigurationRead,
     ConfigurationWrite,
     RegistryWrite,
@@ -134,6 +140,14 @@ pub enum OperationRiskFlag {
     /// deletes files, or `fs.delete` asked to delete for good. Asked every time, never reused;
     /// a Shell deletion in 完全访问 is not asked (its user was told when turning it on).
     PermanentFileDeletion,
+    /// A Chrome action on a password, one-time-code or payment field. Refused outright.
+    ChromeCredentialField,
+    /// A Chrome action inside a CAPTCHA frame. Refused outright.
+    ChromeCaptcha,
+    /// A Chrome action on a passkey or WebAuthn dialog. Refused outright.
+    ChromePasskey,
+    /// A Chrome action that would open a file chooser. Refused outright.
+    ChromeFileChooser,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

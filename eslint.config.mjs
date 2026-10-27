@@ -14,6 +14,9 @@ const rendererForbiddenModules = [
   ...new Set(builtinModules.flatMap((name) => [name, `node:${name.replace(/^node:/, '')}`])),
 ];
 
+// The Chrome extension runs in Chrome: no Node built-ins outside its build config and tests.
+const extensionFiles = ['apps/chrome-extension/src/**/*.ts'];
+
 export default tseslint.config(
   {
     ignores: [
@@ -75,6 +78,25 @@ export default tseslint.config(
         })),
       ],
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  },
+  {
+    files: extensionFiles,
+    ignores: ['**/*.test.ts'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.serviceworker, ...disabledNodeGlobals },
+    },
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: rendererForbiddenModules.map((name) => ({
+            name,
+            message: 'The extension runs in Chrome.',
+          })),
+          patterns: [{ group: ['node:*'], message: 'The extension runs in Chrome.' }],
+        },
+      ],
     },
   },
 );

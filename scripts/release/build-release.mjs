@@ -1,6 +1,7 @@
 // Builds the artifacts of one release from outputs that are already built (release binaries in
-// target/release, the desktop package in target/electron-builder-package, the pinned PowerShell
-// in target/managed-runtimes):
+// target/release, the desktop package in target/electron-builder-package, the Chrome extension
+// built for the release's namespace in apps/chrome-extension/dist, the pinned PowerShell in
+// target/managed-runtimes):
 //
 //   node scripts/release/build-release.mjs --version 0.1.0 [--namespace production|test:<run>]
 //       [--channel Stable] [--out target/release-artifacts/<version>] [--no-sign]

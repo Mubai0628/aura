@@ -18,10 +18,12 @@ export function useIncrementalList<T>(items: readonly T[], page = LIST_PAGE, kee
     setLimit(page);
   }
   const sentinel = useRef<HTMLLIElement | null>(null);
-  // The row at `keep` (the open conversation, say) is drawn even beyond the pages shown so far.
-  const drawn = Math.max(limit, keep + 1);
+  const drawn = limit;
   // Nothing can tell when the end comes into view without IntersectionObserver: all rows are drawn.
   const more = typeof IntersectionObserver === 'function' && items.length > drawn;
+  // The row at `keep` (the open conversation, say) beyond the pages shown so far is drawn on its
+  // own after them: drawing every row before it made opening the 5,000th conversation draw 5,000.
+  const kept = more && keep >= drawn ? items[keep] : undefined;
   useEffect(() => {
     const element = sentinel.current;
     if (!more || !element) return;
@@ -32,5 +34,5 @@ export function useIncrementalList<T>(items: readonly T[], page = LIST_PAGE, kee
     observer.observe(element);
     return () => observer.disconnect();
   }, [more, drawn, page]);
-  return { shown: more ? items.slice(0, drawn) : items, more, sentinel, total: items.length };
+  return { shown: more ? items.slice(0, drawn) : items, more, sentinel, total: items.length, kept };
 }

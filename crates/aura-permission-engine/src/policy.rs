@@ -143,6 +143,11 @@ pub fn assess(input: &PolicyInput<'_>) -> Result<PolicyAssessment, PolicyDenyRea
     {
         return Err(D::InvalidOperation);
     }
+    // The user's own Chrome: only its exact shape, and nothing any approval may not reach.
+    if let Some(reason) = crate::chrome::refusal(input) {
+        return Err(reason);
+    }
+    let chrome = crate::chrome::shape(input);
     // An installed, trusted package program is the terminal-like Native exception
     //. Only its exact shape qualifies.
     let package_program = aura_security_contract::package_program(
@@ -361,7 +366,11 @@ pub fn assess(input: &PolicyInput<'_>) -> Result<PolicyAssessment, PolicyDenyRea
                 controlled_web,
             )
     });
-    let asks = forced_once
+    let asks = if chrome {
+        // A shared tab is neither a file nor a network call: what the mode does not cover asks.
+        forced_once || !mode_permits
+    } else {
+        forced_once
         // The session mode is a default. An operation the mode does not cover asks — unless a
         // live grant already covers it, in which case the user has already answered for this
         // object and capability. `refuses_outright` has already removed what no approval may
@@ -402,7 +411,8 @@ pub fn assess(input: &PolicyInput<'_>) -> Result<PolicyAssessment, PolicyDenyRea
                 ResourceDescriptor::SystemPath { .. }
                     | ResourceDescriptor::SensitiveUserPath { .. }
             )
-        });
+        })
+    };
     Ok(PolicyAssessment {
         requirement: BackendRequirement { allowed_classes: classes, guarantees },
         asks,
@@ -498,6 +508,7 @@ pub fn authorize(
         capability_limit: None,
         memory_consent: None,
         mcp_consent: None,
+        chrome_consent: None,
         file_consent: None,
     };
     let changed = previous.is_some_and(|p| {
@@ -538,6 +549,9 @@ pub fn authorize(
             } else {
                 allowed_decisions.insert(2, ApprovalDecisionKind::AllowWorkspace);
             }
+        }
+        if let Some(chrome) = crate::chrome::allowed_decisions(input, assessment.forced_once) {
+            allowed_decisions = chrome;
         }
         // A session approval of a Native Shell is the one answer that creates a
         // reusable consent, and only when the approved Operation is one a consent
@@ -619,6 +633,9 @@ pub fn explicit_grant_covers_operation(
 }
 
 fn grant_covers_operation(grant: &AuthorizationGrant, input: &PolicyInput<'_>) -> bool {
+    if grant.scope.chrome_consent.is_some() {
+        return crate::chrome::consent_covers(grant, input);
+    }
     if grant.scope.mcp_consent.is_some() {
         let c = &input.operation.content;
         return aura_security_contract::mcp_consent_covers(

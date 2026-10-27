@@ -153,6 +153,7 @@ fn reads(store: &mut V2Store, fixture: &support::Fixture) -> Reads {
         selectors: vec![ContextEventSelector::TurnTask { turn_task_id: fixture.turn.turn_task_id }],
         character_limit: 8_192,
         cursor: None,
+        content_offset: None,
     };
     let (_, context_events) = instructions(store, |store| {
         store.database.unit_of_work(|tx| read::events(tx, session, run, &input, at)).unwrap()

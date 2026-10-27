@@ -134,6 +134,7 @@ const schema19 = {
         'memory',
         'diagnostics',
         'update',
+        'chrome',
       ],
       type: 'string',
     },
@@ -428,6 +429,7 @@ const schema21 = {
     'memory',
     'diagnostics',
     'update',
+    'chrome',
   ],
   type: 'string',
 };
@@ -471,7 +473,8 @@ function validate54(
     data === 'browser' ||
     data === 'memory' ||
     data === 'diagnostics' ||
-    data === 'update'
+    data === 'update' ||
+    data === 'chrome'
   )) {
     validate54.errors = [
       {
@@ -1517,6 +1520,7 @@ const schema24 = {
         'memory',
         'diagnostics',
         'update',
+        'chrome',
       ],
       type: 'string',
     },
@@ -2293,7 +2297,8 @@ function validate67(
     data === 'browser' ||
     data === 'memory' ||
     data === 'diagnostics' ||
-    data === 'update'
+    data === 'update' ||
+    data === 'chrome'
   )) {
     validate67.errors = [
       {

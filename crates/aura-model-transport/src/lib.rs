@@ -11,6 +11,7 @@ mod gate;
 mod images;
 mod network;
 mod output;
+mod reasoning_loop;
 mod request_layout;
 mod retry;
 mod sse;
@@ -41,6 +42,7 @@ pub use network::{
     ModelRequestAuthorizer, TransportHttpBody, TransportHttpResponse,
 };
 pub use output::NormalizedOutputBuilder;
+pub use reasoning_loop::REASONING_LOOP_REPEATS;
 pub use request_layout::{instruction_layout, openai_prompt_cache_key, ordered_tool_bindings};
 pub use retry::{MAX_TRANSPORT_ATTEMPTS, RetryDecision, TransportRetryPolicy};
 pub use sse::{ProviderStreamFrame, SseDecoder, SseLimits};

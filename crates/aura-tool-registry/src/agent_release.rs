@@ -1,6 +1,7 @@
 //! The R08/R09 Core-owned Built-in release. Existing tools.* identities remain
 //! exact; new handlers are closed Rust identities, never Package runtime input.
 mod browser_definitions;
+mod chrome_definitions;
 mod command_definitions;
 mod definitions;
 mod entry_definitions;
@@ -132,6 +133,22 @@ pub enum AgentBuiltinHandler {
     BrowserPerformance,
     MediaProbe,
     MediaFrames,
+    /// The user's own Chrome, in tabs the user shared with the conversation.
+    ChromeTabs,
+    ChromeOpen,
+    ChromeNavigate,
+    ChromeSnapshot,
+    ChromeScreenshot,
+    ChromeClick,
+    ChromeType,
+    ChromePress,
+    ChromeScroll,
+    ChromeHover,
+    ChromeSelect,
+    ChromeWait,
+    ChromeConsole,
+    ChromeClose,
+    ChromeRequestUser,
 }
 impl AgentBuiltinHandler {
     pub fn name(self) -> &'static str {
@@ -225,6 +242,21 @@ impl AgentBuiltinHandler {
             Self::BrowserPerformance => "browser.performance",
             Self::MediaProbe => "media.probe",
             Self::MediaFrames => "media.frames",
+            Self::ChromeTabs => "chrome.tabs",
+            Self::ChromeOpen => "chrome.open",
+            Self::ChromeNavigate => "chrome.navigate",
+            Self::ChromeSnapshot => "chrome.snapshot",
+            Self::ChromeScreenshot => "chrome.screenshot",
+            Self::ChromeClick => "chrome.click",
+            Self::ChromeType => "chrome.type",
+            Self::ChromePress => "chrome.press",
+            Self::ChromeScroll => "chrome.scroll",
+            Self::ChromeHover => "chrome.hover",
+            Self::ChromeSelect => "chrome.select",
+            Self::ChromeWait => "chrome.wait",
+            Self::ChromeConsole => "chrome.console",
+            Self::ChromeClose => "chrome.close",
+            Self::ChromeRequestUser => "chrome.request_user",
         }
     }
     pub fn is_control(self) -> bool {

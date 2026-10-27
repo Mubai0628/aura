@@ -27,6 +27,12 @@ const messages: Record<string, string> = {
     '模型服务返回的数据无法解析，这一步没有完成。任务已暂停，过程输出仍可阅读；在输入框发“继续”即可接着做。',
   'agent.transport_interrupted':
     '与模型服务的连接中途断开，无法确认这一步是否完成，所以没有自动重发。任务已暂停；在输入框发“继续”即可接着做。',
+  model_reasoning_loop:
+    '模型在思考中反复回到同一段内容，没有开始回答；已自动重新问了 2 次，仍然如此，任务已暂停。过程输出仍可阅读；可以在输入框发“继续”再试，或换一个思考档位或模型。',
+  'context.compaction_failed':
+    '压缩较早的对话没有成功，这一步没有完成。任务已暂停，过程输出仍可阅读；在输入框发“继续”即可接着做。',
+  'agent.execution_interrupted':
+    '这一步执行时出了意外的错误，任务已暂停，错误代码记在 Core 日志里。过程输出仍可阅读；在输入框发“继续”即可接着做。',
   'provider_failed: context_length_exceeded':
     '这次请求超过了模型的上下文上限。任务已暂停；在输入框发“继续”，Aura 会先压缩较早的内容再接着做。',
   'provider_failed: rate_limit_exceeded':

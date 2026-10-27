@@ -8,6 +8,7 @@ use std::{
 #[cfg(test)]
 use std::fs;
 
+use aura_chrome_domain::protocol::native_host_name;
 use aura_runtime_contract::BundleNamespace;
 use aura_windows_platform::installer::{self, RunningProgram, Shortcut, UninstallEntry};
 
@@ -29,8 +30,12 @@ pub trait Host {
     fn running_in(&self, root: &Path) -> io::Result<Vec<RunningProgram>>;
     /// The installation's data folder (`%LOCALAPPDATA%\Aura\namespaces\<hash>`).
     fn data_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf>;
+    /// The installation's settings folder (`%APPDATA%\Aura\namespaces\<hash>`).
+    fn config_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf>;
     fn credentials(&self, namespace: &BundleNamespace) -> io::Result<Vec<String>>;
     fn delete_credentials(&self, namespace: &BundleNamespace) -> io::Result<usize>;
+    /// Removes Chrome's registration of the installation's relay; `false` when there was none.
+    fn remove_chrome_host(&self, namespace: &BundleNamespace) -> io::Result<bool>;
 }
 
 /// The entry key in Settings > Apps: `Aura` for the released product, its own key for a test
@@ -63,6 +68,12 @@ fn local_app_data() -> io::Result<PathBuf> {
     env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "LOCALAPPDATA is not set"))
+}
+
+fn app_data() -> io::Result<PathBuf> {
+    env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "APPDATA is not set"))
 }
 
 /// The user's own Windows session.
@@ -117,12 +128,20 @@ impl Host for SystemHost {
         Ok(local_app_data()?.join("Aura").join("namespaces").join(namespace.object_name_hash()))
     }
 
+    fn config_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
+        Ok(app_data()?.join("Aura").join("namespaces").join(namespace.object_name_hash()))
+    }
+
     fn credentials(&self, namespace: &BundleNamespace) -> io::Result<Vec<String>> {
         installer::installation_credentials(&credential_prefix(namespace))
     }
 
     fn delete_credentials(&self, namespace: &BundleNamespace) -> io::Result<usize> {
         installer::delete_installation_credentials(&credential_prefix(namespace))
+    }
+
+    fn remove_chrome_host(&self, namespace: &BundleNamespace) -> io::Result<bool> {
+        installer::remove_chrome_native_host(&native_host_name(namespace.as_str()))
     }
 }
 
@@ -142,6 +161,21 @@ impl FolderHost {
         fs::read(self.entry_path(namespace))
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    }
+
+    fn chrome_host_path(&self, name: &str) -> PathBuf {
+        self.root.join("chrome-hosts").join(name)
+    }
+
+    /// Registers `name` for Chrome the way Core does when Chrome control is turned on.
+    pub fn register_chrome_host(&self, name: &str, manifest: &Path) {
+        let path = self.chrome_host_path(name);
+        fs::create_dir_all(path.parent().unwrap_or(&self.root)).expect("chrome hosts folder");
+        fs::write(path, manifest.to_string_lossy().as_bytes()).expect("chrome host");
+    }
+
+    pub fn chrome_host(&self, name: &str) -> Option<PathBuf> {
+        fs::read_to_string(self.chrome_host_path(name)).ok().map(PathBuf::from)
     }
 }
 
@@ -211,11 +245,23 @@ impl Host for FolderHost {
         Ok(self.root.join("LocalAppData/Aura/namespaces").join(namespace.object_name_hash()))
     }
 
+    fn config_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
+        Ok(self.root.join("AppData/Aura/namespaces").join(namespace.object_name_hash()))
+    }
+
     fn credentials(&self, _namespace: &BundleNamespace) -> io::Result<Vec<String>> {
         Ok(Vec::new())
     }
 
     fn delete_credentials(&self, _namespace: &BundleNamespace) -> io::Result<usize> {
         Ok(0)
+    }
+
+    fn remove_chrome_host(&self, namespace: &BundleNamespace) -> io::Result<bool> {
+        match fs::remove_file(self.chrome_host_path(&native_host_name(namespace.as_str()))) {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 }

@@ -3,6 +3,7 @@ use super::{
     TerminalEnd, TerminalEndReason, TerminalKind, TerminalOptions, TerminalOutputPage,
     output::OutputBuffer,
 };
+use crate::compat::redaction::Redactor;
 use anyhow::{Result, ensure};
 use aura_windows_platform::{
     NativeTerminal, ProcessIdentity, TerminalOutputCallback, TerminalSize, VerifiedFile,
@@ -20,6 +21,8 @@ struct Lifetime {
     closing: Mutex<()>,
     bindings: Mutex<Option<Vec<VerifiedFile>>>,
     changed: tokio::sync::watch::Sender<()>,
+    /// Releases output held back as the possible start of a hidden value.
+    flush: Box<dyn Fn() + Send + Sync>,
 }
 impl Lifetime {
     fn finish(&self, reason: TerminalEndReason) -> Result<TerminalEnd> {
@@ -30,6 +33,7 @@ impl Lifetime {
             return Ok(end);
         }
         let result = self.native.close();
+        (self.flush)();
         let end = TerminalEnd {
             reason,
             exit_code: result.as_ref().ok().copied().flatten(),
@@ -57,14 +61,33 @@ impl TerminalSession {
     pub(super) fn start(
         options: &TerminalOptions,
         bindings: Vec<VerifiedFile>,
+        hidden: Option<Redactor>,
         spawn: impl FnOnce(TerminalOutputCallback) -> Result<NativeTerminal>,
     ) -> Result<Self> {
         let output = Arc::new(Mutex::new(OutputBuffer::new(options.output_limit)?));
         let (changed, _) = tokio::sync::watch::channel(());
         let output_changed = changed.clone();
         let buffer = Arc::clone(&output);
+        let hidden = Arc::new(Mutex::new(hidden.filter(|redactor| !redactor.is_empty())));
+        let (held, written) = (Arc::clone(&hidden), Arc::clone(&output));
+        let flush = Box::new(move || {
+            if let (Ok(mut held), Ok(mut written)) = (held.lock(), written.lock())
+                && let Some(redactor) = held.as_mut()
+            {
+                written.append(&redactor.finish());
+            }
+        });
         let native = Arc::new(spawn(Arc::new(move |bytes| {
-            buffer.lock().map_err(|_| std::io::Error::other("terminal.output_lock"))?.append(bytes);
+            let mut hidden =
+                hidden.lock().map_err(|_| std::io::Error::other("terminal.output_lock"))?;
+            let shown = match hidden.as_mut() {
+                Some(redactor) => std::borrow::Cow::Owned(redactor.push(bytes)),
+                None => std::borrow::Cow::Borrowed(bytes),
+            };
+            buffer
+                .lock()
+                .map_err(|_| std::io::Error::other("terminal.output_lock"))?
+                .append(&shown);
             output_changed.send_replace(());
             Ok(())
         }))?);
@@ -74,6 +97,7 @@ impl TerminalSession {
             closing: Mutex::new(()),
             bindings: Mutex::new(Some(bindings)),
             changed,
+            flush,
         });
         let watched = Arc::clone(&lifetime);
         let monitor =

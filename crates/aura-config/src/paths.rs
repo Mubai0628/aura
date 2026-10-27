@@ -35,10 +35,11 @@ pub enum ConfigModule {
     Memory,
     Diagnostics,
     Update,
+    Chrome,
 }
 
 impl ConfigModule {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::Aura,
         Self::Models,
         Self::Tools,
@@ -54,6 +55,7 @@ impl ConfigModule {
         Self::Memory,
         Self::Diagnostics,
         Self::Update,
+        Self::Chrome,
     ];
 
     #[must_use]
@@ -67,7 +69,8 @@ impl ConfigModule {
             | Self::Browser
             | Self::Memory
             | Self::Diagnostics
-            | Self::Update => ConfigFormat::Toml,
+            | Self::Update
+            | Self::Chrome => ConfigFormat::Toml,
             Self::Models
             | Self::Tools
             | Self::Mcp
@@ -95,6 +98,7 @@ impl ConfigModule {
             Self::Memory => "settings/memory.toml",
             Self::Diagnostics => "settings/diagnostics.toml",
             Self::Update => "settings/update.toml",
+            Self::Chrome => "settings/chrome.toml",
         }
     }
 
@@ -116,6 +120,7 @@ impl ConfigModule {
             Self::Memory => "settings-memory",
             Self::Diagnostics => "settings-diagnostics",
             Self::Update => "settings-update",
+            Self::Chrome => "settings-chrome",
         }
     }
 

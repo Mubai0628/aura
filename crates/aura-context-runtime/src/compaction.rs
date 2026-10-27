@@ -123,7 +123,7 @@ pub fn parse_and_validate_compaction_output(
     if output.is_empty() {
         return Err(CompactionValidationError::OutputEmpty);
     }
-    if u64::try_from(output.chars().count()).unwrap_or(u64::MAX) > output_character_limit {
+    if crate::compaction_size::compaction_output_too_large(output, output_character_limit) {
         return Err(CompactionValidationError::OutputTooLarge);
     }
     let normalized = output.replace("\r\n", "\n").replace('\r', "\n");
