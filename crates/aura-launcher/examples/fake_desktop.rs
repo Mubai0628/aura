@@ -9,7 +9,7 @@
 //!
 //! Copied in as `aura-core.exe` it answers `--store-migration-check` with the
 //! `fake-migration.json` beside it, as the new version's Core tells the launcher which stores
-//! it would migrate.
+//! it would migrate, and keeps the arguments it was asked with in `fake-migration-args.txt`.
 use std::{env, fs, path::PathBuf, process::ExitCode};
 
 use aura_runtime_contract::{ActiveInstallState, BuildComponentManifest};
@@ -23,8 +23,11 @@ fn data_root(manifest: &BuildComponentManifest) -> PathBuf {
 
 fn main() -> ExitCode {
     if env::args().nth(1).as_deref() == Some("--store-migration-check") {
-        let answer = env::current_exe()
-            .and_then(|program| fs::read_to_string(program.with_file_name("fake-migration.json")));
+        let asked = env::args().skip(1).collect::<Vec<_>>().join("\n");
+        let answer = env::current_exe().and_then(|program| {
+            fs::write(program.with_file_name("fake-migration-args.txt"), asked)?;
+            fs::read_to_string(program.with_file_name("fake-migration.json"))
+        });
         return match answer {
             Ok(answer) => {
                 print!("{answer}");

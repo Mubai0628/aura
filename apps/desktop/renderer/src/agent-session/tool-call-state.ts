@@ -2,7 +2,7 @@ import type {
   AgentToolActivityEntry,
   ToolCallActivitySummaryView,
 } from '@aura/contracts/generated';
-import { toolCallStateLabel } from '../tool-call-state-label';
+import { errorCodeLabel, toolCallStateLabel } from '../tool-call-state-label';
 
 /** The real visual tone of one Tool call; text always states the same thing. */
 export type ToolCallTone = 'success' | 'failed' | 'waiting' | 'running' | 'unknown';
@@ -45,10 +45,13 @@ export const terminalReasonLabel = (summary: ToolCallActivitySummaryView): strin
     }
   }
   if (outcome.type === 'indeterminate') return '结果未知';
-  if (outcome.type === 'cancelled') return '已取消';
+  if (outcome.type === 'cancelled') return outcome.reason === 'timeout' ? '超时' : '已取消';
   if (outcome.type === 'succeeded') return '成功';
-  // A rejected or failed invocation is described by the class the Store recorded. An
-  // absent class is a legacy row, and it stays neutral rather than being guessed at.
+  // A rejected or failed invocation is described by the kind its own code names, else by the
+  // class the Store recorded. An absent class is a legacy row, and it stays neutral rather than
+  // being guessed at.
+  const named = errorCodeLabel(summary.error_code);
+  if (named !== undefined) return named;
   switch (summary.error_class) {
     case 'not_found':
       return '目标不存在';
@@ -162,5 +165,6 @@ const terminalReasonKey = (summary: ToolCallActivitySummaryView): string => {
   if (outcome.type === 'not_executed') return `reason:${outcome.reason}`;
   if (outcome.type === 'indeterminate') return `reason:${outcome.reason}`;
   if (outcome.type === 'cancelled') return `reason:${outcome.reason}`;
+  if (errorCodeLabel(summary.error_code) !== undefined) return `code:${summary.error_code}`;
   return `class:${summary.error_class ?? 'unclassified'}`;
 };

@@ -48,6 +48,7 @@ fn s06_b2_store_offers_a_file_consent_to_a_new_operation_in_the_same_session() {
             memory_consent: None,
             mcp_consent: None,
             chrome_consent: None,
+            chrome_site_consent: None,
             file_consent: None,
         },
         allowed_decisions: vec![ApprovalDecisionKind::AllowSession],

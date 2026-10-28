@@ -65,7 +65,7 @@ async fn compact_in_an_idle_session_starts_a_task_that_compacts_before_its_first
     let requests = provider.requests.lock().expect("requests").clone();
     let answer = requests[asked..]
         .iter()
-        .rfind(|body| !body.to_string().contains("Return exactly these headings in this order:"))
+        .rfind(|body| !body.to_string().contains("Write the summary as one paragraph"))
         .expect("the confirming step's request")
         .to_string();
     assert!(answer.contains("This is a /compact task"), "the model is told what was done");

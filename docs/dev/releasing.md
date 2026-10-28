@@ -32,6 +32,12 @@ $env:AURA_CHROME_TARGET = "test"; $env:AURA_CHROME_NAMESPACE = "aura.desktop.tes
 corepack pnpm --filter @aura/chrome-extension build
 ```
 
+## 数据升级与回退
+
+新版本第一次启动前，启动器问新版本的 Core 哪些数据库要先复制：`aura-core --store-migration-check <数据目录> --replacing <被替换的版本>`。数据库要迁移，或者被替换的版本读不了新版本写入的记录时，都要复制；回到上一个版本时恢复这份复制（回退对话框会说明更新之后的改动会丢失）。
+
+存储的记录默认拒绝未知字段和取值。所以一个版本开始在执行数据库里存上一版会拒绝的字段或枚举值时，要把 `crates/aura-persistence-v2/src/record_compatibility.rs` 里的 `RECORDS_READABLE_SINCE` 改成这个版本号。0.1.8 起它是 `0.1.8`，因为粗估的 token 计数标为 `approximate`，0.1.7 读不了。发布前对照上一个发布提交，看 `scripts/architecture/contract-baseline.json` 的差异里有没有会存进数据库的类型。
+
 ## 公开仓库
 
 开发仓库与公开仓库分开。每次发布从要发布的提交导出公开源码：

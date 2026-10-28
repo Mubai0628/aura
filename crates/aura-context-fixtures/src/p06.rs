@@ -316,7 +316,7 @@ pub fn p06_prepared_tool_continuation_fixture(
         compacted_source_proofs: Vec::new(),
         coverage_hops: Vec::new(),
     };
-    let estimators = ContextEstimatorRegistry::default();
+    let estimators = ContextEstimatorRegistry::default().counting_unmeasured_by_bytes();
     let compiler = ContextPreparationCompiler::new(&estimators);
     let ContextPreparationCompilationOutcome::Prepared(prepared) =
         compiler.compile(preparation_input).map_err(|_| ContextFixtureError::PreparationFailed)?
@@ -497,7 +497,7 @@ fn build_prepared_fixture(
         compacted_source_proofs: Vec::new(),
         coverage_hops: Vec::new(),
     };
-    let estimators = ContextEstimatorRegistry::default();
+    let estimators = ContextEstimatorRegistry::default().counting_unmeasured_by_bytes();
     let compiler = ContextPreparationCompiler::new(&estimators);
     let ContextPreparationCompilationOutcome::Prepared(prepared) =
         compiler.compile(preparation_input).map_err(|_| ContextFixtureError::PreparationFailed)?

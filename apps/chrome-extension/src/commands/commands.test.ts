@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { DebuggerApi, Tab } from '../chrome-api.js';
 import { Pages } from '../page/pages.js';
 import type { Target } from '../page/inspect.js';
@@ -70,13 +70,14 @@ function page(fake: FakeDebugger, target: Partial<Target> = {}): void {
   });
 }
 
-function context(fake: FakeDebugger, tab: Tab = SHOP): CommandContext {
+function context(fake: FakeDebugger, tab: Tab = SHOP, windowState = 'normal'): CommandContext {
   return {
     tabs: {
       get: async () => tab,
       create: async () => tab,
       remove: async () => undefined,
     },
+    windows: { get: async () => ({ state: windowState }) },
     pages: new Pages(fake, { set: () => 0, clear: () => undefined }),
     group: async () => undefined,
     assist: async () => 'done',
@@ -186,6 +187,41 @@ describe('commands from Core', () => {
     );
     expect(error.code).toBe('chrome.refused');
     expect(error.message).toContain('Another debugger');
+  });
+
+  it('open a new tab in the background, leaving what the user looks at', async () => {
+    const fake = new FakeDebugger();
+    page(fake);
+    const ctx = context(fake);
+    const created: { url: string; active?: boolean }[] = [];
+    ctx.tabs.create = async (properties) => {
+      created.push(properties);
+      return SHOP;
+    };
+    await run(ctx, { op: 'open', url: 'https://shop.example/cart' }, undefined);
+    expect(created).toEqual([{ url: 'https://shop.example/cart', active: false }]);
+  });
+
+  it('refuse at once a screenshot of a tab Chrome does not draw, and stop waiting for one', async () => {
+    const fake = new FakeDebugger();
+    page(fake);
+    const shot: ChromeCommand = { op: 'screenshot', tab_id: 7, element: null, full_page: false };
+    const behind = { ...SHOP, active: false };
+    for (const ctx of [context(fake, behind), context(fake, SHOP, 'minimized')]) {
+      const error = await failure(run(ctx, shot, 'https://shop.example'));
+      expect(error.code).toBe('chrome.background_tab');
+      expect(error.message).toContain('chrome.snapshot');
+    }
+    expect(fake.sent).toEqual([]);
+    vi.useFakeTimers();
+    try {
+      fake.handlers['Page.captureScreenshot'] = () => new Promise(() => undefined);
+      const capture = failure(run(context(fake), shot, 'https://shop.example'));
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect((await capture).code).toBe('chrome.not_drawn');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('inspect a click by position at the element under it', async () => {

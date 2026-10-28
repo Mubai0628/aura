@@ -311,12 +311,17 @@
     max-width: calc(100% - max(3%, 34px));
   }
 }
+/* It sits in the dock over the conversation's bottom, as the approval does: opaque, so the
+   messages scrolling under the dock do not show through it. */
 .agent-context-remediation {
   max-height: min(360px, 40vh);
+  margin-bottom: 8px;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
 }
 
 .agent-context-remediation p,

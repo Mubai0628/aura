@@ -41,6 +41,8 @@ use aura_security_contract::*;
 #[path = "native_session_consent/fixture.rs"]
 mod fixture;
 use fixture::*;
+#[path = "native_session_consent/chrome_site.rs"]
+mod chrome_site;
 #[path = "native_session_consent/editor_publication.rs"]
 mod editor_publication;
 #[path = "native_session_consent/file_session.rs"]
@@ -194,6 +196,7 @@ fn an_approval_after_the_window_closed_is_refused() {
             memory_consent: None,
             mcp_consent: None,
             chrome_consent: None,
+            chrome_site_consent: None,
             file_consent: None,
         },
         allowed_decisions: vec![

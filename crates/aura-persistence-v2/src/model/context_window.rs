@@ -165,6 +165,11 @@ pub fn reject(
     let context =
         crate::context::snapshot(tx, snapshot.context_snapshot_id)?.ok_or(Error::Conflict)?;
     let tokens = context.budget.estimated_input_tokens;
+    // Counted only by the rule of thumb, the request may simply be longer than counted: it is
+    // rebuilt smaller, and its refusal says nothing about the model's window.
+    let approximate = context.budget.item_estimates.iter().any(|item| {
+        item.estimator.exactness == aura_context_domain::TokenEstimateExactness::Approximate
+    });
     let previous = trial(tx, step.model_step_id)?;
     let mut record = WindowCorrection {
         view: AgentContextWindowCorrection {
@@ -199,7 +204,9 @@ pub fn reject(
             record.view.correction.resolution = manual_resolution(&record, tokens, true);
             record.view.state = AgentContextWindowState::Awaiting;
         }
-    } else if !context_window_requires_rebuild(tokens, snapshot.runtime_effective_window_tokens) {
+    } else if !approximate
+        && !context_window_requires_rebuild(tokens, snapshot.runtime_effective_window_tokens)
+    {
         record.view.correction.resolution = manual_resolution(&record, tokens, false);
         record.view.state = AgentContextWindowState::Awaiting;
     }

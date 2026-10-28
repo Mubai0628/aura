@@ -181,6 +181,7 @@ where
                 memory_consent: None,
                 mcp_consent: None,
                 chrome_consent: None,
+                chrome_site_consent: None,
                 file_consent: None,
             },
             decided_at: now,

@@ -3,13 +3,47 @@
  * result, a screenshot, waiting for text or time, and its console.
  */
 import { BOXED, boxesOf, elementBox, renderSnapshot, type AxNode } from '../page/facade.js';
-import type { ConsoleLevel, ConsoleReport, PageReport, ScreenshotReport } from '../protocol.js';
+import {
+  CommandError,
+  type ConsoleLevel,
+  type ConsoleReport,
+  type PageReport,
+  type ScreenshotReport,
+} from '../protocol.js';
 import { failed, refused, settle, stopIfCancelled, type CommandContext } from './context.js';
 
 export const SNAPSHOT_CHARS = 12_000;
 /** A screenshot larger than this, as base64, is refused: about 12 MB of PNG. */
 const LARGEST_SCREENSHOT = 16 * 1024 * 1024;
 const TALLEST_PAGE = 6_000;
+/** How long a capture may wait for Chrome to draw the tab. */
+const CAPTURE_LIMIT_MS = 10_000;
+const BACKGROUND =
+  '这个标签页在后台：Chrome 不绘制后台标签页和最小化窗口里的页面，截不了图。请用 chrome.snapshot 读取页面文字；需要看画面时，请用户把这个标签页切到前面后再截。';
+const NOT_DRAWN =
+  'Chrome 10 秒内没有画出这个标签页（窗口可能被挡住），截图没有完成。请用 chrome.snapshot 读取页面文字；需要看画面时，请用户把这个窗口切到前面后再截。';
+
+/** Chrome draws only the tab in front of a window that is not minimized; a capture of any other
+ * tab waits for a frame that never comes. */
+async function drawn(context: CommandContext, tabId: number): Promise<boolean> {
+  const tab = await context.tabs.get(tabId);
+  if (!tab.active) return false;
+  const window = await context.windows.get(tab.windowId);
+  return window.state !== 'minimized';
+}
+
+/** `work`, or `chrome.not_drawn` once `ms` pass without it. */
+async function within<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new CommandError('chrome.not_drawn', NOT_DRAWN)), ms);
+  });
+  try {
+    return await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export async function report(
   context: CommandContext,
@@ -77,6 +111,7 @@ export async function screenshot(
   element: string | null,
   fullPage: boolean,
 ): Promise<ScreenshotReport> {
+  if (!(await drawn(context, tabId))) throw new CommandError('chrome.background_tab', BACKGROUND);
   const page = await context.pages.page(tabId);
   const view = await viewport(context, tabId);
   let clip: { x: number; y: number; width: number; height: number };
@@ -99,11 +134,14 @@ export async function screenshot(
   } else {
     clip = { x: view.x, y: view.y, width: view.width, height: view.height };
   }
-  const { data } = await page.send<{ data?: string }>('Page.captureScreenshot', {
-    format: 'png',
-    captureBeyondViewport: fullPage || element !== null,
-    clip: { ...clip, scale: 1 },
-  });
+  const { data } = await within(
+    page.send<{ data?: string }>('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: fullPage || element !== null,
+      clip: { ...clip, scale: 1 },
+    }),
+    CAPTURE_LIMIT_MS,
+  );
   if (!data) throw failed('截图为空：页面还没有画出内容，请稍后再试。');
   if (data.length > LARGEST_SCREENSHOT)
     throw refused('截图太大：请截取单个元素（ref），或不截整页。');

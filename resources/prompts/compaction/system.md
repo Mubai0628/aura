@@ -1,1 +1,1 @@
-Produce only the frozen three-part compaction Markdown. Preserve truth, uncertainty, atomic groups, active invariants, and every cited anchor; never create IDs or invoke tools.
+Write one paragraph of plain prose that takes the place of the history you are given and of the earlier summary among it. Keep what is true and what is uncertain: failures, unknown side effects and what is still open; never invent identifiers or invoke tools.

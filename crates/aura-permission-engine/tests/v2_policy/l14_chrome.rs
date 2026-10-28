@@ -1,13 +1,14 @@
 //! The user's own Chrome. Reading a shared tab is allowed in every mode, acting on it outside
 //! ReadOnly; in ReadOnly the answer may cover the share for the rest of the turn. A site the user
-//! has not confirmed and a sensitive action are answered once. Chrome's own pages, credential,
-//! code, CAPTCHA, passkey and file-chooser actions are refused whatever was approved, and so is a
-//! child agent. No other answer reaches Chrome, and a Chrome answer reaches nothing else.
+//! has not confirmed is answered once or for the session; a sensitive action is answered once.
+//! Chrome's own pages, credential, code, CAPTCHA, passkey and file-chooser actions are refused
+//! whatever was approved, and so is a child agent. No other answer reaches Chrome, and a Chrome
+//! answer reaches nothing else.
 use super::*;
 use ResolvedCapability as C;
 use aura_security_contract::{
-    ChromeTurnConsentRef, NetworkCallerKind, NetworkConsentCaller, NetworkConsentDestinations,
-    NetworkSessionConsentRef,
+    ChromeSiteConsentRef, ChromeTurnConsentRef, NetworkCallerKind, NetworkConsentCaller,
+    NetworkConsentDestinations, NetworkSessionConsentRef,
 };
 
 fn share(id: &str) -> ResourceDescriptor {
@@ -124,6 +125,11 @@ fn turn_answer(c: &mut Case) {
 
 const ONCE: &[ApprovalDecisionKind] =
     &[ApprovalDecisionKind::AllowOnce, ApprovalDecisionKind::Deny];
+const SITE_ANSWERS: &[ApprovalDecisionKind] = &[
+    ApprovalDecisionKind::AllowOnce,
+    ApprovalDecisionKind::AllowSession,
+    ApprovalDecisionKind::Deny,
+];
 const TURN: &[ApprovalDecisionKind] = &[
     ApprovalDecisionKind::AllowOnce,
     ApprovalDecisionKind::AllowForCurrentTurn,
@@ -133,11 +139,11 @@ const MODES: [PermissionMode; 3] =
     [PermissionMode::ReadOnly, PermissionMode::WorkspaceReadWrite, PermissionMode::FullAccess];
 
 #[test]
-fn reading_a_shared_tab_never_asks_and_an_unconfirmed_site_is_answered_once() {
+fn reading_a_shared_tab_never_asks_and_an_unconfirmed_site_is_answered_once_or_for_the_session() {
     for mode in MODES {
         assert!(allowed(&read(mode, None)), "{mode:?} without a site");
         assert!(allowed(&read(mode, Some((SITE, true)))), "{mode:?} confirmed");
-        assert_eq!(asked(&read(mode, Some((SITE, false)))), ONCE, "{mode:?} unconfirmed");
+        assert_eq!(asked(&read(mode, Some((SITE, false)))), SITE_ANSWERS, "{mode:?} unconfirmed");
     }
 }
 
@@ -150,7 +156,7 @@ fn acting_asks_only_in_read_only_where_the_answer_may_cover_the_turn() {
         assert!(allowed(&act(mode, Some((SITE, true)))), "{mode:?} confirmed");
     }
     for mode in MODES {
-        assert_eq!(asked(&act(mode, Some((SITE, false)))), ONCE, "{mode:?} unconfirmed");
+        assert_eq!(asked(&act(mode, Some((SITE, false)))), SITE_ANSWERS, "{mode:?} unconfirmed");
     }
 }
 
@@ -186,7 +192,7 @@ fn a_turn_answer_covers_its_share_for_the_rest_of_the_turn_only() {
     assert_eq!(asked(&next(&first, other_share)), TURN, "another share");
     assert_eq!(
         asked(&next(&first, act(PermissionMode::ReadOnly, Some((SITE, false))))),
-        ONCE,
+        SITE_ANSWERS,
         "a new site"
     );
     assert_eq!(asked(&next(&first, sensitive(PermissionMode::ReadOnly, true))), ONCE, "sensitive");
@@ -195,6 +201,50 @@ fn a_turn_answer_covers_its_share_for_the_rest_of_the_turn_only() {
     later.op.content.identity.turn_task_id = Some(aura_domain_common::TurnTaskId::new());
     later.refresh();
     assert_eq!(asked(&later), TURN, "the next turn");
+}
+
+/// The production resolution of "allow this site for the session" on a Chrome question.
+fn site_answer(c: &mut Case) {
+    let PolicyAuthorization::Ask { proposal } = decide(c) else { panic!("ask") };
+    let session_id = c.snapshot.session_id;
+    let mut scope = proposal.scope;
+    scope.lifetime = AuthorizationLifetime::Session { session_id };
+    scope.chrome_site_consent = Some(ChromeSiteConsentRef {
+        approval_id: aura_domain_common::ApprovalRequestId::new(),
+        session_id,
+        principal_id: c.op.content.identity.principal_id,
+        origin: SITE.into(),
+        approved_operation_fingerprint: c.op.fingerprint.clone(),
+        grant_revision: Revision::INITIAL,
+    });
+    grant(c, scope);
+}
+
+#[test]
+fn a_session_site_answer_allows_the_answered_call_and_the_mode_decides_the_rest() {
+    let mut first = act(PermissionMode::WorkspaceReadWrite, Some((SITE, false)));
+    site_answer(&mut first);
+    assert!(allowed(&first), "the answered call");
+    // Core resolves the site as confirmed for the session's later calls; the Grant itself
+    // covers no other call.
+    let typing = chrome(
+        PermissionMode::WorkspaceReadWrite,
+        "chrome.type",
+        vec![C::ChromeInteraction],
+        on(Some((SITE, false)), "share-1"),
+    );
+    assert_eq!(asked(&next(&first, typing)), SITE_ANSWERS, "the Grant is not reused");
+    let confirmed = act(PermissionMode::WorkspaceReadWrite, Some((SITE, true)));
+    assert!(allowed(&next(&first, confirmed)), "a confirmed site in a working mode");
+    assert_eq!(
+        asked(&next(&first, sensitive(PermissionMode::WorkspaceReadWrite, true))),
+        ONCE,
+        "a sensitive action still asks every time"
+    );
+    let mut read_only = act(PermissionMode::ReadOnly, Some((SITE, false)));
+    site_answer(&mut read_only);
+    let acting = act(PermissionMode::ReadOnly, Some((SITE, true)));
+    assert_eq!(asked(&next(&read_only, acting)), TURN, "ReadOnly still asks before acting");
 }
 
 /// A click in the built-in browser, in ReadOnly: a question of the browser's own.

@@ -21,6 +21,7 @@ pub(super) fn recovery_call_summary(
         status: call.status,
         outcome: result_summary.as_ref().map(|value| value.0),
         error_class: result_summary.as_ref().and_then(|value| value.1),
+        error_code: None,
         side_effect_state: result_summary.as_ref().map(|value| value.2),
         started_at: call.started_at,
         completed_at: result_summary.map(|value| value.3),

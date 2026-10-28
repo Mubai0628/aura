@@ -147,6 +147,9 @@ fn dispatch(
             id.agent_run_id,
             &input(arguments)?,
         )?),
+        "history.list_turns" | "history.search" | "history.read" => {
+            super::rounds::dispatch(tx, id.session_id, name, arguments)
+        }
         "todo.get" => {
             let _: EmptyToolInput = input(arguments)?;
             value(work::todo(tx, id.turn_task_id)?)
@@ -418,7 +421,8 @@ fn classify_invalid(
                 || other.starts_with("task_lineage.")
                 || other.starts_with("skills.")
                 || other.starts_with("shell.")
-                || other.starts_with("context.") =>
+                || other.starts_with("context.")
+                || other.starts_with("history.") =>
         {
             (ToolSchemaErrorCode::ArgumentsInvalid.error_code(), ErrorCategory::Validation)
         }

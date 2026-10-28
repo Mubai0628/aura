@@ -22,11 +22,39 @@ pub(super) struct Port {
     pub commands: Option<Arc<crate::command_execution::CommandExecution>>,
 }
 impl Port {
+    /// The preparation ([`Port::inspect_domain`]).
+    fn inspect_sync(&self) -> anyhow::Result<Value> {
+        Ok(self.inspect_domain()?.0)
+    }
+
+    /// Whether the facts taken now still allow the call prepared with `prepared`: the same facts,
+    /// or, for a call on workspace files, different only in what its start also allows - folders
+    /// that appeared on a new file's path, the content of a file it reads. Another call of the same
+    /// response creates those folders at any moment between this call's preparation and its start.
+    fn still_prepared_sync(&self, prepared: &Value) -> anyhow::Result<bool> {
+        #[cfg(test)]
+        self.create_folders_due()?;
+        let (fresh, workspace_files) = self.inspect_domain()?;
+        if fresh == *prepared {
+            return Ok(true);
+        }
+        let (Some(now), Some(then)) = (fresh.as_object(), prepared.as_object()) else {
+            return Ok(false);
+        };
+        let same_frame = now.len() == then.len()
+            && now.iter().all(|(key, value)| key == "domain" || then.get(key) == Some(value));
+        Ok(same_frame
+            && workspace_files
+            && files::still_hold(&self.service, &self.call, &then["domain"], &now["domain"])?)
+    }
+
+    /// The preparation, and whether its domain facts are the workspace files' ([`files::inspect`]).
+    ///
     /// Contract: the `verify_source` call inside takes `journal.lock()` directly, so this
     /// whole synchronous preparation is only correct on a real blocking thread. [`Port::inspect`]
     /// reaches it through one bounded section; [`Port::invoke`]'s fs branch reaches it inside the
-    /// pre-existing `tokio::task::spawn_blocking` closure at `broker.rs:146`.
-    fn inspect_sync(&self) -> anyhow::Result<Value> {
+    /// pre-existing `tokio::task::spawn_blocking` closure.
+    fn inspect_domain(&self) -> anyhow::Result<(Value, bool)> {
         self.service.verify_source(&self.call)?;
         let mode =
             self.service.persistence.session_permission_state(self.call.snapshot.session_id)?;
@@ -44,6 +72,7 @@ impl Port {
                 "agent.mode_changed"
             );
         }
+        let mut workspace_files = false;
         let domain = if super::package_tools::program::is_program(&self.call.operation.content) {
             super::package_tools::program::inspect(&self.service, &self.call)?
         } else if super::mcp_tools::is_mcp(&self.call.operation.content) {
@@ -55,14 +84,41 @@ impl Port {
         } else if self.call.operation.content.action_kind.starts_with("media.") {
             super::media::inspect(&self.service, &self.call)?
         } else if is_file_call(&self.call.operation.content.action_kind) {
+            workspace_files = true;
             files::inspect(&self.service, &self.call)?
         } else {
             super::task::inspect(&self.service, &self.call)?
         };
-        Ok(json!({"schema":"agent-broker-preparation-v1","mode":self.call.snapshot.mode,
-                "revision":self.call.snapshot.session_permission_revision,"domain":domain}))
+        let preparation = json!({"schema":"agent-broker-preparation-v1",
+            "mode":self.call.snapshot.mode,
+            "revision":self.call.snapshot.session_permission_revision,"domain":domain});
+        Ok((preparation, workspace_files))
     }
 }
+/// Folders of a session's workspace that a test creates just before one of its calls' prepared
+/// facts are taken again - what another write of the same response can do at that moment.
+#[cfg(test)]
+pub(crate) static CREATE_BEFORE_RECHECK: std::sync::Mutex<Vec<(SessionId, WorkspacePath)>> =
+    std::sync::Mutex::new(Vec::new());
+
+#[cfg(test)]
+impl Port {
+    fn create_folders_due(&self) -> anyhow::Result<()> {
+        let session = self.call.snapshot.session_id;
+        let due = {
+            let mut folders = CREATE_BEFORE_RECHECK.lock().expect("folders due");
+            let (due, rest) = folders.drain(..).partition::<Vec<_>, _>(|(of, _)| *of == session);
+            *folders = rest;
+            due
+        };
+        let resolver = self.service.workspace.resolver(self.call.snapshot.workspace_id)?;
+        for (_, folder) in due {
+            std::fs::create_dir_all(resolver.canonical_root().join(folder.as_str()))?;
+        }
+        Ok(())
+    }
+}
+
 /// Calls that take the file path: the `fs.*` tools, `/init`'s AGENTS.md write and the
 /// workspace command tools.
 fn is_file_call(action_kind: &str) -> bool {
@@ -98,6 +154,35 @@ impl BrokerPort for Port {
                 .map_err(preparation)
         })
     }
+    fn still_prepared<'a>(
+        &'a self,
+        operation: &'a SecuredOperation,
+        prepared: &'a Value,
+    ) -> BackendFuture<'a, bool> {
+        let operation = operation.clone();
+        let prepared = prepared.clone();
+        let service = Arc::clone(&self.service);
+        let call = self.call.clone();
+        Box::pin(async move {
+            if operation != call.operation {
+                return Err(preparation("agent.operation_changed"));
+            }
+            // Boundary: the same bounded section as `inspect`, comparing what it takes again.
+            let store = Arc::clone(&service.store);
+            let port = Port { service, call, commands: None };
+            store
+                .run_critical(
+                    crate::agent_store::StoreStep::run(
+                        port.call.batch.invocation_identity.agent_run_id,
+                        "agent.broker.inspect",
+                    ),
+                    crate::agent_store::StoreAccess::Read,
+                    move || port.still_prepared_sync(&prepared),
+                )
+                .await
+                .map_err(preparation)
+        })
+    }
     fn claim(&self, dispatch: &AuthorizedDispatch) -> BackendFuture<'_, ()> {
         let request = dispatch.request().clone();
         let service = Arc::clone(&self.service);
@@ -125,7 +210,9 @@ impl BrokerPort for Port {
                                 session_id,
                                 |_| -> anyhow::Result<()> {
                                     anyhow::ensure!(
-                                        port.inspect_sync()? == request.plan.prepared.preparation,
+                                        port.still_prepared_sync(
+                                            &request.plan.prepared.preparation
+                                        )?,
                                         "agent.resource_changed"
                                     );
                                     port.service.journal.lock()?.database.unit_of_work(|tx| {

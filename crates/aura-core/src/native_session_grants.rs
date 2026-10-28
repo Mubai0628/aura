@@ -335,6 +335,7 @@ mod tests {
                 memory_consent: None,
                 mcp_consent: None,
                 chrome_consent: None,
+                chrome_site_consent: None,
                 file_consent: None,
             },
             issued_at,

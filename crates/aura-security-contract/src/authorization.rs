@@ -197,6 +197,9 @@ pub struct AuthorizationScope {
     /// A ReadOnly answer covering one shared Chrome tab for the rest of the turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chrome_consent: Option<crate::ChromeTurnConsentRef>,
+    /// A site the user confirmed for every Chrome tab of one session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chrome_site_consent: Option<crate::ChromeSiteConsentRef>,
     /// The missing capabilities actually shown in a composite approval. Historical exact
     /// approvals omit this field; their exact operation fingerprint remains authoritative.
     #[serde(default, skip_serializing_if = "Option::is_none")]

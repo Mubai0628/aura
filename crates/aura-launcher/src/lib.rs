@@ -172,8 +172,8 @@ fn fail_trial(
     )
 }
 
-/// Before a trial: a newer version gets a copy of the stores it will migrate taken first (its own
-/// Core in `version_directory` says which); going back to an older one puts the copy from before
+/// Before a trial: a newer version gets a copy of the stores it will migrate or leave unreadable to
+/// the active version taken first (its own Core in `version_directory` says which); going back to an older one puts the copy from before
 /// the current version back when the user asked for that. `false` when the user chose not to
 /// start the newer version without a copy.
 fn prepare_data(
@@ -186,8 +186,11 @@ fn prepare_data(
     let request = data_backup::take_request(data_root);
     if newer(version, &state.active) {
         let started = std::time::Instant::now();
-        let pending =
-            data_backup::pending_stores(&version_directory.join("aura-core.exe"), data_root);
+        let pending = data_backup::pending_stores(
+            &version_directory.join("aura-core.exe"),
+            data_root,
+            &state.active,
+        );
         let taken = data_backup::take(data_root, version, pending.as_ref());
         let event = match &taken {
             Ok(data_backup::Taken::Copied { stores, bytes }) => json!({

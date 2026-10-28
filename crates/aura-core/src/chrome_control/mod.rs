@@ -14,7 +14,7 @@ pub(crate) mod test_extension;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use access::{ChromeSessions, PersistedSessions};
+pub(crate) use access::{CallSites, ChromeSessions, PersistedSessions, ResolvedTab};
 pub(crate) use secret::ChromeSecrets;
 #[cfg(test)]
 pub(crate) use secret::MemoryChromeSecrets;
@@ -126,6 +126,8 @@ pub(super) struct State {
     /// What the extension found before an action, by tool call, for admission to read.
     inspections:
         BTreeMap<aura_domain_common::ToolCallId, aura_chrome_domain::commands::ChromeInspection>,
+    /// What each call's first resolution read, by tool call.
+    calls: BTreeMap<aura_domain_common::ToolCallId, access::CallSites>,
 }
 
 /// The one connected extension.

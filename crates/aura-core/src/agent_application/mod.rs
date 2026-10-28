@@ -31,6 +31,7 @@ mod context;
 mod context_window;
 mod derived_backfill;
 mod desktop;
+mod estimators;
 pub(crate) mod fault;
 mod history_revision;
 mod hook_events;

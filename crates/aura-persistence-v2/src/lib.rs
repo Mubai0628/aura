@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod agent;
+pub mod chrome_sites;
 pub mod context;
 pub mod execution;
 pub mod file_consents;
@@ -11,6 +12,8 @@ pub mod memory_consents;
 pub mod model;
 pub mod network_consents;
 pub mod packages;
+mod record_compatibility;
+pub use record_compatibility::{RECORDS_READABLE_SINCE, copy_before_start};
 mod schema_migration;
 pub use schema_migration::migration_pending;
 pub mod security;

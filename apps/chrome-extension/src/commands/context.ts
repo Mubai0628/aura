@@ -1,5 +1,5 @@
 /** What a command needs from the extension around it; tests pass fakes. */
-import type { Tab } from '../chrome-api.js';
+import type { Tab, WindowsApi } from '../chrome-api.js';
 import type { Pages } from '../page/pages.js';
 import { CommandError, type AssistOutcome } from '../protocol.js';
 
@@ -9,6 +9,7 @@ export interface CommandContext {
     create(properties: { url: string; active?: boolean }): Promise<Tab>;
     remove(tabId: number): Promise<void>;
   };
+  windows: WindowsApi;
   pages: Pages;
   /** Puts a tab Aura opened into its window's "Aura" tab group. */
   group(tab: Tab): Promise<void>;

@@ -17,9 +17,12 @@ struct Answer {
     side_effect: SideEffectStateV1,
     output: Option<Value>,
     error: Option<String>,
+    /// A step that changed nothing, as an ordinary refusal of its own kind.
+    rejection: Option<Value>,
     image: Option<Image>,
 }
 
+/// `message` starts with its code (`chrome.timed_out: …`), as the model reads it.
 fn failed(message: String, may_have_acted: bool) -> Answer {
     Answer {
         success: false,
@@ -29,9 +32,29 @@ fn failed(message: String, may_have_acted: bool) -> Answer {
             SideEffectStateV1::NoEffect
         },
         output: None,
+        rejection: if may_have_acted { None } else { rejection(&message) },
         error: Some(message),
         image: None,
     }
+}
+
+/// What kind of refusal a step that changed nothing was: the user's list says "超时，可重试" for
+/// a Chrome that did not answer, and keeps "工具暂不可用" for a Chrome that is not there.
+fn rejection(message: &str) -> Option<Value> {
+    use aura_domain_common::ErrorCategory as Kind;
+    let (code, _) = message.split_once(':')?;
+    let (kind, retryable) = match code {
+        "chrome.timed_out" | "chrome.not_drawn" | "chrome.disconnected" => (Kind::Transport, true),
+        "chrome.not_connected"
+        | "chrome.busy"
+        | "chrome.with_user"
+        | "chrome.unsupported"
+        | "chrome.background_tab" => (Kind::Unavailable, false),
+        "chrome.cancelled" | "chrome.stopped" => (Kind::Cancelled, false),
+        "chrome.refused" => (Kind::Permission, false),
+        _ => return None,
+    };
+    Some(json!({"code": code, "category": kind, "message": message, "retryable": retryable}))
 }
 
 /// Whether the command can change something in the user's browser.
@@ -183,11 +206,12 @@ pub(in crate::agent_execution) async fn invoke(
         })
         .unwrap_or_default();
     let site = content.resources.iter().find_map(|resource| match resource {
-        ResourceDescriptor::ChromeOrigin { origin, confirmed } => {
-            Some((origin.clone(), *confirmed))
-        }
+        ResourceDescriptor::ChromeOrigin { origin, .. } => Some(origin.clone()),
         _ => None,
     });
+    // `chrome.open` on a site the conversation already has a tab of went to that tab.
+    let reused =
+        content.action_kind == "chrome.open" && !matches!(command, ChromeCommand::Open { .. });
     let stop = service
         .active_calls
         .session(call.snapshot.session_id)?
@@ -198,7 +222,8 @@ pub(in crate::agent_execution) async fn invoke(
         .subscribe();
     // The call has started; a later permission change does not undo it.
     drop(start_lease);
-    let answer = carry_out(&service, &call, &command, &reference, site, shown, stop).await;
+    let target = Target { reference: &reference, site, reused };
+    let answer = carry_out(&service, &call, &command, target, shown, stop).await;
     let image_id = answer.image.as_ref().map(|_| ArtifactId::new());
     let mut output = answer.output;
     if let (Some(output), Some(id)) = (output.as_mut(), image_id) {
@@ -210,7 +235,7 @@ pub(in crate::agent_execution) async fn invoke(
         side_effect: answer.side_effect,
         before: request.plan.prepared.preparation["domain"].clone(),
         after: Value::Null,
-        domain_journal: json!({"schema":"agent-chrome-v1","output":output,"error":answer.error}),
+        domain_journal: json!({"schema":"agent-chrome-v1","output":output,"error":answer.error,"operation_rejection":answer.rejection}),
     };
     let owner = service.clone();
     let image = answer.image;
@@ -261,15 +286,35 @@ pub(in crate::agent_execution) async fn invoke(
     Ok(())
 }
 
+/// The tab a command was authorized for, as the model knows it, and the site.
+struct Target<'a> {
+    reference: &'a str,
+    site: Option<String>,
+    /// `chrome.open` went to the conversation's tab on the site.
+    reused: bool,
+}
+
+/// What the model is told when `chrome.open` used the conversation's tab on the site.
+fn reuse_notice(command: &ChromeCommand, reference: &str, notice: Option<&str>) -> String {
+    let reused = if matches!(command, ChromeCommand::Snapshot { .. }) {
+        format!(
+            "这个地址已在本会话的标签页 {reference} 打开，没有重新加载；要重新加载用 chrome.navigate 的 reload。"
+        )
+    } else {
+        format!("本会话在这个站点已有标签页 {reference}，已在后台转到这个地址，没有新开标签页。")
+    };
+    format!("{reused}{}", notice.unwrap_or_default())
+}
+
 async fn carry_out(
     service: &AgentExecution,
     call: &CallContext,
     command: &ChromeCommand,
-    reference: &str,
-    site: Option<(String, bool)>,
+    target: Target<'_>,
     shown: bool,
     mut stop: tokio::sync::watch::Receiver<bool>,
 ) -> Answer {
+    let Target { reference, site, reused } = target;
     let Some(chrome) = service.chrome.get() else {
         return failed("chrome.not_connected: Chrome 没有连接 Aura。".into(), false);
     };
@@ -296,15 +341,16 @@ async fn carry_out(
         | ChromeCommand::Assist { tab_id, .. } => Some(*tab_id),
         ChromeCommand::Release { .. } => None,
     };
-    // The user approved this site for the share in Aura; the share keeps it.
-    if let (Some(tab), Some((site, false))) = (tab, site.as_ref()) {
+    // The call was authorized on this site: the user approved it, or the share or the
+    // conversation had confirmed it. The share keeps it.
+    if let (Some(tab), Some(site)) = (tab, site.as_ref()) {
         chrome.confirm_origin(tab, site);
     }
     // The tab must still be on the site the call was authorized for; opening and navigating
     // replace the page.
     let expected = match command {
         ChromeCommand::Open { .. } | ChromeCommand::Navigate { .. } => None,
-        _ => site.map(|(site, _)| site),
+        _ => site,
     };
     let assist = match command {
         ChromeCommand::Assist { reason, .. } => Some(reason.as_str()),
@@ -346,17 +392,25 @@ async fn carry_out(
             failed(format!("{code}: {message}"), may_act && !refused)
         }
         Some(Ok(value)) => match checked(chrome, session, command, reference, value, shown) {
-            Ok((output, image)) => Answer {
-                success: true,
-                side_effect: if may_act {
-                    SideEffectStateV1::FullyApplied
-                } else {
-                    SideEffectStateV1::NoEffect
-                },
-                output: Some(output),
-                error: None,
-                image,
-            },
+            Ok((mut output, image)) => {
+                if let (true, Some(tab)) = (reused, tab) {
+                    chrome.make_current(tab);
+                    output["notice"] =
+                        json!(reuse_notice(command, reference, output["notice"].as_str()));
+                }
+                Answer {
+                    success: true,
+                    side_effect: if may_act {
+                        SideEffectStateV1::FullyApplied
+                    } else {
+                        SideEffectStateV1::NoEffect
+                    },
+                    output: Some(output),
+                    error: None,
+                    rejection: None,
+                    image,
+                }
+            }
             Err(message) => failed(format!("chrome.failed: {message}"), may_act),
         },
     }

@@ -1,6 +1,7 @@
 //! The data an update could change, kept from before a newer version's first start. Only a store
-//! the new version will migrate is copied: its own Core says which (`--store-migration-check`),
-//! and an answer that cannot be had copies them all. A trial that fails puts the copy back before
+//! the new version will migrate, or will write records into that the version it replaces refuses,
+//! is copied: its own Core says which (`--store-migration-check … --replacing <version>`), and an
+//! answer that cannot be had copies them all. A trial that fails puts the copy back before
 //! the version it replaced starts again; going back to an older version puts it back only when
 //! the user asked for that (`launcher/restore.v1.json`), because it drops what was written since.
 use std::{
@@ -52,7 +53,8 @@ pub enum Taken {
         stores: usize,
         bytes: u64,
     },
-    /// The new version migrates no store, so its data stays readable by the version before it.
+    /// The new version neither migrates a store nor writes records the version before it refuses,
+    /// so its data stays readable by that version.
     NothingToCopy,
     /// The disk lacks room for the copy; nothing was copied.
     NoRoom {
@@ -61,14 +63,21 @@ pub enum Taken {
     },
 }
 
-/// The stores the new version would migrate, as its Core at `core` answers for `data_root`;
-/// `None` when it could not answer, which copies every store.
-pub fn pending_stores(core: &Path, data_root: &Path) -> Option<BTreeSet<&'static str>> {
+/// The stores the new version would migrate or leave unreadable to `replacing`, the version it
+/// replaces, as its Core at `core` answers for `data_root`; `None` when it could not answer, which
+/// copies every store.
+pub fn pending_stores(
+    core: &Path,
+    data_root: &Path,
+    replacing: &str,
+) -> Option<BTreeSet<&'static str>> {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let mut child = Command::new(core)
         .arg("--store-migration-check")
         .arg(data_root)
+        .arg("--replacing")
+        .arg(replacing)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

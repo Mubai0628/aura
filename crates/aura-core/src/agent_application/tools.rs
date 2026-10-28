@@ -82,8 +82,7 @@ impl AgentApplication {
 /// - file work: `fs.delete`, `fs.find`, `fs.list`, `fs.patch`, `fs.read`, `fs.search`, `fs.write`
 /// - managed Shell: `shell.powershell`, `shell.query`, `shell.stop`
 /// - task bookkeeping: `todo.get`, `todo.replace`, `todo.update`
-/// - this task's context: `context.read_compaction`, `context.read_events`,
-///   `context.read_tool_result`
+/// - this conversation's history: `history.list_turns`, `history.read`, `history.search`
 /// - Aura's browser: `browser.click`, `browser.open`, `browser.press`, `browser.screenshot`,
 ///   `browser.snapshot`, `browser.type`
 /// - the web beyond pages: `http.download`, `http.request`
@@ -96,9 +95,6 @@ const RECOMMENDED_FIXED_TOOL_NAMES: &[&str] = &[
     "browser.screenshot",
     "browser.snapshot",
     "browser.type",
-    "context.read_compaction",
-    "context.read_events",
-    "context.read_tool_result",
     // Deleting into the
     // Recycle Bin is at hand, so the model does not reach for a Shell command.
     "fs.delete",
@@ -114,6 +110,10 @@ const RECOMMENDED_FIXED_TOOL_NAMES: &[&str] = &[
     "git.diff",
     "git.log",
     "git.status",
+    // The conversation's history by round, which a compacted context keeps only as a summary.
+    "history.list_turns",
+    "history.read",
+    "history.search",
     // Calling an API and saving a file from the web.
     "http.download",
     "http.request",
@@ -137,12 +137,15 @@ const RECOMMENDED_FIXED_TOOL_NAMES: &[&str] = &[
 /// The revision of the recommended set. A list its user
 /// saved took in the revision current then; what was recommended later joins it on reading, until
 /// its user saves it again.
-pub(crate) const RECOMMENDATION_REVISION: u32 = 4;
+pub(crate) const RECOMMENDATION_REVISION: u32 = 5;
 
 /// The revision a recommended tool joined in: the browser's tools 2, the HTTP tools 3,
-/// `fs.delete` 4; every other one was recommended before any list was saved (1).
+/// `fs.delete` 4, the history tools 5; every other one was recommended before any list was
+/// saved (1).
 fn recommended_since(name: &str) -> u32 {
-    if name == "fs.delete" {
+    if name.starts_with("history.") {
+        5
+    } else if name == "fs.delete" {
         4
     } else if name.starts_with("http.") {
         3
@@ -153,8 +156,14 @@ fn recommended_since(name: &str) -> u32 {
     }
 }
 
+/// Tools recommended until revision [`RETIRED_IN`], when the history tools took their place.
+const RETIRED: &[&str] =
+    &["context.read_compaction", "context.read_events", "context.read_tool_result"];
+const RETIRED_IN: u32 = 5;
+
 impl AgentApplication {
-    /// A saved list with what was recommended after the revision it took in, sorted and unique.
+    /// A saved list with what was recommended after the revision it took in, and without what
+    /// stopped being recommended since, sorted and unique.
     pub(super) fn with_later_recommendations(
         mut ids: Vec<ToolId>,
         seen: u32,
@@ -167,6 +176,14 @@ impl AgentApplication {
                 && recommended_since(name) > seen)
                 .then_some(entry.definition.tool_id)
         }));
+        // What the history tools replaced leaves a list saved while it was recommended.
+        if seen < RETIRED_IN {
+            ids.retain(|id| {
+                release.manifest().entries.iter().all(|entry| {
+                    entry.definition.tool_id != *id || !RETIRED.contains(&entry.handler.name())
+                })
+            });
+        }
         ids.sort();
         ids.dedup();
         Ok(ids)
@@ -754,6 +771,24 @@ mod tests {
         assert!(
             !after_l13_2.contains(&id("http.request")),
             "its user saved after L13.2 without it"
+        );
+        // The history tools take the place of the context readers in a list saved before
+        // them; a list saved since keeps whatever its user chose.
+        let mut with_context = saved.clone();
+        with_context.push(id("context.read_events"));
+        with_context.sort();
+        let after_l13_3 =
+            super::AgentApplication::with_later_recommendations(with_context.clone(), 4)
+                .expect("merged");
+        for name in ["history.list_turns", "history.search", "history.read"] {
+            assert!(after_l13_3.contains(&id(name)), "{name} joins the saved list");
+        }
+        assert!(!after_l13_3.contains(&id("context.read_events")));
+        assert!(
+            super::AgentApplication::with_later_recommendations(with_context, 5)
+                .expect("merged")
+                .contains(&id("context.read_events")),
+            "chosen after the history tools came"
         );
         // Saved at the current revision: the list is exactly what its user chose.
         let current = super::RECOMMENDATION_REVISION;

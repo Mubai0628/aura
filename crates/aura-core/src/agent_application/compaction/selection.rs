@@ -3,6 +3,8 @@ use std::collections::BTreeSet;
 pub(super) struct Sources {
     pub record: store::Compaction,
     pub content: String,
+    /// The summary before this one, which the new one takes in.
+    pub earlier: Option<String>,
 }
 /// What one compaction pass may take in.
 pub(super) struct Scope {
@@ -13,14 +15,21 @@ pub(super) struct Scope {
     /// The bytes of history one summary request can carry ([`source_room`]).
     pub room: u64,
 }
-/// A source's wrapping around its content: its reference and its anchor.
-const SOURCE_WRAPPING_BYTES: u64 = 512;
+/// A source's wrapping around its content in the request.
+const SOURCE_WRAPPING_BYTES: u64 = 32;
 /// The user's or a Hook's focus, added to the sources after they are chosen.
 const FOCUS_ALLOWANCE_BYTES: u64 = 8_192;
+/// The share of the window's input budget a summary request plans to fill: the provider's rate
+/// is measured on the step's own request, and history read back may count a little denser.
+const PLANNED_PERCENT: u64 = 75;
+/// A part the model has not seen is counted in proportion to its bytes; this many bytes give the
+/// proportion.
+const PROBE_BYTES: u64 = 1_000_000;
 
-/// How many bytes of history one summary request can carry: its window's input budget
-/// less its instructions and the focus that may join them. A history larger than that is
-/// compacted oldest first over several passes instead of in a request the window cannot hold.
+/// How many bytes of history one summary request can carry: its window's input budget less its
+/// instructions and the focus that may join them, in bytes at the rate the provider reported for
+/// this model (byte for byte without a report). A history larger than that is compacted oldest
+/// first over several passes of one compaction instead of in a request the window cannot hold.
 pub(super) fn source_room(
     core: &str,
     input: &ContextPreparationInput,
@@ -35,7 +44,40 @@ pub(super) fn source_room(
         max_output,
     )
     .map_err(|_| anyhow::anyhow!("context.compaction_output_budget"))?;
-    Ok(budget.saturating_sub(fixed).saturating_sub(FOCUS_ALLOWANCE_BYTES))
+    let tokens = |bytes: u64| {
+        input.previous_measurement.as_ref().map_or(bytes, |measured| measured.new_part(bytes))
+    };
+    let room = (budget.saturating_mul(PLANNED_PERCENT) / 100)
+        .saturating_sub(tokens(fixed.saturating_add(FOCUS_ALLOWANCE_BYTES)));
+    Ok(room.saturating_mul(PROBE_BYTES) / tokens(PROBE_BYTES).max(1))
+}
+
+/// The isolated summary request's budget, counted as the step's own request is: at the rate the
+/// provider reported for this model, by character class without a report. The history in it is
+/// sized byte for byte without a report ([`source_room`]), so it fits whatever the tokenizer.
+pub(super) fn isolated_budget(
+    estimators: &ContextEstimatorRegistry,
+    instructions: &CompiledInstructionEnvelope,
+    input: &ContextPreparationInput,
+    snapshot: &ModelExecutionSnapshot,
+    max_output: u64,
+) -> Result<ContextBudgetSnapshot, ContextBudgetError> {
+    let budget = estimators.estimate_budget_measured(
+        &input.model_estimator_key,
+        snapshot.runtime_effective_window_tokens,
+        max_output,
+        &[CanonicalTextBudgetItem {
+            ordinal: 1,
+            content_hash: instructions.instruction_hash.clone(),
+            canonical_text: instructions.canonical_text.clone(),
+        }],
+        &[],
+        input.previous_measurement.as_ref(),
+    )?;
+    if budget.estimated_input_tokens > budget.request_input_budget_tokens {
+        return Err(ContextBudgetError::RequestBudgetExceeded);
+    }
+    Ok(budget)
 }
 
 /// The rate the request's own estimate counts its bytes at: one token a byte, or the provider's
@@ -197,10 +239,12 @@ pub(super) async fn select(
             &units,
         )?
     };
-    let previous_bytes = match &previous {
-        Some(p) => serde_json::to_vec(&p.result)?.len() as u64,
-        None => 0,
-    };
+    let earlier = previous
+        .as_ref()
+        .and_then(|p| p.result.as_ref())
+        .map(super::summary::text)
+        .filter(|text| !text.is_empty());
+    let previous_bytes = earlier.as_ref().map_or(0, |text| text.len() as u64);
     let taken = oldest_that_fit(&units, &bytes, &members, &plan, scope.room, previous_bytes);
     let selected = units
         .iter()
@@ -211,6 +255,8 @@ pub(super) async fn select(
     if selected.is_empty() {
         return Ok(None);
     }
+    // Core keeps every source it replaces; the model is given the earlier summary and the
+    // history itself.
     let mut drafts = vec![];
     let mut contents = vec![];
     for item in &input.recent_history_items {
@@ -223,22 +269,16 @@ pub(super) async fn select(
                 source_hash: conversation_item_anchor_hash(item)?,
                 preview: content.chars().take(128).collect(),
             });
-            contents.push(serde_json::json!({"source_ref":source_ref,"content":item}));
+            contents.push(serde_json::to_value(item)?);
         }
     }
     if let Some(p) = &previous {
-        let content = serde_json::to_string(
-            p.result
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("context.compaction_result_missing"))?,
-        )?;
         let id = p
             .result_artifact_id
             .ok_or_else(|| anyhow::anyhow!("context.compaction_artifact_missing"))?;
-        let source_ref = ContextSourceRef::Artifact { artifact_id: id };
         drafts.push(CompactionSourceDraft {
             kind: CompactionAnchorKind::Artifact,
-            source_ref: source_ref.clone(),
+            source_ref: ContextSourceRef::Artifact { artifact_id: id },
             source_hash: compaction_result_anchor_hash(
                 p.result
                     .as_ref()
@@ -246,7 +286,6 @@ pub(super) async fn select(
             )?,
             preview: "Previous verified compaction; follow its anchors to original sources".into(),
         });
-        contents.push(serde_json::json!({"source_ref":source_ref,"content":content}));
     }
     let anchors = build_anchor_manifest(drafts)?;
     let source_span = CompactionSourceSpan {
@@ -262,8 +301,9 @@ pub(super) async fn select(
     let mut excluded =
         previous.map_or_else(BTreeSet::new, |p| p.excluded_event_ids.into_iter().collect());
     excluded.extend(selected);
-    let content =
-        serde_json::to_string(&serde_json::json!({"anchor_manifest":anchors,"sources":contents}))?;
+    let content = serde_json::to_string(
+        &serde_json::json!({"earlier_summary": earlier, "history": contents}),
+    )?;
     let record = store::Compaction {
         id: ContextProjectionSnapshotId::new(),
         session_id: input.request.session_id,
@@ -284,7 +324,7 @@ pub(super) async fn select(
         result_artifact_id: None,
         created_at: UtcTimestamp::now(),
     };
-    Ok(Some(Sources { record, content }))
+    Ok(Some(Sources { record, content, earlier }))
             },
         )
         .await
@@ -428,10 +468,10 @@ fn a_summary_request_takes_the_oldest_history_it_can_carry() {
     let members = units.iter().map(|u| vec![u.event_id]).collect::<Vec<_>>();
     let plan = plan_compact_all_sealed(&units).expect("plan");
     // Two units and their wrapping fit 2,000 bytes; the third waits for the next pass.
-    let taken = oldest_that_fit(&units, &[400, 400, 400], &members, &plan, 2_000, 0);
+    let taken = oldest_that_fit(&units, &[800, 800, 800], &members, &plan, 2_000, 0);
     assert_eq!(taken, BTreeSet::from([units[0].event_id, units[1].event_id]));
     // A previous summary takes its share first; the oldest unit is always taken.
-    let taken = oldest_that_fit(&units, &[400, 400, 400], &members, &plan, 2_000, 1_900);
+    let taken = oldest_that_fit(&units, &[800, 800, 800], &members, &plan, 2_000, 1_900);
     assert_eq!(taken, BTreeSet::from([units[0].event_id]));
 }
 

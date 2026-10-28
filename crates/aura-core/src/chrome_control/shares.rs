@@ -1,6 +1,7 @@
 //! The tabs shared with each conversation. They live in memory only, so a restart of Core or of
-//! Chrome ends them. A share keeps the sites the user confirmed for it; a tab that moves elsewhere
-//! waits for the user before the model acts in it again.
+//! Chrome ends them. A share keeps the sites the user confirmed for it; a tab that moves to a site
+//! neither the share nor its conversation confirmed waits for the user before the model acts in it
+//! again.
 use aura_chrome_domain::commands::{ChromeShareScope, ChromeShareState, ChromeShareView};
 use aura_chrome_domain::tools::ChromeTabV1;
 use aura_chrome_domain::{ChromeSharedTab, ChromeSharedTabState};
@@ -56,6 +57,8 @@ pub(crate) struct Shares {
     next_reference: BTreeMap<SessionId, u32>,
     current: BTreeMap<SessionId, u32>,
     next_share: u64,
+    /// The sites each conversation's user confirmed for all its tabs, as Core last read them.
+    session_sites: BTreeMap<SessionId, BTreeSet<String>>,
 }
 
 impl Shares {
@@ -137,13 +140,19 @@ impl Shares {
         std::mem::take(&mut self.by_tab).into_values().collect()
     }
 
-    /// The tab moved or retitled itself; a site not confirmed for the share pauses it.
+    /// The tab moved or retitled itself; a site confirmed neither for the share nor for its
+    /// conversation pauses it.
     pub(crate) fn changed(&mut self, tab_id: u32, url: &str, title: &str) -> Option<&Share> {
         let share = self.by_tab.get_mut(&tab_id)?;
         share.url = url.to_owned();
         share.title = title.to_owned();
         let origin = origin_of(url);
-        share.pending_origin = (!share.confirmed_origins.contains(&origin)).then_some(origin);
+        let confirmed = share.confirmed_origins.contains(&origin)
+            || self
+                .session_sites
+                .get(&share.session_id)
+                .is_some_and(|sites| sites.contains(&origin));
+        share.pending_origin = (!confirmed).then_some(origin);
         Some(share)
     }
 
@@ -152,12 +161,62 @@ impl Shares {
         if !allow {
             return self.remove(tab_id).is_some();
         }
+        self.confirm(tab_id, origin);
+        self.by_tab.contains_key(&tab_id)
+    }
+
+    /// The share keeps `origin` as confirmed; whether that changed anything.
+    pub(crate) fn confirm(&mut self, tab_id: u32, origin: &str) -> bool {
         let Some(share) = self.by_tab.get_mut(&tab_id) else { return false };
-        share.confirmed_origins.insert(origin.to_owned());
-        if share.pending_origin.as_deref() == Some(origin) {
+        let added = share.confirmed_origins.insert(origin.to_owned());
+        let resumed = share.pending_origin.as_deref() == Some(origin);
+        if resumed {
             share.pending_origin = None;
         }
-        true
+        added || resumed
+    }
+
+    /// The sites the conversation confirmed for all its tabs; a tab waiting on one resumes.
+    /// Whether any share changed.
+    pub(crate) fn set_session_sites(
+        &mut self,
+        session_id: SessionId,
+        sites: BTreeSet<String>,
+    ) -> bool {
+        let mut changed = false;
+        for share in self.by_tab.values_mut().filter(|share| share.session_id == session_id) {
+            if share.pending_origin.as_ref().is_some_and(|origin| sites.contains(origin)) {
+                share.pending_origin = None;
+                changed = true;
+            }
+        }
+        self.session_sites.insert(session_id, sites);
+        changed
+    }
+
+    /// The conversation's tab Aura opened that is on `origin` now: its current tab when that is
+    /// one, otherwise the first.
+    pub(crate) fn opened_on(&self, session_id: SessionId, origin: &str) -> Option<&Share> {
+        let fits = |share: &&Share| {
+            share.session_id == session_id && share.opened_by_aura && share.origin() == origin
+        };
+        self.current
+            .get(&session_id)
+            .and_then(|tab| self.by_tab.get(tab))
+            .filter(fits)
+            .or_else(|| self.by_tab.values().find(fits))
+    }
+
+    /// The conversation's share of this tab.
+    pub(crate) fn of_session(&self, session_id: SessionId, tab_id: u32) -> Option<&Share> {
+        self.by_tab.get(&tab_id).filter(|share| share.session_id == session_id)
+    }
+
+    /// The tab becomes its conversation's current tab.
+    pub(crate) fn make_current(&mut self, tab_id: u32) {
+        if let Some(share) = self.by_tab.get(&tab_id) {
+            self.current.insert(share.session_id, tab_id);
+        }
     }
 
     pub(crate) fn set_with_user(&mut self, tab_id: u32, with_user: Option<String>) {
@@ -302,6 +361,32 @@ mod tests {
         assert!(shares.of_tab(11).is_none());
         assert_eq!(shares.resolve(one, None).expect("next current").tab_id, 10);
         assert_eq!(origin_of("https://user:pw@Host.Example:8443/p?q"), "https://host.example:8443");
+    }
+
+    #[test]
+    fn a_site_opens_again_in_the_tab_aura_opened_on_it_and_the_conversations_sites_hold() {
+        let mut shares = Shares::default();
+        let (one, two) = (SessionId::new(), SessionId::new());
+        shares.add(one, 1, "https://a.example/x", "A", false, ChromeShareScope::Session);
+        shares.add(one, 2, "https://a.example/y", "A2", true, ChromeShareScope::Session);
+        shares.add(one, 3, "https://b.example/", "B", true, ChromeShareScope::Session);
+        shares.add(two, 4, "https://c.example/", "C", true, ChromeShareScope::Session);
+        let tab = |shares: &Shares, origin| shares.opened_on(one, origin).map(|s| s.tab_id);
+        assert_eq!(tab(&shares, "https://a.example"), Some(2), "never the user's own tab");
+        assert_eq!(tab(&shares, "https://c.example"), None, "never another conversation's");
+        shares.make_current(2);
+        assert_eq!(shares.resolve(one, None).expect("current").tab_id, 2);
+        assert!(shares.of_session(two, 2).is_none() && shares.of_session(one, 2).is_some());
+        shares.changed(3, "https://d.example/", "D");
+        assert!(shares.of_tab(3).expect("kept").pending_origin.is_some());
+        let sites = BTreeSet::from(["https://d.example".to_owned()]);
+        assert!(shares.set_session_sites(one, sites), "the waiting tab resumes");
+        assert!(shares.of_tab(3).expect("kept").pending_origin.is_none());
+        shares.changed(2, "https://d.example/z", "Z");
+        assert!(shares.of_tab(2).expect("kept").pending_origin.is_none());
+        shares.changed(4, "https://d.example/", "D");
+        assert!(shares.of_tab(4).expect("kept").pending_origin.is_some(), "that conversation's");
+        assert!(shares.confirm(4, "https://d.example") && !shares.confirm(4, "https://d.example"));
     }
 
     #[test]

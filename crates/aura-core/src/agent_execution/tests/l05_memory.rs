@@ -191,16 +191,67 @@ async fn an_integral_decimal_is_admitted_and_a_wrong_importance_says_what_to_fix
     assert!(f.root.join(".memories/conventions/test-command.md").is_file());
 }
 
-/// The model-visible message of a call that failed or was refused before it ran.
+/// The model-visible message of a call that failed, or was refused before or as it ran.
 fn failure_message(f: &Fixture, id: ToolCallId) -> String {
     let store = f.service().broker.lock().expect("journal");
     let call = aura_persistence_v2::tool::execution::call(store.database.connection(), id)
         .expect("the call");
     match call.result.expect("a terminal result").outcome {
         ToolResultOutcomeV1::Failed { error }
+        | ToolResultOutcomeV1::OperationRejected { error }
         | ToolResultOutcomeV1::NotExecuted { error: Some(error), .. } => error.message.to_string(),
         other => panic!("the call did not fail: {other:?}"),
     }
+}
+
+/// A note changed since the model read it is a conflict to read again: the call wrote nothing,
+/// and it is recorded as that kind of refusal, not as a tool that is unavailable.
+#[tokio::test]
+async fn a_stale_expected_hash_is_a_conflict_that_wrote_nothing() {
+    let f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
+    let batch = f.admit(&[(
+        "memory.create",
+        json!({"scope":"project","items":[{"path":"rules/a.md","category":"rules","body":"# 第一版
+"}]}),
+    )]);
+    let call = batch.batch.calls[0].tool_call_id;
+    f.execute(batch).await;
+    let read = f.output(call)["entries"][0].clone();
+    let update = |body: &str| json!({"scope":"project","items":[{"target":{"kind":"id","id":read["id"]},"expected_hash":read["hash"],"body":body}]});
+    let first = f.additional_session(PermissionMode::WorkspaceReadWrite, TOOLS);
+    let batch = first.admit(&[(
+        "memory.update",
+        update(
+            "# 第二版
+",
+        ),
+    )]);
+    first.execute(batch).await;
+    let stale = f.additional_session(PermissionMode::WorkspaceReadWrite, TOOLS);
+    let batch = stale.admit(&[(
+        "memory.update",
+        update(
+            "# 第三版
+",
+        ),
+    )]);
+    let call = batch.batch.calls[0].tool_call_id;
+    stale.execute(batch).await;
+    let result = {
+        let store = stale.service().broker.lock().expect("journal");
+        aura_persistence_v2::tool::execution::call(store.database.connection(), call)
+            .expect("the call")
+            .result
+            .expect("a terminal result")
+    };
+    let ToolResultOutcomeV1::OperationRejected { error } = &result.outcome else {
+        panic!("a refusal of its own kind: {:?}", result.outcome)
+    };
+    assert_eq!(error.code.as_str(), "memory.hash_conflict");
+    assert_eq!(error.category, aura_domain_common::ErrorCategory::Conflict);
+    assert_eq!(result.side_effect_state, SideEffectStateV1::NoEffect);
+    let note = std::fs::read_to_string(f.root.join(".memories/rules/a.md")).expect("the note");
+    assert!(note.contains("第二版") && !note.contains("第三版"), "{note}");
 }
 
 /// A rule the schema cannot state (a category's spelling) comes back from the Vault itself,

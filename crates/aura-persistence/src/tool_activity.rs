@@ -477,6 +477,7 @@ fn activity_history_view(
             status: aura_tool_contract::ToolCallStatusV1::Finalized,
             outcome: Some(outcome_summary(&row.result.outcome)),
             error_class: crate::tool_execution::error_class(&row.result.outcome),
+            error_code: None,
             side_effect_state: Some(row.result.side_effect_state),
             started_at: row.started_at,
             completed_at: Some(row.result.completed_at),

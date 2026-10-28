@@ -1,13 +1,15 @@
-//! The facts a file call recorded when it was prepared, taken again just before it starts. A read
-//! reads whatever the file holds when it runs, so its content changing in between (a log a running
-//! program appends to) does not stop it. A new file whose nearest existing folder moved deeper along
-//! its own path (another write of the same response created the folder) is still the same new file
-//! when only ordinary folders appeared. Anything else that differs stops the call.
+//! The facts a file call recorded when it was prepared, taken again when it is dispatched, when
+//! it is claimed and just before it starts: one rule for all three, since another call of the same
+//! response can change them before any of them. A read reads whatever the file holds when it runs,
+//! so its content changing in between (a log a running program appends to) does not stop it. A new
+//! file whose nearest existing folder moved deeper along its own path (another write of the same
+//! response created the folder) is still the same new file when only ordinary folders appeared.
+//! Anything else that differs stops the call.
 use super::*;
 use serde_json::Value;
 
 /// Whether the facts taken now still allow the call that was prepared with `prepared`.
-pub(super) fn still_hold(
+pub(in crate::agent_execution) fn still_hold(
     service: &AgentExecution,
     call: &CallContext,
     prepared: &Value,

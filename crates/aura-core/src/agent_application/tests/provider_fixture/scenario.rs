@@ -202,6 +202,44 @@ pub enum Scenario {
     PlainMeasuredRefusingSecond,
 }
 
+impl Scenario {
+    /// The compaction and window fixtures: their replies, files and windows were sized when a
+    /// request no provider had counted went byte for byte, so their models are counted that way
+    /// (`count_by_bytes`); every other scenario's model by character class.
+    pub const fn sized_in_bytes(self) -> bool {
+        matches!(
+            self,
+            Self::Compact
+                | Self::CompactHold
+                | Self::CompactOnPrefix
+                | Self::CompactToolOnPrefix
+                | Self::ClearOldResults
+                | Self::CompactAfterTool
+                | Self::CompactedAddition
+                | Self::BranchingCompaction
+                | Self::BranchingThenCompact
+                | Self::Window { .. }
+                | Self::WindowHold
+        )
+    }
+
+    /// Notes the address of a fixture serving this scenario, when it was sized in bytes.
+    pub(super) fn serving_at(self, url: &str) {
+        if self.sized_in_bytes() {
+            SIZED_IN_BYTES.lock().expect("fixture sizes").insert(url.to_owned());
+        }
+    }
+}
+
+/// The addresses of the fixtures sized in bytes ([`Scenario::sized_in_bytes`]).
+static SIZED_IN_BYTES: Mutex<std::collections::BTreeSet<String>> =
+    Mutex::new(std::collections::BTreeSet::new());
+
+/// Whether the fixture at `url` was sized in bytes, so its model is counted that way.
+pub fn sized_in_bytes(url: &str) -> bool {
+    SIZED_IN_BYTES.lock().is_ok_and(|urls| urls.contains(url))
+}
+
 /// The file the `HookRead` scenario asks to read.
 pub const HOOK_SOURCE: &str = "hook-source.txt";
 

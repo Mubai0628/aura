@@ -7,6 +7,8 @@ use unknown_tool::unknown_tool_feedback;
 mod backends;
 mod batch;
 mod broker;
+#[cfg(test)]
+pub(crate) use broker::CREATE_BEFORE_RECHECK;
 pub(crate) mod browser;
 mod chrome;
 pub(crate) use chrome::inspect_before_admission as inspect_chrome_calls;

@@ -219,7 +219,7 @@ async fn a_compacted_addition_continues_and_completes_after_its_text_is_removed(
         panic!("Core unavailable");
     };
     let bodies = provider.requests.lock().expect("requests").clone();
-    let auxiliary = "Return exactly these headings in this order:";
+    let auxiliary = "Write the summary as one paragraph";
     let normal = bodies
         .iter()
         .filter(|body| !body.to_string().contains(auxiliary))

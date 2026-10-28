@@ -1,13 +1,13 @@
 //! Counting a request close to what its provider will count.
 //!
-//!Without a tokenizer for the model every byte counts as a token. That is never too few, but for
-//! prose and code it is two to four times too many, so a request "fills" the window long before the
-//! model would. A conversation repeats almost all of its previous request, and the provider said how
-//! many tokens that request really was. A part sent again is counted at that rate, with a margin;
-//! a part the model has not seen at half again that rate, never below half a token a byte.
-//! The first request, with no count yet, is counted byte for byte. Only the same model's previous
-//! request is used, and only a plausible count: another model's tokenizer, or a count too small to
-//! be the whole request (a proxy that reports only uncached tokens), leaves every part at its bytes.
+//! Without a tokenizer for the model there is only a rule of thumb per character class
+//! ([`crate::character_class_tokens`]), which can be low. A conversation repeats almost all of its
+//! previous request, and the provider said how many tokens that request really was. A part sent
+//! again is counted at that rate, with a margin; a part the model has not seen at half again that
+//! rate, never below half a token a byte. The first request, with no count yet, is counted by the
+//! rule. Only the same model's previous request is used, and only a plausible count: another
+//! model's tokenizer, or a count too small to be the whole request (a proxy that reports only
+//! uncached tokens), leaves every part to the rule.
 use std::collections::BTreeSet;
 
 use aura_domain_common::ContentHash;

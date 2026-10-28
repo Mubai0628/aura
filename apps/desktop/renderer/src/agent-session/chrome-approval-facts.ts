@@ -4,7 +4,7 @@ import type { ExecutionApprovalView } from '@aura/contracts/generated';
 export interface ChromeFacts {
   tab: string;
   origin: string | null;
-  /** The share's user has confirmed this site. */
+  /** The user confirmed this site for the tab or for the conversation. */
   confirmed: boolean;
   sensitive: boolean;
 }
@@ -33,7 +33,6 @@ export function chromeFacts(view: ExecutionApprovalView): ChromeFacts | undefine
 /** Why a Chrome call is asked about, said before anything else on the card. */
 export function chromeWarning(facts: ChromeFacts): string | null {
   if (facts.sensitive) return '这一步可能购买、付款、删除、发送、发布或转账；只能允许这一次。';
-  if (!facts.confirmed && facts.origin)
-    return `${facts.origin} 还没有为这个共享确认过；只能允许这一次，允许后这个共享会记住它。`;
+  if (!facts.confirmed && facts.origin) return `${facts.origin} 是本会话还没有确认过的站点。`;
   return null;
 }

@@ -1,10 +1,13 @@
 //! What a Chrome call touches, decided by Core before the permission engine sees it.
 //!
-//! A call acts on one share of this conversation and names the tab's site; a site the user has not
-//! confirmed for the share is asked about once, and Chrome's own pages are never touched. What an
-//! input action would touch is inspected in the tab before admission and kept by call, so every
-//! later resolution of the call reads the same answer; the extension checks again as it acts.
+//! A call acts on one share of this conversation and names the tab's site; a site confirmed
+//! neither for the share nor for the conversation is asked about, and Chrome's own pages are never
+//! touched. `chrome.open` on a site the conversation already has a tab of uses that tab again.
+//! What an input action would touch is inspected in the tab before admission, and what the first
+//! resolution read is kept by call, so every later resolution of the call reads the same; the
+//! extension checks again as it acts.
 use super::super::*;
+use crate::chrome_control::{CallSites, ResolvedTab};
 use anyhow::{anyhow, bail, ensure};
 use aura_chrome_domain::commands::{ChromeCommand, ChromeIntent};
 use aura_chrome_domain::*;
@@ -130,16 +133,67 @@ impl AgentExecution {
         ensure!(chrome.connected(), NOT_CONNECTED);
         let session = snapshot.session_id;
         let input = action.clone();
-        if handler == H::ChromeOpen {
-            let open: ChromeOpenInput = serde_json::from_value(input)?;
+        let opening = if handler == H::ChromeOpen {
+            let open: ChromeOpenInput = serde_json::from_value(input.clone())?;
             let url = web_address(&open.url)?;
-            let origin = crate::chrome_control::shares::origin_of(&url);
-            *action = serde_json::to_value(ChromeCommand::Open { url })?;
+            Some((crate::chrome_control::shares::origin_of(&url), url))
+        } else {
+            None
+        };
+        let sites = match chrome.pinned(tool_call_id) {
+            Some(sites) => sites,
+            None => {
+                let confirmed = aura_persistence_v2::chrome_sites::confirmed(
+                    self.journal.lock()?.database.connection(),
+                    session,
+                )?;
+                chrome.set_session_sites(session, confirmed.clone());
+                let reuse = opening.as_ref().and_then(|(origin, url)| {
+                    chrome.opened_on(session, origin).map(|tab| (tab.tab_id, tab.url == *url))
+                });
+                let sites = CallSites { session: confirmed, reuse };
+                chrome.pin(tool_call_id, sites.clone());
+                sites
+            }
+        };
+        // A site is confirmed for the call when the tab's share or the conversation confirmed it.
+        let confirmed = |site: &str, tab: Option<&ResolvedTab>| {
+            tab.is_some_and(|tab| tab.origin == site && tab.origin_confirmed)
+                || sites.session.contains(site)
+        };
+        if let Some((origin, url)) = opening {
+            let Some((tab_id, same_address)) = sites.reuse else {
+                *action = serde_json::to_value(ChromeCommand::Open { url })?;
+                return Ok(ChromeResolution {
+                    resources: vec![
+                        ResourceDescriptor::ChromeShare { share_id: format!("open:{session}") },
+                        ResourceDescriptor::ChromeTab { tab_ref: "new".into() },
+                        ResourceDescriptor::ChromeOrigin {
+                            confirmed: confirmed(&origin, None),
+                            origin,
+                        },
+                    ],
+                });
+            };
+            // One tab per site: the conversation's tab Aura opened there goes to the address in
+            // the background, or stays when it is there already.
+            let tab = chrome.session_tab(session, tab_id).ok_or_else(|| {
+                anyhow!("chrome.no_tab: 本会话在这个站点的标签页已经关闭；请重试 chrome.open。")
+            })?;
+            let command = if same_address {
+                ChromeCommand::Snapshot { tab_id, max_chars: 12_000 }
+            } else {
+                ChromeCommand::Navigate { tab_id, url: Some(url), action: None }
+            };
+            *action = serde_json::to_value(command)?;
             return Ok(ChromeResolution {
                 resources: vec![
-                    ResourceDescriptor::ChromeShare { share_id: format!("open:{session}") },
-                    ResourceDescriptor::ChromeTab { tab_ref: "new".into() },
-                    ResourceDescriptor::ChromeOrigin { origin, confirmed: false },
+                    ResourceDescriptor::ChromeShare { share_id: tab.share_id.clone() },
+                    ResourceDescriptor::ChromeTab { tab_ref: tab.reference.clone() },
+                    ResourceDescriptor::ChromeOrigin {
+                        confirmed: confirmed(&origin, Some(&tab)),
+                        origin,
+                    },
                 ],
             });
         }
@@ -150,7 +204,7 @@ impl AgentExecution {
             !aura_security_contract::chrome_origin_blocked(&tab.url),
             "chrome.blocked: 这个标签页现在是 Chrome 自己的页面，Aura 不操作它。"
         );
-        let mut origin = (tab.origin.clone(), tab.origin_confirmed);
+        let mut origin = (tab.origin.clone(), confirmed(&tab.origin, Some(&tab)));
         let tab_id = tab.tab_id;
         let command = match handler {
             H::ChromeNavigate => {
@@ -162,8 +216,7 @@ impl AgentExecution {
                 };
                 if let Some(url) = &url {
                     let target = crate::chrome_control::shares::origin_of(url);
-                    let confirmed = target == tab.origin && tab.origin_confirmed;
-                    origin = (target, confirmed);
+                    origin = (target.clone(), confirmed(&target, Some(&tab)));
                 }
                 ChromeCommand::Navigate { tab_id, url, action: input.action }
             }
@@ -233,8 +286,7 @@ impl AgentExecution {
                 {
                     capabilities.push(ResolvedCapability::ChromeSensitiveAction);
                 }
-                let confirmed = inspection.origin == tab.origin && tab.origin_confirmed;
-                origin = (inspection.origin, confirmed);
+                origin = (inspection.origin.clone(), confirmed(&inspection.origin, Some(&tab)));
                 input_command(handler, tab_id, input)?
             }
         };

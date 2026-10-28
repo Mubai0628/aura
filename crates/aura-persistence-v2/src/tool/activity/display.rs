@@ -406,6 +406,9 @@ pub(crate) fn title(name: &str) -> &str {
         name if name.starts_with("terminal.") => "终端",
         "web.search" => "搜索网页",
         "web.fetch" | "web.read" => "读取网页",
+        "history.list_turns" => "列出会话轮次",
+        "history.search" => "搜索会话历史",
+        "history.read" => "读取会话历史",
         super::query::NAME => "向你提问",
         // Shown while the model writes the call; once admitted it is the tool it names.
         "tools.call" => "调用工具",

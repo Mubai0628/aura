@@ -229,4 +229,43 @@ pub const PUBLISHED_LATER: &[PublishedRevision] = &[
         instance: "tin_01M2DG020980080021AN94SW16",
         fingerprint: "01681ecbc5fcd0c884cd36c920fec89dab0dbcf1f891bdebbdb35220682f9699",
     },
+    // A site the conversation has a tab of opens again in that tab; tabs open and move in the
+    // background.
+    PublishedRevision {
+        name: "chrome.open",
+        revision: 2,
+        tool: "tol_01M2DG020980080021AN94202T",
+        instance: "tin_01M2DG020980080021AN94SW17",
+        fingerprint: "0c907ef777cb88b4a97b46f3736a5e1c9ebdf01c16a07d1725440ef10b640859",
+    },
+    // A tab Chrome does not draw is refused at once.
+    PublishedRevision {
+        name: "chrome.screenshot",
+        revision: 2,
+        tool: "tol_01M2DG020980080021AN94202X",
+        instance: "tin_01M2DG020980080021AN94SW18",
+        fingerprint: "93c70a976c376c0d4e09b02396427ab9d698b73c465dda6ce50ba020e8e2f1b7",
+    },
+    // The conversation's history by round, read by entry.
+    PublishedRevision {
+        name: "history.list_turns",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942038",
+        instance: "tin_01M2DG020980080021AN94SW19",
+        fingerprint: "b6bb657d2cbdbb34859bc34d3bc8498c76f2ba5f66af827bc756d3cb6d76035d",
+    },
+    PublishedRevision {
+        name: "history.search",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942039",
+        instance: "tin_01M2DG020980080021AN94SW20",
+        fingerprint: "2425baf118043a1fe10950f4cf681a0944708026b652b2c4fb25f46fe67d0a18",
+    },
+    PublishedRevision {
+        name: "history.read",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN94203A",
+        instance: "tin_01M2DG020980080021AN94SW21",
+        fingerprint: "4b44a0afc28df7fe47d9fb1a9e7763b3564ddb0a3d92963be2907c9fc931a768",
+    },
 ];

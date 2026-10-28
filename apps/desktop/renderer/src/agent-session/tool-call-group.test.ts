@@ -11,6 +11,7 @@ const entry = (
     outcome?: string | null;
     reason?: string;
     errorClass?: string | null;
+    errorCode?: string;
     sideEffect?: string | null;
     title?: string;
     target?: string;
@@ -35,6 +36,7 @@ const entry = (
       // The structured class the Store recorded. Absent on a legacy row, which is a
       // different fact from "the class is other".
       ...(options.errorClass === undefined ? {} : { error_class: options.errorClass }),
+      ...(options.errorCode === undefined ? {} : { error_code: options.errorCode }),
       side_effect_state: options.sideEffect ?? null,
       started_at: null,
       completed_at: null,
@@ -192,6 +194,27 @@ test('a rejected call is described by the class the store recorded, not by its o
     '工具暂不可用',
     '已拒绝',
   ]);
+});
+
+test('a timeout, a tab in the background and a stale memory read say their kind', () => {
+  const rejected = (id: string, errorClass: string, errorCode: string) =>
+    call(id, entry(id, { outcome: 'operation_rejected', errorClass, errorCode }));
+  const groups = groupConsecutiveToolCalls([
+    rejected('a', 'other', 'chrome.timed_out'),
+    rejected('b', 'unavailable', 'chrome.background_tab'),
+    rejected('c', 'conflict', 'memory.hash_conflict'),
+    rejected('d', 'unavailable', 'chrome.not_connected'),
+    rejected('e', 'unavailable', 'chrome.busy'),
+    call('f', entry('f', { outcome: 'cancelled', reason: 'timeout' })),
+  ]);
+  expect(groups.map((group) => group.state)).toEqual([
+    '超时，可重试',
+    '未执行：标签页在后台',
+    '冲突，未写入',
+    '工具暂不可用',
+    '超时',
+  ]);
+  expect(groups.map((group) => group.callIds)).toEqual([['a'], ['b'], ['c'], ['d', 'e'], ['f']]);
 });
 
 test('a validation refusal reads as a parameter mistake and never as a permission problem', () => {

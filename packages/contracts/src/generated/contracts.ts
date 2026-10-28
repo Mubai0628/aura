@@ -40,7 +40,7 @@ export type ReleaseChannel = 'Stable' | 'Preview' | 'Nightly';
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TokenEstimateExactness".
  */
-export type TokenEstimateExactness = ('exact' | 'upper_bound') | 'calibrated';
+export type TokenEstimateExactness = ('exact' | 'upper_bound') | 'calibrated' | 'approximate';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ContextRetentionException".
@@ -12361,6 +12361,10 @@ export interface ToolCallActivitySummaryView {
    * The classified reason for a terminal outcome, when the call recorded one.
    */
   error_class?: ToolCallErrorClassV1 | null;
+  /**
+   * The recorded error's own code (`chrome.timed_out`), for a surface that names that kind.
+   */
+  error_code?: ErrorCode | null;
   ordinal: number;
   outcome?: ToolResultOutcomeSummaryView | null;
   side_effect_state?: SideEffectStateV1 | null;
@@ -18821,6 +18825,10 @@ export interface AuthorizationScope {
    * A ReadOnly answer covering one shared Chrome tab for the rest of the turn.
    */
   chrome_consent?: ChromeTurnConsentRef | null;
+  /**
+   * A site the user confirmed for every Chrome tab of one session.
+   */
+  chrome_site_consent?: ChromeSiteConsentRef | null;
   consent?: NativeSessionConsentRef | null;
   /**
    * The reusable file consent, present only when an ordinary file approval recorded one.
@@ -18862,6 +18870,23 @@ export interface ChromeTurnConsentRef {
   session_id: SessionId;
   share_id: string;
   turn_task_id: TurnTaskId;
+}
+/**
+ * A site the user confirmed for the session: every tab of the session may open, read and act on
+ * it as the mode allows, without asking again, also after Aura restarts. The Grant itself only
+ * stands for the call that was answered; later calls count the site as confirmed when Core
+ * resolves them, so the mode still decides what they may do. It never covers a sensitive action.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeSiteConsentRef".
+ */
+export interface ChromeSiteConsentRef {
+  approval_id: ApprovalRequestId;
+  approved_operation_fingerprint: CanonicalSha256HashV1;
+  grant_revision: Revision;
+  origin: string;
+  principal_id: PrincipalId;
+  session_id: SessionId;
 }
 /**
  * The immutable identity of the approval that first produced a reusable Native
@@ -20163,8 +20188,8 @@ export interface ChromeNavigateInput {
  */
 export interface ChromeOpenInput {
   /**
-   * An http(s) address, or a host such as localhost:5173. It opens in a new tab of the
-   * "Aura" tab group, which becomes the current tab.
+   * An http(s) address, or a host such as localhost:5173. The tab it opens in becomes the
+   * conversation's current tab.
    */
   url: string;
 }

@@ -2,6 +2,7 @@
 
 mod addition_coverage;
 mod attachment_sources;
+mod character_class;
 mod compaction;
 mod compaction_size;
 mod current_user;
@@ -17,6 +18,7 @@ mod request_prefix;
 mod section;
 mod tool_result_clearing;
 
+pub use character_class::character_class_tokens;
 pub use compaction::*;
 pub use compaction_size::*;
 pub use egress::*;

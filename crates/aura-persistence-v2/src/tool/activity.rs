@@ -229,17 +229,17 @@ pub fn page(
         // "the target does not exist" only when the Store recorded `not_found`. It is
         // deliberately not derived from the message text: that is how four missing
         // paths came to be displayed as a permission refusal.
-        let error_class = stored.result.as_ref().and_then(|r| match &r.outcome {
+        let error = stored.result.as_ref().and_then(|r| match &r.outcome {
             ToolResultOutcomeV1::Failed { error }
             | ToolResultOutcomeV1::OperationRejected { error }
-            | ToolResultOutcomeV1::Indeterminate { error, .. } => Some(classify(error.category)),
-            ToolResultOutcomeV1::NotExecuted { error, .. } => Some(
-                error
-                    .as_ref()
-                    .map_or(ToolCallErrorClassV1::InvalidRequest, |error| classify(error.category)),
-            ),
+            | ToolResultOutcomeV1::Indeterminate { error, .. } => Some(Some(error)),
+            ToolResultOutcomeV1::NotExecuted { error, .. } => Some(error.as_ref()),
             ToolResultOutcomeV1::Succeeded | ToolResultOutcomeV1::Cancelled { .. } => None,
         });
+        let error_class = error.map(|error| {
+            error.map_or(ToolCallErrorClassV1::InvalidRequest, |error| classify(error.category))
+        });
+        let error_code = error.flatten().map(|error| error.code.clone());
         calls.push(AgentToolActivityEntry {
             model_step_id: batch.batch.invocation_identity.model_step_id,
             display: mcp::decorate(
@@ -268,6 +268,7 @@ pub fn page(
                 status,
                 outcome,
                 error_class,
+                error_code,
                 side_effect_state: stored.result.as_ref().map(|r| r.side_effect_state),
                 started_at,
                 completed_at: stored.result.as_ref().map(|r| r.completed_at),

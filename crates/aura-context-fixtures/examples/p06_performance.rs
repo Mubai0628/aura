@@ -60,7 +60,7 @@ fn measure_context_compile(
     current_user_utf8_bytes: usize,
 ) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
     let fixture = p06_performance_preparation_input(window_tokens, current_user_utf8_bytes)?;
-    let estimators = ContextEstimatorRegistry::default();
+    let estimators = ContextEstimatorRegistry::default().counting_unmeasured_by_bytes();
     let compiler = ContextPreparationCompiler::new(&estimators);
     let warmup = compiler.compile(fixture.clone())?;
     ensure_prepared(&warmup)?;

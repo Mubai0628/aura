@@ -351,6 +351,38 @@ describe('P07 Tool Projection boundary', () => {
     ).toBeUndefined();
   });
 
+  it('accepts the error code a tool call summary carries and refuses one Core never forms', () => {
+    const parse = (error_code: unknown) =>
+      parseProjection(
+        change(
+          'session_tool_activity',
+          { session_id: SESSION_ID, type: 'session' },
+          {
+            active_batches: [],
+            older_activity_cursor: null,
+            recent_calls: [
+              {
+                can_cancel: false,
+                display_name: 'chrome.screenshot',
+                error_class: 'unavailable',
+                error_code,
+                ordinal: 1,
+                status: 'finalized',
+                tool_batch_id: 'tbt_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                tool_call_id: 'tcl_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                tool_id: 'tol_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                tool_version: { definition_revision: '1', semantic_version: null },
+              },
+            ],
+            session_id: SESSION_ID,
+          },
+        ),
+      );
+    expect(parse('chrome.background_tab')).toBeDefined();
+    expect(parse(null)).toBeDefined();
+    expect(parse('Chrome background tab')).toBeUndefined();
+  });
+
   it('keeps Session Pin intent and long-operation state on independent exact scopes', () => {
     const pins = {
       pin_set_revision: '3',

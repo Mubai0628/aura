@@ -8,7 +8,16 @@ fn closed_release_has_complete_unique_stable_identities() {
     assert_eq!(&generated, embedded.manifest());
     // The count is a completeness check on the closed release, so it moves when
     // the release legitimately gains a tool and the new entry is named below.
-    assert_eq!(generated.entries.len(), 109);
+    assert_eq!(generated.entries.len(), 112);
+    // The conversation's history by round: three reads, all the parent's.
+    for name in ["history.list_turns", "history.search", "history.read"] {
+        let entry = embedded.entry(name).expect("published");
+        assert_eq!(entry.definition.audience, aura_tool_contract::ToolAudienceV1::ParentAgentOnly);
+        assert_eq!(
+            entry.definition.capabilities,
+            [aura_security_contract::ResolvedCapability::AgentTaskRead]
+        );
+    }
     // The built-in browser: sixteen tools, all the parent's (a child agent has no browser).
     // Acting on a page may change something there; reading it, scrolling and hovering do not,
     // and asking the user for help leaves what they do to them.

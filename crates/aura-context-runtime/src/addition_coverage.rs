@@ -7,8 +7,8 @@
 use crate::preparation::AcceptedTurnAdditionV1;
 use crate::section::{ContextFragment, ContextSectionAssembly};
 use aura_context_domain::{
-    COVERAGE_WALK_BUDGET, CompactionAnchorKind, ContextReadCompactionResult, ContextSourceRef,
-    CoverageHop, CoverageVerdict, SourceIdentity, UserSourceProof, follow_coverage,
+    COVERAGE_WALK_BUDGET, ContextSourceRef, CoverageHop, CoverageVerdict, SourceIdentity,
+    UserSourceProof, follow_coverage,
 };
 
 pub(crate) enum AdditionCoverage {
@@ -34,7 +34,7 @@ pub(crate) fn compaction_covers(
         return AdditionCoverage::Missing;
     };
     let mut exhausted = false;
-    for start in visible_starts(assembly, addition, hops) {
+    for start in visible_starts(assembly, hops) {
         match follow_coverage(
             &start,
             hops,
@@ -69,11 +69,9 @@ fn user_submission_text<'a>(
     })
 }
 
-fn visible_starts(
-    assembly: &ContextSectionAssembly,
-    addition: &AcceptedTurnAdditionV1,
-    hops: &[CoverageHop],
-) -> Vec<CoverageHop> {
+/// The compactions the request shows, as the store recorded what each replaced. The section
+/// shows the stored summary's text, so a hop counts only when its summary is what is shown.
+fn visible_starts(assembly: &ContextSectionAssembly, hops: &[CoverageHop]) -> Vec<CoverageHop> {
     assembly
         .egress_fragments
         .iter()
@@ -85,44 +83,11 @@ fn visible_starts(
             let ContextSourceRef::Compaction { context_snapshot_id } = fragment.source_ref else {
                 return None;
             };
-            let parsed =
-                serde_json::from_str::<ContextReadCompactionResult>(&fragment.content).ok()?;
-            if parsed.source_context_snapshot_id != context_snapshot_id {
-                return None;
-            }
-            if let Some(hop) = hops.iter().find(|hop| hop.id == context_snapshot_id) {
-                return (hop.result.as_ref() == Some(&parsed)).then(|| hop.clone());
-            }
-            Some(synthesized_hop(addition, parsed))
+            let hop = hops.iter().find(|hop| hop.id == context_snapshot_id)?;
+            let result = hop.result.as_ref()?;
+            (result.source_context_snapshot_id == context_snapshot_id
+                && fragment.content.contains(result.historical_snapshot.trim()))
+            .then(|| hop.clone())
         })
         .collect()
-}
-
-fn synthesized_hop(
-    addition: &AcceptedTurnAdditionV1,
-    result: ContextReadCompactionResult,
-) -> CoverageHop {
-    let excluded_event_ids = result
-        .anchor_manifest
-        .anchors
-        .iter()
-        .filter_map(|anchor| {
-            if anchor.kind != CompactionAnchorKind::Event {
-                return None;
-            }
-            let ContextSourceRef::Event { event_id } = anchor.source_ref else {
-                return None;
-            };
-            Some(event_id)
-        })
-        .collect();
-    CoverageHop {
-        id: result.source_context_snapshot_id,
-        session_id: addition.session_id,
-        completed: true,
-        manifest_matches: true,
-        excluded_event_ids,
-        result_artifact_id: None,
-        result: Some(result),
-    }
 }

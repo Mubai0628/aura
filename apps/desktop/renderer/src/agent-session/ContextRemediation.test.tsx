@@ -72,6 +72,26 @@ test('recheck binds the actual preflight revision and creates no user message', 
   );
 });
 
+test('a request the provider refused as too long says so, though it was counted within the budget', async () => {
+  read.mockImplementation(({ session_id, agent_run_id }) => {
+    const answer = value(session_id, agent_run_id);
+    answer.remediation.budget.estimated_input_tokens = 9000;
+    Object.assign(answer.remediation.plan.overflow, {
+      error_code: 'context.provider_rebuild_no_progress',
+    });
+    return Promise.resolve({ ok: true, value: answer });
+  });
+  render(<ContextRemediation {...props} />);
+  await screen.findByText('模型服务商拒绝了这次请求：超出它的上下文窗口，压缩后也没能缩小。');
+  screen.getByText(/预计输入 9,000/);
+});
+
+test('a request counted past the budget does not claim a provider refusal', async () => {
+  render(<ContextRemediation {...props} />);
+  await screen.findByText(/预计输入 18,000/);
+  expect(screen.queryByText(/模型服务商拒绝了这次请求/)).toBeNull();
+});
+
 test('uncertain result prevents another submission across a remount', async () => {
   recheck.mockRejectedValue(new Error('disconnected'));
   const first = render(<ContextRemediation {...props} runId="uncertain" />);

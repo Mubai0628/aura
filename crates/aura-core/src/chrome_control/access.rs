@@ -5,6 +5,7 @@ use aura_chrome_domain::commands::{ChromeInspection, ChromeOpenedTab, ChromeSess
 use aura_chrome_domain::protocol::{CommandOutcome, CoreMessage};
 use aura_chrome_domain::tools::ChromeTabV1;
 use aura_domain_common::{SessionId, ToolCallId};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 /// The conversations a tab can be shared with.
@@ -24,6 +25,34 @@ pub(crate) struct ResolvedTab {
     /// Whether the user confirmed the tab's site for this share.
     pub origin_confirmed: bool,
     pub opened_by_aura: bool,
+}
+
+impl ResolvedTab {
+    fn of(share: &super::shares::Share) -> Self {
+        let origin = share.origin();
+        Self {
+            share_id: share.share_id.clone(),
+            tab_id: share.tab_id,
+            reference: share.reference.clone(),
+            url: share.url.clone(),
+            title: share.title.clone(),
+            origin_confirmed: share.pending_origin.is_none()
+                && share.confirmed_origins.contains(&origin),
+            origin,
+            opened_by_aura: share.opened_by_aura,
+        }
+    }
+}
+
+/// What the first resolution of a call read, so that every later resolution of it reads the
+/// same: the answer the user gives to a call must not change the call it answered.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct CallSites {
+    /// The sites the user confirmed for all the conversation's tabs.
+    pub session: BTreeSet<String>,
+    /// For `chrome.open`: the conversation's tab it uses again, and whether that tab was at the
+    /// address already.
+    pub reuse: Option<(u32, bool)>,
 }
 
 /// One conversation's hold on Chrome while one of its calls runs.
@@ -52,7 +81,7 @@ impl Drop for ControlGuard {
     }
 }
 
-/// Inspections kept for admission; the oldest go first.
+/// Inspections and pinned sites kept for admission; the oldest go first.
 const INSPECTIONS_KEPT: usize = 256;
 
 impl ChromeControl {
@@ -80,19 +109,41 @@ impl ChromeControl {
         reference: Option<&str>,
     ) -> Result<ResolvedTab, String> {
         let state = self.inner.lock();
-        let share = state.shares.resolve(session, reference)?;
-        let origin = share.origin();
-        Ok(ResolvedTab {
-            share_id: share.share_id.clone(),
-            tab_id: share.tab_id,
-            reference: share.reference.clone(),
-            url: share.url.clone(),
-            title: share.title.clone(),
-            origin_confirmed: share.pending_origin.is_none()
-                && share.confirmed_origins.contains(&origin),
-            origin,
-            opened_by_aura: share.opened_by_aura,
-        })
+        state.shares.resolve(session, reference).map(ResolvedTab::of)
+    }
+
+    /// The conversation's share of this tab, while it lasts.
+    pub(crate) fn session_tab(&self, session: SessionId, tab_id: u32) -> Option<ResolvedTab> {
+        self.inner.lock().shares.of_session(session, tab_id).map(ResolvedTab::of)
+    }
+
+    /// The tab Aura opened for the conversation that is on `origin` now, to open it again in.
+    pub(crate) fn opened_on(&self, session: SessionId, origin: &str) -> Option<ResolvedTab> {
+        self.inner.lock().shares.opened_on(session, origin).map(ResolvedTab::of)
+    }
+
+    /// The tab becomes the conversation's current tab.
+    pub(crate) fn make_current(&self, tab_id: u32) {
+        self.inner.lock().shares.make_current(tab_id);
+    }
+
+    /// The sites the conversation confirmed for all its tabs, as Core read them.
+    pub(crate) fn set_session_sites(&self, session: SessionId, sites: BTreeSet<String>) {
+        if self.inner.lock().shares.set_session_sites(session, sites) {
+            self.inner.broadcast_shares();
+        }
+    }
+
+    pub(crate) fn pinned(&self, call: ToolCallId) -> Option<CallSites> {
+        self.inner.lock().calls.get(&call).cloned()
+    }
+
+    pub(crate) fn pin(&self, call: ToolCallId, sites: CallSites) {
+        let mut state = self.inner.lock();
+        state.calls.insert(call, sites);
+        while state.calls.len() > INSPECTIONS_KEPT {
+            state.calls.pop_first();
+        }
     }
 
     /// Chrome for this conversation, for as long as the guard lives. Another conversation's call
@@ -150,10 +201,11 @@ impl ChromeControl {
         reference
     }
 
-    /// The user approved this site for the share, in Aura.
+    /// The call was authorized on this site; the share keeps it.
     pub(crate) fn confirm_origin(&self, tab_id: u32, origin: &str) {
-        self.inner.lock().shares.answer(tab_id, origin, true);
-        self.inner.broadcast_shares();
+        if self.inner.lock().shares.confirm(tab_id, origin) {
+            self.inner.broadcast_shares();
+        }
     }
 
     /// Where a tab is after a command, as the extension reported it.

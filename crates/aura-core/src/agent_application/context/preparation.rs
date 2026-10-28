@@ -321,7 +321,7 @@ impl AgentApplication {
             maintenance_kind: None,
         };
         let sources = assemble_prompt_context_sources(&prompt, &settings, &activation, sections)?;
-        let estimators = ContextEstimatorRegistry::default();
+        let estimators = super::super::estimators::for_model(profile);
         let (inspector_lineage, previous_snapshot, counted) = {
             // Boundary: one bounded read pair for the inspector view.
             let journal = Arc::clone(&self.execution.journal);

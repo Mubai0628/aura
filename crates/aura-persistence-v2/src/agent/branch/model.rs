@@ -135,3 +135,71 @@ pub(crate) fn carried_roots(
         })
         .unwrap_or_default())
 }
+
+/// A carried turn as the history tools see it: its first message and whether it completed.
+pub(crate) struct CarriedHead {
+    pub completed: bool,
+    /// Its first message's place in the carried history.
+    pub sequence: u64,
+    pub sent_at: UtcTimestamp,
+    pub text: String,
+}
+
+/// The carried turns, oldest first, each by its first message.
+pub(crate) fn carried_heads(db: &Connection, session: SessionId) -> StoreResult<Vec<CarriedHead>> {
+    let Some(branch) = finished(db, session)? else { return Ok(Vec::new()) };
+    let rows = carried_rows(db, session)?;
+    let mut heads = Vec::new();
+    for turn in &branch.turns {
+        let display: record::CarriedDisplay =
+            record::read_json(db, session, turn.display_artifact_id)?;
+        let Some(row) = rows.iter().find(|row| row.view.event_id == turn.root_user_event_id) else {
+            continue;
+        };
+        let sent_at = display
+            .view
+            .user_messages
+            .iter()
+            .find(|message| message.event_id == turn.root_user_event_id)
+            .map_or(display.view.turn.created_at, |message| message.at);
+        heads.push(CarriedHead {
+            completed: matches!(
+                display.view.turn.state,
+                aura_agent_domain::TurnTaskState::Completed { .. }
+            ),
+            sequence: row.view.session_sequence.value(),
+            sent_at,
+            text: row.view.content.clone(),
+        });
+    }
+    Ok(heads)
+}
+
+/// When each carried user message was sent.
+pub(crate) fn carried_user_times(
+    db: &Connection,
+    session: SessionId,
+) -> StoreResult<BTreeMap<EventId, UtcTimestamp>> {
+    let Some(branch) = finished(db, session)? else { return Ok(BTreeMap::new()) };
+    let mut times = BTreeMap::new();
+    for turn in &branch.turns {
+        let display: record::CarriedDisplay =
+            record::read_json(db, session, turn.display_artifact_id)?;
+        times.extend(
+            display.view.user_messages.iter().map(|message| (message.event_id, message.at)),
+        );
+    }
+    Ok(times)
+}
+
+/// Every carried tool call's name, input and result, by call.
+pub(crate) fn carried_tool_results(
+    db: &Connection,
+    session: SessionId,
+) -> StoreResult<BTreeMap<ToolCallId, CarriedToolResult>> {
+    Ok(carried(db, session)?
+        .into_iter()
+        .flat_map(|model| model.tool_results)
+        .map(|result| (result.tool_call_id, result))
+        .collect())
+}

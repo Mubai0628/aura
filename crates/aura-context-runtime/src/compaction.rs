@@ -15,8 +15,10 @@ use aura_model_domain::{
 use thiserror::Error;
 
 mod attempt;
+mod paragraph;
 pub use attempt::CompactionRequestShape;
 use attempt::validate_prepared_compaction_attempt;
+pub use paragraph::parse_paragraph_output;
 
 const HEADINGS: [&str; 7] = [
     "# Historical-Snapshot-Summary",
@@ -367,17 +369,13 @@ where
         match caller.call(&attempt).await {
             CompactionModelCallTerminal::Completed { output, transport_attempt_id } => {
                 let parsed = normalized_compaction_output(&attempt, output).and_then(|output| {
-                    parse_and_validate_compaction_output(
-                        &output,
-                        operation.output_character_limit,
-                        &operation.anchor_manifest,
-                        !operation.anchor_manifest.anchors.is_empty(),
+                    parse_paragraph_output(&output, operation.output_character_limit).map_err(
+                        |error| CompactionExecutionFailure {
+                            code: error.to_string(),
+                            retryable: true,
+                            side_effect_unknown: false,
+                        },
                     )
-                    .map_err(|error| CompactionExecutionFailure {
-                        code: error.to_string(),
-                        retryable: true,
-                        side_effect_unknown: false,
-                    })
                 });
                 match parsed {
                     Ok(parsed) => {
@@ -1000,7 +998,13 @@ mod tests {
         let second = prepared_attempt(&operation, 2);
         let caller = Caller::new(vec![
             CompactionModelCallTerminal::Completed {
-                output: Box::new(completed_output(&first, "invalid".to_owned())),
+                output: Box::new(completed_output(
+                    &first,
+                    " 
+# 
+"
+                    .to_owned(),
+                )),
                 transport_attempt_id: TransportAttemptId::new(),
             },
             CompactionModelCallTerminal::Completed {

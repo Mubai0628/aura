@@ -509,6 +509,7 @@ pub fn authorize(
         memory_consent: None,
         mcp_consent: None,
         chrome_consent: None,
+        chrome_site_consent: None,
         file_consent: None,
     };
     let changed = previous.is_some_and(|p| {
@@ -635,6 +636,9 @@ pub fn explicit_grant_covers_operation(
 fn grant_covers_operation(grant: &AuthorizationGrant, input: &PolicyInput<'_>) -> bool {
     if grant.scope.chrome_consent.is_some() {
         return crate::chrome::consent_covers(grant, input);
+    }
+    if grant.scope.chrome_site_consent.is_some() {
+        return crate::chrome::site_consent_covers(grant, input);
     }
     if grant.scope.mcp_consent.is_some() {
         let c = &input.operation.content;

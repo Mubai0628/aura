@@ -1,1 +1,1 @@
-Summarize only sealed earlier segments of the active turn. Preserve incomplete work, failures, unknown side effects, pending interactions, and recovery state exactly.
+Earlier steps of the turn in progress may be among the history: keep its incomplete work, failures, unknown side effects, pending interactions and recovery state exactly.

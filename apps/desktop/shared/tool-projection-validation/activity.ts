@@ -169,6 +169,12 @@ export const isToolBatchActivity = (value: unknown): boolean =>
   isOptionalNullable(value.started_at, isTimestamp) &&
   isOptionalNullable(value.completed_at, isTimestamp);
 
+/** An error code as Core forms one: dot-separated segments of lowercase letters, digits, `_`, `-`. */
+const isErrorCode = (value: unknown): boolean =>
+  typeof value === 'string' &&
+  value.length <= 128 &&
+  /^[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/u.test(value);
+
 export const isToolCallActivity = (value: unknown): boolean =>
   recordWithOptional(
     value,
@@ -182,7 +188,7 @@ export const isToolCallActivity = (value: unknown): boolean =>
       'tool_id',
       'tool_version',
     ],
-    ['completed_at', 'error_class', 'outcome', 'side_effect_state', 'started_at'],
+    ['completed_at', 'error_class', 'error_code', 'outcome', 'side_effect_state', 'started_at'],
   ) &&
   isAuraId(value.tool_call_id, 'tcl') &&
   isAuraId(value.tool_batch_id, 'tbt') &&
@@ -201,6 +207,7 @@ export const isToolCallActivity = (value: unknown): boolean =>
       'other',
     ]),
   ) &&
+  isOptionalNullable(value.error_code, isErrorCode) &&
   isOptionalNullable(value.outcome, isToolOutcome) &&
   isOptionalNullable(value.side_effect_state, isSideEffectState) &&
   isOptionalNullable(value.started_at, isTimestamp) &&

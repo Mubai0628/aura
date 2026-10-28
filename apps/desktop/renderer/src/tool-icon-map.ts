@@ -43,6 +43,9 @@ export function toolTypeIcon(canonicalName: string | undefined): LucideIconName 
     'normal.complete': 'check',
     'mode.disposition': 'activity',
     'context.read_events': 'file-code',
+    'history.list_turns': 'list-end',
+    'history.search': 'file-search',
+    'history.read': 'file-text',
   };
   const mapped = exact[name];
   if (mapped !== undefined) return mapped;

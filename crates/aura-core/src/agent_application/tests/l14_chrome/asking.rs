@@ -1,6 +1,6 @@
 //! What asks the user: acting in ReadOnly (an answer may cover the shared tab for the rest of the
 //! turn), a sensitive action (every time, in every mode, only once), and a site the user has not
-//! confirmed for the tab (once; the share keeps the answer). Nothing reaches the tab before the
+//! confirmed (once, which the share keeps, or for the session). Nothing reaches the tab before the
 //! answer.
 use super::*;
 
@@ -76,7 +76,7 @@ async fn a_site_the_user_has_not_confirmed_asks_once_and_the_share_keeps_it() {
     let setup = Setup { moved_to: Some(PAY), ..Setup::sharing(PermissionMode::FullAccess) };
     let chrome = run(READ_TWICE, setup, answers(Page { url: PAY, ..ORDINARY })).await;
     let (id, approval) = chrome.question().await;
-    assert_eq!(decisions(&approval), ["allow_once", "deny"]);
+    assert_eq!(decisions(&approval), ["allow_once", "allow_session", "deny"]);
     assert!(chrome.sent().is_empty(), "nothing reaches the tab before the answer");
     chrome.answer(id, &approval, "allow_once").await;
     let view = chrome
@@ -95,7 +95,7 @@ async fn opening_a_page_asks_for_its_site_and_the_tab_becomes_the_conversations(
     let setup = Setup { shared: Shared::Nothing, ..Setup::sharing(PermissionMode::FullAccess) };
     let chrome = run(OPEN_THEN_READ, setup, answers(ORDINARY)).await;
     let (id, approval) = chrome.question().await;
-    assert_eq!(decisions(&approval), ["allow_once", "deny"]);
+    assert_eq!(decisions(&approval), ["allow_once", "allow_session", "deny"]);
     assert!(chrome.sent().is_empty());
     chrome.answer(id, &approval, "allow_once").await;
     let view = chrome

@@ -13,6 +13,7 @@ use aura_workspace_domain::*;
 use external_read::*;
 pub(crate) use external_write::external_side_effect;
 use external_write::*;
+pub(super) use fresh_facts::still_hold;
 pub(super) use publication::invoke;
 use serde_json::{Value, json};
 

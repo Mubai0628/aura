@@ -6227,6 +6227,17 @@
           ],
           "description": "A ReadOnly answer covering one shared Chrome tab for the rest of the turn."
         },
+        "chrome_site_consent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChromeSiteConsentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A site the user confirmed for every Chrome tab of one session."
+        },
         "consent": {
           "anyOf": [
             {
@@ -10170,7 +10181,7 @@
       "additionalProperties": false,
       "properties": {
         "url": {
-          "description": "An http(s) address, or a host such as localhost:5173. It opens in a new tab of the\n\"Aura\" tab group, which becomes the current tab.",
+          "description": "An http(s) address, or a host such as localhost:5173. The tab it opens in becomes the\nconversation's current tab.",
           "type": "string"
         }
       },
@@ -10596,6 +10607,39 @@
           "type": "string"
         }
       ]
+    },
+    "ChromeSiteConsentRef": {
+      "additionalProperties": false,
+      "description": "A site the user confirmed for the session: every tab of the session may open, read and act on\nit as the mode allows, without asking again, also after Aura restarts. The Grant itself only\nstands for the call that was answered; later calls count the site as confirmed when Core\nresolves them, so the mode still decides what they may do. It never covers a sensitive action.",
+      "properties": {
+        "approval_id": {
+          "$ref": "#/$defs/ApprovalRequestId"
+        },
+        "approved_operation_fingerprint": {
+          "$ref": "#/$defs/CanonicalSha256HashV1"
+        },
+        "grant_revision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "principal_id": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "approval_id",
+        "session_id",
+        "principal_id",
+        "origin",
+        "approved_operation_fingerprint",
+        "grant_revision"
+      ],
+      "type": "object"
     },
     "ChromeSnapshotInput": {
       "additionalProperties": false,
@@ -53744,6 +53788,11 @@
           "const": "calibrated",
           "description": "Scaled from the provider's own count of the previous request of the same model,\nwith a margin; neither exact nor a strict bound.",
           "type": "string"
+        },
+        {
+          "const": "approximate",
+          "description": "A rule of thumb per character class, before any provider count of the model: it can be\nlow, so a provider that refuses such a request as too long is answered by rebuilding the\nrequest, not by doubting the model's window.",
+          "type": "string"
         }
       ]
     },
@@ -54544,6 +54593,17 @@
             }
           ],
           "description": "The classified reason for a terminal outcome, when the call recorded one."
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The recorded error's own code (`chrome.timed_out`), for a surface that names that kind."
         },
         "ordinal": {
           "format": "uint32",

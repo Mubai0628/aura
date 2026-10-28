@@ -226,6 +226,14 @@ pub fn finish_linked(
     }
     Ok(())
 }
+/// Whether the user asked for this compaction.
+pub(crate) fn linked(
+    db: &Connection,
+    compaction: &super::compaction::Compaction,
+) -> StoreResult<bool> {
+    Ok(latest(db, compaction.agent_run_id)?
+        .is_some_and(|stored| stored.record.source_context_snapshot_id == Some(compaction.id)))
+}
 pub fn cancel_run(
     tx: &Transaction<'_>,
     run: AgentRunId,

@@ -174,6 +174,7 @@ export class Background {
     const { chrome } = this.#deps;
     return {
       tabs: chrome.tabs,
+      windows: chrome.windows,
       pages: this.pages,
       group: (tab) => this.shared.group(tab),
       assist: (tabId, reason, seconds) => this.assists.wait(tabId, reason, seconds, signal),

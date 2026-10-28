@@ -295,6 +295,18 @@ fn a_newer_version_that_migrates_no_store_starts_without_a_copy() {
     assert!(install.log().contains("no_store_migration"), "{}", install.log());
 }
 
+/// The new version's Core decides with the version it replaces: a store it does not migrate
+/// still needs a copy when that version would refuse the records the new one writes.
+#[test]
+fn the_new_versions_core_is_told_which_version_it_replaces() {
+    let install =
+        newer_version_answering(r#"{"data/aura.db":false,"data/v2-execution/aura-v2.db":true}"#);
+    let asked =
+        fs::read_to_string(install.root.path().join("versions/0.1.1/fake-migration-args.txt"))
+            .unwrap();
+    assert_eq!(asked.lines().skip(2).collect::<Vec<_>>(), ["--replacing", "0.1.0"], "{asked}");
+}
+
 #[test]
 fn a_newer_version_gets_a_copy_of_only_the_store_it_migrates() {
     let install =

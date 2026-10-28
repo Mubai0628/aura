@@ -111,7 +111,7 @@ fn only_a_plain_no_leaves_a_store_out() {
 #[test]
 fn a_core_that_cannot_answer_copies_every_store() {
     let data = tempfile::tempdir().expect("data");
-    assert_eq!(pending_stores(&data.path().join("missing-core.exe"), data.path()), None);
+    assert_eq!(pending_stores(&data.path().join("missing-core.exe"), data.path(), "0.1.0"), None);
 }
 
 #[test]

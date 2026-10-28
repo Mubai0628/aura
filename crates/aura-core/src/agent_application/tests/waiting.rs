@@ -86,12 +86,18 @@ mod l13_6_files;
 // A new conversation's first request measured by another conversation's count.
 #[path = "l12_1_borrowed_count.rs"]
 mod l12_1_borrowed_count;
-// A compaction that falls short never ends the turn.
+// A compaction the model cannot answer never ends the turn.
 #[path = "l12_4_compaction.rs"]
 mod l12_4_compaction;
+// The conversation by round: the history tools and what a compaction leaves.
+#[path = "history_rounds.rs"]
+mod history_rounds;
 // Reasoning that loops before any answer is stopped and the step asked again.
 #[path = "l12_4_reasoning_loop.rs"]
 mod l12_4_reasoning_loop;
+// A model no provider has counted: counted by character class, refusals rebuilt.
+#[path = "unmeasured_count.rs"]
+mod unmeasured_count;
 
 /// The runtime, session and model profile a run needs, before anything has been
 /// started. Tests that must commit their own configuration first (the context
@@ -373,9 +379,8 @@ async fn compaction_of_a_span_with_a_tool_call_continues_the_turn() {
         AgentRunRequest { session_id: start.turn.session_id, agent_run_id: start.run.agent_run_id };
     wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
     let requests = provider.requests.lock().expect("Agent test setup and persisted assertion");
-    let compaction = |body: &serde_json::Value| {
-        body.to_string().contains("Return exactly these headings in this order:")
-    };
+    let compaction =
+        |body: &serde_json::Value| body.to_string().contains("Write the summary as one paragraph");
     assert_eq!(requests.iter().filter(|b| compaction(b)).count(), 2, "bounded compaction");
     let first_call = requests[1]["messages"]
         .as_array()
@@ -414,7 +419,7 @@ async fn compaction_uses_real_provider_then_original_source_receipt_without_fake
         .lock()
         .expect("Agent test setup and persisted assertion")
         .iter()
-        .filter(|body| body.to_string().contains("Return exactly these headings in this order:"))
+        .filter(|body| body.to_string().contains("Write the summary as one paragraph"))
         .cloned()
         .collect::<Vec<_>>();
     assert_eq!(compaction_requests.len(), 2);
@@ -422,15 +427,14 @@ async fn compaction_uses_real_provider_then_original_source_receipt_without_fake
         let cap = body.get("max_completion_tokens").or_else(|| body.get("max_tokens"));
         assert_eq!(cap, Some(&serde_json::json!(4096)), "compaction output cap in {body}");
         assert!(
-            body.to_string().contains("under 4096 characters"),
-            "the snapshot limit is stated to the model"
+            body.to_string().contains("of plain prose of at most 3000 characters"),
+            "the summary's length is stated to the model"
         );
-        // The parser takes a Truth-Index line only as the bare anchor. "Each anchor exactly
-        // once as '- a000001'" next to "retain the source and anchor mapping" let a real model
-        // write "- a000001 -> evt_...; note" twice, and the turn was interrupted.
+        // Core keeps which sources a summary replaced: the model writes no headings and lists
+        // no anchors, the format a real model kept getting wrong.
         assert!(
-            body.to_string().contains("each line is exactly '- a000001' and nothing else"),
-            "the Truth-Index line format the parser accepts is stated to the model"
+            body.to_string().contains("without headings, lists or anchors"),
+            "the paragraph the parser accepts is stated to the model"
         );
     }
     assert_eq!(

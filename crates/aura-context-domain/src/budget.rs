@@ -8,6 +8,8 @@ pub const UTF8_BYTE_UPPER_BOUND_ESTIMATOR_ID: &str = "utf8_byte_upper_bound_v1";
 /// A part the model was sent before, counted at the rate the provider reported for that
 /// request.
 pub const PROVIDER_MEASURED_ESTIMATOR_ID: &str = "provider_measured_v1";
+/// A part of a request no provider has counted for its model yet, counted by character class.
+pub const CHARACTER_CLASS_ESTIMATOR_ID: &str = "character_class_v1";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -17,6 +19,10 @@ pub enum TokenEstimateExactness {
     /// Scaled from the provider's own count of the previous request of the same model,
     /// with a margin; neither exact nor a strict bound.
     Calibrated,
+    /// A rule of thumb per character class, before any provider count of the model: it can be
+    /// low, so a provider that refuses such a request as too long is answered by rebuilding the
+    /// request, not by doubting the model's window.
+    Approximate,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

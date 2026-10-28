@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn performance_fixture_exercises_utf8_byte_upper_bound_without_provider_io() {
         let input = p06_performance_preparation_input(262_144, 180_000).expect("fixture");
-        let estimators = ContextEstimatorRegistry::default();
+        let estimators = ContextEstimatorRegistry::default().counting_unmeasured_by_bytes();
         let outcome = ContextPreparationCompiler::new(&estimators).compile(input).expect("compile");
         let ContextPreparationCompilationOutcome::Prepared(prepared) = outcome else {
             panic!("performance fixture must fit its request input budget");

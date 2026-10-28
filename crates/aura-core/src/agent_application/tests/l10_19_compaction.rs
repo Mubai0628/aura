@@ -35,7 +35,7 @@ pub(super) fn asks_compaction(request: &Value) -> bool {
         messages.iter().any(|message| {
             message["content"]
                 .as_str()
-                .is_some_and(|text| text.contains("Return exactly these headings in this order:"))
+                .is_some_and(|text| text.contains("Write the summary as one paragraph"))
         })
     })
 }
@@ -129,7 +129,11 @@ async fn a_compaction_is_asked_on_the_request_the_step_would_have_sent() {
         );
     }
     let ask = now.last().expect("the ask")["content"].as_str().expect("text").to_owned();
-    assert!(ask.contains("Compaction request:") && ask.contains("anchor_manifest"), "{ask}");
+    assert!(
+        ask.contains("Compaction request:")
+            && ask.contains("from its first message through the one that begins"),
+        "{ask}"
+    );
 }
 
 #[tokio::test]
@@ -190,6 +194,9 @@ async fn a_request_that_fits_with_the_floor_reserved_is_sent_with_the_room_left_
     let provider = Provider::scenario(Scenario::Plain).await;
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
+    // Counted byte for byte, a bound: the output gets all the room left. A request counted by the
+    // rule of thumb keeps a margin for its text being longer (`with_room_for_output`).
+    count_by_bytes(model);
     let first = start(&runtime, session, model, "AURA-L1019-FIRST: answer briefly").await;
     waiting::wait(&runtime, &first, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
@@ -273,6 +280,10 @@ pub(super) fn cleared(request: &Value) -> Vec<String> {
         .collect()
 }
 
+/// How long ten steps of reads may take to reach the parked request. Alone they take seconds;
+/// beside a full parallel test run, well over half a minute. The wait ends once it is parked.
+pub(super) const PARKED_WITHIN: std::time::Duration = std::time::Duration::from_secs(120);
+
 #[tokio::test]
 async fn a_request_over_the_line_is_compacted_deeply_before_any_old_result_is_cleared() {
     let host = crate::r03_tests::Fixture::new();
@@ -286,10 +297,7 @@ async fn a_request_over_the_line_is_compacted_deeply_before_any_old_result_is_cl
         std::fs::write(file, text).expect("a file a step reads");
     }
     let run = start(&runtime, session, model, "AURA-L1019-READS: read the files in order").await;
-    if tokio::time::timeout(std::time::Duration::from_secs(30), provider.parked.notified())
-        .await
-        .is_err()
-    {
+    if tokio::time::timeout(PARKED_WITHIN, provider.parked.notified()).await.is_err() {
         let status = call(&runtime, "agent.status", json!(run)).await;
         let count = provider.requests.lock().expect("provider requests").len();
         let crate::StartupMode::Ready(services) = &runtime.startup_mode else {
@@ -322,7 +330,7 @@ async fn a_request_over_the_line_is_compacted_deeply_before_any_old_result_is_cl
     let window = (usable * 100).div_ceil(95).max(usable + 4_096);
     resize(&runtime, model, window, 64_000).await;
     provider.release_window.notify_one();
-    tokio::time::timeout(std::time::Duration::from_secs(30), provider.parked.notified())
+    tokio::time::timeout(PARKED_WITHIN, provider.parked.notified())
         .await
         .expect("the eleventh request is parked");
     provider.release_window.notify_one();

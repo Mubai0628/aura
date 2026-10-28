@@ -1,9 +1,10 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use aura_context_domain::{
-    CONTEXT_BUDGET_POLICY_V1, ContextBudgetError, ContextBudgetSnapshot, ContextItemEstimate,
-    PROVIDER_MEASURED_ESTIMATOR_ID, TokenEstimateExactness, TokenEstimatorIdentity,
-    UTF8_BYTE_UPPER_BOUND_ESTIMATOR_ID, request_input_budget_v1, utf8_byte_upper_bound,
+    CHARACTER_CLASS_ESTIMATOR_ID, CONTEXT_BUDGET_POLICY_V1, ContextBudgetError,
+    ContextBudgetSnapshot, ContextItemEstimate, PROVIDER_MEASURED_ESTIMATOR_ID,
+    TokenEstimateExactness, TokenEstimatorIdentity, UTF8_BYTE_UPPER_BOUND_ESTIMATOR_ID,
+    request_input_budget_v1, utf8_byte_upper_bound,
 };
 
 use crate::MeasuredRequest;
@@ -58,9 +59,19 @@ pub struct NativeAttachmentBudgetItem {
 pub struct ContextEstimatorRegistry {
     exact_text: BTreeMap<ModelEstimatorKey, Arc<dyn RegisteredExactTokenEstimator>>,
     native_media: BTreeMap<MediaEstimatorKey, Arc<dyn RegisteredNativeAttachmentEstimator>>,
+    /// Parts no provider has counted go byte for byte instead of by character class.
+    unmeasured_by_bytes: bool,
 }
 
 impl ContextEstimatorRegistry {
+    /// Counts the parts no provider has counted byte for byte, a bound no tokenizer exceeds,
+    /// instead of by character class ([`crate::character_class_tokens`]).
+    #[must_use]
+    pub fn counting_unmeasured_by_bytes(mut self) -> Self {
+        self.unmeasured_by_bytes = true;
+        self
+    }
+
     pub fn register_exact_text(
         &mut self,
         key: ModelEstimatorKey,
@@ -163,12 +174,20 @@ impl ContextEstimatorRegistry {
                         exactness: TokenEstimateExactness::Calibrated,
                     },
                 ),
-                (None, None) => (
+                (None, None) if self.unmeasured_by_bytes => (
                     utf8_byte_upper_bound(&item.canonical_text),
                     TokenEstimatorIdentity {
                         estimator_id: UTF8_BYTE_UPPER_BOUND_ESTIMATOR_ID.to_owned(),
                         estimator_version: 1,
                         exactness: TokenEstimateExactness::UpperBound,
+                    },
+                ),
+                (None, None) => (
+                    crate::character_class_tokens(&item.canonical_text),
+                    TokenEstimatorIdentity {
+                        estimator_id: CHARACTER_CLASS_ESTIMATOR_ID.to_owned(),
+                        estimator_version: 1,
+                        exactness: TokenEstimateExactness::Approximate,
                     },
                 ),
             };
@@ -328,17 +347,36 @@ mod tests {
         }
     }
 
+    /// Before any provider count, a part is counted by character class; byte for byte only
+    /// when asked.
     #[test]
-    fn uses_utf8_bytes_without_an_exact_estimator_and_keeps_v1_reserve() {
+    fn counts_by_character_class_without_a_count_and_keeps_v1_reserve() {
         let budget = ContextEstimatorRegistry::default()
+            .build_budget(&key(), 32_768, 1_024, &[text(1, "你好, world")], &[])
+            .expect("budget");
+        assert_eq!(budget.estimated_input_tokens, 2 + 3, "two characters, seven ASCII");
+        assert_eq!(budget.safety_reserve_tokens, 4_096);
+        let estimator = &budget.item_estimates[0].estimator;
+        assert_eq!(estimator.estimator_id, CHARACTER_CLASS_ESTIMATOR_ID);
+        assert_eq!(estimator.exactness, TokenEstimateExactness::Approximate);
+        let bytes = ContextEstimatorRegistry::default()
+            .counting_unmeasured_by_bytes()
             .build_budget(&key(), 32_768, 1_024, &[text(1, "你好")], &[])
             .expect("budget");
-        assert_eq!(budget.estimated_input_tokens, 6);
-        assert_eq!(budget.safety_reserve_tokens, 4_096);
-        assert_eq!(
-            budget.item_estimates[0].estimator.exactness,
-            TokenEstimateExactness::UpperBound
-        );
+        assert_eq!(bytes.estimated_input_tokens, 6);
+        assert_eq!(bytes.item_estimates[0].estimator.exactness, TokenEstimateExactness::UpperBound);
+    }
+
+    /// A first request whose bytes pass the budget goes when its text does not: a paste of
+    /// records or code is about a third of its bytes.
+    #[test]
+    fn a_first_request_past_the_budget_in_bytes_fits_by_character_class() {
+        let paste = "Record 2-00042: sensor 42 at station 67 read 554 units.\n".repeat(4_000);
+        let budget = ContextEstimatorRegistry::default()
+            .build_budget(&key(), 256_000, 32_000, &[text(1, &paste)], &[])
+            .expect("fits by character class");
+        assert!(paste.len() as u64 > budget.request_input_budget_tokens, "past it in bytes");
+        assert_eq!(budget.estimated_input_tokens, (paste.len() as u64).div_ceil(3));
     }
 
     /// With the provider's count of the previous request, a part sent again is counted at

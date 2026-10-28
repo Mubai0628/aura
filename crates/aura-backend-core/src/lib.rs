@@ -10,6 +10,15 @@ pub trait BrokerPort: Send + Sync {
     /// Re-resolve domain facts, including final path/file identities. Called
     /// both during preparation and immediately before the durable claim.
     fn inspect(&self, operation: &SecuredOperation) -> BackendFuture<'_, serde_json::Value>;
+    /// Whether the domain facts, resolved again now, still allow the prepared execution: the same
+    /// facts, unless the domain knows which differences leave the operation as it was approved.
+    fn still_prepared<'a>(
+        &'a self,
+        operation: &'a SecuredOperation,
+        prepared: &'a serde_json::Value,
+    ) -> BackendFuture<'a, bool> {
+        Box::pin(async move { Ok(self.inspect(operation).await? == *prepared) })
+    }
     /// Atomically compare the exact reserved binding and claim it once. A
     /// previously dispatched or unknown operation must return an error.
     fn claim(&self, dispatch: &AuthorizedDispatch) -> BackendFuture<'_, ()>;
@@ -63,7 +72,10 @@ impl<P: BrokerPort> ExecutionBackend for CoreBroker<P> {
             let request = dispatch.request();
             if request.plan.validate().is_err()
                 || request.plan.prepared.backend != self.descriptor
-                || self.port.inspect(&request.operation).await? != request.plan.prepared.preparation
+                || !self
+                    .port
+                    .still_prepared(&request.operation, &request.plan.prepared.preparation)
+                    .await?
             {
                 return Err(BackendError::DispatchRejected {
                     reason: "prepared domain facts changed".into(),

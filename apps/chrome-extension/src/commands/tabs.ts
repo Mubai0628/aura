@@ -12,8 +12,9 @@ import { report, SNAPSHOT_CHARS } from './look.js';
 
 const STILL_LOADING = '页面仍在加载，下面是当前的样子';
 
+/** A new tab in the background: what the user is looking at does not change. */
 export async function open(context: CommandContext, url: string): Promise<OpenReport> {
-  const created = await context.tabs.create({ url, active: true });
+  const created = await context.tabs.create({ url, active: false });
   if (created.id === undefined) throw failed('Chrome 没有打开新标签页');
   await context.group(created);
   const loaded = await settle(context, created.id, 20_000);

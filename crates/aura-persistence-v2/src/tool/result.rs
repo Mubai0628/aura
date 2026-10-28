@@ -398,7 +398,12 @@ pub fn materialize(
         &receipt["operation_rejection"]
     } else if matches!(
         receipt["domain_journal"]["schema"].as_str(),
-        Some("agent-file-evidence-v2" | "agent-task-effect-v1")
+        Some(
+            "agent-file-evidence-v2"
+                | "agent-task-effect-v1"
+                | "agent-chrome-v1"
+                | "agent-memory-vault-v1"
+        )
     ) {
         &receipt["domain_journal"]["operation_rejection"]
     } else {

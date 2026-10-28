@@ -53,7 +53,7 @@ const choices = () =>
   screen
     .getAllByRole('button')
     .map((button) => button.textContent)
-    .filter((text) => ['仅此一次', '本轮允许', '拒绝'].includes(text ?? ''));
+    .filter((text) => ['仅此一次', '本轮允许', '本会话允许此站点', '拒绝'].includes(text ?? ''));
 
 test('acting in a shared tab in ReadOnly names the tab and site, and may cover the turn', async () => {
   install(
@@ -84,13 +84,16 @@ test('a sensitive action says what it may do and that only once can be allowed',
   expect(choices()).toEqual(['仅此一次', '拒绝']);
 });
 
-test('a site the share has not confirmed is named first', async () => {
+test('a site not confirmed yet is named first and may be allowed for the session', async () => {
   install('chrome.snapshot', ['chrome_read'], { origin: 'https://pay.example', confirmed: false }, [
     'allow_once',
+    'allow_session',
     'deny',
   ]);
   render(<ApprovalPanel sessionId="ses" approvalId="apr" onChanged={() => undefined} />);
   const alert = await screen.findByRole('alert');
-  expect(alert.textContent).toContain('https://pay.example 还没有为这个共享确认过');
+  expect(alert.textContent).toContain('https://pay.example 是本会话还没有确认过的站点');
   expect(screen.getByText('（尚未确认）')).toBeTruthy();
+  expect(choices()).toEqual(['仅此一次', '本会话允许此站点', '拒绝']);
+  expect(screen.queryByText(/「本会话允许」只覆盖这一类操作/u)).toBeNull();
 });

@@ -1,5 +1,5 @@
 schema_version = 1
-bundle_version = "1.17.1"
+bundle_version = "1.18.0"
 serializer_version = 1
 
 [[modules]]
@@ -316,7 +316,7 @@ order = 50
 
 [[modules]]
 id = "compaction.system"
-version = "1.0.0"
+version = "2.0.0"
 path = "compaction/system.md"
 required = true
 section = "compaction"
@@ -325,7 +325,7 @@ order = 10
 
 [[modules]]
 id = "compaction.historical-snapshot"
-version = "1.1.0"
+version = "2.0.0"
 path = "compaction/historical-snapshot.md"
 required = true
 section = "compaction"
@@ -334,7 +334,7 @@ order = 20
 
 [[modules]]
 id = "compaction.active-turn-progress"
-version = "1.0.0"
+version = "2.0.0"
 path = "compaction/active-turn-progress.md"
 required = true
 section = "compaction"

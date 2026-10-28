@@ -75,6 +75,7 @@ function harness() {
       onRemoved: event<() => void>().api,
       onActivated: event<() => void>().api,
     },
+    windows: { get: async () => ({ state: 'normal' }) },
     tabGroups: { query: async () => [], update: async () => undefined },
     sidePanel: { setPanelBehavior: async () => undefined },
   };

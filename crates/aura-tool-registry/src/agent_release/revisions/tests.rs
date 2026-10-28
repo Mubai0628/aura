@@ -1,5 +1,29 @@
 use super::*;
 
+/// A changed definition fails here, naming the fingerprint its new revision publishes.
+#[test]
+fn every_definition_is_its_newest_published_revision() {
+    let at = "2026-09-09T00:00:00Z".parse().expect("release timestamp");
+    let changed = crate::agent_release::definitions::entries(at)
+        .expect("definitions")
+        .into_iter()
+        .filter(|entry| {
+            current(entry.handler.name())
+                .is_ok_and(|row| row.fingerprint != entry.definition.definition_fingerprint.hex())
+        })
+        .map(|entry| {
+            format!(
+                "{} r{} {} {}",
+                entry.handler.name(),
+                entry.definition.tool_version.definition_revision.value(),
+                entry.instance.tool_instance_id,
+                entry.definition.definition_fingerprint.hex()
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(changed.is_empty(), "{changed:#?}");
+}
+
 #[test]
 fn published_identity_cannot_be_reused_for_changed_model_contract() {
     let release = crate::agent_release::release().expect("current verified release");

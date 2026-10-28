@@ -340,6 +340,50 @@ pub fn complete(
         None,
         at,
     )?;
+    compacted(tx, &old, at)
+}
+
+/// Core's own summary for a compaction whose model attempts all failed: the history still leaves
+/// the request, and the failed attempts stay recorded. Only Core's own compaction falls back; one
+/// the user asked for reports its failure instead.
+pub fn complete_by_core(
+    tx: &Transaction<'_>,
+    id: ContextProjectionSnapshotId,
+    result: ContextReadCompactionResult,
+    at: UtcTimestamp,
+) -> StoreResult<()> {
+    let old = load(tx, id)?;
+    validate_owner(tx, &old)?;
+    if old.state != "failed"
+        || old.attempts.is_empty()
+        || old.attempts.iter().any(|a| a.state == CompactionModelAttemptState::Running)
+        || result.source_context_snapshot_id != id
+        || result.sequence != old.sequence
+        || result.source_span != old.source_span
+        || result.anchor_manifest != old.anchors
+        || super::manual_compaction::linked(tx, &old)?
+    {
+        return Err(Error::Conflict);
+    }
+    let artifact_id = ArtifactId::new();
+    artifact::put(
+        tx,
+        artifact_id,
+        &id.to_string(),
+        "application/vnd.aura.compaction+json",
+        &serde_json::to_vec(&result)?,
+        at,
+    )?;
+    let mut next = old.clone();
+    next.result = Some(result);
+    next.result_artifact_id = Some(artifact_id);
+    next.state = "completed".into();
+    save(tx, &old, &mut next)?;
+    compacted(tx, &old, at)
+}
+
+/// The turn's lineage learns its history was compacted.
+fn compacted(tx: &Transaction<'_>, old: &Compaction, at: UtcTimestamp) -> StoreResult<()> {
     let run = crate::agent::turns::load_run(tx, old.agent_run_id)?;
     let turn = crate::agent::turns::load(tx, run.turn_task_id)?;
     if turn.lineage_resolution_required {

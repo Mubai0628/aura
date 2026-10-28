@@ -254,7 +254,8 @@ pub fn grants_for_call(
          OR json_extract(payload,'$.scope.memory_consent.session_id')=?1 \
          OR json_extract(payload,'$.scope.network_consent.session_id')=?1 \
          OR json_extract(payload,'$.scope.mcp_consent.session_id')=?1 \
-         OR json_extract(payload,'$.scope.chrome_consent.session_id')=?1 ORDER BY id",
+         OR json_extract(payload,'$.scope.chrome_consent.session_id')=?1 \
+         OR json_extract(payload,'$.scope.chrome_site_consent.session_id')=?1 ORDER BY id",
     )?;
     let mut seen =
         grants.iter().map(|grant| grant.grant_id).collect::<std::collections::BTreeSet<_>>();

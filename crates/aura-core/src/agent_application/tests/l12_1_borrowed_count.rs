@@ -21,6 +21,8 @@ async fn a_new_conversation_borrows_the_same_models_count_from_another_conversat
     let provider = Provider::scenario(Scenario::PlainMeasured).await;
     let runtime = host.start().await;
     let model = profile(&runtime, &provider.url).await;
+    // A request no count covers goes byte for byte here, so a borrowed count shows against bytes.
+    count_by_bytes(model);
     let root = host.root.path().join("borrowed-count-workspace");
     std::fs::create_dir(&root).expect("workspace folder");
     let created = crate::r03_tests::success(
@@ -41,6 +43,7 @@ async fn a_new_conversation_borrows_the_same_models_count_from_another_conversat
         "counted near the provider's rate: {borrowed} for a request of about {bytes} bytes"
     );
     let elsewhere = profile_after_existing(&runtime, &provider.url).await;
+    count_by_bytes(elsewhere);
     let third = answered(&runtime, workspace, elsewhere, "AURA-L121-OTHER: answer briefly").await;
     let unborrowed = first_request_tokens(&runtime, third).await;
     assert!(

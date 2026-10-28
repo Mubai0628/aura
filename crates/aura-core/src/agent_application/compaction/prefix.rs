@@ -23,28 +23,40 @@ pub(super) struct PrefixAttempt {
     pub max_output: u64,
 }
 
-/// The compaction's ask: the sources it replaces, each by its anchor, the focus it was given and
-/// how the summary is written.
+/// The compaction's ask: where the part it replaces ends, the focus it was given and how the
+/// summary is written.
 pub(super) fn ask(
     core: &str,
     anchors: &CompactionAnchorManifest,
     input: &ContextPreparationInput,
     focus: serde_json::Map<String, serde_json::Value>,
 ) -> anyhow::Result<String> {
-    let listed = anchors
+    let through = anchors
         .anchors
         .iter()
-        .map(|anchor| serde_json::json!({"anchor": anchor.anchor, "source": describe(anchor, input)}))
-        .collect::<Vec<_>>();
-    let mut sources = serde_json::Map::new();
-    sources.insert("anchor_manifest".into(), serde_json::json!({"anchors": listed}));
-    sources.extend(focus);
+        .rev()
+        .find(|anchor| matches!(anchor.source_ref, ContextSourceRef::Event { .. }))
+        .map(|anchor| describe(anchor, input))
+        .unwrap_or_default();
+    let earlier = anchors
+        .anchors
+        .iter()
+        .any(|anchor| matches!(anchor.source_ref, ContextSourceRef::Artifact { .. }));
+    let focus = if focus.is_empty() {
+        String::new()
+    } else {
+        format!("\n{}", serde_json::to_string(&focus)?)
+    };
     Ok(format!(
-        "Compaction request: write the summary document described below in place of the older part \
-         of this conversation. Do not call any tool and do not continue the task; reply with the \
-         document only.\nSummarize exactly these sources, each named by its anchor; every other \
-         message stays in the conversation as it is.\n{}\n{core}",
-        serde_json::to_string(&sources)?
+        "Compaction request: write the summary described below in place of the older part of this \
+         conversation: from its first message through the one that begins \u{ab}{through}\u{bb}{}. \
+         The messages after it stay in the conversation as they are. Do not call any tool and do \
+         not continue the task; reply with the paragraph only.{focus}\n{core}",
+        if earlier {
+            ", and of the earlier summary in your instructions, which it takes in"
+        } else {
+            ""
+        }
     ))
 }
 

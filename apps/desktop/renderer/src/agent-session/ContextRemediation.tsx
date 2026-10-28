@@ -123,6 +123,9 @@ export function ContextRemediation({
       <p>任务已暂停模型调用。调整配置或减少可由你修改的内容后，再重新检查。</p>
       {record ? (
         <>
+          {record.plan.overflow.error_code === 'context.provider_rebuild_no_progress' ? (
+            <p>模型服务商拒绝了这次请求：超出它的上下文窗口，压缩后也没能缩小。</p>
+          ) : null}
           <p>
             预计输入 {record.budget.estimated_input_tokens.toLocaleString('zh-CN')} Token / 可用{' '}
             {record.budget.request_input_budget_tokens.toLocaleString('zh-CN')} Token

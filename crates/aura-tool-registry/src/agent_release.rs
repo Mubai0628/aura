@@ -5,6 +5,7 @@ mod chrome_definitions;
 mod command_definitions;
 mod definitions;
 mod entry_definitions;
+mod history_definitions;
 mod init_definitions;
 mod management;
 mod media_definitions;
@@ -66,6 +67,10 @@ pub enum AgentBuiltinHandler {
     ContextReadEvents,
     ContextReadToolResult,
     ContextReadCompaction,
+    /// The conversation's rounds, and its history searched and read by entry.
+    HistoryListTurns,
+    HistorySearch,
+    HistoryRead,
     TodoGet,
     TodoReplace,
     TodoUpdate,
@@ -178,6 +183,9 @@ impl AgentBuiltinHandler {
             Self::ContextReadEvents => "context.read_events",
             Self::ContextReadToolResult => "context.read_tool_result",
             Self::ContextReadCompaction => "context.read_compaction",
+            Self::HistoryListTurns => "history.list_turns",
+            Self::HistorySearch => "history.search",
+            Self::HistoryRead => "history.read",
             Self::TodoGet => "todo.get",
             Self::TodoReplace => "todo.replace",
             Self::TodoUpdate => "todo.update",

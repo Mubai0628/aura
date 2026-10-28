@@ -78,9 +78,10 @@ async fn registry_reuses_unchanged_definitions_and_isolates_dynamic_session_memb
         "todo.get",
         "todo.replace",
         "todo.update",
-        "context.read_compaction",
-        "context.read_events",
-        "context.read_tool_result",
+        // The conversation's history by round.
+        "history.list_turns",
+        "history.search",
+        "history.read",
         // Deleting into the Recycle Bin.
         "fs.delete",
         // DeepSeek's web search and fetch, as default tools.

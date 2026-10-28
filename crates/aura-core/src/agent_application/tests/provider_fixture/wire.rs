@@ -147,6 +147,9 @@ pub(super) fn json_object(body: &Value, key: &str) -> Value {
     panic!("Core task state is missing from real request");
 }
 
+/// What every compaction request says about the summary it asks for.
+pub(crate) const COMPACTION_FORMAT: &str = "Write the summary as one paragraph";
+
 /// The instruction message that asks for a compaction — the last system or developer
 /// message carrying the summary's format. On the step's prefix it is the task state; asked the
 /// isolated way it is the only instruction message.
@@ -157,22 +160,9 @@ pub(super) fn compaction_ask(body: &Value) -> String {
         .iter()
         .filter(|message| matches!(message["role"].as_str(), Some("system" | "developer")))
         .filter_map(|message| message["content"].as_str())
-        .rfind(|content| content.contains("Return exactly these headings in this order:"))
+        .rfind(|content| content.contains(COMPACTION_FORMAT))
         .expect("a compaction ask")
         .to_owned()
-}
-
-/// The first JSON object in `text` that has `key`.
-pub(super) fn json_in(text: &str, key: &str) -> Value {
-    for (position, _) in text.match_indices('{') {
-        let mut stream = serde_json::Deserializer::from_str(&text[position..]).into_iter::<Value>();
-        if let Some(Ok(value)) = stream.next()
-            && value.get(key).is_some()
-        {
-            return value;
-        }
-    }
-    panic!("no JSON object with {key} in the compaction ask");
 }
 
 /// A compaction answered with a write instead of its summary. The request carries the
@@ -208,17 +198,18 @@ pub(crate) fn flat_call(purpose: &str, fields: Value) -> String {
     Value::Object(call).to_string()
 }
 
-/// A compaction answer in the frozen shape whose summary runs past four times the length the ask
-/// set for it, so it is refused however its headings and Truth-Index are counted.
-pub(super) fn long_compaction_answer(ask: &str, anchors: &str) -> String {
+/// A compaction answer whose paragraph runs past four times the length the ask set for it, so it
+/// is refused.
+pub(super) fn long_compaction_answer(ask: &str) -> String {
     let target = ask
-        .split("Keep the summary text under ")
+        .split("of plain prose of at most ")
         .nth(1)
         .and_then(|rest| rest.split(' ').next())
         .and_then(|number| number.parse::<usize>().ok())
         .expect("the ask names the summary's length");
-    let summary = "Everything that happened, retold at length. ".repeat(target * 4 / 40 + 50);
-    format!(
-        "# Historical-Snapshot-Summary\n{summary}\n# Active-Turn-Progress-Summary\nFinish the request.\n# Structured-Compaction\n## Summary\nNo tools ran.\n## Full-Turn-Session-Line\nOne task.\n## Active-Turn-Segment-Line\nContinue.\n## Truth-Index\n{anchors}"
-    )
+    "Everything that happened, retold at length. ".repeat(target * 4 / 40 + 50)
 }
+
+/// The paragraph a fixture compaction answers with.
+pub(crate) const COMPACTION_PARAGRAPH: &str =
+    "The prior response is summarized here; finish the original user's request.";

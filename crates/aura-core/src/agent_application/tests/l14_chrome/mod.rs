@@ -11,6 +11,7 @@ use aura_chrome_domain::*;
 mod acting;
 mod asking;
 mod refusals;
+mod sites;
 mod user;
 
 /// Chrome's own id for the tab the user shares; the model never sees it.

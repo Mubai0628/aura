@@ -4,6 +4,24 @@ import type {
 } from '@aura/contracts/generated';
 
 /**
+ * The kind a recorded error's own code names, where its class alone would say less: Chrome that
+ * did not answer can be tried again, a tab in the background cannot be captured, and a memory
+ * note changed since it was read was not written. A tool that is really unavailable keeps the
+ * class's label.
+ */
+export const errorCodeLabel = (code: string | null | undefined): string | undefined => {
+  switch (code) {
+    case 'chrome.background_tab':
+    case 'chrome.not_drawn':
+      return '未执行：标签页在后台';
+    case 'memory.hash_conflict':
+      return '冲突，未写入';
+    default:
+      return code?.endsWith('.timed_out') ? '超时，可重试' : undefined;
+  }
+};
+
+/**
  * The longer label used by the shared state surfaces.
  *
  * It classifies exactly like the row and the chip do — from the projection's error
@@ -17,11 +35,11 @@ export const toolCallStateLabel = (call: ToolCallActivitySummaryView): string =>
       case 'succeeded':
         return '调用已完成';
       case 'operation_rejected':
-        return `调用已完成 · ${rejectedReasonLabel(call)}`;
+        return errorCodeLabel(call.error_code) ?? `调用已完成 · ${rejectedReasonLabel(call)}`;
       case 'failed':
-        return failedReasonLabel(call);
+        return errorCodeLabel(call.error_code) ?? failedReasonLabel(call);
       case 'cancelled':
-        return '已中断 · 未正常完成';
+        return call.outcome.reason === 'timeout' ? '已中断 · 超时' : '已中断 · 未正常完成';
       case 'not_executed':
         return notExecutedReasonLabel(call.outcome.reason);
       case 'indeterminate':

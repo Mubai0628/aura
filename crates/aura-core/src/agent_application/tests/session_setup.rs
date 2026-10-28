@@ -28,6 +28,24 @@ pub(super) async fn create_session(
     session
 }
 
+/// The model's requests no provider has counted go byte for byte, as a fixture sized in bytes
+/// expects, instead of by character class.
+pub(super) fn count_by_bytes(model: ModelProfileId) {
+    crate::agent_application::estimators::UNMEASURED_BY_BYTES
+        .lock()
+        .expect("estimator choice")
+        .insert(model);
+}
+
+/// The model's requests no provider has counted go by character class, as in the product, even
+/// where its fixture was sized in bytes.
+pub(super) fn count_by_character_class(model: ModelProfileId) {
+    crate::agent_application::estimators::UNMEASURED_BY_BYTES
+        .lock()
+        .expect("estimator choice")
+        .remove(&model);
+}
+
 pub(super) async fn profile(runtime: &crate::RuntimeState, url: &str) -> ModelProfileId {
     profile_for(runtime, url, ModelApiFormat::OpenAiChatCompletions).await
 }
@@ -95,8 +113,12 @@ pub(super) async fn profile_for_with(
     .await;
     let model=success(runtime,"models.profile.create_manual",json!({"expected_revision":endpoint["revision"],"input":{"endpoint_id":endpoint["value"]["id"],"provider_model_name":"fixture","display_name":"Fixture","notes":null,"context_window_tokens":256000}})).await;
     let configured=success(runtime,"models.profile.update",json!({"expected_revision":model["revision"],"model_profile_id":model["value"]["id"],"display_name":"Fixture","notes":null,"enabled":true,"request_defaults":{"max_output_tokens":4096,"temperature":null,"top_p":null,"chat_output_token_field":null,"chat_instruction_role":null},"historical_snapshot_max_tokens":1024})).await;
-    serde_json::from_value(configured["value"]["id"].clone())
-        .expect("Agent test setup and persisted assertion")
+    let model = serde_json::from_value(configured["value"]["id"].clone())
+        .expect("Agent test setup and persisted assertion");
+    if super::provider_fixture::sized_in_bytes(url) {
+        count_by_bytes(model);
+    }
+    model
 }
 /// The same configured Provider as [`profile`], for a test that configures a **second** one on a
 /// runtime that already has a profile: the settings revision is read from the live snapshot
@@ -154,5 +176,10 @@ pub(super) async fn profile_after_existing(
         json!({"expected_revision":model["revision"],"model_profile_id":model["value"]["id"],"display_name":"Second fixture","notes":null,"enabled":true,"request_defaults":{"max_output_tokens":4096,"temperature":null,"top_p":null,"chat_output_token_field":null,"chat_instruction_role":null},"historical_snapshot_max_tokens":1024}),
     )
     .await;
-    serde_json::from_value(configured["value"]["id"].clone()).expect("model profile id")
+    let model =
+        serde_json::from_value(configured["value"]["id"].clone()).expect("model profile id");
+    if super::provider_fixture::sized_in_bytes(url) {
+        count_by_bytes(model);
+    }
+    model
 }

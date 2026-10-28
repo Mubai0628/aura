@@ -32,6 +32,7 @@ pub(super) fn project(
             status: ToolCallStatusV1::Finalized,
             outcome: Some(ToolResultOutcomeSummaryView::NotExecuted { reason: *reason }),
             error_class: error.as_ref().map(|error| classify(error.category)),
+            error_code: error.as_ref().map(|error| error.code.clone()),
             side_effect_state: Some(result.side_effect_state),
             started_at: None,
             completed_at: Some(result.completed_at),

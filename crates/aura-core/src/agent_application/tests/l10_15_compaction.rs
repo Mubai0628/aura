@@ -129,6 +129,8 @@ async fn a_conversation_is_counted_at_its_providers_rate() {
     let provider = Provider::scenario(Scenario::PlainMeasured).await;
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
+    // The first request, which no count covers, goes byte for byte: the window is set against it.
+    count_by_bytes(model);
     let first = start(&runtime, session, model, "AURA-L1015-FIRST: answer briefly").await;
     waiting::wait(&runtime, &first, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
@@ -197,6 +199,7 @@ async fn a_refused_step_does_not_lose_the_providers_rate() {
     let provider = Provider::scenario(Scenario::PlainMeasuredRefusingSecond).await;
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
+    count_by_bytes(model);
     let first = start(&runtime, session, model, "AURA-L1015-FIRST: answer briefly").await;
     waiting::wait(&runtime, &first, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;

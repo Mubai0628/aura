@@ -16,9 +16,9 @@ pub use browser::{
 };
 mod chrome;
 pub use chrome::{
-    ChromeTurnConsentRef, built_in_chrome, chrome_capability, chrome_consent_covers,
-    chrome_hard_risk, chrome_mode_covers, chrome_origin_blocked, chrome_origin_confirmed,
-    chrome_share, chrome_tool,
+    ChromeSiteConsentRef, ChromeTurnConsentRef, built_in_chrome, chrome_capability,
+    chrome_consent_covers, chrome_hard_risk, chrome_mode_covers, chrome_origin_blocked,
+    chrome_origin_confirmed, chrome_share, chrome_site_consent_covers, chrome_tool,
 };
 mod git_native;
 mod native_session;

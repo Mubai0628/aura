@@ -32,8 +32,8 @@ pub struct ChromeTabsResult {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ChromeOpenInput {
-    /// An http(s) address, or a host such as localhost:5173. It opens in a new tab of the
-    /// "Aura" tab group, which becomes the current tab.
+    /// An http(s) address, or a host such as localhost:5173. The tab it opens in becomes the
+    /// conversation's current tab.
     pub url: String,
 }
 

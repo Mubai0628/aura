@@ -151,6 +151,7 @@ impl ToolExecutionProjectionStateV1 {
                 status,
                 outcome,
                 error_class,
+                error_code: None,
                 side_effect_state,
                 started_at: None,
                 completed_at,

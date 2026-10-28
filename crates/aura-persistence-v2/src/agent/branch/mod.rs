@@ -20,6 +20,9 @@ pub(crate) use display::{
 };
 pub use import::{BranchImport, FirstBatch, SourceSnapshot, begin, import};
 pub use model::{ModelPrefix, carried_user_text, history_sequences, model_prefix};
-pub(crate) use model::{carried_compaction, carried_roots, carried_rows, carried_tool_result};
-pub(crate) use record::CarriedToolResult;
+pub(crate) use model::{
+    carried_compaction, carried_heads, carried_roots, carried_rows, carried_tool_result,
+    carried_tool_results, carried_user_times,
+};
+pub(crate) use record::{CarriedRow, CarriedToolResult};
 pub use timing::BranchTiming;

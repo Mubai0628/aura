@@ -48,5 +48,5 @@ mod scenario;
 use super::activity_provider;
 pub use scenario::{
     COMPACTION_SOURCE_FILE, COMPACTION_TOOL_FILE, HOOK_SOURCE, INIT_COMMAND, INIT_EVIDENCE_FILE,
-    Scenario,
+    Scenario, sized_in_bytes,
 };

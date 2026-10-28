@@ -2305,6 +2305,7 @@
             "completed_at": "2026-10-14T00:00:00Z",
             "display_name": "fixture",
             "error_class": "not_found",
+            "error_code": "tool.fixture",
             "ordinal": 1,
             "outcome": {
               "type": "succeeded"
@@ -3058,6 +3059,7 @@
             "completed_at": "2026-10-14T00:00:00Z",
             "display_name": "fixture",
             "error_class": "not_found",
+            "error_code": "tool.fixture",
             "ordinal": 1,
             "outcome": {
               "type": "succeeded"

@@ -5,7 +5,8 @@ use aura_execution_contract::OperationNetwork;
 use aura_security_contract::{
     ApprovalDecisionKind, AuthorizationGrant, InvocationActor, PolicyDenyReason,
     ResourceDescriptor, built_in_chrome, chrome_capability, chrome_consent_covers,
-    chrome_hard_risk, chrome_origin_blocked, chrome_origin_confirmed, chrome_tool,
+    chrome_hard_risk, chrome_origin_blocked, chrome_origin_confirmed, chrome_site_consent_covers,
+    chrome_tool,
 };
 
 use crate::policy::PolicyInput;
@@ -55,9 +56,10 @@ pub(crate) fn refusal(input: &PolicyInput<'_>) -> Option<PolicyDenyReason> {
     (content.identity.actor == InvocationActor::ChildAgent).then_some(PolicyDenyReason::ModeDenied)
 }
 
-/// The answers a Chrome question offers. A sensitive action and a site the user has not
-/// confirmed are answered once (Core keeps a confirmed site on the share); acting in ReadOnly
-/// may also be allowed for the rest of the turn. Never a session or workspace answer.
+/// The answers a Chrome question offers. A sensitive action is answered once. A site the user has
+/// not confirmed is answered once (Core keeps it on the share) or for the session (every tab of
+/// the session keeps it); acting in ReadOnly may also be allowed for the rest of the turn. Never
+/// a workspace answer.
 pub(crate) fn allowed_decisions(
     input: &PolicyInput<'_>,
     forced_once: bool,
@@ -65,8 +67,14 @@ pub(crate) fn allowed_decisions(
     if !shape(input) {
         return None;
     }
-    Some(if forced_once || !chrome_origin_confirmed(&input.operation.content.resources) {
+    Some(if forced_once {
         vec![ApprovalDecisionKind::AllowOnce, ApprovalDecisionKind::Deny]
+    } else if !chrome_origin_confirmed(&input.operation.content.resources) {
+        vec![
+            ApprovalDecisionKind::AllowOnce,
+            ApprovalDecisionKind::AllowSession,
+            ApprovalDecisionKind::Deny,
+        ]
     } else {
         vec![
             ApprovalDecisionKind::AllowOnce,
@@ -80,6 +88,19 @@ pub(crate) fn allowed_decisions(
 pub(crate) fn consent_covers(grant: &AuthorizationGrant, input: &PolicyInput<'_>) -> bool {
     let content = &input.operation.content;
     chrome_consent_covers(
+        grant,
+        &content.identity,
+        &content.source,
+        &content.action_kind,
+        &content.capabilities,
+        &content.resources,
+    )
+}
+
+/// Whether a session site answer covers this call (only the call that was answered).
+pub(crate) fn site_consent_covers(grant: &AuthorizationGrant, input: &PolicyInput<'_>) -> bool {
+    let content = &input.operation.content;
+    chrome_site_consent_covers(
         grant,
         &content.identity,
         &content.source,

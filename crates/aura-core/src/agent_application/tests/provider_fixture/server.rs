@@ -19,6 +19,7 @@ impl Provider {
             "http://{}/v1",
             listener.local_addr().expect("real Provider fixture request and response")
         );
+        scenario.serving_at(&url);
         let requests = Arc::new(Mutex::new(Vec::new()));
         let saved = requests.clone();
         let raw_requests = Arc::new(Mutex::new(Vec::new()));
@@ -238,9 +239,9 @@ data: {overloaded}
                     .expect("real Provider fixture request and response")
                     .iter()
                     .any(|m| {
-                        m["content"].as_str().is_some_and(|s| {
-                            s.contains("Return exactly these headings in this order:")
-                        })
+                        m["content"]
+                            .as_str()
+                            .is_some_and(|s| s.contains(super::wire::COMPACTION_FORMAT))
                     });
                 if auxiliary && matches!(scenario, Scenario::CompactHold) {
                     held.spawn(async move {
@@ -272,20 +273,6 @@ data: {overloaded}
                             || asked.contains("Compaction request:"),
                         "a compaction with Tools is asked on the step's prefix"
                     );
-                    let anchors = json_in(&asked, "anchor_manifest")["anchor_manifest"]["anchors"]
-                        .as_array()
-                        .expect("real Provider fixture request and response")
-                        .iter()
-                        .map(|v| {
-                            format!(
-                                "- {}",
-                                v["anchor"]
-                                    .as_str()
-                                    .expect("real Provider fixture request and response")
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
                     if matches!(scenario, Scenario::CompactToolOnPrefix) && compaction_ordinal == 0
                     {
                         compaction_ordinal += 1;
@@ -293,7 +280,7 @@ data: {overloaded}
                         continue;
                     }
                     let content = if long_compactions {
-                        super::wire::long_compaction_answer(&asked, &anchors)
+                        super::wire::long_compaction_answer(&asked)
                     } else if compaction_ordinal == 0
                         && !matches!(
                             scenario,
@@ -305,11 +292,10 @@ data: {overloaded}
                                 | Scenario::ClearOldResults
                         )
                     {
-                        "Invalid output, to exercise the single bounded retry".to_string()
+                        // An empty answer is refused, which exercises the single bounded retry.
+                        String::new()
                     } else {
-                        format!(
-                            "# Historical-Snapshot-Summary\nThe prior response is retained by exact source anchors.\n# Active-Turn-Progress-Summary\nFinish the original user's request.\n# Structured-Compaction\n## Summary\nNo tools ran in the summarized response.\n## Full-Turn-Session-Line\nOne genuine user task.\n## Active-Turn-Segment-Line\nContinue from the retained response.\n## Truth-Index\n{anchors}"
-                        )
+                        super::wire::COMPACTION_PARAGRAPH.to_owned()
                     };
                     compaction_ordinal += 1;
                     send(&mut stream, ordinal, json!({"role":"assistant","content":content})).await;

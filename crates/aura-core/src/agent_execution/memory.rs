@@ -196,7 +196,7 @@ pub(super) async fn invoke(
             after: result.as_ref().ok().map(aura_domain_common::jcs::canonical_sha256)
                 .transpose()?.map_or(Value::Null, |hash| json!({"result":hash})),
             // `error` is what the model reads; `detail` keeps the full cause for diagnosis.
-            domain_journal: json!({"schema":"agent-memory-vault-v1","output":result.as_ref().ok(),"error":result.as_ref().err().map(model_message),"detail":result.as_ref().err().map(ToString::to_string)}),
+            domain_journal: json!({"schema":"agent-memory-vault-v1","output":result.as_ref().ok(),"error":result.as_ref().err().map(model_message),"detail":result.as_ref().err().map(ToString::to_string),"operation_rejection":result.as_ref().err().filter(|_| side_effect == SideEffectStateV1::NoEffect).and_then(rejection)}),
             side_effect,
         };
         let verdict = if uncertain { crate::broker::CompletionVerdict::Unknown }
@@ -238,6 +238,23 @@ fn model_message(error: &anyhow::Error) -> String {
             if own { text } else { "memory.failed: the memory call did not complete".into() }
         }
     }
+}
+
+/// A call a memory rule refused, which wrote nothing, as an ordinary refusal of its own kind: a
+/// stale `expected_hash` is a conflict to read again, not a tool that is unavailable.
+fn rejection(error: &anyhow::Error) -> Option<Value> {
+    use aura_domain_common::ErrorCategory as Kind;
+    use aura_memory::MemoryError as E;
+    let (code, kind) = match error.downcast_ref::<E>()? {
+        E::Conflict { .. } => ("memory.hash_conflict", Kind::Conflict),
+        E::NotFound => ("memory.not_found", Kind::NotFound),
+        E::Format(_) | E::Invalid(_) => ("memory.invalid_input", Kind::Validation),
+        E::Secret { .. } => ("memory.secret_refused", Kind::Validation),
+        _ => return None,
+    };
+    Some(
+        json!({"code": code, "category": kind, "message": model_message(error), "retryable": false}),
+    )
 }
 
 fn field_rule(field: &str) -> &str {

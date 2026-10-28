@@ -46,6 +46,7 @@ pub(super) fn call_summary(
         // A call that never ran has no stored error to classify; the not-executed reason
         // is the fact the row shows.
         error_class: None,
+        error_code: None,
         side_effect_state: not_executed.map(|_| SideEffectStateV1::NotStarted),
         started_at: None,
         completed_at: not_executed.map(|_| timestamp()),

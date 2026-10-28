@@ -370,7 +370,8 @@ export function ApprovalPanel({
                   重启后仍有效；撤销、到期或会话删除时失效。目标对象被替换须重新批准。 在 Aura
                   编辑器中保存不会使批准失效；被其他程序替换时须重新批准。 文件批准不授予联网权限。
                 </p>
-              ) : network || shell || git || installed || mcp ? null : consent === undefined ? (
+              ) : network || shell || git || installed || mcp || chrome ? null : consent ===
+                undefined ? (
                 view.approval.allowed_decisions.includes('allow_session') ? (
                   <p>
                     「本会话允许」只覆盖这一类操作在本会话内的后续调用；每次调用仍会生成独立的操作身份与派发绑定。
@@ -429,7 +430,7 @@ export function ApprovalPanel({
                 aria-busy={busy ? true : undefined}
                 onClick={() => void decide(decision)}
               >
-                {labels[decision]}
+                {chrome && decision === 'allow_session' ? '本会话允许此站点' : labels[decision]}
               </button>
             ))}
           </div>

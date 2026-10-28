@@ -74,6 +74,7 @@ pub(super) fn entries(
     entries.extend(super::browser_definitions::entries(at)?);
     entries.extend(super::media_definitions::entries(at)?);
     entries.extend(super::chrome_definitions::entries(at)?);
+    entries.extend(super::history_definitions::entries(at)?);
     Ok(entries)
 }
 
@@ -112,6 +113,9 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
             | AgentBuiltinHandler::LineageReconcile
             | AgentBuiltinHandler::LineageReadSources
             | AgentBuiltinHandler::LineageReviewCompletion
+            | AgentBuiltinHandler::HistoryListTurns
+            | AgentBuiltinHandler::HistorySearch
+            | AgentBuiltinHandler::HistoryRead
             | AgentBuiltinHandler::NormalComplete
             | AgentBuiltinHandler::ModeDisposition
             | AgentBuiltinHandler::WorkspaceInitComplete

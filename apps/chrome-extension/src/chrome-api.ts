@@ -64,6 +64,10 @@ export interface TabsApi {
   onActivated: ChromeEvent<(info: { tabId: number; windowId: number }) => void>;
 }
 
+export interface WindowsApi {
+  get(windowId: number): Promise<{ state?: string }>;
+}
+
 export interface TabGroupsApi {
   query(info: { title?: string; windowId?: number }): Promise<{ id: number; windowId: number }[]>;
   update(groupId: number, properties: { title?: string; color?: string }): Promise<unknown>;
@@ -81,6 +85,7 @@ export interface ChromeApi {
   storage: { local: StorageArea };
   debugger: DebuggerApi;
   tabs: TabsApi;
+  windows: WindowsApi;
   tabGroups: TabGroupsApi;
   sidePanel: { setPanelBehavior(behavior: { openPanelOnActionClick: boolean }): Promise<void> };
 }

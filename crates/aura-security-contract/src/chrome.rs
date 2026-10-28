@@ -8,8 +8,9 @@
 //!   and FullAccess;
 //! - a sensitive action — never: it asks every time, and only once may be allowed.
 //!
-//! A site the user has not confirmed for the share asks in every mode; Core keeps that answer on
-//! the share, not as a grant. In ReadOnly an answer may cover the share for the rest of the turn
+//! A site the user has not confirmed asks in every mode. Answered once, Core keeps the site on
+//! the share; answered for the session, the session keeps it for every tab it has
+//! ([`ChromeSiteConsentRef`]). In ReadOnly an answer may cover the share for the rest of the turn
 //! ([`ChromeTurnConsentRef`]). No other approval covers Chrome, and a Chrome answer covers
 //! nothing else.
 use crate::{
@@ -170,6 +171,7 @@ pub fn chrome_consent_covers(
         && scope.network_consent.is_none()
         && scope.memory_consent.is_none()
         && scope.mcp_consent.is_none()
+        && scope.chrome_site_consent.is_none()
         && scope.capability_limit.as_ref().is_none_or(|limit| {
             limit
                 .iter()
@@ -184,4 +186,54 @@ pub fn chrome_consent_covers(
         && grant.consumed_at.is_none()
         && matches!(scope.lifetime, AuthorizationLifetime::TurnTask { session_id, turn_task_id }
             if session_id == consent.session_id && turn_task_id == consent.turn_task_id)
+}
+
+/// A site the user confirmed for the session: every tab of the session may open, read and act on
+/// it as the mode allows, without asking again, also after Aura restarts. The Grant itself only
+/// stands for the call that was answered; later calls count the site as confirmed when Core
+/// resolves them, so the mode still decides what they may do. It never covers a sensitive action.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ChromeSiteConsentRef {
+    pub approval_id: ApprovalRequestId,
+    pub session_id: SessionId,
+    pub principal_id: PrincipalId,
+    pub origin: String,
+    pub approved_operation_fingerprint: OperationFingerprint,
+    pub grant_revision: Revision,
+}
+
+/// Whether a session site answer covers this call: only the call that was answered.
+#[must_use]
+pub fn chrome_site_consent_covers(
+    grant: &AuthorizationGrant,
+    identity: &InvocationIdentity,
+    source: &SecuritySourceRef,
+    action: &str,
+    capabilities: &[C],
+    resources: &[ResourceDescriptor],
+) -> bool {
+    let Some(consent) = &grant.scope.chrome_site_consent else {
+        return false;
+    };
+    let scope = &grant.scope;
+    built_in_chrome(source, action, capabilities, resources)
+        && resources.iter().any(|resource| {
+            matches!(resource, ResourceDescriptor::ChromeOrigin { origin, .. } if *origin == consent.origin)
+        })
+        && capabilities
+            .iter()
+            .all(|capability| matches!(capability, C::ChromeRead | C::ChromeInteraction))
+        && scope.operation_fingerprint == consent.approved_operation_fingerprint
+        && scope.consent.is_none()
+        && scope.file_consent.is_none()
+        && scope.network_consent.is_none()
+        && scope.memory_consent.is_none()
+        && scope.mcp_consent.is_none()
+        && scope.chrome_consent.is_none()
+        && identity.actor == InvocationActor::ParentAgent
+        && identity.session_id == Some(consent.session_id)
+        && identity.principal_id == consent.principal_id
+        && grant.revision == consent.grant_revision
+        && grant.revoked_at.is_none()
 }

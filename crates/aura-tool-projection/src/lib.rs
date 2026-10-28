@@ -248,6 +248,9 @@ pub struct ToolCallActivitySummaryView {
     /// The classified reason for a terminal outcome, when the call recorded one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_class: Option<ToolCallErrorClassV1>,
+    /// The recorded error's own code (`chrome.timed_out`), for a surface that names that kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<aura_domain_common::ErrorCode>,
     pub side_effect_state: Option<SideEffectStateV1>,
     pub started_at: Option<UtcTimestamp>,
     pub completed_at: Option<UtcTimestamp>,

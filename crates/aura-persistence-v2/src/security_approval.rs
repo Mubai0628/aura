@@ -288,6 +288,39 @@ pub fn resolve(
             grant_revision: Revision::INITIAL,
         });
     }
+    // A site answered for the session: every Chrome tab of the session counts it as confirmed.
+    if choice == ApprovalDecisionKind::AllowSession
+        && aura_security_contract::built_in_chrome(
+            &operation.content.source,
+            &operation.content.action_kind,
+            &operation.content.capabilities,
+            &operation.content.resources,
+        )
+        && operation.content.capabilities.iter().all(|capability| {
+            matches!(
+                capability,
+                ResolvedCapability::ChromeRead | ResolvedCapability::ChromeInteraction
+            )
+        })
+        && let Some(origin) = operation.content.resources.iter().find_map(|resource| match resource
+        {
+            aura_security_contract::ResourceDescriptor::ChromeOrigin {
+                origin,
+                confirmed: false,
+            } => Some(origin.clone()),
+            _ => None,
+        })
+        && let Some(session_id) = identity.session_id
+    {
+        scope.chrome_site_consent = Some(aura_security_contract::ChromeSiteConsentRef {
+            approval_id: id,
+            session_id,
+            principal_id: identity.principal_id,
+            origin,
+            approved_operation_fingerprint: operation.fingerprint.clone(),
+            grant_revision: Revision::INITIAL,
+        });
+    }
     let grant_id = consent.as_ref().map_or_else(PermissionGrantId::new, |value| value.grant_id);
     crate::network_consents::attach(&mut scope, operation, id, grant_id)?;
     let expires_at = if scope.file_consent.is_some()
@@ -295,6 +328,7 @@ pub fn resolve(
         || scope.memory_consent.is_some()
         || scope.mcp_consent.is_some()
         || scope.chrome_consent.is_some()
+        || scope.chrome_site_consent.is_some()
     {
         None
     } else {
