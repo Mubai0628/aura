@@ -251,8 +251,10 @@ mod tests {
         // while nothing runs starts a one-off task, as `/init` does, that compacts the
         // conversation first; it carries a note and no tool or approval of its own. Adds
         // `agent.workspace.rebuild_index` (CommandInvocation, both surfaces), the preload's
-        // `rebuildWorkspaceIndex`: a workspace's file index walked again after it failed.
-        ("agent", 41),
+        // `rebuildWorkspaceIndex`: a workspace's file index walked again after it failed. Adds
+        // `agent.continue` (CommandInvocation, both surfaces), the preload's `continueAgent`:
+        // the user's 继续 for a turn a restart cut off.
+        ("agent", 42),
         // Adds Settings → Hook in its own module: list, preview and invocation records
         // (ReadOnly), trust, untrust, enable, remove and reorder (CommandInvocation, both
         // surfaces), and the Main-only folder picker. None of them runs a Hook; trust is
@@ -284,8 +286,9 @@ mod tests {
         ("tool", 17),
         // Adds the three configuration-recovery routes (notice, plan, apply) as
         // `TrustedRenderer`, bound by the preload's `invokeRecovery`; apply binds the previewed
-        // plan, and none of them is reachable by a model tool.
-        ("runtime", 10),
+        // plan, and none of them is reachable by a model tool. `core.restart` is Main's own
+        // restart of a Core that sends no heartbeat.
+        ("runtime", 11),
         ("terminal_input", 5),
         // 设置 → 环境: read (ReadOnly) and save (CommandInvocation, at the revision shown)
         // the interface settings — the session's debugging information and the default
@@ -299,7 +302,7 @@ mod tests {
     /// a Core command: the native directory dialog and folder operations, the local
     /// read models, and attaching the file the user picked as a read-only external
     /// grant.
-    const MAIN_ONLY: [&str; 24] = [
+    const MAIN_ONLY: [&str; 25] = [
         "agent.commands.open_directory",
         // Main opens the Chrome extension's folder in the file manager.
         "chrome.extension.open_folder",
@@ -318,6 +321,7 @@ mod tests {
         "memory.vault.export",
         "git.installation.open",
         "core.health.get",
+        "core.restart",
         "security.external_grant.attach_read_only",
         "workspace.archive",
         "workspace.delete",

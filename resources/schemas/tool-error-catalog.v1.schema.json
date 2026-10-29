@@ -49,6 +49,11 @@
         "tool.draft.test_required",
         "tool.draft.validation_failed",
         "tool.hook.blocked",
+        "tool.network.connection_failed",
+        "tool.network.connection_refused",
+        "tool.network.connection_reset",
+        "tool.network.host_not_found",
+        "tool.network.tls_failed",
         "tool.package.archive_too_large",
         "tool.package.case_collision",
         "tool.package.closed_file_set_mismatch",
@@ -254,8 +259,8 @@
       "items": {
         "$ref": "#/$defs/ToolErrorCatalogEntryV1"
       },
-      "maxItems": 143,
-      "minItems": 143,
+      "maxItems": 148,
+      "minItems": 148,
       "type": "array"
     }
   },

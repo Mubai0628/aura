@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import type { CoreProcessActivity } from './core-supervisor/responsiveness.js';
 
 const EXPECTED_BRIDGE_ABI_VERSION = 1;
 const EXPECTED_NAPI_VERSION = 10;
@@ -36,6 +37,8 @@ interface MainPipeBridgeAddon {
     runtimeInstanceId: string;
   }): Promise<MainPipeConnection>;
   getBridgeInfo(): MainPipeBridgeInfo;
+  /** Added after ABI 1 was frozen: a bridge built before it has no such export. */
+  processActivity?: (pid: number, creationTime: string) => unknown;
 }
 
 const require = createRequire(import.meta.url);
@@ -78,6 +81,27 @@ export const connectMainPipe = async (options: {
     throw new Error('Aura Main Pipe Bridge returned an invalid Core process identity');
   }
   return connection;
+};
+
+/**
+ * The Core process's CPU time and completed reads and writes, read by the process identity the
+ * pipe was verified against. `undefined` when the bridge cannot read them or the process is gone.
+ */
+export const readCoreProcessActivity = (
+  addonPath: string,
+  pid: number,
+  creationTime: string,
+): CoreProcessActivity | undefined => {
+  try {
+    const read = loadMainPipeBridge(addonPath).processActivity?.(pid, creationTime);
+    if (typeof read !== 'object' || read === null) return undefined;
+    const { cpuTime, ioOperations } = read as Record<string, unknown>;
+    if (typeof cpuTime !== 'string' || !/^\d+$/u.test(cpuTime)) return undefined;
+    if (typeof ioOperations !== 'string' || !/^\d+$/u.test(ioOperations)) return undefined;
+    return { cpuTime: BigInt(cpuTime), ioOperations: BigInt(ioOperations) };
+  } catch {
+    return undefined;
+  }
 };
 
 const loadMainPipeBridge = (addonPath: string): MainPipeBridgeAddon => {

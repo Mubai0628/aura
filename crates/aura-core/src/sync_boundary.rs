@@ -15,7 +15,10 @@
 //! WHAT IS BOUNDED
 //! * **How many run at once.** One fixed-size [`BlockingPool`] of [`SYNC_WORKERS`] permits.
 //!   A section that cannot get a permit inside its budget is refused; it does not queue
-//!   without limit and it does not grow the pool.
+//!   without limit and it does not grow the pool. Reads on the store's read-only connections
+//!   ([`SyncSection::StoreRead`]) have a lane of their own, [`STORE_READ_WORKERS`] at most and
+//!   fewer while the disk is busy (`disk_pressure`): sections queued for the one writer do not
+//!   hold them up, and they hold up no other section.
 //! * **How long a caller waits.** The permit is taken under the caller's own budget, so a
 //!   refusal is a proven "this section never ran".
 //! * **Who owns the work.** The permit belongs to the blocking task, not to the caller. A
@@ -50,6 +53,9 @@ use crate::blocking_pool::{BlockingAdmission, BlockingPool};
 /// much of it the process does at once, not to run more of it in parallel.
 pub(crate) const SYNC_WORKERS: usize = 4;
 
+/// The size of the read lane: how many store reads may run at once while the disk is calm.
+pub(crate) const STORE_READ_WORKERS: usize = crate::disk_pressure::MOST_READS;
+
 /// The production budget for one synchronous section.
 ///
 /// It bounds how long an async caller waits for a section. It does **not** stop the
@@ -74,6 +80,8 @@ pub(crate) enum SyncSection {
     Ledger,
     /// A pure journal/storage read (`reconcile`, `verify_handle`).
     JournalRead,
+    /// An Agent Store read on a read-only connection of its own, in the read lane.
+    StoreRead,
     /// One admitted Agent Store section: a run's journal read or transaction.
     AgentStore,
     /// `session.create` / `session.rename`.
@@ -104,11 +112,12 @@ pub(crate) enum SyncSection {
 
 impl SyncSection {
     #[allow(dead_code)]
-    pub(crate) const ALL: [Self; 11] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::Inspect,
         Self::Evidence,
         Self::Ledger,
         Self::JournalRead,
+        Self::StoreRead,
         Self::AgentStore,
         Self::SessionCommand,
         Self::Projection,
@@ -125,6 +134,7 @@ impl SyncSection {
             Self::Evidence => "evidence",
             Self::Ledger => "ledger",
             Self::JournalRead => "journal_read",
+            Self::StoreRead => "store_read",
             Self::AgentStore => "agent_store",
             Self::SessionCommand => "session_command",
             Self::Projection => "projection",
@@ -225,6 +235,8 @@ struct Shared {
 #[derive(Clone)]
 pub(crate) struct SyncBoundary {
     pool: BlockingPool,
+    /// The read lane ([`SyncSection::StoreRead`]).
+    reads: BlockingPool,
     budget_ms: Arc<AtomicU64>,
     shared: Arc<Mutex<Shared>>,
     /// Regression-only fault injection: run the section on the calling thread instead of on
@@ -257,6 +269,7 @@ impl SyncBoundary {
     pub(crate) fn with_budget(budget: Duration) -> Self {
         Self {
             pool: BlockingPool::new(SYNC_WORKERS),
+            reads: BlockingPool::new(STORE_READ_WORKERS),
             budget_ms: Arc::new(AtomicU64::new(
                 u64::try_from(budget.as_millis()).unwrap_or(u64::MAX),
             )),
@@ -290,6 +303,11 @@ impl SyncBoundary {
     #[allow(dead_code)]
     pub(crate) fn budget(&self) -> Duration {
         Duration::from_millis(self.budget_ms.load(Ordering::Acquire))
+    }
+
+    /// How many store reads may run at once from now on, up to the read lane's size.
+    pub(crate) fn set_read_limit(&self, limit: usize) {
+        self.reads.set_limit(limit);
     }
 
     /// How many sections may block at once.
@@ -445,13 +463,14 @@ impl SyncBoundary {
                 BlockingAdmission::Completed(value)
             };
         }
+        let pool = if section == SyncSection::StoreRead { &self.reads } else { &self.pool };
+        let workers = pool.capacity();
         // Whether this call had to queue is observed before the permit is asked for, in the
         // same way the pool itself decides; it is attributed to the section here.
-        let had_free_worker = self.pool.available() > 0;
+        let had_free_worker = pool.available() > 0;
         bump(&shared, section_name, |counters| counters.in_flight += 1);
         let owned_subject = subject.clone();
-        let admission = self
-            .pool
+        let admission = pool
             .run_settled(
                 deadline,
                 move || {
@@ -493,7 +512,7 @@ impl SyncBoundary {
                                 "method": owned_subject.method,
                                 "elapsed_ms": elapsed,
                                 "thread": std::thread::current().name().unwrap_or("unnamed"),
-                                "workers": SYNC_WORKERS,
+                                "workers": workers,
                             }),
                         );
                     }

@@ -289,6 +289,20 @@ const api: AuraApiV1 = Object.freeze({
     })) as unknown;
     return parseProjectionResult(result, 'core_health');
   },
+  restartCore: async (): Promise<ResultEnvelope<{ restarted: boolean }>> => {
+    const result: unknown = await invokeRegistered('core.restart', {});
+    if (isRecord(result) && result.ok === true && isRecord(result.value)) {
+      const { restarted } = result.value;
+      if (typeof restarted === 'boolean') return { ok: true, value: { restarted } };
+    }
+    return {
+      ok: false,
+      error:
+        isRecord(result) && isIpcErrorEnvelope(result.error)
+          ? result.error
+          : preloadError('invalid_result_envelope', 'Main returned an invalid Result envelope'),
+    };
+  },
   getHostPreparationStatus: () => invokeP04('security.host_preparation.status', {}),
   getToolCredentialCandidates: (request: P07ReadParams['tools.credential.candidates']) =>
     invokeToolCredentialCandidates(request),

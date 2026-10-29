@@ -1,6 +1,7 @@
 import type { ProjectionChange } from '@aura/contracts/generated';
 import { CoreTransport } from '../core-transport.js';
 import type { ReleaseContext } from '../release.js';
+import type { CoreProcessActivity, ResponsivenessTimings } from './responsiveness.js';
 
 /** The supervisor's budgets and timings, its options and the projection shapes it serves. */
 export const CORE_STDERR_TAIL_LIMIT = 2_048;
@@ -35,7 +36,15 @@ export const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 export const READINESS_TIMEOUT_MS = 120_000;
 
-export const HEARTBEAT_MISS_TIMEOUT_MS = 6_000;
+/**
+ * Core's heartbeat silence the window shows as a wait, the silence with an idle process after
+ * which Main ends and restarts Core, and how often Main looks (core-supervisor/responsiveness.ts).
+ */
+export const CORE_RESPONSIVENESS: ResponsivenessTimings = {
+  noticeMs: 10_000,
+  deadlockMs: 60_000,
+  checkIntervalMs: 1_000,
+};
 
 export const RESUME_GRACE_MS = 15_000;
 
@@ -80,6 +89,10 @@ export interface CoreSupervisorOptions {
    * shorter budgets so the failure paths stay fast.
    */
   startupTimeouts?: { connectMs?: number; handshakeMs?: number };
+  /** Shorter waits for Core's heartbeats; only tests set them. */
+  responsiveness?: Partial<ResponsivenessTimings>;
+  /** Reads the Core process's work; only tests replace the native reading. */
+  readProcessActivity?: (pid: number, creationTime: string) => CoreProcessActivity | undefined;
 }
 
 export interface BuildExtensionInvocationIdentityV1 {

@@ -3,6 +3,7 @@
 
 #include "connection_io.hpp"
 #include "napi_errors.hpp"
+#include "process_activity.hpp"
 #include <node_api.h>
 #include <windows.h>
 
@@ -725,6 +726,8 @@ napi_value Initialize(napi_env env, napi_value exports) {
       {"connect", nullptr, Connect, nullptr, nullptr, nullptr, napi_default,
        nullptr},
       {"getBridgeInfo", nullptr, BridgeInfo, nullptr, nullptr, nullptr,
+       napi_default, nullptr},
+      {"processActivity", nullptr, ProcessActivity, nullptr, nullptr, nullptr,
        napi_default, nullptr},
   };
   if (napi_define_properties(

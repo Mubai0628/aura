@@ -7,6 +7,7 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { AppIcon } from './app-icons';
+import { CoreWaitingNotice } from './core-waiting';
 import type { SessionNavigationItem, WorkspaceNavigationItem } from './app-shell-types';
 import { Conversation } from './agent-session/Conversation';
 import { ActivityNoteStack } from './ActivityNoteStack';
@@ -490,6 +491,7 @@ export function WorkspaceView({
 
           <div className="conversation-dock" ref={dockRef}>
             <div className="conversation-dock-inner">
+              <CoreWaitingNotice />
               {active?.run.state.state === 'awaiting_context_remediation' ? (
                 <ContextRemediation
                   key={`${active.run.agent_run_id}:${active.run.revision}`}

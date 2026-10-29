@@ -233,6 +233,10 @@ export interface AuraApiV1 extends SessionConsentsApi {
   startRelatedAgentTurn(
     request: AgentMainParams['agent.related.start'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.related.start']>>;
+  /** The user's 继续 for a turn a restart cut off: "继续" goes ahead of the paused queue. */
+  continueAgent(
+    request: AgentMainParams['agent.continue'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.continue']>>;
   requestAgentCompaction(
     request: AgentMainParams['agent.compaction.request'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.compaction.request']>>;
@@ -665,6 +669,8 @@ export interface AuraApiV1 extends SessionConsentsApi {
   globWorkspacePaths(request: FsGlobRequest): Promise<ResultEnvelope<FsGlobResult>>;
   getRuntimeReadiness(): Promise<ResultEnvelope<RuntimeReadiness>>;
   getCoreHealth(): Promise<ResultEnvelope<CoreHealthProjectionChange>>;
+  /** 立即重启 while Main waits for Core's heartbeat; `restarted` is false when Core answered again. */
+  restartCore(): Promise<ResultEnvelope<{ restarted: boolean }>>;
   getWorkspaceFiles(): Promise<ResultEnvelope<WorkspaceFilesProjectionChange>>;
   getWorkspaceSessions(): Promise<ResultEnvelope<WorkspaceSessionProjectionChange>>;
   listPendingApprovals(): Promise<ResultEnvelope<ApprovalView[]>>;

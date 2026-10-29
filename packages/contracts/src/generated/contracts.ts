@@ -6930,6 +6930,15 @@ export type AgentAttachmentDraft =
       path: string;
     };
 /**
+ * Why Main started a new Core while Aura stayed open: the Core exited by itself, Main ended it
+ * after a silent and idle minute, its channel could not be recovered, or the user asked for
+ * 立即重启. Main passes it to the new Core, which then continues the turns the restart cut off.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "CoreRestartCause".
+ */
+export type CoreRestartCause = 'crash' | 'unresponsive' | 'transport_lost' | 'user_restart';
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentContextRemediationState".
  */
@@ -11724,6 +11733,11 @@ export interface CoreHealthProjection {
   state: CoreLifecycleState;
   status_code: string;
   status_message: string;
+  /**
+   * Main has had no heartbeat from Core for a while and is waiting for it. Only Main sets
+   * it; Core never does.
+   */
+  waiting?: CoreWaitingV1 | null;
 }
 /**
  * A deletion Core is doing in the background, in short steps other requests are served
@@ -11734,6 +11748,15 @@ export interface CoreHealthProjection {
  */
 export interface CoreBusyV1 {
   activity: CoreBusyActivityV1;
+  since: UtcTimestamp;
+}
+/**
+ * Since when Main has had no heartbeat from Core: the last one it received.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "CoreWaitingV1".
+ */
+export interface CoreWaitingV1 {
   since: UtcTimestamp;
 }
 /**
@@ -17333,6 +17356,16 @@ export interface AgentToolInputView {
   title: string;
 }
 /**
+ * The turn's "继续" was sent by Aura itself after Core restarted, and why it restarted.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentAutoContinuedView".
+ */
+export interface AgentAutoContinuedView {
+  cause: CoreRestartCause;
+  restarted_at: UtcTimestamp;
+}
+/**
  * How far a branch's copy is while its older turns are still being
  * carried after it opened with its newest ones.
  *
@@ -17508,6 +17541,20 @@ export interface AgentContextWindowResolveRequest {
   expected_revision: Revision;
   session_id: SessionId;
   source_model_step_id: ModelStepId;
+}
+/**
+ * The user's 继续 for a turn a restart of Aura cut off: a new turn says "继续" ahead of the
+ * queue, which stays paused until the user resumes it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentContinueRequest".
+ */
+export interface AgentContinueRequest {
+  session_id: SessionId;
+  /**
+   * The cut-off turn the user saw; a later turn makes the request stale.
+   */
+  turn_task_id: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -18251,6 +18298,10 @@ export interface AgentSessionProjection {
  */
 export interface AgentTurnView {
   assistant_messages: AgentAssistantView[];
+  /**
+   * Set when Aura sent this turn's "继续" by itself after Core restarted, and why.
+   */
+  auto_continued?: AgentAutoContinuedView | null;
   /**
    * Bounded facts of a completion report. The authoritative report stays in the
    * turn record; this is only what a history poll needs before the body is paged.

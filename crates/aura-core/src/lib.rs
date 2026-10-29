@@ -28,6 +28,7 @@ mod broker;
 mod busy;
 mod chrome_control;
 mod command_claims;
+mod disk_pressure;
 pub(crate) mod git;
 pub mod package_http;
 pub mod package_lifecycle;
@@ -52,10 +53,13 @@ mod credential_io;
 #[cfg(test)]
 mod ipc_lifecycle_tests;
 mod ipc_session;
+mod outbound_watch;
 #[cfg(test)]
 mod r03_tests;
 mod readiness;
 mod runtime_pulse;
+mod test_mode;
+pub use test_mode::CoreTestMode;
 #[cfg(test)]
 mod test_watchdog;
 pub(crate) use core_health::current_core_health_projection;
@@ -246,19 +250,6 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
 /// location; every component's content hash and protocol are still verified.
 const DEV_COMPONENT_ROOT_ENVIRONMENT: &str = "AURA_DEV_COMPONENT_ROOT";
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum CoreTestMode {
-    #[default]
-    Normal,
-    Incompatible,
-    CrashAfterHandshake,
-    DisconnectAfterReady,
-    ProjectionRevisionGap,
-    StartupSequenceGap,
-    StallAfterHandshake,
-    MigrationRecoveryRequired,
-}
-
 #[derive(Clone, Debug)]
 pub struct CoreOptions {
     pub pipe_name: String,
@@ -269,6 +260,9 @@ pub struct CoreOptions {
     pub allow_dev_component_mismatch: bool,
     pub safe_mode: bool,
     pub test_mode: CoreTestMode,
+    /// Set by Main when a Core it had serving ended while Aura stayed open: why, so this Core
+    /// continues the turns that cut off (`agent_application::continuation`).
+    pub continue_after: Option<aura_agent_domain::CoreRestartCause>,
     #[cfg(feature = "p08-contract-driver")]
     pub(crate) p08_contract_driver: Option<p08_contract_driver::P08ContractDriverOptionsV1>,
 }
@@ -283,6 +277,7 @@ impl CoreOptions {
         let mut allow_dev_component_mismatch = false;
         let mut safe_mode = false;
         let mut test_mode = CoreTestMode::Normal;
+        let mut continue_after = None;
         #[cfg(feature = "p08-contract-driver")]
         let mut p08_contract_driver =
             p08_contract_driver::P08ContractDriverOptionsBuilderV1::default();
@@ -309,16 +304,12 @@ impl CoreOptions {
             } else if argument == "--safe-mode" {
                 safe_mode = true;
             } else if let Some(value) = argument.strip_prefix("--test-mode=") {
-                test_mode = match value {
-                    "incompatible" => CoreTestMode::Incompatible,
-                    "crash-after-handshake" => CoreTestMode::CrashAfterHandshake,
-                    "disconnect-after-ready" => CoreTestMode::DisconnectAfterReady,
-                    "projection-revision-gap" => CoreTestMode::ProjectionRevisionGap,
-                    "startup-sequence-gap" => CoreTestMode::StartupSequenceGap,
-                    "stall-after-handshake" => CoreTestMode::StallAfterHandshake,
-                    "migration-recovery-required" => CoreTestMode::MigrationRecoveryRequired,
-                    _ => bail!("unknown Core test mode: {value}"),
-                };
+                test_mode = CoreTestMode::parse(value)?;
+            } else if let Some(value) = argument.strip_prefix("--continue-after=") {
+                continue_after = Some(
+                    aura_agent_domain::CoreRestartCause::parse_argument(value)
+                        .context("invalid --continue-after")?,
+                );
             } else {
                 bail!("unsupported aura-core argument: {argument}");
             }
@@ -334,6 +325,7 @@ impl CoreOptions {
             allow_dev_component_mismatch,
             safe_mode,
             test_mode,
+            continue_after,
             #[cfg(feature = "p08-contract-driver")]
             p08_contract_driver: p08_contract_driver.finish()?,
         };
@@ -2631,6 +2623,7 @@ where
     tokio::spawn(async move {
         let mut sequence = 2_u64;
         while let Ok(outbound) = queue.recv().await {
+            let bytes = outbound.encoded_len();
             let frame = AuthenticatedWireFrame {
                 header: IpcFrameHeader {
                     channel_id: channel.channel_id,
@@ -2639,15 +2632,9 @@ where
                 },
                 frame: outbound.frame,
             };
-            aura_ipc::trace(
-                "core.write.start",
-                &format!("epoch={} seq={sequence}", channel.connection_epoch),
-            );
+            outbound_watch::writing(channel.connection_epoch, sequence, bytes);
             write_authenticated_frame(&mut writer, &frame).await?;
-            aura_ipc::trace(
-                "core.write.done",
-                &format!("epoch={} seq={sequence}", channel.connection_epoch),
-            );
+            outbound_watch::written(channel.connection_epoch, sequence);
             sequence = sequence.checked_add(1).context("IPC outbound sequence overflow")?;
         }
         aura_ipc::trace("core.write.closed", "queue closed");
@@ -2705,6 +2692,7 @@ fn spawn_startup(state: Arc<RuntimeState>, queue: AsyncPriorityQueue) -> JoinHan
         state.ready.store(terminal_phase == CoreStartupPhase::Ready, Ordering::Release);
         if terminal_phase == CoreStartupPhase::Ready {
             git::runtime::check_after_startup();
+            agent_application::continuation::after_startup(&state);
         }
         if !state.startup_complete.swap(true, Ordering::AcqRel) {
             state.core_health_revision.fetch_add(1, Ordering::AcqRel);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { AppIcon } from './app-icons';
+import { WaitingLabel } from './core-waiting';
 import { WorkspaceIndexBadge } from './files/workspace-indexing';
 import { readExpandedWorkspaces, rememberExpandedWorkspaces } from './sidebar-expansion';
 import { WorkspaceActions } from './WorkspaceActions';
@@ -145,7 +146,13 @@ export function AppSidebar({
         </button>
         <p className={`core-footer-status state-${coreStatus.tone}`} title={coreStatus.detail}>
           <span aria-hidden="true" />
-          <span>{coreStatus.label}</span>
+          <span>
+            {coreStatus.waitingSince ? (
+              <WaitingLabel text={coreStatus.label} since={coreStatus.waitingSince} />
+            ) : (
+              coreStatus.label
+            )}
+          </span>
         </p>
         <p className="local-only-note">
           <AppIcon name="shield" size={14} />

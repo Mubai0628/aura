@@ -23,6 +23,8 @@ export interface ProjectionTrackHost<Change> {
   refresh(): Promise<Change>;
   /** Gives a failed gap refresh an owner (the supervisor logs it). */
   logRefreshFailure(projection: string, error: unknown): Promise<void>;
+  /** What Main adds to a change Core published, such as its own wait for Core's heartbeat. */
+  decorate?(change: Change): Change;
 }
 
 /**
@@ -145,9 +147,10 @@ export class RevisionedProjection<
 
   #publish(change: Change): void {
     const sameRuntime = change.runtime_instance_id === this.#current.runtime_instance_id;
-    this.emit({
+    const published = {
       ...change,
       revision: String(sameRuntime ? Number(this.#current.revision) + 1 : 1),
-    });
+    };
+    this.emit(this.#host.decorate?.(published) ?? published);
   }
 }

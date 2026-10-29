@@ -1,6 +1,6 @@
 {
   "name": "aura",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Aura Windows 11 desktop coding agent",
   "packageManager": "pnpm@11.24.0",

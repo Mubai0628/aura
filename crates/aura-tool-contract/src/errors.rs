@@ -169,6 +169,16 @@ define_error_domain!(ToolRuntimeErrorCode, {
     PersistenceOutcomeUnknown => "tool.runtime.persistence_outcome_unknown",
 });
 
+// The target of an HTTP tool could not be reached, by kind. Except after a reset, the request
+// was not sent, and trying again is the next step once the cause is fixed.
+define_error_domain!(ToolNetworkErrorCode, {
+    ConnectionRefused => "tool.network.connection_refused",
+    HostNotFound => "tool.network.host_not_found",
+    TlsFailed => "tool.network.tls_failed",
+    ConnectionReset => "tool.network.connection_reset",
+    ConnectionFailed => "tool.network.connection_failed",
+});
+
 define_error_domain!(ToolResultErrorCode, {
     Utf8Invalid => "tool.result.utf8_invalid",
     JsonInvalid => "tool.result.json_invalid",
@@ -295,6 +305,13 @@ pub fn tool_error_catalog_v1() -> ToolErrorCatalogV1 {
         &mut entries,
         ToolRuntimeErrorCode::ALL.iter().map(|value| value.as_str()),
         ErrorCategory::Unavailable,
+        ToolErrorRetryClassV1::Conditional,
+        None,
+    );
+    push_domain(
+        &mut entries,
+        ToolNetworkErrorCode::ALL.iter().map(|value| value.as_str()),
+        ErrorCategory::Transport,
         ToolErrorRetryClassV1::Conditional,
         None,
     );

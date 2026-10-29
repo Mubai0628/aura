@@ -62,6 +62,7 @@ impl Fixture {
             allow_dev_component_mismatch: false,
             safe_mode: false,
             test_mode: CoreTestMode::Normal,
+            continue_after: None,
             #[cfg(feature = "p08-contract-driver")]
             p08_contract_driver: None,
         };
@@ -129,6 +130,7 @@ impl Fixture {
             allow_dev_component_mismatch: false,
             safe_mode: false,
             test_mode: CoreTestMode::Normal,
+            continue_after: None,
             #[cfg(feature = "p08-contract-driver")]
             p08_contract_driver: None,
         };

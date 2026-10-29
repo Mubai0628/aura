@@ -340,6 +340,17 @@ pub struct CoreHealthProjection {
     /// A deletion Core is doing in the background, once it has run for a while.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub busy: Option<CoreBusyV1>,
+    /// Main has had no heartbeat from Core for a while and is waiting for it. Only Main sets
+    /// it; Core never does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub waiting: Option<CoreWaitingV1>,
+}
+
+/// Since when Main has had no heartbeat from Core: the last one it received.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoreWaitingV1 {
+    pub since: UtcTimestamp,
 }
 
 /// A deletion Core is doing in the background, in short steps other requests are served
@@ -374,6 +385,7 @@ impl CoreHealthProjection {
             status_code: "core.ready".to_owned(),
             status_message: status_message.to_owned(),
             busy: None,
+            waiting: None,
         }
     }
 }

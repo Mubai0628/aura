@@ -71,6 +71,18 @@ pub fn backfill_turn_poll(
     Ok(1)
 }
 
+/// Whether any turn still needs its poll copy. Reads only, so a caller with nothing to copy
+/// does not take a write transaction to find that out.
+pub fn turn_poll_outstanding(db: &Connection) -> StoreResult<bool> {
+    db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM turn_tasks WHERE id NOT IN (SELECT id FROM turn_poll)) \
+         OR EXISTS(SELECT 1 FROM turn_poll_capture)",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(Error::from)
+}
+
 fn next_owner(tx: &Transaction<'_>, after: Option<&str>) -> StoreResult<Option<String>> {
     tx.query_row(
         "SELECT id FROM ( \

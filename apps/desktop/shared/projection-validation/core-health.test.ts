@@ -29,10 +29,23 @@ test('a health projection names the long work Core is busy with, or nothing', ()
   ).toBeDefined();
   for (const busy of [
     { activity: 'vacuuming', since: '2026-10-19T08:00:00Z' },
+    // A wait for the store is not named: a run of slow steps would flicker the status.
+    { activity: 'saving_task_progress', since: '2026-10-19T08:00:00Z' },
     { activity: 'deleting_session' },
     { activity: 'deleting_session', since: 'yesterday' },
     { activity: 'deleting_session', since: '2026-10-19T08:00:00Z', detail: 'x' },
     'deleting_session',
   ])
     expect(parseProjection(change({ busy })), JSON.stringify(busy)).toBeUndefined();
+});
+
+test("Main's wait for Core's heartbeat says since when, and nothing else", () => {
+  expect(parseProjection(change({ waiting: { since: '2026-10-28T13:17:12.000Z' } }))).toBeDefined();
+  for (const waiting of [
+    {},
+    { since: 'a while' },
+    { since: '2026-10-28T13:17:12.000Z', seconds: 10 },
+    '2026-10-28T13:17:12.000Z',
+  ])
+    expect(parseProjection(change({ waiting })), JSON.stringify(waiting)).toBeUndefined();
 });

@@ -21,12 +21,14 @@
 //!
 //! READS AND WRITES
 //! Writes go through the one write authority (`BrokerJournal`'s `V2Store`), unchanged: one
-//! connection, one `unit_of_work`, one commit. Reads use a **read-only connection to the same
-//! database** when one can be opened, so a status or projection read is not parked behind a
-//! write transaction holding the write connection - exactly the isolation one run's status
-//! needs from another run's write. The read connection cannot write (`query_only`), so it is
-//! not a second SQL authority; it is the same data, read-only. When it cannot be opened the
-//! read falls back to the write connection and that fact is recorded, never hidden.
+//! connection, one `unit_of_work`, one commit. Reads use **read-only connections to the same
+//! database** when they can be opened - one of its own for each read running, in a lane of their
+//! own (`sync_boundary`, `disk_pressure`) - so a status or projection read is not parked behind
+//! a write transaction holding the write connection, behind sections queued for that writer, or
+//! behind another read: exactly the isolation one run's status needs from another run's work.
+//! A read connection cannot write (`query_only`), so it is not a second SQL authority; it is the
+//! same data, read-only. When none can be opened the read falls back to the write connection
+//! and that fact is recorded, never hidden.
 use crate::{
     blocking_pool::BlockingAdmission,
     sync_boundary::{SyncBoundary, SyncSection, SyncSubject},
@@ -41,6 +43,7 @@ use std::{
 
 mod credential_scope;
 pub(crate) mod health;
+mod readers;
 
 /// Default-off, acceptance-only external control of the Agent hold points (S04-E).
 ///
@@ -50,6 +53,7 @@ pub(crate) mod health;
 pub(crate) mod acceptance_hold;
 
 pub(crate) use health::{StoreDependency, StoreHealthSnapshot};
+use readers::Readers;
 
 /// The V2 store. One dependency today; named so a second one cannot be conflated with it.
 const JOURNAL: StoreDependency = StoreDependency::Journal;
@@ -87,6 +91,12 @@ impl StoreStep {
     #[must_use]
     pub(crate) const fn run_id(self) -> Option<AgentRunId> {
         self.run
+    }
+
+    /// Whether a caller waits this step out (`busy`): background copying gives way to such a
+    /// wait, and is nobody's wait itself.
+    fn waited_for(self) -> bool {
+        !self.operation.starts_with("agent.backfill")
     }
 
     /// What a hold point or a span is matched against.
@@ -489,8 +499,8 @@ impl SectionAnswer {
 /// The one Store owner.
 pub(crate) struct AgentStore {
     journal: Arc<crate::broker::BrokerJournal>,
-    /// A real read-only connection to the same database, when one could be opened.
-    reader: Option<Arc<Mutex<Connection>>>,
+    /// Read-only connections to the same database, when the first could be opened.
+    readers: Option<Arc<Readers>>,
     /// Why there is no reader, as a fact rather than a silence.
     reader_absent: Mutex<Option<String>>,
     boundary: SyncBoundary,
@@ -512,19 +522,22 @@ pub(crate) struct AgentStore {
 const HOLD_LABEL: &str = "agent_store";
 
 impl AgentStore {
-    /// The one owner. The reader is opened here, once, and its absence is recorded.
+    /// The one owner. The first reader is opened here, once, and its absence is recorded.
     #[must_use]
     pub(crate) fn new(journal: Arc<crate::broker::BrokerJournal>, boundary: SyncBoundary) -> Self {
-        let (reader, absent) = match journal.database_path() {
-            Ok(path) => match aura_persistence_core::open_reader(&path) {
-                Ok(connection) => (Some(Arc::new(Mutex::new(connection))), None),
-                Err(error) => (None, Some(format!("open_reader: {error}"))),
-            },
+        let (readers, absent) = match journal.database_path() {
+            Ok(path) => {
+                crate::disk_pressure::watch(&path);
+                match Readers::open(path) {
+                    Ok(readers) => (Some(Arc::new(readers)), None),
+                    Err(error) => (None, Some(format!("open_reader: {error}"))),
+                }
+            }
             Err(error) => (None, Some(format!("database_path: {error}"))),
         };
         Self {
             journal,
-            reader,
+            readers,
             reader_absent: Mutex::new(absent),
             boundary,
             health: health::StoreHealth::new(),
@@ -695,13 +708,12 @@ impl AgentStore {
         T: Send + 'static,
         F: FnOnce(&Connection) -> Result<T, PersistenceCoreError> + Send + 'static,
     {
-        let reader = self.reader.clone();
+        let readers = self.readers.clone();
         let journal = Arc::clone(&self.journal);
         let identity = step.identity();
         #[cfg(debug_assertions)]
         let hold = self.hold_slot();
         let counters = Arc::clone(&self.counters);
-        let on_reader = reader.is_some();
         let work = move || -> Result<T, PersistenceCoreError> {
             #[cfg(debug_assertions)]
             let _permit = hold.and_then(|barrier| {
@@ -711,12 +723,16 @@ impl AgentStore {
                     Some(&identity),
                 )
             });
-            let value = match &reader {
-                Some(reader) => {
-                    let guard = reader
-                        .lock()
-                        .map_err(|_| PersistenceCoreError::Invalid("agent.store_reader_lock"))?;
-                    work(&guard)?
+            // A connection of its own, or the write connection when no other could be opened.
+            let lent = readers
+                .as_ref()
+                .and_then(|readers| readers.take().ok().map(|connection| (readers, connection)));
+            let on_reader = lent.is_some();
+            let value = match lent {
+                Some((readers, connection)) => {
+                    let value = work(&connection);
+                    readers.put_back(connection);
+                    value?
                 }
                 None => {
                     let store = journal.lock()?;
@@ -732,7 +748,11 @@ impl AgentStore {
             }
             Ok(value)
         };
-        self.section(step, SyncSection::JournalRead, StoreAccess::Read, work, None).await
+        // How many reads run at once follows the disk under the store (`disk_pressure`).
+        self.boundary.set_read_limit(crate::disk_pressure::read_limit());
+        let lane =
+            if self.readers.is_some() { SyncSection::StoreRead } else { SyncSection::JournalRead };
+        self.section(step, lane, StoreAccess::Read, work, None).await
     }
 
     /// One bounded transaction of the authoritative store.
@@ -820,6 +840,7 @@ impl AgentStore {
             StoreAccess::Read => SyncSection::JournalRead,
             StoreAccess::Write => SyncSection::AgentStore,
         };
+        let _waiting = step.waited_for().then(crate::busy::wait_for_store);
         let admission = self
             .boundary
             .run_settled(
@@ -882,6 +903,7 @@ impl AgentStore {
     {
         let operation = step.operation;
         let store = Arc::clone(self);
+        let _waiting = step.waited_for().then(crate::busy::wait_for_store);
         let admission = self
             .boundary
             .run_settled(
@@ -1010,60 +1032,4 @@ impl AgentStore {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_classification_is_by_type_and_never_by_message() {
-        let corrupt = classify(
-            "agent.step",
-            PersistenceCoreError::Sqlite(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CORRUPT),
-                Some("database disk image is malformed".into()),
-            )),
-        );
-        match corrupt {
-            StoreError::Unavailable { snapshot, .. } => {
-                assert_eq!(snapshot.code, None, "the snapshot is refilled from live health");
-            }
-            other => panic!("a damaged store is a dependency fact: {other}"),
-        }
-        assert_eq!(
-            shared_failure(&PersistenceCoreError::Sqlite(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_BUSY),
-                Some("database is locked".into()),
-            )))
-            .map(|(code, _)| code),
-            Some("sqlite.busy")
-        );
-        for local in [
-            PersistenceCoreError::Conflict,
-            PersistenceCoreError::Invalid("agent.mode_switch_requires_idle"),
-        ] {
-            assert!(
-                shared_failure(&local).is_none(),
-                "an operation-level answer must not become a dependency fact"
-            );
-            assert!(matches!(classify("agent.step", local), StoreError::Failed { .. }));
-        }
-    }
-
-    #[test]
-    fn a_write_success_clears_a_write_fault_and_a_read_success_does_not_hide_it() {
-        let health = health::StoreHealth::new();
-        health.observe_unavailable(JOURNAL, StoreAccess::Write, "sqlite.busy", "locked".into());
-        assert!(!health.snapshot(JOURNAL).available);
-        // In WAL a reader is served while the writer is blocked: that must not clear the fact.
-        health.observe_success(JOURNAL, StoreAccess::Read);
-        let still_failed = health.snapshot(JOURNAL);
-        assert!(!still_failed.available, "{still_failed:?}");
-        assert_eq!(still_failed.cleared, 0);
-        // A write that really committed does clear it, with the text that produced it.
-        health.observe_success(JOURNAL, StoreAccess::Write);
-        let cleared = health.snapshot(JOURNAL);
-        assert!(cleared.available);
-        assert_eq!(cleared.cleared, 1);
-        assert_eq!(cleared.code, None, "a recovered dependency is not described by its old error");
-        assert!(cleared.revision > still_failed.revision);
-    }
-}
+mod tests;

@@ -72,8 +72,13 @@ impl AgentApplication {
             guard.mark_started();
             stage.set(RunStage::Starting);
             // The one place a panic becomes a value instead of a dead task.
-            let outcome =
-                CatchUnwind::new(app.drive(run, model.clone(), receive, stage.clone())).await;
+            let outcome = CatchUnwind::new(app.drive_past_late_writes(
+                run,
+                model.clone(),
+                receive,
+                stage.clone(),
+            ))
+            .await;
             match outcome {
                 Ok(Ok(())) => guard.finished(TaskEnd::Completed),
                 Ok(Err(error)) => {
@@ -151,7 +156,7 @@ impl AgentApplication {
         self.persist_drive_failure(run, generation, &anyhow::Error::new(fact), false).await;
     }
 
-    async fn drive(
+    pub(super) async fn drive(
         self: &Arc<Self>,
         run_id: AgentRunId,
         cancel: ModelCancellationToken,

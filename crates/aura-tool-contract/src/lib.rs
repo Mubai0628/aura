@@ -60,9 +60,9 @@ pub use definition::{
 pub use errors::{
     ToolBatchErrorCode, ToolConformanceErrorCode, ToolDraftErrorCode, ToolErrorCatalogEntryV1,
     ToolErrorCatalogV1, ToolErrorRetryClassV1, ToolErrorVisibilityV1, ToolHookErrorCode,
-    ToolPackageErrorCode, ToolRegistryErrorCode, ToolResourceErrorCode, ToolResultErrorCode,
-    ToolRuntimeErrorCode, ToolSchedulerErrorCode, ToolSchemaErrorCode, tool_error_catalog_v1,
-    validate_tool_error_catalog,
+    ToolNetworkErrorCode, ToolPackageErrorCode, ToolRegistryErrorCode, ToolResourceErrorCode,
+    ToolResultErrorCode, ToolRuntimeErrorCode, ToolSchedulerErrorCode, ToolSchemaErrorCode,
+    tool_error_catalog_v1, validate_tool_error_catalog,
 };
 pub use events::{
     SessionToolPinChangedPayloadV1, ToolBatchAdmissionRejectedPayloadV1,

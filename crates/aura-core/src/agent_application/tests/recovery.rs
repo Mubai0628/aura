@@ -5,6 +5,10 @@ use super::*;
 use provider_fixture::Scenario;
 use std::time::Duration;
 
+/// Continuing the turns a restart cut off.
+#[path = "auto_continue.rs"]
+mod auto_continue;
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn interrupted_real_provider_and_compaction_are_terminal_without_replay() {
     for (scenario, requests) in [(Scenario::Hold, 1), (Scenario::CompactHold, 3)] {

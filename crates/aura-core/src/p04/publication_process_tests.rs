@@ -118,6 +118,7 @@ async fn os_kill_after_publication_keeps_original_binding_and_never_replays() {
             allow_dev_component_mismatch: false,
             safe_mode: false,
             test_mode: crate::CoreTestMode::Normal,
+            continue_after: None,
             #[cfg(feature = "p08-contract-driver")]
             p08_contract_driver: None,
         };

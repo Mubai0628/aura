@@ -258,6 +258,46 @@
       "suggested_not_executed_reason": "permission_denied"
     },
     {
+      "code": "tool.network.connection_failed",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_connection_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.connection_refused",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_connection_refused",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.connection_reset",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_connection_reset",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.host_not_found",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_host_not_found",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.tls_failed",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_tls_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
       "code": "tool.package.archive_too_large",
       "category": "validation",
       "visibility": "renderer_and_model_safe",

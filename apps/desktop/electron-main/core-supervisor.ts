@@ -16,7 +16,9 @@ import {
 } from '../shared/recovery-validation.js';
 import { parseRuntimeReadiness } from '../shared/readiness-validation.js';
 import { recoveryProjectionPlan } from './recovery-projection-plan.js';
-import { CoreExitRecovery } from './core-exit-recovery.js';
+import { CoreExitRecovery, type CoreRestartCause } from './core-exit-recovery.js';
+import { HeartbeatWatch, processActivityReader } from './core-supervisor/heartbeat-watch.js';
+import { appendMainLog } from './core-supervisor/main-log.js';
 import { ProjectionCompatibility } from './projection-compatibility.js';
 import type { ProjectionCompatibilitySnapshotV1 } from '@aura/contracts/generated';
 import type {
@@ -38,7 +40,6 @@ import type {
   ToolCredentialCandidatesProjectionV1,
 } from '@aura/contracts/generated';
 import { createHmac, randomBytes } from 'node:crypto';
-import { appendFile, mkdir } from 'node:fs/promises';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { CoreTransport, CoreRpcError, errorEnvelope } from './core-transport.js';
@@ -80,11 +81,11 @@ import type {
 } from '../shared/agent-validation.js';
 import {
   type BuildExtensionInvocationIdentityV1,
+  CORE_RESPONSIVENESS,
   CORE_STARTUP_PROGRESS_INTERVAL_MS,
   type CoreHealthProjectionChange,
   type CoreSupervisorOptions,
   HANDSHAKE_TIMEOUT_MS,
-  HEARTBEAT_MISS_TIMEOUT_MS,
   LATE_RECONNECT_CLOSE_BUDGET_MS,
   READINESS_TIMEOUT_MS,
   RESUME_GRACE_MS,
@@ -126,6 +127,8 @@ import {
   sameCoreHealthPayload,
   sameWorkspaceFilesPayload,
   sameWorkspaceSessionPayload,
+  nextWithCoreWaiting,
+  withCoreWaiting,
 } from './core-supervisor/projections.js';
 export { STARTUP_CONNECT_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS } from './core-supervisor/config.js';
 export type {
@@ -204,8 +207,10 @@ export class CoreSupervisor {
     (code, key) =>
       void this.#log('core_projection_rejected', { code, ...(key === undefined ? {} : { key }) }),
   );
-  #heartbeatCheck: NodeJS.Timeout | undefined;
-  #lastHeartbeatAt = 0;
+  /** Core's heartbeats and what their silence leads to (core-supervisor/heartbeat-watch.ts). */
+  readonly #heartbeats: HeartbeatWatch;
+  /** Why Main itself is ending the current Core, until its exit is handled. */
+  #ending: CoreRestartCause | undefined;
   #lastHeartbeatSequence: number | undefined;
   #lastStartupSequence: number | undefined;
   #pipeNonce: string | undefined;
@@ -246,7 +251,10 @@ export class CoreSupervisor {
         refreshName: 'core_health',
         samePayload: sameCoreHealthPayload,
       },
-      host(() => this.refreshSnapshot()),
+      {
+        ...host(() => this.refreshSnapshot()),
+        decorate: (change) => withCoreWaiting(change, this.#heartbeats.waitingSince),
+      },
       localProjection(
         this.#coreRuntimeInstanceId,
         'not_started',
@@ -281,6 +289,25 @@ export class CoreSupervisor {
       localWorkspaceFilesProjection(this.#coreRuntimeInstanceId, 1),
     );
     this.#projectionCompatibility.reset(this.#coreRuntimeInstanceId);
+    const readActivity = processActivityReader(options);
+    this.#heartbeats = new HeartbeatWatch(
+      {
+        paused: () =>
+          this.#stopping ||
+          this.#suspended ||
+          Date.now() < this.#resumeGraceUntil ||
+          this.#child?.exitCode !== null,
+        log: (event, fields) => this.#log(event, fields),
+        waiting: (since) =>
+          this.#coreProjection.emit(nextWithCoreWaiting(this.#coreProjection.current, since)),
+        deadlocked: () => this.#endCore('unresponsive'),
+      },
+      { ...CORE_RESPONSIVENESS, ...options.responsiveness },
+      () => {
+        const peer = this.#corePeerIdentity;
+        return peer && readActivity(peer.serverPid, peer.serverCreationTime);
+      },
+    );
   }
 
   get snapshot(): CoreHealthProjectionChange {
@@ -402,9 +429,7 @@ export class CoreSupervisor {
     command: Command,
     params: P03CoreParams[Command],
   ): Promise<P03CoreResult[Command]> {
-    if (!this.#workspaceFilesSupported) {
-      throw new Error('Core does not support the P03 Workspace Files interface');
-    }
+    this.#require(this.#workspaceFilesSupported, 'P03 Workspace Files');
     return this.#commands.run({
       accept: (value) => value as P03CoreResult[Command],
       command,
@@ -416,9 +441,7 @@ export class CoreSupervisor {
     command: Command,
     params: P04CoreParams[Command],
   ): Promise<P04CoreResult[Command]> {
-    if (!this.#securitySupported) {
-      throw new Error('Core does not support the P04 Security Control Plane interface');
-    }
+    this.#require(this.#securitySupported, 'P04 Security Control Plane');
     return this.#commands.run({
       accept: (value) => value as P04CoreResult[Command],
       command,
@@ -430,9 +453,7 @@ export class CoreSupervisor {
     command: Command,
     params: P05MainParams[Command],
   ): Promise<P05MainResult[Command]> {
-    if (!this.#modelSupported) {
-      throw new Error('Core does not support the P05 Model Control Plane interface');
-    }
+    this.#require(this.#modelSupported, 'P05 Model Control Plane');
     return this.#commands.run({
       accept: (value) => value as P05MainResult[Command],
       command,
@@ -468,9 +489,7 @@ export class CoreSupervisor {
     command: Command,
     params: P07CoreParams[Command],
   ): Promise<P07CoreResult[Command]> {
-    if (!this.#toolSupported) {
-      throw new Error('Core does not support the P07 Tool Control Plane interface');
-    }
+    this.#require(this.#toolSupported, 'P07 Tool Control Plane');
     return this.#commands.run({
       accept: (value) => value as P07CoreResult[Command],
       command,
@@ -650,9 +669,7 @@ export class CoreSupervisor {
   }
 
   async subscribeModelProjection(route: ModelProjectionRouteRequest): Promise<void> {
-    if (!this.#modelSupported) {
-      throw new Error('Core does not support the P05 Model Control Plane interface');
-    }
+    this.#require(this.#modelSupported, 'P05 Model Control Plane');
     if (route.projection_scope.type === 'global') return;
     const key = modelProjectionRouteKey(route);
     if (this.#modelScopedSubscriptions.has(key)) return;
@@ -677,9 +694,7 @@ export class CoreSupervisor {
   }
 
   async subscribeToolProjection(route: ToolProjectionRouteRequest): Promise<void> {
-    if (!this.#toolSupported) {
-      throw new Error('Core does not support the P07 Tool Control Plane interface');
-    }
+    this.#require(this.#toolSupported, 'P07 Tool Control Plane');
     const key = toolProjectionRouteKey(route);
     if (this.#toolScopedSubscriptions.has(key)) return;
     const transport = this.#activeTransport();
@@ -707,9 +722,7 @@ export class CoreSupervisor {
   }
 
   async refreshToolProjection(route: ToolProjectionRouteRequest): Promise<ToolProjectionChange> {
-    if (!this.#toolSupported) {
-      throw new Error('Core does not support the P07 Tool Control Plane interface');
-    }
+    this.#require(this.#toolSupported, 'P07 Tool Control Plane');
     const transport = this.#activeTransport();
     const request: ProjectionSnapshotRequest = {
       ...route,
@@ -742,9 +755,7 @@ export class CoreSupervisor {
   }
 
   async readToolActivityPage(request: ToolActivityPageRequestV1): Promise<ToolActivityPageV1> {
-    if (!this.#toolSupported) {
-      throw new Error('Core does not support the P07 Tool Control Plane interface');
-    }
+    this.#require(this.#toolSupported, 'P07 Tool Control Plane');
     const transport = this.#activeTransport();
     return (await transport.request('tools.activity.page', request)) as ToolActivityPageV1;
   }
@@ -752,9 +763,7 @@ export class CoreSupervisor {
   async readToolCredentialCandidates(
     request: P07ReadParams['tools.credential.candidates'],
   ): Promise<ToolCredentialCandidatesProjectionV1> {
-    if (!this.#toolSupported) {
-      throw new Error('Core does not support the P07 Tool Control Plane interface');
-    }
+    this.#require(this.#toolSupported, 'P07 Tool Control Plane');
     const transport = this.#activeTransport();
     return (await transport.request(
       'tools.credential.candidates',
@@ -793,6 +802,37 @@ export class CoreSupervisor {
     await stopped;
   }
 
+  /**
+   * The user's 立即重启 while the window shows Main waiting for Core: ends that Core, and the exit
+   * path starts a new one at once. A Core that answers again is left alone.
+   */
+  restartNow(): boolean {
+    if (this.#heartbeats.waitingSince === undefined) return false;
+    void this.#log('core_restart_requested', { silenceMs: this.#heartbeats.silenceMs() });
+    return this.#endCore('user_restart');
+  }
+
+  /** Main ends the Core it owns; the window says so until the exit arrives. */
+  #endCore(cause: 'unresponsive' | 'user_restart'): boolean {
+    const child = this.#child;
+    if (this.#stopping || child === undefined || child.exitCode !== null) return false;
+    this.#ending = cause;
+    this.#heartbeats.stop();
+    this.#coreProjection.emit(
+      nextLocalProjection(
+        this.#coreProjection.current,
+        'restarting',
+        cause === 'user_restart' ? 'core.restart_requested' : 'core.unresponsive_restart',
+        cause === 'user_restart'
+          ? '正在重启 Aura Core…'
+          : 'Aura Core 已 1 分钟没有回应，进程也没有在运行，正在重启…',
+        true,
+      ),
+    );
+    child.kill();
+    return true;
+  }
+
   onSuspend(): void {
     this.#suspended = true;
     if (this.#readyDeadline !== undefined) clearTimeout(this.#readyDeadline);
@@ -802,7 +842,7 @@ export class CoreSupervisor {
   onResume(): void {
     this.#suspended = false;
     this.#resumeGraceUntil = Date.now() + RESUME_GRACE_MS;
-    this.#lastHeartbeatAt = Date.now();
+    this.#heartbeats.reset();
     if (
       this.#coreProjection.current.payload.state !== 'ready' &&
       this.#coreProjection.current.payload.state !== 'recovery_required'
@@ -921,6 +961,7 @@ export class CoreSupervisor {
     ) {
       coreArguments.push(`--test-mode=${testMode}`);
     }
+    coreArguments.push(...this.#exitRecovery.spawning());
     if (this.#options.additionalCoreArguments !== undefined) {
       coreArguments.push(...this.#options.additionalCoreArguments);
     }
@@ -1196,7 +1237,7 @@ export class CoreSupervisor {
       }
       this.#corePeerIdentity = transport.peerIdentity;
       this.#coreHandshake = frozenCoreHandshake(response.handshake, this.#options.release);
-      this.#activateTransport(transport, connectionGeneration, 1, generation);
+      this.#activateTransport(transport, connectionGeneration, 1);
     } catch (error) {
       transport.close();
       if (error instanceof CompatibilityFailure) throw error;
@@ -1238,30 +1279,19 @@ export class CoreSupervisor {
     };
   }
 
-  async #subscribeWorkspaceSessions(transport: CoreTransport, deadline?: number): Promise<void> {
+  /** Subscribes one relayed global projection after the revision Main already holds. */
+  async #subscribeRelayed(
+    transport: CoreTransport,
+    kind: 'core_health' | 'workspace_session' | 'workspace_files',
+    projection: { readonly sourceRevision: number | undefined },
+    deadline?: number,
+  ): Promise<void> {
+    const revision = projection.sourceRevision;
     await this.#projectionStageWithin(
       transport.request('projection.subscribe', {
-        after_revision:
-          this.#workspaceSessionProjection.sourceRevision === undefined
-            ? null
-            : String(this.#workspaceSessionProjection.sourceRevision),
+        after_revision: revision === undefined ? null : String(revision),
         known_runtime_instance_id: this.#coreRuntimeInstanceId,
-        projection_kind: 'workspace_session',
-        projection_scope: { type: 'global' },
-      }),
-      deadline,
-    );
-  }
-
-  async #subscribeWorkspaceFiles(transport: CoreTransport, deadline?: number): Promise<void> {
-    await this.#projectionStageWithin(
-      transport.request('projection.subscribe', {
-        after_revision:
-          this.#workspaceFilesProjection.sourceRevision === undefined
-            ? null
-            : String(this.#workspaceFilesProjection.sourceRevision),
-        known_runtime_instance_id: this.#coreRuntimeInstanceId,
-        projection_kind: 'workspace_files',
+        projection_kind: kind,
         projection_scope: { type: 'global' },
       }),
       deadline,
@@ -1287,31 +1317,14 @@ export class CoreSupervisor {
     }
   }
 
-  async #subscribeModelScoped(
+  /** Subscribes again the scoped Model or Tool projections a window asked for. */
+  async #subscribeScoped(
     transport: CoreTransport,
+    routes: Iterable<ModelProjectionRouteRequest | ToolProjectionRouteRequest>,
     owns: () => boolean,
     deadline?: number,
   ): Promise<void> {
-    for (const route of this.#modelScopedSubscriptions.values()) {
-      if (!owns()) return;
-      const subscription: ProjectionSubscription = {
-        ...route,
-        after_revision: null,
-        known_runtime_instance_id: this.#coreRuntimeInstanceId,
-      } as ProjectionSubscription;
-      await this.#projectionStageWithin(
-        transport.request('projection.subscribe', subscription),
-        deadline,
-      );
-    }
-  }
-
-  async #subscribeToolScoped(
-    transport: CoreTransport,
-    owns: () => boolean,
-    deadline?: number,
-  ): Promise<void> {
-    for (const route of this.#toolScopedSubscriptions.values()) {
+    for (const route of routes) {
       if (!owns()) return;
       const subscription: ProjectionSubscription = {
         ...route,
@@ -1355,18 +1368,7 @@ export class CoreSupervisor {
     deadline?: number,
   ): Promise<void> {
     if (!owns()) return;
-    await this.#projectionStageWithin(
-      transport.request('projection.subscribe', {
-        after_revision:
-          this.#coreProjection.sourceRevision === undefined
-            ? null
-            : String(this.#coreProjection.sourceRevision),
-        known_runtime_instance_id: this.#coreRuntimeInstanceId,
-        projection_kind: 'core_health',
-        projection_scope: { type: 'global' },
-      }),
-      deadline,
-    );
+    await this.#subscribeRelayed(transport, 'core_health', this.#coreProjection, deadline);
     if (!owns()) return;
     await this.#projectionStageWithin(this.refreshSnapshot(), deadline);
     if (!owns()) return;
@@ -1388,7 +1390,12 @@ export class CoreSupervisor {
       this.#workspaceSessionSupported &&
       this.#coreProjection.current.payload.state !== 'recovery_required'
     ) {
-      await this.#subscribeWorkspaceSessions(transport, deadline);
+      await this.#subscribeRelayed(
+        transport,
+        'workspace_session',
+        this.#workspaceSessionProjection,
+        deadline,
+      );
       if (!owns()) return;
       await this.#projectionStageWithin(this.refreshWorkspaceSessionSnapshot(), deadline);
       if (!owns()) return;
@@ -1398,7 +1405,12 @@ export class CoreSupervisor {
       this.#workspaceFilesSupported &&
       this.#coreProjection.current.payload.state !== 'recovery_required'
     ) {
-      await this.#subscribeWorkspaceFiles(transport, deadline);
+      await this.#subscribeRelayed(
+        transport,
+        'workspace_files',
+        this.#workspaceFilesProjection,
+        deadline,
+      );
       if (!owns()) return;
       await this.#projectionStageWithin(this.refreshWorkspaceFilesSnapshot(), deadline);
       if (!owns()) return;
@@ -1410,7 +1422,12 @@ export class CoreSupervisor {
     ) {
       await this.#subscribeModelGlobals(transport, owns, deadline);
       if (!owns()) return;
-      await this.#subscribeModelScoped(transport, owns, deadline);
+      await this.#subscribeScoped(
+        transport,
+        this.#modelScopedSubscriptions.values(),
+        owns,
+        deadline,
+      );
       if (!owns()) return;
     }
     if (
@@ -1418,7 +1435,12 @@ export class CoreSupervisor {
       this.#toolSupported &&
       this.#coreProjection.current.payload.state !== 'recovery_required'
     ) {
-      await this.#subscribeToolScoped(transport, owns, deadline);
+      await this.#subscribeScoped(
+        transport,
+        this.#toolScopedSubscriptions.values(),
+        owns,
+        deadline,
+      );
     }
   }
 
@@ -1555,14 +1577,12 @@ export class CoreSupervisor {
     transport: CoreTransport,
     connectionGeneration: number,
     connectionEpoch: number,
-    generation: number,
   ): void {
     const previous = this.#transport;
     this.#transport = transport;
     this.#activeConnectionGeneration = connectionGeneration;
     this.#connectionEpoch = connectionEpoch;
-    this.#lastHeartbeatAt = Date.now();
-    this.#startHeartbeatCheck(generation);
+    this.#heartbeats.start();
     if (previous !== undefined && previous !== transport) previous.close();
   }
 
@@ -1617,6 +1637,7 @@ export class CoreSupervisor {
               false,
             ),
           );
+          this.#ending = 'transport_lost';
           if (this.#child?.exitCode === null && !this.#child.killed) this.#child.kill();
           return;
         }
@@ -1624,6 +1645,7 @@ export class CoreSupervisor {
           message: String(reconnectError),
           recovery: 'new_process_and_initial_bootstrap',
         });
+        this.#ending = 'transport_lost';
         if (this.#child?.exitCode === null && !this.#child.killed) this.#child.kill();
       })
       .finally(() => {
@@ -1805,12 +1827,7 @@ export class CoreSupervisor {
           created.transport.close();
           return;
         }
-        this.#activateTransport(
-          created.transport,
-          created.connectionGeneration,
-          nextEpoch,
-          generation,
-        );
+        this.#activateTransport(created.transport, created.connectionGeneration, nextEpoch);
       } catch (error) {
         created.transport.close();
         if (!owns()) return;
@@ -1940,6 +1957,7 @@ export class CoreSupervisor {
         throw new Error('startup progress sequence was not monotonic');
       this.#lastStartupSequence = progress.sequence;
       if (progress.phase === 'ready' || progress.phase === 'recovery_required') {
+        if (progress.phase === 'ready') this.#exitRecovery.ready();
         if (this.#readyDeadline !== undefined) clearTimeout(this.#readyDeadline);
         this.#readyDeadline = undefined;
         // Nobody awaits this refresh - it is triggered by a notification, not a caller. An unowned
@@ -1965,7 +1983,7 @@ export class CoreSupervisor {
         throw new Error('heartbeat sequence was duplicate or reversed');
       }
       this.#lastHeartbeatSequence = heartbeat.sequence;
-      this.#lastHeartbeatAt = Date.now();
+      this.#heartbeats.heartbeat();
       return;
     }
     if (method === 'projection.change') {
@@ -2018,25 +2036,6 @@ export class CoreSupervisor {
     });
   }
 
-  #startHeartbeatCheck(generation: number): void {
-    if (this.#heartbeatCheck !== undefined) clearInterval(this.#heartbeatCheck);
-    this.#heartbeatCheck = setInterval(() => {
-      if (
-        this.#stopping ||
-        this.#suspended ||
-        generation !== this.#coreGeneration ||
-        Date.now() < this.#resumeGraceUntil ||
-        this.#child?.exitCode !== null
-      ) {
-        return;
-      }
-      if (Date.now() - this.#lastHeartbeatAt > HEARTBEAT_MISS_TIMEOUT_MS) {
-        void this.#log('core_unresponsive', { missedHeartbeats: 3 });
-        this.#child?.kill();
-      }
-    }, 1_000);
-  }
-
   #resetReadyDeadline(milliseconds: number): void {
     if (this.#readyDeadline !== undefined) clearTimeout(this.#readyDeadline);
     this.#readyDeadline = setTimeout(() => {
@@ -2067,13 +2066,13 @@ export class CoreSupervisor {
     this.#connectionGeneration += 1;
     this.#transport?.close();
     this.#transport = undefined;
-    const recovery = this.#exitRecovery.plan(
-      this.#coreProjection.current.payload.state,
-      Date.now(),
-    );
+    const cause = this.#ending ?? 'crash';
+    this.#ending = undefined;
+    const state = this.#coreProjection.current.payload.state;
+    const recovery = this.#exitRecovery.afterExit(cause, state, Date.now());
     if (recovery.kind === 'stopped') return;
     const { attempt } = recovery;
-    await this.#log('core_exited', { attempt, exitCode, signal });
+    await this.#log('core_exited', { attempt, exitCode, signal, cause });
     this.#coreProjection.emit(
       nextLocalProjection(
         this.#coreProjection.current,
@@ -2091,24 +2090,18 @@ export class CoreSupervisor {
   }
 
   #clearTimers(): void {
-    if (this.#heartbeatCheck !== undefined) clearInterval(this.#heartbeatCheck);
+    this.#heartbeats.stop();
     if (this.#readyDeadline !== undefined) clearTimeout(this.#readyDeadline);
-    this.#heartbeatCheck = undefined;
     this.#readyDeadline = undefined;
   }
 
-  async #log(event: string, fields: Record<string, unknown>): Promise<void> {
-    const path = resolve(
-      this.#options.localAppData,
-      'Aura/namespaces',
-      this.#options.release.namespaceObjectHash,
-      'logs/main.jsonl',
-    );
-    await mkdir(dirname(path), { recursive: true });
-    await appendFile(
-      path,
-      `${JSON.stringify({ component: 'electron_main', event, fields, timestamp: new Date().toISOString() })}\n`,
-      'utf8',
-    );
+  /** Refuses a request for an interface the connected Core did not offer in its handshake. */
+  #require(supported: boolean, name: string): void {
+    if (!supported) throw new Error(`Core does not support the ${name} interface`);
+  }
+
+  #log(event: string, fields: Record<string, unknown>): Promise<void> {
+    const { localAppData, release } = this.#options;
+    return appendMainLog(localAppData, release.namespaceObjectHash, event, fields);
   }
 }

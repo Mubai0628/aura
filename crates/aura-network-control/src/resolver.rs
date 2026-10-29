@@ -88,7 +88,7 @@ impl ProxyDnsResolver {
         })
         .await
         .map_err(|error| NetworkControlError::Transport(error.to_string()))?
-        .map_err(|error| NetworkControlError::Transport(error.to_string()))?;
+        .map_err(|_| host_not_found())?;
         let addresses = records.iter().map(|record| record.address).collect::<BTreeSet<_>>();
         let addresses = validate_dns_set(addresses.into_iter().collect(), allowed_classes)?;
         let ttl = records
@@ -211,7 +211,7 @@ async fn normalize_and_resolve_inner(
                         timeout(dns_timeout, lookup_host((normalized_host.as_str(), port)))
                             .await
                             .map_err(|_| NetworkControlError::Timeout)?
-                            .map_err(|error| NetworkControlError::Transport(error.to_string()))?;
+                            .map_err(|_| host_not_found())?;
                     resolved.map(|address| address.ip()).collect::<Vec<_>>()
                 }
             };
@@ -309,6 +309,11 @@ fn classify_ipv6(address: Ipv6Addr) -> Vec<NetworkDestinationClass> {
         return vec![NetworkDestinationClass::Reserved];
     }
     vec![NetworkDestinationClass::Public]
+}
+
+/// A name the resolver could not answer for: the model hears that, not the resolver's text.
+fn host_not_found() -> NetworkControlError {
+    NetworkControlError::Transport(crate::connect_failure::HOST_NOT_FOUND.to_owned())
 }
 
 #[cfg(test)]

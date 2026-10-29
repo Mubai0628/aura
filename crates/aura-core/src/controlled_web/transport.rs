@@ -41,7 +41,7 @@ impl ControlledWeb {
                 {
                     self.remember_route(operation_id, routing);
                 }
-                super::proxy::explain_transport(error)
+                super::proxy::explain_transport_to(error, url)
             })?;
         self.remember_route(operation_id, &opened.routing);
         let response = opened.response;

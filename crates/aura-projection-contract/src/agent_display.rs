@@ -8,9 +8,10 @@
 //! serde attributes, defaults, omission rules and schema names are the same.
 
 use aura_agent_domain::{
-    AgentBranchCopyingView, AgentBranchOrigin, AgentCompletionSummary, AgentFinalTextSource,
-    AgentInboxProjection, AgentModeEpisodeView, AgentRelatedTurnRequest, AgentRunProjection,
-    AgentTurnHistoryCursor, AgentUserMessageView, GoalState, PlanRecord, TodoState, TurnTask,
+    AgentAutoContinuedView, AgentBranchCopyingView, AgentBranchOrigin, AgentCompletionSummary,
+    AgentFinalTextSource, AgentInboxProjection, AgentModeEpisodeView, AgentRelatedTurnRequest,
+    AgentRunProjection, AgentTurnHistoryCursor, AgentUserMessageView, GoalState, PlanRecord,
+    TodoState, TurnTask,
 };
 use aura_context_domain::ContextUsageSummaryView;
 use aura_domain_common::{
@@ -154,6 +155,9 @@ pub struct AgentTurnView {
     /// can be copied or branched from again; it cannot be continued, retried or implemented here.
     #[serde(default, skip_serializing_if = "is_false")]
     pub imported: bool,
+    /// Set when Aura sent this turn's "继续" by itself after Core restarted, and why.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_continued: Option<AgentAutoContinuedView>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]

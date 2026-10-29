@@ -30,6 +30,7 @@ pub mod query;
 pub mod reconcile;
 pub mod recovery;
 pub mod related;
+pub mod restart_continuation;
 pub mod rounds;
 pub mod session;
 pub mod skills;

@@ -62,3 +62,51 @@ describe('agent request budgets', () => {
     expect(replyBudget('permission.get_session_mode')).toBe(15_000);
   });
 });
+
+describe('reads a busy store did not answer in time', () => {
+  const timedOut = () =>
+    Object.assign(new Error('no reply in time'), {
+      envelope: { code: 'ipc.request_timeout', terminal: 'failed' },
+    });
+
+  /** A transport whose first `failures` requests time out; it counts every request. */
+  function transportFailing(failures: number) {
+    let sent = 0;
+    const transport = {
+      request: () => {
+        sent += 1;
+        return sent <= failures ? Promise.reject(timedOut()) : Promise.resolve({ ok: true });
+      },
+    } as unknown as CoreTransport;
+    return { transport, sent: () => sent };
+  }
+
+  const viaTransport =
+    (transport: CoreTransport): Parameters<typeof requestAgentCommand>[2] =>
+    async (options) =>
+      options.send(transport) as never;
+
+  it('a read is asked again until it is answered', async () => {
+    const { transport, sent } = transportFailing(2);
+    await expect(
+      requestAgentCommand(
+        'agent.history',
+        {} as AgentMainParams['agent.history'],
+        viaTransport(transport),
+      ),
+    ).resolves.toEqual({ ok: true });
+    expect(sent()).toBe(3);
+  });
+
+  it('a command that changes something is never sent again', async () => {
+    const { transport, sent } = transportFailing(1);
+    await expect(
+      requestAgentCommand(
+        'agent.submit',
+        {} as AgentMainParams['agent.submit'],
+        viaTransport(transport),
+      ),
+    ).rejects.toThrow('no reply in time');
+    expect(sent()).toBe(1);
+  });
+});

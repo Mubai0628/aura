@@ -29,6 +29,7 @@ mod configuration;
 mod connections;
 mod context;
 mod context_window;
+pub(crate) mod continuation;
 mod derived_backfill;
 mod desktop;
 mod estimators;
@@ -36,6 +37,7 @@ pub(crate) mod fault;
 mod history_revision;
 mod hook_events;
 mod inbox;
+mod late_writes;
 mod media_host;
 mod memory_maintenance;
 mod mentioned_files;
@@ -86,6 +88,8 @@ pub(crate) struct AgentApplication {
     expiry_timers: approval_expiry::ExpiryTimers,
     /// The one owner of the derived-backfill task.
     derived_backfill: derived_backfill::DerivedBackfill,
+    /// The turns this process's start found under way and cut off, until they are continued.
+    startup_interrupted: Mutex<Vec<aura_persistence_v2::agent::recovery::InterruptedTurn>>,
     memory_maintenance: Arc<memory_maintenance::Maintenance>,
     registry_cache: Mutex<BTreeMap<AgentRunId, tools::RegistryCache>>,
     /// Sessions whose `session.started`/`session.resumed` Hooks ran in this process.
@@ -144,16 +148,21 @@ impl AgentApplication {
         // single `env::var_os` and nothing about the run path changes.
         #[cfg(feature = "acceptance-barrier")]
         crate::agent_store::acceptance_hold::install_from_environment(&store);
-        store.journal().lock()?.database.unit_of_work(|tx| {
-            aura_persistence_v2::agent::recovery::startup(tx, UtcTimestamp::now())?;
+        let interrupted = store.journal().lock()?.database.unit_of_work(|tx| {
+            let interrupted =
+                aura_persistence_v2::agent::recovery::startup(tx, UtcTimestamp::now())?;
             aura_persistence_v2::agent::inbox::startup(tx, UtcTimestamp::now())?;
             aura_persistence_v2::model::memory_maintenance::interrupt_previous_process(
                 tx,
                 execution.runtime,
                 UtcTimestamp::now(),
-            )
+            )?;
+            Ok::<_, aura_persistence_core::PersistenceCoreError>(interrupted)
         })?;
-        Ok(Self::assemble(execution, commands, p05, settings, store, RunSupervisor::new()))
+        let app = Self::assemble(execution, commands, p05, settings, store, RunSupervisor::new());
+        *app.startup_interrupted.lock().map_err(|_| anyhow::anyhow!("agent.startup_lock"))? =
+            interrupted;
+        Ok(app)
     }
 
     /// The **live** constructor: no startup scan, no second supervisor, no second owner.
@@ -230,7 +239,8 @@ impl AgentApplication {
                     handle.block_on(async {
                         let journal = work.store.journal();
                         journal.lock()?.database.unit_of_work(|tx| {
-                            aura_persistence_v2::agent::recovery::startup(tx, UtcTimestamp::now())?;
+                            aura_persistence_v2::agent::recovery::startup(tx, UtcTimestamp::now())
+                                .map(drop)?;
                             aura_persistence_v2::agent::inbox::startup(tx, UtcTimestamp::now())?;
                             aura_persistence_v2::model::memory_maintenance::interrupt_previous_process(tx,work.execution.runtime,UtcTimestamp::now())
                         })?;
@@ -273,6 +283,7 @@ impl AgentApplication {
             supervisor,
             expiry_timers: approval_expiry::ExpiryTimers::default(),
             derived_backfill: derived_backfill::DerivedBackfill::default(),
+            startup_interrupted: Mutex::new(Vec::new()),
             memory_maintenance,
             registry_cache: Mutex::new(BTreeMap::new()),
             hook_sessions: Mutex::new(Default::default()),

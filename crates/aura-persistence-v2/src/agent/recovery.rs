@@ -21,15 +21,31 @@ pub fn active_runs(db: &Connection) -> StoreResult<Vec<AgentRunId>> {
         .map(|v| v?.parse().map_err(|_| Error::Conflict))
         .collect()
 }
-pub fn startup(tx: &Transaction<'_>, at: UtcTimestamp) -> StoreResult<()> {
+/// A turn this start found under way and cut off, with nothing settled in its place: its
+/// session can be continued.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InterruptedTurn {
+    pub session_id: SessionId,
+    pub turn_task_id: TurnTaskId,
+    pub agent_run_id: AgentRunId,
+}
+
+/// Settles every run a previous process left under way, and returns the turns it cut off: not
+/// the ones the user had stopped, and not the ones waiting for an approval, an answer or a
+/// context decision, which keep waiting.
+pub fn startup(tx: &Transaction<'_>, at: UtcTimestamp) -> StoreResult<Vec<InterruptedTurn>> {
     crate::execution::shell::runtime_restarted(tx, at)?;
+    let mut interrupted = vec![];
     for id in active_runs(tx)? {
         // One run that cannot be settled no longer keeps every other session, and the
         // whole Agent, from starting. Its partial writes are taken back and why is kept; the next
         // start, or 停止, tries it again.
         tx.execute_batch("SAVEPOINT aura_startup_run")?;
         match settle_after_restart(tx, id, at) {
-            Ok(()) => tx.execute_batch("RELEASE aura_startup_run")?,
+            Ok(settled) => {
+                tx.execute_batch("RELEASE aura_startup_run")?;
+                interrupted.extend(settled);
+            }
             Err(error) => {
                 tx.execute_batch("ROLLBACK TO aura_startup_run; RELEASE aura_startup_run")?;
                 let reason: String = error.to_string().chars().take(300).collect();
@@ -44,11 +60,16 @@ pub fn startup(tx: &Transaction<'_>, at: UtcTimestamp) -> StoreResult<()> {
             }
         }
     }
-    Ok(())
+    Ok(interrupted)
 }
-fn settle_after_restart(tx: &Transaction<'_>, id: AgentRunId, at: UtcTimestamp) -> StoreResult<()> {
+fn settle_after_restart(
+    tx: &Transaction<'_>,
+    id: AgentRunId,
+    at: UtcTimestamp,
+) -> StoreResult<Option<InterruptedTurn>> {
     let r = turns::load_run(tx, id)?;
-    if !application::cancellation_requested(tx, id)?
+    let cancelled = application::cancellation_requested(tx, id)?;
+    if !cancelled
         && matches!(
             r.state,
             AgentRunState::AwaitingApproval { .. }
@@ -56,9 +77,17 @@ fn settle_after_restart(tx: &Transaction<'_>, id: AgentRunId, at: UtcTimestamp) 
                 | AgentRunState::AwaitingContextRemediation { .. }
         )
     {
-        return Ok(());
+        return Ok(None);
     }
-    interrupt(tx, id, "agent.core_restarted", application::cancellation_requested(tx, id)?, at)
+    interrupt(tx, id, "agent.core_restarted", cancelled, at)?;
+    let turn = turns::load(tx, r.turn_task_id)?;
+    Ok((!cancelled && matches!(turn.state, TurnTaskState::RecoveryRequired { .. })).then_some(
+        InterruptedTurn {
+            session_id: turn.session_id,
+            turn_task_id: turn.turn_task_id,
+            agent_run_id: id,
+        },
+    ))
 }
 pub fn episodes(db: &Connection, id: AgentRunId) -> StoreResult<Vec<RecoveryEpisode>> {
     let mut q =

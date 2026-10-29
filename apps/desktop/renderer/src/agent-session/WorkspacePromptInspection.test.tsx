@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { WorkspaceView } from '../WorkspaceView';
+import { resetCoreHealthStoreForTests } from '../core-health-store';
 import { resetToolTabsForTests } from '../right-workspace/tool-tabs';
 import { resetPromptInspectionsForTests } from './usePromptInspection';
 
@@ -134,6 +135,7 @@ function deferred() {
 beforeEach(() => {
   resetToolTabsForTests();
   resetPromptInspectionsForTests();
+  resetCoreHealthStoreForTests();
   projection = session();
   read
     .mockReset()
@@ -145,7 +147,14 @@ beforeEach(() => {
     );
   Object.defineProperty(window, 'aura', {
     configurable: true,
-    value: { v1: { readAgentInspector: read } },
+    value: {
+      v1: {
+        readAgentInspector: read,
+        // The view's waiting notice follows Core's health; it stays unknown here.
+        onCoreHealth: () => () => undefined,
+        getCoreHealth: () => new Promise(() => undefined),
+      },
+    },
   });
 });
 afterEach(cleanup);

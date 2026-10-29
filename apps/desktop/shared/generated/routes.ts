@@ -8,6 +8,7 @@ import type {
   AgentContextRecheckRequest,
   AgentContextRemediationView,
   AgentContextWindowResolveRequest,
+  AgentContinueRequest,
   AgentHistoryRequest,
   AgentInboxMutation,
   AgentInboxProjection,
@@ -898,6 +899,7 @@ export type AgentMainParams = {
   'agent.compaction.status': AgentRunRequest;
   'agent.message.text': AgentMessageTextRequest;
   'agent.query.select_file': AgentQueryFileRequest;
+  'agent.continue': AgentContinueRequest;
   'agent.related.start': AgentRelatedTurnRequest;
   'agent.inspector': AgentInspectorRequest;
   'agent.history': AgentHistoryRequest;
@@ -1010,6 +1012,7 @@ export type AgentMainResult = {
   'agent.compaction.status': AgentCompactionStatus;
   'agent.message.text': AgentMessageTextPage;
   'agent.query.select_file': AgentQueryFileSelection;
+  'agent.continue': AgentRunProjection;
   'agent.related.start': AgentRunProjection;
   'agent.inspector': AgentPromptInspection;
   'agent.history': AgentSessionProjection;
@@ -1190,6 +1193,7 @@ export type AgentCoreParams = {
   'agent.compaction.status': AgentRunRequest;
   'agent.message.text': AgentMessageTextRequest;
   'agent.query.select_file': AgentQueryFileRequest;
+  'agent.continue': AgentContinueRequest;
   'agent.related.start': AgentRelatedTurnRequest;
   'agent.inspector': AgentInspectorRequest;
   'agent.history': AgentHistoryRequest;
@@ -1296,6 +1300,7 @@ export type AgentCoreResult = {
   'agent.compaction.status': AgentCompactionStatus;
   'agent.message.text': AgentMessageTextPage;
   'agent.query.select_file': AgentQueryFileSelection;
+  'agent.continue': AgentRunProjection;
   'agent.related.start': AgentRunProjection;
   'agent.inspector': AgentPromptInspection;
   'agent.history': AgentSessionProjection;
@@ -2735,6 +2740,17 @@ export const MAIN_ROUTES = {
     cancellation: 'domain_operation',
     test_only: false,
   },
+  'agent.continue': {
+    method: 'agent.continue',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentContinueRequest',
+    response_type: 'AgentRunProjection',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'agent.related.start': {
     method: 'agent.related.start',
     owner: 'agent',
@@ -4052,6 +4068,17 @@ export const MAIN_ROUTES = {
     request_type: 'Record<string, never>',
     response_type: 'ProjectionChange',
     idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'core.restart': {
+    method: 'core.restart',
+    owner: 'runtime',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'Record<string, never>',
+    response_type: 'Record<string, boolean>',
+    idempotency: 'command_invocation',
     cancellation: 'none',
     test_only: false,
   },
@@ -5686,6 +5713,17 @@ export const CORE_ROUTES = {
     auth: 'authenticated_main',
     request_type: 'AgentQueryFileRequest',
     response_type: 'AgentQueryFileSelection',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.continue': {
+    method: 'agent.continue',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentContinueRequest',
+    response_type: 'AgentRunProjection',
     idempotency: 'command_invocation',
     cancellation: 'domain_operation',
     test_only: false,
@@ -7335,4 +7373,4 @@ export function coreRoute(method: string) {
     ? CORE_ROUTES[method as keyof typeof CORE_ROUTES]
     : undefined;
 }
-export const ROUTE_COUNTS = { main: 264, core: 263 } as const;
+export const ROUTE_COUNTS = { main: 266, core: 264 } as const;

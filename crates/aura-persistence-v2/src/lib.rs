@@ -102,17 +102,28 @@ impl V2Store {
             pending_check,
         };
         let started = std::time::Instant::now();
+        let until = started + std::time::Duration::from_millis(250);
         let mut poll_cursor = agent::desktop::PollBackfillCursor::default();
+        let mut repair_scan = agent::stream::RepairScan::default();
         // Each kind is its own transaction. A fault in one must not roll the
         // other back, and a large old object must not keep the database closed.
+        // Finding streams only reads, and its sweep stops at the same deadline.
         loop {
-            let streams = store.database.unit_of_work(|tx| {
-                agent::stream::repair_outstanding(
-                    tx,
-                    aura_domain_common::UtcTimestamp::now(),
-                    262_144,
-                )
-            });
+            let found = agent::stream::discover_outstanding(
+                store.database.connection(),
+                &mut repair_scan,
+                Some(until),
+            );
+            let streams = found
+                .and_then(|()| {
+                    agent::stream::repair_pass(
+                        &mut store.database,
+                        &mut repair_scan,
+                        aura_domain_common::UtcTimestamp::now(),
+                        262_144,
+                    )
+                })
+                .map(|copied| copied.saturating_add(u32::from(repair_scan.sweeping())));
             let polls = store.database.unit_of_work(|tx| {
                 agent::desktop::backfill_turn_poll(tx, 262_144, &mut poll_cursor)
             });

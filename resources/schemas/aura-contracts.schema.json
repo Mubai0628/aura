@@ -1233,6 +1233,23 @@
         }
       ]
     },
+    "AgentAutoContinuedView": {
+      "additionalProperties": false,
+      "description": "The turn's \"继续\" was sent by Aura itself after Core restarted, and why it restarted.",
+      "properties": {
+        "cause": {
+          "$ref": "#/$defs/CoreRestartCause"
+        },
+        "restarted_at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      },
+      "required": [
+        "cause",
+        "restarted_at"
+      ],
+      "type": "object"
+    },
     "AgentBranchCopyingView": {
       "additionalProperties": false,
       "description": "How far a branch's copy is while its older turns are still being\ncarried after it opened with its newest ones.",
@@ -1855,6 +1872,24 @@
           "type": "object"
         }
       ]
+    },
+    "AgentContinueRequest": {
+      "additionalProperties": false,
+      "description": "The user's 继续 for a turn a restart of Aura cut off: a new turn says \"继续\" ahead of the\nqueue, which stays paused until the user resumes it.",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "turn_task_id": {
+          "$ref": "#/$defs/TurnTaskId",
+          "description": "The cut-off turn the user saw; a later turn makes the request stale."
+        }
+      },
+      "required": [
+        "session_id",
+        "turn_task_id"
+      ],
+      "type": "object"
     },
     "AgentFileDeleteInput": {
       "additionalProperties": false,
@@ -4602,6 +4637,17 @@
             "$ref": "#/$defs/AgentAssistantView"
           },
           "type": "array"
+        },
+        "auto_continued": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentAutoContinuedView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Set when Aura sent this turn's \"继续\" by itself after Core restarted, and why."
         },
         "completion": {
           "anyOf": [
@@ -14272,6 +14318,17 @@
         },
         "status_message": {
           "type": "string"
+        },
+        "waiting": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoreWaitingV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Main has had no heartbeat from Core for a while and is waiting for it. Only Main sets\nit; Core never does."
         }
       },
       "required": [
@@ -14322,6 +14379,16 @@
         "unavailable",
         "app_crash_escalated",
         "recovery_required"
+      ],
+      "type": "string"
+    },
+    "CoreRestartCause": {
+      "description": "Why Main started a new Core while Aura stayed open: the Core exited by itself, Main ended it\nafter a silent and idle minute, its channel could not be recovered, or the user asked for\n立即重启. Main passes it to the new Core, which then continues the turns the restart cut off.",
+      "enum": [
+        "crash",
+        "unresponsive",
+        "transport_lost",
+        "user_restart"
       ],
       "type": "string"
     },
@@ -14400,6 +14467,19 @@
         "phase",
         "message",
         "occurred_at"
+      ],
+      "type": "object"
+    },
+    "CoreWaitingV1": {
+      "additionalProperties": false,
+      "description": "Since when Main has had no heartbeat from Core: the last one it received.",
+      "properties": {
+        "since": {
+          "$ref": "#/$defs/UtcTimestamp"
+        }
+      },
+      "required": [
+        "since"
       ],
       "type": "object"
     },

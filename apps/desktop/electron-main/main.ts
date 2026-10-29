@@ -567,6 +567,11 @@ const registerIpc = (): void => {
         }
         return { ok: true, value: await supervisor.readRuntimeReadiness() };
       }
+      if (request.command === 'core.restart') {
+        if (!isEmptyRecord(request.params) || supervisor === undefined)
+          return failureResult(errorEnvelope('core_not_ready', CORE_NOT_READY_MESSAGE, 'failed'));
+        return { ok: true, value: { restarted: supervisor.restartNow() } };
+      }
       if (request.command === 'core.health.get') {
         if (!isEmptyRecord(request.params)) {
           return failureResult(

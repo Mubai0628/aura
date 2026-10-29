@@ -33,6 +33,11 @@ export const TOOL_ERROR_CODES_V1 = [
   "tool.draft.test_required",
   "tool.draft.validation_failed",
   "tool.hook.blocked",
+  "tool.network.connection_failed",
+  "tool.network.connection_refused",
+  "tool.network.connection_reset",
+  "tool.network.host_not_found",
+  "tool.network.tls_failed",
   "tool.package.archive_too_large",
   "tool.package.case_collision",
   "tool.package.closed_file_set_mismatch",
@@ -406,6 +411,46 @@ export const TOOL_ERROR_CATALOG_V1 = {
       "retry_class": "never",
       "safe_message_key": "tool_hook_blocked",
       "suggested_not_executed_reason": "permission_denied"
+    },
+    {
+      "code": "tool.network.connection_failed",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_connection_failed",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.connection_refused",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_connection_refused",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.connection_reset",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_connection_reset",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.host_not_found",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_host_not_found",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.tls_failed",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_tls_failed",
+      "suggested_not_executed_reason": null
     },
     {
       "code": "tool.package.archive_too_large",

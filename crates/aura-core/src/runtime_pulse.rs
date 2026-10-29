@@ -14,18 +14,21 @@ pub(crate) fn spawn_heartbeat(
         interval.tick().await;
         let mut shown = (None, false);
         loop {
-            interval.tick().await;
+            let due = interval.tick().await;
+            let late = due.elapsed();
             let heartbeat = RuntimeHeartbeat {
                 runtime_instance_id: state.options.runtime_instance_id,
                 sequence: state.heartbeat_sequence.fetch_add(1, Ordering::AcqRel),
                 sent_at: UtcTimestamp::now(),
             };
+            let queueing = Instant::now();
             if send_notification(&queue, QueuePriority::P0, method::RUNTIME_HEARTBEAT, &heartbeat)
                 .await
                 .is_err()
             {
                 break;
             }
+            note_late_heartbeat(late, queueing.elapsed(), crate::outbound_watch::current());
             // Until startup completes, its own projection says where Core is.
             if !state.startup_complete.load(Ordering::Acquire) {
                 continue;
@@ -46,6 +49,26 @@ pub(crate) fn spawn_heartbeat(
             }
         }
     })
+}
+
+/// A heartbeat this late, this long to queue, or behind a write this long, is worth a log line.
+const LATE_HEARTBEAT: Duration = Duration::from_secs(1);
+
+/// Logs a heartbeat that left late, waited to be queued, or sits behind a frame Main has not
+/// read: Main's next "no heartbeat" can then be told apart as a stopped runtime or a full pipe.
+/// The line is written off the pulse's own task, which a slow disk must not hold.
+fn note_late_heartbeat(late: Duration, queued: Duration, writing: Option<(u64, u64)>) {
+    let blocked = writing.is_some_and(|(ms, _)| ms >= LATE_HEARTBEAT.as_millis() as u64);
+    if late < LATE_HEARTBEAT && queued < LATE_HEARTBEAT && !blocked {
+        return;
+    }
+    let fields = serde_json::json!({
+        "late_ms": late.as_millis() as u64,
+        "queue_ms": queued.as_millis() as u64,
+        "writing_ms": writing.map(|(ms, _)| ms),
+        "writing_bytes": writing.map(|(_, bytes)| bytes),
+    });
+    drop(tokio::task::spawn_blocking(move || crate::append_core_log("heartbeat_late", fields)));
 }
 
 #[cfg(test)]

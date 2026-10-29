@@ -415,3 +415,51 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Main waits for Core's heartbeat: above the composer, with 立即重启. */
+.core-waiting-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px 8px 12px;
+  margin: 0 0 8px;
+  border: 1px solid #dfd2b9;
+  border-radius: 9px;
+  color: #6d5733;
+  background: #faf6ed;
+  font-size: 12px;
+}
+
+.core-waiting-notice > svg {
+  flex: 0 0 auto;
+}
+
+.core-waiting-notice > span {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.core-waiting-notice strong {
+  color: #564324;
+  font-weight: 600;
+}
+
+.core-waiting-notice small {
+  color: #7b3838;
+}
+
+.core-waiting-notice button {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid #d6c3a0;
+  border-radius: 7px;
+  color: #564324;
+  background: #fffdf8;
+  font-size: 12px;
+}
+
+.core-waiting-notice button:hover:not(:disabled) {
+  background: #f3ead8;
+}

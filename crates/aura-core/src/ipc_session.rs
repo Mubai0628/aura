@@ -202,12 +202,13 @@ pub(crate) fn is_concurrent_read_only(request: &JsonRpcRequest) -> bool {
 ///   quarantine and artifact routes: global configuration or repository-wide state, not
 ///   one session's, so they keep the original order.
 /// * `projection.subscribe` / `projection.unsubscribe`: connection state, not a session's.
-const SESSION_BOUND_WRITE_ROUTES: [&str; 13] = [
+const SESSION_BOUND_WRITE_ROUTES: [&str; 14] = [
     // Sending a message and editing the pending queue of one session.
     "agent.submit",
     "agent.inbox.mutate",
     // One session's own run/approval/query control.
     "agent.start",
+    "agent.continue",
     "agent.related.start",
     "agent.cancel",
     "agent.mode.control",

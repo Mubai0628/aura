@@ -80,17 +80,20 @@ export function App() {
           : 'failed';
   useStartupSplash(startupPhase);
   const busy = coreState === 'ready' ? projection?.payload.busy : undefined;
+  const waiting = coreState === 'ready' ? projection?.payload.waiting : undefined;
   const corePresentation = health.loading
     ? { label: '正在连接 Aura Core', tone: 'warning' as const }
-    : projection?.payload.status_code === STORE_CHECK_FAILED
-      ? {
-          label: '数据库检查发现问题',
-          tone: 'danger' as const,
-          detail: projection.payload.status_message,
-        }
-      : busy
-        ? busyPresentation(busy)
-        : CORE_PRESENTATION[coreState];
+    : waiting
+      ? { label: 'Aura Core 正在处理', tone: 'warning' as const, waitingSince: waiting.since }
+      : projection?.payload.status_code === STORE_CHECK_FAILED
+        ? {
+            label: '数据库检查发现问题',
+            tone: 'danger' as const,
+            detail: projection.payload.status_message,
+          }
+        : busy
+          ? busyPresentation(busy)
+          : CORE_PRESENTATION[coreState];
   const actualWorkspaces = workspaceSessions.projection?.payload.workspaces ?? [];
   const actualSessions = workspaceSessions.projection?.payload.sessions ?? [];
   // The frozen design keeps the main list for active work: the main list only

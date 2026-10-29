@@ -2464,6 +2464,28 @@
     "test_only": false
   },
   {
+    "method": "agent.continue",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "AgentContinueRequest",
+    "response_type": "AgentRunProjection",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "agent.continue",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "AgentContinueRequest",
+    "response_type": "AgentRunProjection",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
     "method": "agent.related.start",
     "owner": "agent",
     "surface": "main",
@@ -5045,6 +5067,17 @@
     "request_type": "Record<string, never>",
     "response_type": "ProjectionChange",
     "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "core.restart",
+    "owner": "runtime",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "Record<string, never>",
+    "response_type": "Record<string, boolean>",
+    "idempotency": "command_invocation",
     "cancellation": "none",
     "test_only": false
   },

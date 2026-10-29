@@ -5,6 +5,9 @@ import type {
 } from '../shared/generated/routes.js';
 import type { CorrelationId } from '@aura/contracts/generated';
 import { parseAgentResult } from '../shared/agent-validation.js';
+import { mainRoute } from '../shared/generated/routes.js';
+import { isRequestLocalTimeout } from '../shared/ipc-request-failure.js';
+import { readFailureEnvelope } from './core-supervisor/errors.js';
 import type { ConfirmedRequest } from './secret-requests.js';
 
 const ORDINARY_REPLY_BUDGET_MS = 15_000;
@@ -41,6 +44,13 @@ const LONG_WORK_COMMANDS: ReadonlySet<string> = new Set([
   'agent.skills.import',
 ]);
 
+/**
+ * A read that a busy store did not answer in time is asked again, for up to two minutes, instead
+ * of reaching the window as a failure: the window keeps what it shows, and Core's status says the
+ * store is busy. Only reads: they change nothing, so asking twice is the same as asking once.
+ */
+const READ_PATIENCE_MS = 120_000;
+
 /** How long Main waits for Core's reply to one command. */
 export function replyBudget(command: string): number {
   if (RUN_STOP_COMMANDS.has(command)) return RUN_STOP_REPLY_BUDGET_MS;
@@ -55,18 +65,34 @@ export function requestAgentCommand<C extends AgentMainCommand>(
   onRequestId?: (id: CorrelationId) => void,
   onQueuedOpening?: (cancelIfUnsent: () => boolean) => void,
 ): Promise<AgentMainResult[C]> {
-  return confirm({
-    accept: (value) => parseAgentResult(command, value),
-    command,
-    send: (transport) =>
-      transport.request(
-        command,
-        params,
-        1,
-        replyBudget(command),
-        undefined,
-        onRequestId,
-        onQueuedOpening,
-      ),
-  });
+  const once = () =>
+    confirm({
+      accept: (value) => parseAgentResult(command, value),
+      command,
+      send: (transport) =>
+        transport.request(
+          command,
+          params,
+          1,
+          replyBudget(command),
+          undefined,
+          onRequestId,
+          onQueuedOpening,
+        ),
+    });
+  return mainRoute(command)?.idempotency === 'read_only' ? patiently(once) : once();
+}
+
+async function patiently<T>(read: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + READ_PATIENCE_MS;
+  for (;;) {
+    try {
+      return await read();
+    } catch (error) {
+      const envelope = readFailureEnvelope(error);
+      if (envelope === undefined || !isRequestLocalTimeout(envelope) || Date.now() >= deadline) {
+        throw error;
+      }
+    }
+  }
 }

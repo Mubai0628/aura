@@ -27,6 +27,7 @@ mod child_environment;
 mod credential;
 mod dialog;
 mod directory_create;
+mod disk_load;
 mod disk_space;
 mod dns;
 mod elevation;
@@ -100,6 +101,7 @@ pub use dialog::{
     RecoveryAction, RecoveryChoice, choose_diagnostic_export_path, show_recovery_dialog,
 };
 pub use directory_create::handle_bound_create_directory;
+pub use disk_load::DiskLoad;
 pub use disk_space::free_disk_space;
 pub use dns::{DnsAddressRecord, resolve_dns_addresses};
 pub use elevation::{

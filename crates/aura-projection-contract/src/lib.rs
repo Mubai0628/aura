@@ -156,6 +156,7 @@ mod tests {
                 status_code: "core.ready".to_owned(),
                 status_message: "ready".to_owned(),
                 busy: None,
+                waiting: None,
             },
         };
         let wire = serde_json::to_value(&global).expect("projection wire");

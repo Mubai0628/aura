@@ -200,6 +200,8 @@ export function agentBridge(
       invoke('agent.inspector', request),
     startRelatedAgentTurn: (request: AgentMainParams['agent.related.start']) =>
       invoke('agent.related.start', request),
+    continueAgent: (request: AgentMainParams['agent.continue']) =>
+      invoke('agent.continue', request),
     readShellExecution: (request: AgentMainParams['agent.shell.query']) =>
       invoke('agent.shell.query', request),
     stopShellExecution: (request: AgentMainParams['agent.shell.stop']) =>

@@ -59,6 +59,9 @@ mod write_batch;
 // Store writes that finish after their callers stopped waiting.
 #[path = "late_store_writes.rs"]
 mod late_store_writes;
+// The background copy of derived rows when there is nothing to copy, and when there is.
+#[path = "derived_backfill.rs"]
+mod derived_backfill;
 // A Shell call's id, its output kept at a limit, and shell.query's errors.
 #[path = "shell_results.rs"]
 mod shell_results;

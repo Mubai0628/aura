@@ -276,15 +276,39 @@
   margin: 0;
   overflow: visible;
 }
+/* The way back to the latest message, centred just above the composer while any of the
+   conversation is below the window; a dot when something new arrived meanwhile. The sticky edge
+   is the scroll area's content edge, which the composer's clearance already ends. */
 .agent-follow {
   position: sticky;
-  bottom: 16px;
-  display: block;
+  bottom: 12px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
   margin: 8px auto;
-  border-radius: 20px;
-  padding: 8px 18px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--ink);
   background: var(--surface);
-  border: 1px solid #ccc;
+  box-shadow: 0 4px 12px rgba(37, 43, 39, 0.12);
+}
+.agent-follow:hover {
+  background: var(--surface-muted);
+}
+.agent-follow[data-new='true']::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
 }
 .agent-inspector {
   overflow: auto;
@@ -456,4 +480,28 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+/* Above the "继续" Aura sent by itself after Core restarted: when, and why. */
+.agent-auto-continued {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+/* 继续 for a turn a restart cut off, at the end of the line that says so. */
+.agent-continue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+.agent-continue button {
+  padding: 2px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  font-size: 12px;
+}
+.agent-continue button:hover:not(:disabled) {
+  background: var(--surface-muted);
 }

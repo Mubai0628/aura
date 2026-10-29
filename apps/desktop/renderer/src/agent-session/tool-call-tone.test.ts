@@ -47,3 +47,22 @@ test('an answered question and other running calls keep their usual state', () =
   expect(stateOf(reading).text).not.toBe('等待你的回答');
   expect(callUnderWay(reading)).toBe(true);
 });
+
+// A request whose target refused the connection said "工具暂不可用"; it says what happened.
+test('a request whose target could not be reached names the kind, not an unavailable tool', () => {
+  const refused = entry('http.request', 'finalized', 'failed');
+  Object.assign(refused.summary, {
+    error_code: 'tool.network.connection_refused',
+    error_class: 'other',
+  });
+  expect(stateOf(refused).text).toBe('连接被拒绝');
+  for (const [code, text] of [
+    ['tool.network.host_not_found', '找不到主机'],
+    ['tool.network.tls_failed', 'TLS 握手失败'],
+    ['tool.network.connection_reset', '连接被断开'],
+    ['tool.network.connection_failed', '连接失败'],
+  ] as const) {
+    Object.assign(refused.summary, { error_code: code });
+    expect(stateOf(refused).text).toBe(text);
+  }
+});

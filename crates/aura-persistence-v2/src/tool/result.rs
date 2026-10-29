@@ -286,8 +286,23 @@ fn model_safe_named_error(raw: &str) -> Option<&str> {
     // the HTTP request was sent, and those are the lines the model is meant to read.
     let visible = !first.chars().any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
         && first.len() <= 512
-        && (proxy_explanation_for_the_model(first) || core_web_service_line(code));
+        && (proxy_explanation_for_the_model(first)
+            || core_web_service_line(code)
+            || unreachable_target(code).is_some());
     Some(if visible { first } else { code })
+}
+
+/// A target Core could not reach, by kind: its first line is Core's own sentence (host, port and
+/// what to do next), and every kind but a reset left the request unsent.
+fn unreachable_target(code: &str) -> Option<(ToolNetworkErrorCode, bool)> {
+    Some(match code {
+        "network.connection_refused" => (ToolNetworkErrorCode::ConnectionRefused, true),
+        "network.host_not_found" => (ToolNetworkErrorCode::HostNotFound, true),
+        "network.tls_failed" => (ToolNetworkErrorCode::TlsFailed, true),
+        "network.connection_reset" => (ToolNetworkErrorCode::ConnectionReset, false),
+        "network.connection_failed" => (ToolNetworkErrorCode::ConnectionFailed, true),
+        _ => return None,
+    })
 }
 
 /// The first line of a DeepSeek web service refusal is Core's own sentence.
@@ -301,12 +316,16 @@ fn proxy_explanation_for_the_model(line: &str) -> bool {
     line.contains("尚未向目标发出 HTTP 请求") || line.contains("不能确认目标请求是否已经发出")
 }
 
-fn failed_runtime_code(receipt: &Value, named: Option<&str>) -> ToolRuntimeErrorCode {
+fn failed_runtime_code(receipt: &Value, named: Option<&str>) -> ErrorCode {
     if receipt["schema"] != "controlled-web-result-v1" {
-        return ToolRuntimeErrorCode::DispatchFailed;
+        return ToolRuntimeErrorCode::DispatchFailed.error_code();
+    }
+    let unreachable = named.and_then(|line| unreachable_target(line.split(':').next()?.trim()));
+    if let Some((code, _)) = unreachable {
+        return code.error_code();
     }
     let blob = named.unwrap_or("").to_ascii_lowercase();
-    if blob.contains("control_endpoint_blocked") {
+    let code = if blob.contains("control_endpoint_blocked") {
         ToolRuntimeErrorCode::HttpControlEndpointDenied
     } else if blob.contains("credential_reflection") {
         ToolRuntimeErrorCode::HttpCredentialReflectionBlocked
@@ -326,7 +345,8 @@ fn failed_runtime_code(receipt: &Value, named: Option<&str>) -> ToolRuntimeError
         ToolRuntimeErrorCode::HttpRequestInvalid
     } else {
         ToolRuntimeErrorCode::HttpGatewayFailed
-    }
+    };
+    code.error_code()
 }
 /// Whether a Shell command Aura stopped keeps its output as its result: one stopped at its own
 /// output or time limit, or because Core went away, says so in that result. A stop the user or the
@@ -429,7 +449,7 @@ pub fn materialize(
     } else if evidence.outcome == ExecutionOutcome::Unknown {
         ToolRuntimeErrorCode::DispatchOutcomeUnknown.error_code()
     } else if evidence.outcome == ExecutionOutcome::Failed {
-        failed_runtime_code(&receipt, failure_message.as_deref()).error_code()
+        failed_runtime_code(&receipt, failure_message.as_deref())
     } else {
         ToolRuntimeErrorCode::DispatchFailed.error_code()
     };
@@ -443,11 +463,18 @@ pub fn materialize(
     } else {
         failure_message.as_deref().unwrap_or(unexplained_failure(evidence.side_effect))
     };
+    // A target that refused or could not be found was never sent the request: trying again,
+    // once the cause is fixed, is what the model should do.
+    let retryable = !invalid_output
+        && failure_message
+            .as_deref()
+            .and_then(|line| unreachable_target(line.split(':').next()?.trim()))
+            .is_some_and(|(_, unsent)| unsent);
     let error = ErrorEnvelope::new(
         entry.code,
         entry.category,
         message,
-        false,
+        retryable,
         CorrelationId::from_bytes(call_id.to_bytes()),
         None,
     );
@@ -455,7 +482,7 @@ pub fn materialize(
         code: error.code.clone(),
         category: error.category,
         message: error.message.clone(),
-        retryable: false,
+        retryable,
     };
     let (outcome, visible) = if let Some(rejection) = rejection {
         (
@@ -651,6 +678,36 @@ fn unexplained_failure(side_effect: SideEffectStateV1) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_target_core_could_not_reach_is_named_by_kind_with_what_to_do_next() {
+        let receipt = serde_json::json!({ "schema": "controlled-web-result-v1" });
+        let line = "network.connection_refused: 127.0.0.1:5188 没有程序在监听（连接被拒绝）。如果它是本机的开发服务器或其他服务，先启动它（例如重新运行启动命令），再重试这个请求。";
+        assert_eq!(model_safe_named_error(line), Some(line), "Core's sentence reaches the model");
+        assert_eq!(
+            failed_runtime_code(&receipt, Some(line)),
+            ToolNetworkErrorCode::ConnectionRefused.error_code()
+        );
+        assert_eq!(
+            unreachable_target("network.connection_refused").map(|(_, unsent)| unsent),
+            Some(true)
+        );
+        assert_eq!(
+            unreachable_target("network.connection_reset").map(|(_, unsent)| unsent),
+            Some(false)
+        );
+        let entry = tool_error_catalog_v1()
+            .entries
+            .into_iter()
+            .find(|entry| entry.code == ToolNetworkErrorCode::HostNotFound.error_code())
+            .expect("cataloged");
+        assert_eq!(entry.category, ErrorCategory::Transport, "not 'unavailable'");
+        // Anything else stays the gateway's failure, its diagnostics behind the code.
+        assert_eq!(
+            failed_runtime_code(&receipt, Some("network.transport_failed")),
+            ToolRuntimeErrorCode::HttpGatewayFailed.error_code()
+        );
+    }
 
     #[test]
     fn a_transport_diagnostic_stays_behind_its_code_and_a_proxy_sentence_is_kept() {

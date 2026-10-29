@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { useRef } from 'react';
 import { afterEach, expect, test } from 'vitest';
 import { useConversationScroll } from './useConversationScroll';
@@ -58,4 +58,38 @@ test('within a conversation, reading older messages is not interrupted by new ou
   scrollTo(viewport, 1000);
   rerender(<Harness session="ses_a" version="a3" />);
   expect(viewport.scrollTop).toBe(1000);
+});
+
+function Reader({ version }: { version: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { away, hasNew, follow } = useConversationScroll(ref, 'ses_a', 'run_1', version);
+  return (
+    <div ref={ref} data-testid="viewport" data-away={String(away)} data-new={String(hasNew)}>
+      <button type="button" onClick={follow}>
+        follow
+      </button>
+    </div>
+  );
+}
+
+// The way back to the latest message is offered whenever some of the conversation is below the
+// window, new content or not; new content while away adds its dot.
+test('reading above the end offers the way back, and new content marks it', () => {
+  const { getByTestId, getByText, rerender } = render(<Reader version="a1" />);
+  const viewport = getByTestId('viewport');
+  measure(viewport, 5000);
+  rerender(<Reader version="a2" />);
+  expect(viewport.dataset.away).toBe('false');
+  // A few pixels short of the end is still the end.
+  act(() => scrollTo(viewport, 4590));
+  expect(viewport.dataset.away).toBe('false');
+  act(() => scrollTo(viewport, 3000));
+  expect(viewport.dataset.away).toBe('true');
+  expect(viewport.dataset.new).toBe('false');
+  rerender(<Reader version="a3" />);
+  expect(viewport.dataset.new).toBe('true');
+  act(() => getByText('follow').click());
+  expect(viewport.scrollTop).toBe(4600);
+  expect(viewport.dataset.away).toBe('false');
+  expect(viewport.dataset.new).toBe('false');
 });

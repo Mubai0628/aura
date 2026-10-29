@@ -19,7 +19,7 @@
 //! 5. The fault clears: new legitimate work is served without restarting anything, and no
 //!    unknown work is replayed.
 use super::*;
-use crate::agent_store::{ReceiptState, StoreDependency, StoreError};
+use crate::agent_store::{ReceiptState, StoreDependency, StoreError, StoreStep};
 use crate::sync_boundary::SyncSection;
 use crate::{AsyncPriorityQueue, WireFrame};
 use provider_fixture::{Provider, Scenario};
@@ -488,7 +488,8 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
 /// B3 - the boundary is full.
 ///
 /// The next item is refused **before the business runs**, the sections that hold the permits keep
-/// them, and capacity returns only with the real completion.
+/// them, and capacity returns only with the real completion. Held writes fill the shared workers:
+/// reads have a lane of their own and do not.
 #[test]
 fn b3_a_full_boundary_refuses_before_the_business_and_recovers_with_the_real_completion() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -504,13 +505,14 @@ fn b3_a_full_boundary_refuses_before_the_business_and_recovers_with_the_real_com
         _ => panic!("Core must be ready"),
     };
     state.sync.set_budget(Duration::from_millis(BUDGET_MS));
-    // Every Store section is held, so the four workers are really occupied.
-    let hold = agent.store().arm_hold("", HOLD_MS);
+    // Every held write keeps a worker, so the four workers are really occupied.
+    let hold = agent.store().arm_hold("test.held_write", HOLD_MS);
     let mut holders = Vec::new();
     for _ in 0..crate::sync_boundary::SYNC_WORKERS {
-        let agent = Arc::clone(&agent);
-        let request = request_b.clone();
-        holders.push(runtime.spawn(async move { agent.status(&request).await.map(|_| ()) }));
+        let store = Arc::clone(agent.store());
+        holders.push(runtime.spawn(async move {
+            store.write(StoreStep::operation("test.held_write"), |_store| Ok(())).await
+        }));
     }
     // Occupied means inside the held section too, not only holding a permit — under load
     // a worker can hold its permit before it arrives, and the count below read that as a refusal.
@@ -520,7 +522,7 @@ fn b3_a_full_boundary_refuses_before_the_business_and_recovers_with_the_real_com
     });
     assert!(full, "every boundary worker must really be occupied");
     assert_eq!(
-        state.sync.counters(SyncSection::JournalRead).in_flight,
+        state.sync.counters(SyncSection::AgentStore).in_flight,
         crate::sync_boundary::SYNC_WORKERS as u64,
         "the running work owns its permits"
     );
@@ -535,7 +537,7 @@ fn b3_a_full_boundary_refuses_before_the_business_and_recovers_with_the_real_com
             .and_then(|error| error.downcast_ref::<StoreError>())
             .map(StoreError::code),
         state.sync.available(),
-        state.sync.counters(SyncSection::JournalRead)
+        state.sync.counters(SyncSection::AgentStore)
     );
     assert!(
         refused

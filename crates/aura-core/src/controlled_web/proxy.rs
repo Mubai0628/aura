@@ -114,6 +114,58 @@ pub(super) fn explain_transport(error: NetworkControlError) -> anyhow::Error {
     anyhow::Error::new(TransportFailure { message: text, request_not_started })
 }
 
+/// The same text for a request to `url`. A target that could not be reached directly is named
+/// (host and port, never the path or the system's own words), with what to do next.
+pub(super) fn explain_transport_to(error: NetworkControlError, url: &url::Url) -> anyhow::Error {
+    let direct = match &error {
+        NetworkControlError::RoutedTransport { error, routing, .. }
+            if routing.iter().all(|hop| hop.proxy_failure.is_none()) =>
+        {
+            Some(error.as_ref())
+        }
+        NetworkControlError::RoutedTransport { .. } => None,
+        other => Some(other),
+    };
+    if let Some(NetworkControlError::Transport(reason)) = direct
+        && let Some(message) = unreachable_target(reason, url)
+    {
+        let request_not_started = matches!(
+            &error,
+            NetworkControlError::RoutedTransport { request_not_started: true, .. }
+        );
+        return anyhow::Error::new(TransportFailure { message, request_not_started });
+    }
+    explain_transport(error)
+}
+
+fn unreachable_target(reason: &str, url: &url::Url) -> Option<String> {
+    use aura_network_control::connect_failure as kind;
+    let host = url.host_str()?;
+    let target = match url.port_or_known_default() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    };
+    let code = kind::code(reason);
+    Some(match reason {
+        kind::REFUSED => format!(
+            "{code}: {target} 没有程序在监听（连接被拒绝）。如果它是本机的开发服务器或其他服务，先启动它（例如重新运行启动命令），再重试这个请求。"
+        ),
+        kind::HOST_NOT_FOUND => format!(
+            "{code}: 找不到主机 {host}（域名解析失败）。请检查地址是否写对，确认网络可用后再重试。"
+        ),
+        kind::TLS_FAILED => format!(
+            "{code}: 与 {target} 的 TLS 握手失败（证书或协议不被接受）。如果它只提供 HTTP，请改用 http://；否则检查它的证书后再重试。"
+        ),
+        kind::RESET => format!(
+            "{code}: 与 {target} 的连接被对方断开，不能确认请求是否已经送达。可以稍后重试；如果反复出现，检查目标服务是否正常。"
+        ),
+        kind::CONNECT_FAILED => {
+            format!("{code}: 无法连接 {target}。请确认目标服务已启动、地址和端口正确，再重试。")
+        }
+        _ => return None,
+    })
+}
+
 /// Preserve the gateway's typed proof while keeping unsafe transport diagnostics private.
 #[derive(Debug)]
 pub(super) struct TransportFailure {

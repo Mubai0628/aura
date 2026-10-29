@@ -96,6 +96,7 @@ impl ControlledWeb {
             let start = self.transport_start(dispatch, &request, "http.request_started").await?;
             let started = std::time::Instant::now();
             let operation_id = dispatch.request().operation.operation_id;
+            let target = url::Url::parse(&request.plan.requested_url).ok();
             let response = self
                 .gateway
                 .execute_ordinary(
@@ -113,7 +114,10 @@ impl ControlledWeb {
                     {
                         self.remember_route(operation_id, routing);
                     }
-                    safe_transport(error)
+                    match &target {
+                        Some(url) => super::proxy::explain_transport_to(error, url),
+                        None => safe_transport(error),
+                    }
                 })?;
             self.remember_route(operation_id, &response.routing);
             Ok(serde_json::to_value(aura_net_tools::http_result(

@@ -36,7 +36,16 @@ beforeEach(() => {
     },
   });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+/** A finished turn's time says how long ago it ended: 2 days 13 hours after this turn did. */
+function twoDaysLater() {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-25T13:38:50Z'));
+}
 
 const goal = (completed: boolean) => ({
   budget: { max_tokens: null, max_turns: null },
@@ -108,17 +117,22 @@ function show(running: boolean, withGoal: boolean) {
 }
 
 test('a finished turn’s time sits at the right of the line under its answer, not on its first line', async () => {
+  twoDaysLater();
   const turn = show(false, false);
   const summary = await waitFor(() => {
     const found = turn.querySelector(':scope > .agent-turn-footer .agent-turn-summary');
     expect(found).not.toBeNull();
     return found as HTMLElement;
   });
-  expect(summary.textContent).toBe('3 分 50 秒');
+  expect([...summary.children].map((part) => part.textContent)).toEqual([
+    '2 天 13 小时之前',
+    '3 分 50 秒',
+  ]);
   expect(turn.querySelector('.agent-turn-status')?.textContent).not.toContain('3 分 50 秒');
 });
 
 test('a completed Goal sits just left of that time, and not above the answer', async () => {
+  twoDaysLater();
   const turn = show(false, true);
   const summary = await waitFor(() => {
     const found = turn.querySelector(':scope > .agent-turn-footer .agent-turn-summary');
@@ -128,6 +142,7 @@ test('a completed Goal sits just left of that time, and not above the answer', a
   const parts = [...summary.children].map((part) => part.textContent);
   expect(parts).toEqual([
     'Goal 已完成 · Token 1,877,962 / 未设预算 · 模型步数 9 / 未设预算',
+    '2 天 13 小时之前',
     '3 分 50 秒',
   ]);
   expect(turn.querySelector(':scope > .agent-goal')).toBeNull();

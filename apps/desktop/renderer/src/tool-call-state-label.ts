@@ -16,6 +16,17 @@ export const errorCodeLabel = (code: string | null | undefined): string | undefi
       return '未执行：标签页在后台';
     case 'memory.hash_conflict':
       return '冲突，未写入';
+    // The target of an HTTP tool could not be reached; the details say which and what to do.
+    case 'tool.network.connection_refused':
+      return '连接被拒绝';
+    case 'tool.network.host_not_found':
+      return '找不到主机';
+    case 'tool.network.tls_failed':
+      return 'TLS 握手失败';
+    case 'tool.network.connection_reset':
+      return '连接被断开';
+    case 'tool.network.connection_failed':
+      return '连接失败';
     default:
       return code?.endsWith('.timed_out') ? '超时，可重试' : undefined;
   }

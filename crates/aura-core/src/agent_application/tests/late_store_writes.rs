@@ -146,3 +146,32 @@ async fn a_stop_queued_behind_a_later_change_still_stops_the_run() {
     let projection = agent.status(&request).await.expect("projection");
     assert!(matches!(projection.turn.state, TurnTaskState::Cancelled), "{:?}", projection.turn);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn any_step_write_that_outlives_its_wait_is_followed_and_the_turn_goes_on() {
+    let host = crate::r03_tests::Fixture::new();
+    let provider = Provider::scenario(Scenario::Text).await;
+    let (runtime, session, model) = prepare(&host, &provider).await;
+    let agent = agent(&runtime);
+    // The write that takes in queued additions before each model step is held past its
+    // caller's wait, as a busy store holds it, then commits.
+    runtime.sync.set_budget(Duration::from_millis(1_000));
+    let hold = agent.store().arm_hold("agent.drive.input_consumption", 60_000);
+    let start = super::start(&runtime, session, model, AgentTaskMode::Normal).await;
+    let request =
+        AgentRunRequest { session_id: start.turn.session_id, agent_run_id: start.run.agent_run_id };
+    assert!(until(Duration::from_secs(30), || hold.was_reached()).await, "the write was held");
+    assert!(
+        until(Duration::from_secs(15), || agent.store().counters().unknown > 0).await,
+        "its caller's wait ended before it committed"
+    );
+    assert!(
+        until(Duration::from_secs(10), || crate::busy::store_waiting_after(Duration::from_secs(2)))
+            .await,
+        "the status says a turn waits for the store"
+    );
+    hold.release_all();
+    let ended =
+        wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
+    assert!(matches!(ended.turn.state, TurnTaskState::Completed { .. }), "{:?}", ended.turn.state);
+}

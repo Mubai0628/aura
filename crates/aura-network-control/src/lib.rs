@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod connect_failure;
 mod controlled_web;
 mod credential_reflection_scan;
 #[cfg(feature = "test-fixture-dns")]

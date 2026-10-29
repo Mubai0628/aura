@@ -642,7 +642,7 @@ async fn repeated_and_concurrent_recovery_does_not_duplicate_owners_or_tasks() {
         .cloned()
         .collect::<Vec<_>>();
     assert!(
-        added.iter().all(|section| *section == "journal_read"),
+        added.iter().all(|section| matches!(*section, "journal_read" | "store_read")),
         "the only sections a first recovery may add are the ones its own one-time work uses; a \
          second boundary would add more: {added:?}"
     );

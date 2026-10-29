@@ -9,7 +9,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::Deserialize;
 
 mod poll_backfill;
-pub use poll_backfill::{PollBackfillCursor, backfill_turn_poll};
+pub use poll_backfill::{PollBackfillCursor, backfill_turn_poll, turn_poll_outstanding};
 mod revision;
 mod tool_input;
 pub use tool_input::{LiveToolInput, with_tool_input};
@@ -199,6 +199,7 @@ fn turn_view(
         final_text_source,
         completion,
         imported: false,
+        auto_continued: super::restart_continuation::view(db, id)?,
     })
 }
 

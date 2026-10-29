@@ -415,6 +415,16 @@ pub(crate) async fn dispatch(
             return Ok(serde_json::to_value(value)?);
         }
         let value = match request.method.as_str() {
+            "agent.continue" => {
+                agent
+                    .continue_turn(
+                        request
+                            .command_invocation_id
+                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                        serde_json::from_value(request.params.clone())?,
+                    )
+                    .await?
+            }
             "agent.related.start" => {
                 agent
                     .related_turn(

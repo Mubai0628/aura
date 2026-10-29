@@ -36,6 +36,11 @@
 | `tool.draft.test_required` | `conflict` | `renderer_and_model_safe` | `never` | `tool_draft_test_required` | `` |
 | `tool.draft.validation_failed` | `conflict` | `renderer_and_model_safe` | `never` | `tool_draft_validation_failed` | `` |
 | `tool.hook.blocked` | `permission` | `renderer_and_model_safe` | `never` | `tool_hook_blocked` | `permission_denied` |
+| `tool.network.connection_failed` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_connection_failed` | `` |
+| `tool.network.connection_refused` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_connection_refused` | `` |
+| `tool.network.connection_reset` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_connection_reset` | `` |
+| `tool.network.host_not_found` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_host_not_found` | `` |
+| `tool.network.tls_failed` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_tls_failed` | `` |
 | `tool.package.archive_too_large` | `validation` | `renderer_and_model_safe` | `never` | `tool_package_archive_too_large` | `` |
 | `tool.package.case_collision` | `validation` | `renderer_and_model_safe` | `never` | `tool_package_case_collision` | `` |
 | `tool.package.closed_file_set_mismatch` | `validation` | `renderer_and_model_safe` | `never` | `tool_package_closed_file_set_mismatch` | `` |

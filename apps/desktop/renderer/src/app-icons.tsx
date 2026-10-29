@@ -3,6 +3,7 @@ import type { SVGProps } from 'react';
 export type IconName =
   | 'activity'
   | 'archive'
+  | 'arrow-down'
   | 'arrow-left'
   | 'arrow-right'
   | 'bell'
@@ -79,6 +80,7 @@ const iconPaths: Record<IconName, React.ReactNode> = {
       <path d="M5.5 8.5v10.5h13V8.5M10 12.5h4" {...strokeProps} />
     </>
   ),
+  'arrow-down': <path d="m6 13 6 6 6-6M12 19V5" {...strokeProps} />,
   'arrow-left': <path d="m11 6-6 6 6 6M5 12h14" {...strokeProps} />,
   'arrow-right': <path d="m13 6 6 6-6 6M19 12H5" {...strokeProps} />,
   browser: (

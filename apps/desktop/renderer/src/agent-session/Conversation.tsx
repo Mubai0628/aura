@@ -28,6 +28,9 @@ import { useConversationScroll } from './useConversationScroll';
 import { useToolCallDirectory } from './useToolCallDirectory';
 import { latestToolCompletion } from './tool-completion';
 import { TurnSummary } from './TurnSummary';
+import { AppIcon } from '../app-icons';
+import { AutoContinuedNote, ContinueButton } from './TurnContinuation';
+import { continuable } from './turn-continuation';
 import { terminalTurn } from './turn-state';
 
 const uncertainRelated = new Set<string>();
@@ -95,7 +98,7 @@ export function Conversation({
   useEffect(() => {
     if (completed) onToolCompleted?.(completed);
   }, [completed, onToolCompleted]);
-  const { stopFollowing, hasNew, follow } = useConversationScroll(
+  const { stopFollowing, hasNew, away, follow } = useConversationScroll(
     viewportRef,
     projection?.session_id ?? '',
     projection?.runtime_instance_id,
@@ -153,6 +156,7 @@ export function Conversation({
               projection.active.run.agent_run_id === item.turn.agent_run_id
             }
             idle={!projection.active}
+            last={index === projection.turns.length - 1}
             inbox={projection.inbox}
             onChanged={onChanged}
             loadTurnOlder={loadTurnOlder}
@@ -176,9 +180,16 @@ export function Conversation({
           onClose={() => setBranchTurn(undefined)}
         />
       ) : null}
-      {hasNew ? (
-        <button className="agent-follow" type="button" onClick={follow}>
-          回到最新消息
+      {away || hasNew ? (
+        <button
+          aria-label="回到最新消息"
+          className="agent-follow"
+          data-new={hasNew ? 'true' : undefined}
+          onClick={follow}
+          title="回到最新消息"
+          type="button"
+        >
+          <AppIcon name="arrow-down" />
         </button>
       ) : null}
     </div>
@@ -193,6 +204,7 @@ function Turn({
   anchored,
   awaitingContext,
   idle,
+  last,
   inbox,
   onChanged,
   loadTurnOlder,
@@ -204,6 +216,7 @@ function Turn({
   anchored: (load: () => Promise<boolean | undefined>) => () => Promise<boolean | undefined>;
   awaitingContext: boolean;
   idle: boolean;
+  last: boolean;
   inbox?: AgentInboxProjection | undefined;
   onChanged: () => void;
   loadTurnOlder: (id: string) => Promise<boolean | undefined>;
@@ -280,6 +293,7 @@ function Turn({
           root={viewportRef}
         />
       ) : null}
+      {item.auto_continued ? <AutoContinuedNote view={item.auto_continued} /> : null}
       {rootMessage ? (
         <article className="agent-user-message">
           {rootMessage.total_bytes > 0 || !rootMessage.attachments?.length ? (
@@ -366,6 +380,9 @@ function Turn({
               <small className="agent-diagnostic-identity">{identity}</small>
             ) : null;
           })()}
+          {continuable(item, last, idle) ? (
+            <ContinueButton item={item} onChanged={onChanged} />
+          ) : null}
         </p>
       ) : null}
       <HookTurnSummary item={item} />

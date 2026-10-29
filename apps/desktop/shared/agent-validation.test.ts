@@ -211,6 +211,8 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       // Chrome control: settings, a conversation's shared tabs, Stop.
       'chrome',
       'configureAgentTools',
+      // A turn a restart of Core cut off, continued with "继续".
+      'continueAgent',
       'controlAgentMode',
       'deleteCommand',
       'describeMcpServer',

@@ -24,7 +24,7 @@ pub fn safe_transport_code(error: &E) -> &'static str {
         | E::GrantExpired
         | E::GrantNotApplicable => "http.authority_changed",
         E::RateLimited => "network.rate_limited",
-        E::Transport(_) => "network.transport_failed",
+        E::Transport(reason) => crate::connect_failure::code(reason),
         _ => "network.request_refused",
     }
 }

@@ -92,6 +92,18 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         ReadOnly,
         None
     ),
+    // The user's 立即重启 while Main waits for a Core that sends no heartbeat: Main ends that Core
+    // and starts a new one, which continues the interrupted turns.
+    route!(
+        "core.restart",
+        Runtime,
+        Main,
+        TrustedRenderer,
+        "Record<string, never>",
+        "Record<string, boolean>",
+        CommandInvocation,
+        None
+    ),
     // The user's configuration recovery entry.
     //
     // `notice` reports which configuration capability is unavailable, what new

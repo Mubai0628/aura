@@ -111,6 +111,31 @@ export const nextLocalProjection = (
     previous.payload.restart_attempt,
   );
 
+/** The same health with Main's wait for Core's heartbeat shown from `sinceWallMs`, or not shown. */
+export const withCoreWaiting = (
+  change: CoreHealthProjectionChange,
+  sinceWallMs: number | undefined,
+): CoreHealthProjectionChange => {
+  const payload = { ...change.payload };
+  delete payload.waiting;
+  return {
+    ...change,
+    payload:
+      sinceWallMs === undefined
+        ? payload
+        : { ...payload, waiting: { since: new Date(sinceWallMs).toISOString() } },
+  };
+};
+
+/** The next revision of the health, with the wait shown or no longer shown. */
+export const nextWithCoreWaiting = (
+  current: CoreHealthProjectionChange,
+  sinceWallMs: number | undefined,
+): CoreHealthProjectionChange => ({
+  ...withCoreWaiting(current, sinceWallMs),
+  revision: String(Number(current.revision) + 1),
+});
+
 export const localWorkspaceSessionProjection = (
   runtimeInstanceId: string,
   revision: number,

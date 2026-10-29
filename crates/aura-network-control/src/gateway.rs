@@ -1037,7 +1037,7 @@ fn map_reqwest_error(error: reqwest::Error) -> NetworkControlError {
     if error.is_timeout() {
         NetworkControlError::Timeout
     } else {
-        NetworkControlError::Transport("request failed".to_owned())
+        NetworkControlError::Transport(crate::connect_failure::of_request(&error).to_owned())
     }
 }
 

@@ -35,7 +35,10 @@
 //! writer is what actually serialises writes, so a large blocking pool would only move
 //! the queue from the executor to the writer's admission lane.
 use std::{
-    sync::Arc,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -110,6 +113,10 @@ pub enum BlockingAdmission<T> {
 pub struct BlockingPool {
     permits: Arc<Semaphore>,
     workers: usize,
+    /// How many calls may run at once now, at most `workers` ([`BlockingPool::set_limit`]).
+    limit: Arc<Mutex<usize>>,
+    /// Permits kept back when their calls end: the limit was lowered while they were in use.
+    owed: Arc<AtomicUsize>,
     counters: Arc<Counters>,
 }
 
@@ -126,6 +133,8 @@ impl BlockingPool {
         Self {
             permits: Arc::new(Semaphore::new(workers)),
             workers,
+            limit: Arc::new(Mutex::new(workers)),
+            owed: Arc::new(AtomicUsize::new(0)),
             counters: Arc::new(Counters {
                 admitted: std::sync::atomic::AtomicU64::new(0),
                 waited: std::sync::atomic::AtomicU64::new(0),
@@ -140,6 +149,28 @@ impl BlockingPool {
     #[must_use]
     pub const fn capacity(&self) -> usize {
         self.workers
+    }
+
+    /// Lets `limit` calls (one to the pool's size) run at once from now on. Calls already
+    /// running finish: a lower limit is met as they end, and waiting calls are admitted in turn.
+    pub fn set_limit(&self, limit: usize) {
+        let limit = limit.clamp(1, self.workers);
+        let Ok(mut current) = self.limit.lock() else {
+            return;
+        };
+        if limit > *current {
+            let mut raise = limit - *current;
+            // A permit still owed was never given back: no longer owing it raises the limit too.
+            while raise > 0 && take_one(&self.owed) {
+                raise -= 1;
+            }
+            self.permits.add_permits(raise);
+        } else if limit < *current {
+            let lower = *current - limit;
+            let forgotten = self.permits.forget_permits(lower);
+            self.owed.fetch_add(lower - forgotten, Ordering::AcqRel);
+        }
+        *current = limit;
     }
 
     /// How many permits are free right now. Used by the isolation tests to wait for the
@@ -226,15 +257,19 @@ impl BlockingPool {
             self.counters.admitted.fetch_add(1, Relaxed);
         }
         let counters = Arc::clone(&self.counters);
+        let owed = Arc::clone(&self.owed);
         let handle = tokio::task::spawn_blocking(move || {
             // The permit is released by the work itself: a caller that walked away must
             // not free a worker whose call is still running.
-            let _permit = permit;
+            let permit = permit;
             let value = work();
             // The real value is handed to its settlement owner before the caller is told
             // anything, so a caller that has already given up cannot lose it.
             settle(&value);
             counters.completed.fetch_add(1, Relaxed);
+            if take_one(&owed) {
+                permit.forget();
+            }
             value
         });
         match tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), handle).await {
@@ -255,6 +290,11 @@ impl BlockingPool {
             }
         }
     }
+}
+
+/// One fewer owed, when any is.
+fn take_one(owed: &AtomicUsize) -> bool {
+    owed.fetch_update(Ordering::AcqRel, Ordering::Acquire, |owed| owed.checked_sub(1)).is_ok()
 }
 
 fn elapsed_ms(started: Instant) -> u64 {
@@ -381,5 +421,65 @@ mod tests {
             vec!["the real late value".to_owned()]
         );
         assert_eq!(pool.available(), 1, "the permit came back with the work, not with the caller");
+    }
+
+    /// A call that holds its permit until `release` sends.
+    fn holding(
+        pool: &BlockingPool,
+    ) -> (std::sync::mpsc::Sender<()>, tokio::task::JoinHandle<BlockingAdmission<i32>>) {
+        let (release, wait) = std::sync::mpsc::channel::<()>();
+        let held = pool.clone();
+        let call = tokio::spawn(async move {
+            held.run(Instant::now() + Duration::from_secs(10), move || {
+                let _ = wait.recv_timeout(Duration::from_secs(10));
+                1
+            })
+            .await
+        });
+        (release, call)
+    }
+
+    async fn until(condition: impl Fn() -> bool) {
+        for _ in 0..2_500 {
+            if condition() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        panic!("the pool never reached the expected state");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_lowered_limit_admits_fewer_and_a_raised_one_admits_more() {
+        let pool = BlockingPool::new(3);
+        pool.set_limit(1);
+        assert_eq!(pool.available(), 1);
+        let (release, holder) = holding(&pool);
+        until(|| pool.available() == 0).await;
+        let refused = pool.run(Instant::now() + Duration::from_millis(80), || 2).await;
+        assert!(matches!(refused, BlockingAdmission::Refused { .. }), "one call runs at once");
+        pool.set_limit(2);
+        let admitted = pool.run(Instant::now() + Duration::from_secs(5), || 2).await;
+        assert!(matches!(admitted, BlockingAdmission::Completed(2)), "now a second runs too");
+        let _ = release.send(());
+        let _ = holder.await;
+        assert_eq!(pool.available(), 2);
+        assert_eq!(pool.capacity(), 3, "the pool's size is unchanged");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_limit_lowered_while_calls_run_is_met_as_they_end() {
+        let pool = BlockingPool::new(2);
+        let (release_a, a) = holding(&pool);
+        let (release_b, b) = holding(&pool);
+        until(|| pool.available() == 0).await;
+        pool.set_limit(1);
+        let _ = release_a.send(());
+        let _ = a.await;
+        let _ = release_b.send(());
+        let _ = b.await;
+        assert_eq!(pool.available(), 1, "one permit was kept back as its call ended");
+        pool.set_limit(2);
+        assert_eq!(pool.available(), 2, "and is there again once the limit rises");
     }
 }

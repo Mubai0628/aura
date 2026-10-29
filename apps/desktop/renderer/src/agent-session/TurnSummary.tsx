@@ -1,11 +1,13 @@
 import type { AgentTurnView } from '@aura/contracts/generated';
 import { GOAL_WORDS, goalPhase } from '../goal/goal-state';
+import { EndedAgo } from './EndedAgo';
 import { turnDuration } from './turn-duration';
 
 const amount = (value: number) => value.toLocaleString('zh-CN');
 
 /**
- * What a finished turn took, at the right of the line under its answer: its Goal's outcome and usage, then its time.
+ * What a finished turn took, at the right of the line under its answer: its Goal's outcome and
+ * usage, how long ago it ended, then its time.
  */
 export function TurnSummary({ item }: { item: AgentTurnView }) {
   const duration = turnDuration(item);
@@ -20,6 +22,9 @@ export function TurnSummary({ item }: { item: AgentTurnView }) {
           {goal.consumed_turns} / {goal.budget.max_turns ?? '未设预算'}
           {goal.latest_check_model_step ? ' · 已检查进度' : ''}
         </span>
+      ) : null}
+      {duration && Number.isFinite(Date.parse(item.turn.updated_at)) ? (
+        <EndedAgo endedAt={Date.parse(item.turn.updated_at)} />
       ) : null}
       {duration ? (
         <span className="agent-elapsed" aria-label={`耗时 ${duration}`}>

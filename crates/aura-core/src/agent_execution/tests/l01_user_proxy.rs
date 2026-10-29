@@ -394,6 +394,38 @@ async fn l01_proxy_and_direct_failure_before_http_does_not_claim_a_replay() {
     assert_eq!(result.side_effect_state, SideEffectStateV1::NoEffect);
 }
 
+/// Nothing listens at the target (a development server that ended with Aura's restart): the
+/// result names the target and the next step, is a retryable transport failure, and is not shown
+/// as a tool that is unavailable. The path stays with the model's own call.
+#[tokio::test]
+async fn a_target_with_nothing_listening_is_named_with_what_to_do_next() {
+    let port = closed_port().await;
+    let f = fixture(&["http.request"]).await;
+    install(&f, "proxy-target.test");
+    let batch = f.admit(&[(
+        "http.request",
+        serde_json::json!({"url": format!("https://proxy-target.test:{port}/api/health")}),
+    )]);
+    let id = batch.batch.calls[0].tool_call_id;
+    approve(&f, &batch.calls[&id]);
+    f.execute_rejecting(batch).await.expect("batch answered");
+    let result = paired(&f, id);
+    let ToolResultOutcomeV1::Failed { error } = result.outcome else {
+        panic!("expected a failed GET, got {:?}", result.outcome);
+    };
+    assert_eq!(error.code.as_str(), "tool.network.connection_refused", "{}", error.message);
+    assert_eq!(error.category, aura_domain_common::ErrorCategory::Transport);
+    assert!(error.retryable, "nothing was sent, so trying again is the next step");
+    assert!(
+        error.message.contains(&format!("proxy-target.test:{port} 没有程序在监听")),
+        "{}",
+        error.message
+    );
+    assert!(error.message.contains("先启动它"), "{}", error.message);
+    assert!(!error.message.contains("/api/health"), "{}", error.message);
+    assert_eq!(result.side_effect_state, SideEffectStateV1::NoEffect);
+}
+
 #[tokio::test]
 async fn l01_fetch_download_and_search_use_the_frozen_proxy() {
     let target = Target::start().await;

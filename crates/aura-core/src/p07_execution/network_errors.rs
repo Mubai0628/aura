@@ -48,7 +48,9 @@ pub(super) fn safe_network_gateway_error_code(
         NetworkControlError::CredentialReflectionScanIncomplete { .. } => {
             "network.credential_reflection_scan_incomplete"
         }
-        NetworkControlError::Transport(_) => "network.transport_failed",
+        NetworkControlError::Transport(reason) => {
+            aura_network_control::connect_failure::code(reason)
+        }
         NetworkControlError::QuarantineIo(_) => "network.quarantine_io_failed",
         NetworkControlError::QuarantineIntegrity => "network.quarantine_integrity_failed",
         NetworkControlError::QuarantineNotFound => "network.quarantine_not_found",

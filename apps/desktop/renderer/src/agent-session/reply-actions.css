@@ -87,3 +87,22 @@
     transition: none;
   }
 }
+
+/* How long ago the turn ended; resting on it shows when, in a bubble above it. */
+.agent-ended-ago {
+  white-space: nowrap;
+  cursor: default;
+}
+.agent-ended-bubble {
+  position: fixed;
+  z-index: 60;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 6px 16px rgba(37, 43, 39, 0.12);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}

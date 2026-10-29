@@ -176,6 +176,19 @@ pub fn submit_message(
     Ok(next)
 }
 
+/// Lets a paused queue run again without a command: Aura continued the cut-off turn by itself,
+/// and the queued messages follow that turn as they would have followed the one it continues.
+pub fn resume(tx: &Transaction<'_>, id: SessionId, at: UtcTimestamp) -> StoreResult<()> {
+    let previous = load(tx, id)?;
+    if !previous.paused {
+        return Ok(());
+    }
+    let mut next = previous.clone();
+    next.paused = false;
+    next.pause_reason = None;
+    save(tx, &previous, next, at).map(|_| ())
+}
+
 pub fn mutate(
     tx: &Transaction<'_>,
     command: CommandInvocationId,

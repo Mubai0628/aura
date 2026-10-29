@@ -30,8 +30,16 @@ impl AgentApplication {
             reasoning_effort: None,
             attachments: Vec::new(),
         };
-        self.start_purpose(command, request, None, None, AgentTaskPurpose::WorkspaceInit, None)
-            .await
+        self.start_purpose(
+            command,
+            request,
+            None,
+            None,
+            AgentTaskPurpose::WorkspaceInit,
+            None,
+            None,
+        )
+        .await
     }
     /// `/compact` in an idle session. Its
     /// user message is the command with the user's note, exactly as the transcript shows it; the
@@ -57,8 +65,16 @@ impl AgentApplication {
             attachments: Vec::new(),
         };
         let focus = focus.map(str::to_owned);
-        self.start_purpose(command, request, None, None, AgentTaskPurpose::Compaction, Some(focus))
-            .await
+        self.start_purpose(
+            command,
+            request,
+            None,
+            None,
+            AgentTaskPurpose::Compaction,
+            Some(focus),
+            None,
+        )
+        .await
     }
     pub(super) async fn start_input(
         self: &Arc<Self>,
@@ -67,10 +83,19 @@ impl AgentApplication {
         inbox: Option<AgentInboxProjection>,
         related: Option<AgentRelatedTurnRequest>,
     ) -> anyhow::Result<AgentRunProjection> {
-        self.start_purpose(command, input, inbox, related, AgentTaskPurpose::Conversation, None)
-            .await
+        self.start_purpose(
+            command,
+            input,
+            inbox,
+            related,
+            AgentTaskPurpose::Conversation,
+            None,
+            None,
+        )
+        .await
     }
-    async fn start_purpose(
+    #[allow(clippy::too_many_arguments)]
+    pub(super) async fn start_purpose(
         self: &Arc<Self>,
         command: CommandInvocationId,
         input: AgentStartRequest,
@@ -79,6 +104,8 @@ impl AgentApplication {
         purpose: AgentTaskPurpose,
         // A compaction task's request: the user's focus, if any.
         compaction: Option<Option<String>>,
+        // A "继续" for a turn a restart cut off: it goes ahead of the queue.
+        continuation: Option<super::continuation::Continuation>,
     ) -> anyhow::Result<AgentRunProjection> {
         // A command is compared by its receipt, which holds its attachments' digests.
         let existing = input.receipt();
@@ -256,6 +283,7 @@ impl AgentApplication {
                         }
                         if inbox_owned.is_none()
                             && related_owned.is_none()
+                            && continuation.is_none()
                             && !aura_persistence_v2::agent::inbox::load(tx, session.session_id)?
                                 .messages
                                 .is_empty()
@@ -328,6 +356,9 @@ impl AgentApplication {
                             aura_persistence_v2::agent::related::record(
                                 tx, command, source, &turn, at,
                             )?;
+                        }
+                        if let Some(continuation) = &continuation {
+                            continuation.record(tx, &turn, at)?;
                         }
                         if !loaded.is_empty() {
                             let run = turn.agent_run_id;

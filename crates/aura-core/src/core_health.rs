@@ -72,6 +72,7 @@ pub(crate) fn current_core_health_projection(state: &RuntimeState) -> Projection
             status_code: status_code.to_owned(),
             status_message,
             busy: busy::current(),
+            waiting: None,
         },
     }
 }

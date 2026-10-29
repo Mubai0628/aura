@@ -10,7 +10,7 @@ import type {
   RuntimeHandshakeRequest,
   RuntimeHandshakeResponse,
 } from '@aura/contracts/generated';
-import { CoreSupervisor } from '../core-supervisor.js';
+import { CoreSupervisor, type CoreSupervisorOptions } from '../core-supervisor.js';
 import { CoreTransport } from '../core-transport.js';
 import type { ReleaseContext } from '../release.js';
 import type { SupervisorFixture } from './types.js';
@@ -55,6 +55,8 @@ interface FixtureOptions {
   connect?: (attempt: number) => void | Promise<void>;
   handshake?: 'ok' | 'hang' | 'foreign-bundle';
   startupTimeouts?: { connectMs?: number; handshakeMs?: number };
+  responsiveness?: CoreSupervisorOptions['responsiveness'];
+  readProcessActivity?: CoreSupervisorOptions['readProcessActivity'];
 }
 
 export async function createFixture(options: FixtureOptions = {}): Promise<SupervisorFixture> {
@@ -287,6 +289,10 @@ export async function createFixture(options: FixtureOptions = {}): Promise<Super
     safeMode: false,
     onEscalated,
     ...(options.startupTimeouts === undefined ? {} : { startupTimeouts: options.startupTimeouts }),
+    ...(options.responsiveness === undefined ? {} : { responsiveness: options.responsiveness }),
+    ...(options.readProcessActivity === undefined
+      ? {}
+      : { readProcessActivity: options.readProcessActivity }),
   });
   supervisors.push(supervisor);
   return {

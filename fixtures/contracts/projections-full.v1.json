@@ -11,7 +11,10 @@
         "safe_mode": true,
         "state": "not_started",
         "status_code": "fixture",
-        "status_message": "fixture"
+        "status_message": "fixture",
+        "waiting": {
+          "since": "2026-10-14T00:00:00Z"
+        }
       },
       "projection_kind": "core_health",
       "projection_scope": {

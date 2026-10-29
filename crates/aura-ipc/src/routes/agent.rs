@@ -200,6 +200,29 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         CommandInvocation,
         DomainOperation
     ),
+    // The user's 继续 for a turn a restart cut off: a new turn says "继续" ahead of the queue,
+    // which stays paused. Core continues such turns by itself only when Main says Core
+    // restarted while Aura stayed open.
+    route!(
+        "agent.continue",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "AgentContinueRequest",
+        "AgentRunProjection",
+        CommandInvocation,
+        DomainOperation
+    ),
+    route!(
+        "agent.continue",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "AgentContinueRequest",
+        "AgentRunProjection",
+        CommandInvocation,
+        DomainOperation
+    ),
     route!(
         "agent.related.start",
         Agent,
