@@ -102,36 +102,24 @@ fn state_audit_outbox_rollback_ack_and_artifact_access_are_atomic() {
             .expect("state audit outbox rollback ack and artifact access are atomic")
             .is_none()
     );
-    assert!(
-        event::pending(s.database.connection(), 10)
-            .expect("state audit outbox rollback ack and artifact access are atomic")
-            .is_empty()
-    );
+    assert_eq!(event_rows(s.database.connection()), 0, "the rolled-back event is not kept");
     s.database
         .unit_of_work(write)
         .expect("state audit outbox rollback ack and artifact access are atomic");
     drop(s);
     let mut s = V2Store::open(&root)
         .expect("state audit outbox rollback ack and artifact access are atomic");
-    let pending = event::pending(s.database.connection(), 10)
-        .expect("state audit outbox rollback ack and artifact access are atomic");
-    assert_eq!(pending.len(), 1);
+    assert_eq!(event_rows(s.database.connection()), 1, "the committed event is kept once");
     assert!(artifact::read(s.database.connection(), artifact_id, "other-session").is_err());
     s.database
         .unit_of_work(|tx| {
-            artifact::grant_access(tx, artifact_id, "workspace-test", "session-test")?;
-            event::acknowledge(tx, pending[0].sequence, now())
+            artifact::grant_access(tx, artifact_id, "workspace-test", "session-test")
         })
         .expect("state audit outbox rollback ack and artifact access are atomic");
     assert_eq!(
         artifact::read(s.database.connection(), artifact_id, "session-test")
             .expect("state audit outbox rollback ack and artifact access are atomic"),
         b"private-canary"
-    );
-    assert!(
-        event::pending(s.database.connection(), 10)
-            .expect("state audit outbox rollback ack and artifact access are atomic")
-            .is_empty()
     );
     assert!(s.database.connection().execute("DELETE FROM events", []).is_err());
     s.database
@@ -358,12 +346,12 @@ fn grant_attempt_reservation_and_unique_result_survive_restart() {
             .execute("UPDATE execution_results SET outcome='succeeded'", [])
             .is_err()
     );
-    assert!(
-        event::pending(s.database.connection(), 100)
-            .expect("grant attempt reservation and unique result survive restart")
-            .iter()
-            .any(|e| e.topic == "execution")
-    );
+    let execution_events: i64 = s
+        .database
+        .connection()
+        .query_row("SELECT count(*) FROM events WHERE kind LIKE 'execution.%'", [], |r| r.get(0))
+        .expect("grant attempt reservation and unique result survive restart");
+    assert!(execution_events > 0);
 }
 
 #[test]
@@ -515,4 +503,11 @@ fn complex_domain_snapshots_and_history_use_exact_persisted_facts() {
             ))
             .is_err()
     );
+}
+
+/// Audit events in the store; each is written once.
+fn event_rows(connection: &rusqlite::Connection) -> i64 {
+    connection
+        .query_row("SELECT count(*) FROM events", [], |row| row.get(0))
+        .expect("count the audit events")
 }

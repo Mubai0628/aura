@@ -193,13 +193,27 @@ impl AgentApplication {
         Ok(self
             .store
             .read(StoreStep::operation("agent.history"), move |db| {
-                let mut projection =
-                    aura_persistence_v2::agent::desktop::projection(db, &input, runtime)?;
                 // The newest page is the one the desktop polls and compares; an earlier page is
                 // merged into it and keeps the store's revision.
-                if input.before_turn_task_id.is_none() && input.within_turn.is_none() {
-                    super::history_revision::settle(&mut projection, input.limit)?;
-                }
+                let newest = input.before_turn_task_id.is_none() && input.within_turn.is_none();
+                let build = || -> Result<_, aura_persistence_core::PersistenceCoreError> {
+                    let mut projection =
+                        aura_persistence_v2::agent::desktop::projection(db, &input, runtime)?;
+                    if newest {
+                        super::history_revision::settle(&mut projection, input.limit)?;
+                    }
+                    Ok(projection)
+                };
+                let mut projection = match crate::agent_store::lent_reader() {
+                    Some(reader) if newest => super::history_memo::newest_page(
+                        db,
+                        reader,
+                        input.session_id,
+                        input.limit,
+                        build,
+                    )?,
+                    _ => build()?,
+                };
                 aura_persistence_v2::agent::desktop::with_tool_input(db, &mut projection, &live)?;
                 Ok(projection)
             })

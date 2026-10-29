@@ -19,6 +19,7 @@ pub use schema_migration::migration_pending;
 pub mod security;
 pub mod security_approval;
 pub mod session_purge;
+pub mod slimming;
 pub mod terminal;
 pub mod tool;
 pub mod workspace;
@@ -54,11 +55,20 @@ pub struct V2Store {
 /// absence means the previous process crashed or was ended without saying so, and the store owes a
 /// check of every page, index and key.
 const CLEAN_EXIT: &str = "clean-exit.json";
+const DATABASE: &str = "aura-v2.db";
+/// Written when a background check of the store passed. After a normal exit within a week of it
+/// the next open owes no quick check: SQLite reads every page for it, minutes on a store of
+/// several gigabytes.
+const CHECKED: &str = "store-checked.json";
 /// How long the exit's checkpoint waits for a reader still on the write-ahead log. Main
 /// stops a Core that has not recorded its exit within three seconds.
 const EXIT_CHECKPOINT_WAIT: Duration = Duration::from_secs(1);
 /// The writer's usual wait for a lock (`DatabaseConnection`).
 const LOCK_WAIT: Duration = Duration::from_secs(5);
+/// The writer's page cache, in KiB as `PRAGMA cache_size` takes a negative size. No other
+/// connection writes the store while Core does, so what the writer has read stays valid between
+/// its transactions; SQLite's default of 2 MB had it read the same tables again and again.
+pub(crate) const WRITER_CACHE_KIB: i64 = -65_536;
 impl V2Store {
     /// Requires a new explicit directory. No AppData lookup or legacy fallback.
     pub fn create(root: &Path) -> StoreResult<Self> {
@@ -68,6 +78,7 @@ impl V2Store {
         std::fs::create_dir(root)?;
         let mut database = DatabaseConnection::create_new(&root.join("aura-v2.db"))?;
         schema::initialize(&mut database, MODULES)?;
+        database.connection().pragma_update(None, "cache_size", WRITER_CACHE_KIB)?;
         std::fs::write(
             root.join("v2-development.json"),
             b"{\"schema_version\":1,\"namespace\":\"aura-v2-development\"}\n",
@@ -75,19 +86,12 @@ impl V2Store {
         Ok(Self { database, root: root.to_path_buf(), pending_check: PendingCheck::None })
     }
     pub fn open(root: &Path) -> StoreResult<Self> {
-        if !root.is_absolute() {
-            return Err(Error::Invalid("absolute isolated V2 directory"));
-        }
-        let marker: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(root.join("v2-development.json"))?)?;
-        if marker != serde_json::json!({"schema_version":1,"namespace":"aura-v2-development"}) {
-            return Err(Error::Invalid("V2 development namespace"));
-        }
-        let database_path = root.join("aura-v2.db");
+        check_namespace(root)?;
+        let database_path = root.join(DATABASE);
         // Removed before anything else happens: a crash from here on finds no marker.
         let marker = root.join(CLEAN_EXIT);
         let pending_check = if marker.exists() && std::fs::remove_file(&marker).is_ok() {
-            PendingCheck::Quick
+            if checked_within_a_week(root) { PendingCheck::None } else { PendingCheck::Quick }
         } else {
             PendingCheck::Full
         };
@@ -101,6 +105,10 @@ impl V2Store {
             root: root.to_path_buf(),
             pending_check,
         };
+        store.database.connection().pragma_update(None, "cache_size", WRITER_CACHE_KIB)?;
+        // A marker that cannot be written leaves the run to a later version's first start; it
+        // never keeps the store from opening.
+        let _ = slimming::note_older_copies(root, store.database.connection());
         let started = std::time::Instant::now();
         let until = started + std::time::Duration::from_millis(250);
         let mut poll_cursor = agent::desktop::PollBackfillCursor::default();
@@ -160,15 +168,7 @@ impl V2Store {
             connection.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| row.get::<_, i64>(0));
         connection.busy_timeout(LOCK_WAIT)?;
         checkpoint?;
-        std::fs::write(
-            self.root.join(CLEAN_EXIT),
-            format!(
-                "{{\"schema_version\":1,\"at\":\"{}\"}}
-",
-                aura_domain_common::UtcTimestamp::now()
-            ),
-        )?;
-        Ok(())
+        write_clean_exit(&self.root)
     }
 
     /// The database file this store owns, for a read-only connection to the same data.
@@ -176,4 +176,58 @@ impl V2Store {
     pub fn database_path(&self) -> PathBuf {
         self.root.join("aura-v2.db")
     }
+}
+
+/// The directory is the isolated V2 store, marked as such when it was made.
+fn check_namespace(root: &Path) -> StoreResult<()> {
+    if !root.is_absolute() {
+        return Err(Error::Invalid("absolute isolated V2 directory"));
+    }
+    let marker: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(root.join("v2-development.json"))?)?;
+    if marker != serde_json::json!({"schema_version":1,"namespace":"aura-v2-development"}) {
+        return Err(Error::Invalid("V2 development namespace"));
+    }
+    Ok(())
+}
+
+/// The marker of a normal exit the next open looks for.
+fn write_clean_exit(root: &Path) -> StoreResult<()> {
+    std::fs::write(
+        root.join(CLEAN_EXIT),
+        format!(
+            "{{\"schema_version\":1,\"at\":\"{}\"}}\n",
+            aura_domain_common::UtcTimestamp::now()
+        ),
+    )?;
+    Ok(())
+}
+
+/// Whether a background check passed within the last week. A record from the future (the clock
+/// was set back since) proves nothing.
+fn checked_within_a_week(root: &Path) -> bool {
+    const WEEK_SECONDS: i64 = 7 * 24 * 60 * 60;
+    let Ok(bytes) = std::fs::read(root.join(CHECKED)) else {
+        return false;
+    };
+    let at = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .and_then(|value| value["at"].as_str()?.parse::<aura_domain_common::UtcTimestamp>().ok());
+    at.is_some_and(|at| {
+        let age = (aura_domain_common::UtcTimestamp::now().value() - at.value()).whole_seconds();
+        (0..WEEK_SECONDS).contains(&age)
+    })
+}
+
+/// A background check of the store at `database` passed.
+pub fn record_store_checked(database: &Path) -> StoreResult<()> {
+    let root = database.parent().ok_or(Error::Invalid("store directory"))?;
+    std::fs::write(
+        root.join(CHECKED),
+        format!(
+            "{{\"schema_version\":1,\"at\":\"{}\"}}\n",
+            aura_domain_common::UtcTimestamp::now()
+        ),
+    )?;
+    Ok(())
 }

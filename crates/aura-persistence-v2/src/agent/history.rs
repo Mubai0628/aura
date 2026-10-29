@@ -63,9 +63,12 @@ pub fn record_output(
     };
     next.finished_at = Some(at);
     turns::save_step(tx, &previous, &next)?;
-    // A sealed step will not receive another delta, so a legacy stream is repaired
+    // From here on the window reads the sealed body, so the deltas the reply streamed go. When
+    // they have to stay, the step will not receive another delta, so a legacy stream is repaired
     // here, on the write that owns the step, rather than on every later read.
-    super::stream::repair_byte_index(tx, output.model_step_id, at)?;
+    if super::stream::drop_sealed(tx, output.model_step_id)?.is_none() {
+        super::stream::repair_byte_index(tx, output.model_step_id, at)?;
+    }
     super::guard::mark_feedback_delivered(tx, run.turn_task_id, output.model_step_id, at)?;
     // The body is also stored as bounded chunks with a small index, so a later page reads
     // the bytes it asks for instead of parsing the whole response. The response event above

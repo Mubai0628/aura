@@ -9,7 +9,8 @@
 //!
 //! Copied in as `aura-core.exe` it answers `--store-migration-check` with the
 //! `fake-migration.json` beside it, as the new version's Core tells the launcher which stores
-//! it would migrate, and keeps the arguments it was asked with in `fake-migration-args.txt`.
+//! it would migrate, and keeps the arguments it was asked with in `fake-migration-args.txt`. Asked
+//! `--store-slim`, it marks the execution store as slimmed and reports the run.
 use std::{env, fs, path::PathBuf, process::ExitCode};
 
 use aura_runtime_contract::{ActiveInstallState, BuildComponentManifest};
@@ -34,6 +35,21 @@ fn main() -> ExitCode {
                 ExitCode::SUCCESS
             }
             Err(_) => ExitCode::from(7),
+        };
+    }
+    if env::args().nth(1).as_deref() == Some("--store-slim") {
+        let store = PathBuf::from(env::args().nth(2).unwrap_or_default())
+            .join("data")
+            .join("v2-execution")
+            .join("aura-v2.db");
+        let slimmed = fs::read_to_string(&store)
+            .and_then(|stored| fs::write(&store, format!("slimmed {stored}")));
+        return match slimmed {
+            Ok(()) => {
+                println!("{}", serde_json::json!({ "report": { "rebuild": { "state": "done" } } }));
+                ExitCode::SUCCESS
+            }
+            Err(_) => ExitCode::from(8),
         };
     }
     let mode = fs::read_to_string("fake-mode.txt").unwrap_or_default();

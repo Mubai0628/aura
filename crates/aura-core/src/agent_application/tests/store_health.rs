@@ -739,3 +739,6 @@ async fn b5_a_run_local_record_failure_is_visible_and_never_refuses_another_sess
     assert!(health.available, "a run-local business failure is not a dependency fact: {health:?}");
     assert_eq!(health.failures, 0, "{health:?}");
 }
+
+#[path = "store_slimming.rs"]
+mod store_slimming;

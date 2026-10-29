@@ -326,7 +326,10 @@ pub struct PromptInspectorActivitySourceView {
 pub struct AgentPromptInspection {
     pub projection: PromptInspectorProjection,
     pub execution: aura_model_domain::ModelExecutionSnapshot,
-    pub context: crate::ContextProjectionSnapshot,
+    /// The step's full snapshot, kept only for a conversation's newest steps; the figures shown
+    /// are in `projection`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<crate::ContextProjectionSnapshot>,
     /// The whole conversation's cache use when the step was read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_cache: Option<SessionCacheUsageView>,

@@ -27,6 +27,7 @@ mod model_projection;
 mod model_projection_fixture;
 mod model_runtime;
 mod mutation_journal;
+mod projection_latest;
 mod read_pool;
 mod registry_purge;
 mod security;

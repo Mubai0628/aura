@@ -9,7 +9,6 @@ import { PromptInspectorShell } from '../PromptInspectorShell';
 import { PixelBar, PixelCard } from '../inspector/PixelBar';
 import { FORMAT_LABELS, SECTION_LABELS, amount, share } from '../inspector/inspector-labels';
 import { pixelCells } from '../inspector/pixel-cells';
-import { SnapshotJson } from '../inspector/SnapshotJson';
 
 /** How many of the step's tools are drawn; the rest are counted. */
 const TOP_TOOLS = 6;
@@ -46,7 +45,6 @@ export function Inspector({
         )}
       </div>
     );
-  const context = view.context;
   const projection = view.projection;
   const input = projection.cache_usage.actual_input_tokens;
   const cached = projection.cache_usage.actual_cached_input_tokens;
@@ -177,15 +175,12 @@ export function Inspector({
               <dt>ModelStep</dt>
               <dd>{view.execution.model_step_id}</dd>
               <dt>Context</dt>
-              <dd>{context.id}</dd>
+              <dd>{projection.context_snapshot_id}</dd>
               <dt>Prompt Bundle</dt>
               <dd>{view.execution.prompt_bundle_snapshot_id}</dd>
-              <dt>工具快照</dt>
-              <dd>{context.tool_schema_set.registry_snapshot_ref.tool_registry_snapshot_id}</dd>
               <dt>模型配置修订</dt>
               <dd>{view.execution.model_config_revision}</dd>
             </dl>
-            <SnapshotJson key={`${view.execution.model_step_id}:${context.id}`} value={context} />
           </>
         ) : null}
       </details>

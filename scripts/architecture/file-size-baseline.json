@@ -1,5 +1,12 @@
 {
   "metric": "physical lines including source and tests",
+  "crate_ceilings": {
+    "adopted_on": "2026-10-29",
+    "metric": "physical lines of production source under <crate>/src, without tests and *_tests directories or tests, *_tests and *test_support files",
+    "ceilings": {
+      "crates/aura-core": 114232
+    }
+  },
   "ceilings": {
     "apps/desktop/electron-main/core-supervisor.ts": 2114,
     "crates/aura-activity-domain/src/lib.rs": 1339,

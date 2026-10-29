@@ -6,7 +6,7 @@ use aura_model_domain::{
     ProviderCatalogProjection, SessionModelSelectorProjection,
 };
 use aura_projection_contract::{ProjectionChange, ProjectionKey, ProjectionKind, ProjectionScope};
-use rusqlite::{OptionalExtension, Transaction, params};
+use rusqlite::{Transaction, params};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -102,16 +102,7 @@ impl crate::PersistenceCoordinator {
         let kind_name = projection_kind_name(kind);
         let key_json = serde_json::to_string(&key)?;
         self.with_reader(|connection| {
-            let encoded = connection
-                .query_row(
-                    "SELECT payload_json FROM projection_outbox
-                     WHERE projection_kind=?1 AND projection_key=?2
-                     ORDER BY revision DESC, outbox_id DESC LIMIT 1",
-                    params![kind_name, key_json],
-                    |row| row.get::<_, String>(0),
-                )
-                .optional()?;
-            encoded
+            crate::projection_latest::latest_payload(connection, kind_name, &key_json)?
                 .map(|encoded| {
                     let change = serde_json::from_str::<ProjectionChange>(&encoded)?;
                     change.validate().map_err(|error| {

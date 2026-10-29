@@ -216,6 +216,48 @@ test('a newer release is found, downloaded, applied by the setup program and wai
   expect(restarts).toHaveLength(1);
 });
 
+// The automatic check runs soon after the start and then every few hours; what it finds is
+// downloaded and prepared in the background, so the restart is all that is left to the user.
+test('an automatic check soon after the start downloads a newer release and leaves only the restart', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    const install = await installation({ active: '0.1.0', previous: null, pending: null });
+    const runs: string[][] = [];
+    const feedReads: string[] = [];
+    const published: AppUpdateState[] = [];
+    const updates = new AppUpdates({
+      installation: install,
+      current: install.current,
+      fetch: async (url: string) => {
+        if (!url.endsWith('/pkg')) feedReads.push(url);
+        return fakeFetch(url);
+      },
+      feedUrl: 'https://api.example.test/releases',
+      userAgent: 'Aura/test',
+      publish: (state) => published.push(state),
+      requestRestart: () => undefined,
+      run: async (_program, args) => {
+        runs.push([...args]);
+        return '{"waiting":"0.1.1","signature":"Verified"}\n';
+      },
+    });
+    await updates.start();
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(feedReads).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1_000);
+    await vi.waitFor(() => expect(updates.state.phase).toBe('ready'));
+    expect(updates.state.waiting).toBe('0.1.1');
+    expect(runs[0]?.[0]).toBe('--apply-update');
+    // It was never only "available": nothing asked the user to download it.
+    expect(published.some((state) => state.phase === 'available')).toBe(false);
+    await vi.advanceTimersByTimeAsync(4 * 60 * 60_000);
+    await vi.waitFor(() => expect(feedReads).toHaveLength(2));
+    updates.stop();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 // The setup program checks the package against its signed manifest; a damaged one reused on
 // every try would fail until the user reinstalled.
 test('a package the setup program refuses is deleted and downloaded again next time, its reason logged', async () => {

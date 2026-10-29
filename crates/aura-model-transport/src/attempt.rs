@@ -437,8 +437,14 @@ where
                         crate::engine::persisted_continuation_state(&continuation, artifact_id)?,
                     );
                 }
-                let raw_artifact_id = finalize_writer(raw_writer.take()).await?;
-                attempt.raw_stream_artifact_id = Some(raw_artifact_id);
+                let writer = raw_writer.take();
+                attempt.raw_stream_artifact_id =
+                    if writer.as_ref().is_some_and(|writer| !writer.keeps_completed_stream()) {
+                        abort_writer(writer)?;
+                        None
+                    } else {
+                        Some(finalize_writer(writer).await?)
+                    };
                 Ok(AttemptTerminal::Completed {
                     output: Box::new(output),
                     terminal_event: terminal,

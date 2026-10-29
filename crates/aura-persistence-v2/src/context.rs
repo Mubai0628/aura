@@ -23,6 +23,61 @@ pub fn insert_snapshot(
             record::encode(snapshot)?
         ],
     )?;
+    keep_two(tx, snapshot)
+}
+
+/// How many older snapshots one new snapshot clears at most. A store that kept every step's
+/// snapshot is cleared as a whole before Core serves (`slimming`); here it is one at a time.
+const CLEARED_PER_SNAPSHOT: i64 = 4;
+
+/// A conversation keeps two full snapshots: the newest, and the one behind its newest counted
+/// request, which the next request is measured by (`agent::counted_request`). An older step's
+/// context details show the figures its inspector record keeps; its section texts go with it.
+fn keep_two(tx: &Transaction<'_>, newest: &ContextProjectionSnapshot) -> StoreResult<()> {
+    let counted = crate::agent::counted_request::latest_counted_snapshot(tx, newest.session_id)?;
+    let mut query = tx.prepare(
+        "SELECT id, json_extract(payload,'$.model_step_id'), json_extract(payload,'$.sections') \
+         FROM context_snapshots WHERE session_id=?1 AND id<>?2 AND (?3 IS NULL OR id<>?3) \
+         ORDER BY rowid LIMIT ?4",
+    )?;
+    let older = query
+        .query_map(
+            params![
+                newest.session_id.to_string(),
+                newest.id.to_string(),
+                counted,
+                CLEARED_PER_SNAPSHOT
+            ],
+            |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            },
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
+    drop(query);
+    if older.is_empty() {
+        return Ok(());
+    }
+    for (id, step, sections) in older {
+        clear_snapshot(tx, &id, &step, &sections)?;
+    }
+    aura_persistence_core::artifact::collect(tx)?;
+    Ok(())
+}
+
+/// Deletes one snapshot and gives up its step's hold on the section texts it was built from.
+pub(crate) fn clear_snapshot(
+    tx: &Transaction<'_>,
+    id: &str,
+    step: &str,
+    sections: &str,
+) -> StoreResult<()> {
+    let sections: Vec<serde_json::Value> = serde_json::from_str(sections)?;
+    for section in sections {
+        let Some(artifact) = section["content_artifact_id"].as_str() else { continue };
+        let artifact = artifact.parse().map_err(|_| Error::Invalid("section artifact"))?;
+        aura_persistence_core::artifact::release_owner(tx, artifact, step)?;
+    }
+    tx.execute("DELETE FROM context_snapshots WHERE id=?1", [id])?;
     Ok(())
 }
 pub fn snapshot(

@@ -75,9 +75,14 @@ pub(crate) fn interrupt_run(
         // the ordinary transport state machine and its active-Step precondition.
         record::changed(tx.execute("UPDATE transport_attempts SET state=?2,revision=revision+1,payload=?3 WHERE id=?1 AND snapshot_id=?4 AND payload=?5",
             params![id.to_string(), record::encode(&next.state)?, record::encode(&next)?, frozen.id.to_string(), record::encode(&old)?])?)?;
-        for (kind, payload) in [
-            ("model.failure", serde_json::to_value(&failure)?),
-            ("model.transport", serde_json::to_value(&next)?),
+        // The transport's whole record is its row, updated above; its event says only how it moved.
+        for (kind, version, payload) in [
+            ("model.failure", 1, serde_json::to_value(&failure)?),
+            (
+                "model.transport",
+                2,
+                serde_json::json!({ "attempt_id": next.id, "state": next.state, "at": at }),
+            ),
         ] {
             event::append(
                 tx,
@@ -85,7 +90,7 @@ pub(crate) fn interrupt_run(
                     id: EventId::new(),
                     owner: &frozen.model_step_id.to_string(),
                     kind,
-                    version: 1,
+                    version,
                     payload: &payload,
                     at,
                 },

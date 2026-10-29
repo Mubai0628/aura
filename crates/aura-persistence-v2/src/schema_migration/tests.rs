@@ -25,7 +25,7 @@ fn failure_after_prior_ddl_rolls_back_every_module_and_digest() {
     let mut database = DatabaseConnection::create_new(&path).expect("db");
     schema::initialize(&mut database, &modules).expect("predecessors");
     drop(database);
-    let planned = plan_migration(&path).expect("plan").expect("two module upgrade");
+    let planned = plan_migration(&path, Check::Whole).expect("plan").expect("two module upgrade");
     assert_eq!(planned.migrations.len(), 2);
     rollback_and_retry(&path, &planned);
 }
@@ -84,7 +84,7 @@ fn rollback_and_retry_at(
     // A normal retry still works; no recovery rewrite or partial-table fallback.
     drop(reader);
     migrate(path).expect("retry after transient failure");
-    assert!(plan_migration(path).expect("reopen").is_none());
+    assert!(plan_migration(path, Check::Whole).expect("reopen").is_none());
 }
 
 #[test]
@@ -111,7 +111,9 @@ fn owner_copy_rolls_back_partial_ddl_and_can_restart_after_retry() {
             .expect("event count only")
     };
     let before = event_count();
-    let planned = plan_migration(&path).expect("owner copy plan").expect("unmodified predecessor");
+    let planned = plan_migration(&path, Check::Whole)
+        .expect("owner copy plan")
+        .expect("unmodified predecessor");
     assert_eq!(planned.migrations.len(), 1);
     assert_eq!(planned.migrations[0].owner, "tool");
     rollback_and_retry(&path, &planned);
@@ -149,7 +151,9 @@ fn owner_copy_rolls_back_a_partial_hook_migration_and_can_restart_after_retry() 
             .expect("event count only")
     };
     let before = event_count();
-    let planned = plan_migration(&path).expect("owner copy plan").expect("unmodified predecessor");
+    let planned = plan_migration(&path, Check::Whole)
+        .expect("owner copy plan")
+        .expect("unmodified predecessor");
     assert_eq!(planned.migrations.len(), 1);
     assert_eq!(planned.migrations[0].owner, "tool");
     rollback_and_retry_at(&path, &planned, "hook_decisions", "hook_invocations");
@@ -180,7 +184,8 @@ fn a_refused_second_mcp_table_rolls_back_and_the_retry_succeeds() {
     let mut database = DatabaseConnection::create_new(&path).expect("db");
     schema::initialize(&mut database, &modules).expect("L07 predecessor");
     drop(database);
-    let planned = plan_migration(&path).expect("plan").expect("the tool module upgrades");
+    let planned =
+        plan_migration(&path, Check::Whole).expect("plan").expect("the tool module upgrades");
     assert_eq!(planned.migrations.len(), 1);
     rollback_and_retry_at(&path, &planned, "mcp_tool_revisions", "mcp_catalogs");
 }
@@ -204,7 +209,8 @@ fn a_refused_mcp_oauth_table_rolls_back_and_the_retry_succeeds() {
     let mut database = DatabaseConnection::create_new(&path).expect("db");
     schema::initialize(&mut database, &modules).expect("L08 predecessor");
     drop(database);
-    let planned = plan_migration(&path).expect("plan").expect("the tool module upgrades");
+    let planned =
+        plan_migration(&path, Check::Whole).expect("plan").expect("the tool module upgrades");
     assert_eq!(planned.migrations.len(), 1);
     rollback_and_retry_at(&path, &planned, "mcp_oauth_sessions", "mcp_secrets");
 }
@@ -234,7 +240,9 @@ fn owner_copy_rolls_back_a_partial_mcp_migration_and_can_restart_after_retry() {
             .expect("event count only")
     };
     let before = event_count();
-    let planned = plan_migration(&path).expect("owner copy plan").expect("unmodified predecessor");
+    let planned = plan_migration(&path, Check::Whole)
+        .expect("owner copy plan")
+        .expect("unmodified predecessor");
     assert_eq!(planned.migrations.len(), 1);
     assert_eq!(planned.migrations[0].owner, "tool");
     rollback_and_retry_at(&path, &planned, "mcp_tool_revisions", "mcp_catalogs");

@@ -22,8 +22,7 @@ impl PersistenceCoordinator {
                 if !carry::same_identity(&instance, &entry.instance) { return Err(PersistenceError::ToolEntityIntegrity); }
                 let key = ProjectionKey { runtime_instance_id: runtime, projection_kind: ProjectionKind::ToolDefinition,
                     projection_scope: ProjectionScope::ToolDefinition { tool_id: entry.definition.tool_id } };
-                let exists = tx.query_row("SELECT EXISTS(SELECT 1 FROM projection_outbox WHERE projection_kind='tool_definition' AND projection_key=?1)",
-                    [serde_json::to_string(&key)?], |row| row.get::<_, bool>(0))?;
+                let exists = crate::projection_latest::any_change(&tx, "tool_definition", &serde_json::to_string(&key)?)?;
                 if !exists { missing.insert(entry.definition.tool_id); }
             }
             if missing.is_empty() { return Ok(vec![]); }

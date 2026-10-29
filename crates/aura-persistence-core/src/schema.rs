@@ -54,7 +54,8 @@ pub enum OpenCheck {
 /// checked, run on its own connection while the store serves.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PendingCheck {
-    /// The store was made by this process and checked as it was made.
+    /// The store was made by this process and checked as it was made, or the previous process
+    /// exited normally within a week of a check that passed.
     None,
     /// The previous process exited normally: SQLite's quick check.
     Quick,

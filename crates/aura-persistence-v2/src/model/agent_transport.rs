@@ -122,15 +122,17 @@ pub fn record_attempt(
         }
         insert_transport(tx, frozen.id, value)?;
     }
+    // The whole record is the one row above, updated in place; the event says only how it moved.
+    let at = UtcTimestamp::now();
     event::append(
         tx,
         &event::EventDraft {
             id: EventId::new(),
             owner: &step.to_string(),
             kind: "model.transport",
-            version: 1,
-            payload: &serde_json::to_value(value)?,
-            at: UtcTimestamp::now(),
+            version: 2,
+            payload: &serde_json::json!({ "attempt_id": value.id, "state": value.state, "at": at }),
+            at,
         },
         "model",
     )?;

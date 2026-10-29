@@ -58,7 +58,7 @@ fn run(tx: &Transaction<'_>, plan: &mut PurgePlan, budget: Duration) -> StoreRes
     'tables: for batch in batches.iter_mut() {
         while batch.next < batch.rows.len() {
             if lifted.is_none() && GUARDED.contains(&batch.table) {
-                lifted = Some(guards::lift(tx)?);
+                lifted = Some(guards::lift(tx, guards::PURGE)?);
             }
             let end = (batch.next + CHUNK).min(batch.rows.len());
             let deleted = delete(tx, batch, end, edges)?;

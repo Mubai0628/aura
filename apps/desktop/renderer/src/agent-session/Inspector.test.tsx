@@ -221,4 +221,27 @@ describe('Inspector', () => {
     expect(outside.join('')).not.toContain('sha256');
     expect(outside.join('')).not.toContain('mst_01ARZ3NDEKTSV4RRFFQ69G5FAV');
   });
+
+  // Only the newest full snapshots of a conversation are kept; an older step's details still
+  // show its figures, from the summary every step keeps.
+  test('an older step without its full snapshot still shows its figures and its identifiers', () => {
+    const view = inspection(
+      { stable_prefix_estimate_tokens: 4_000 },
+      {
+        sections: [
+          section('core_system_prompt', 2_126, false, 1),
+        ] as unknown as PromptInspectorProjection['sections'],
+      },
+    );
+    delete (view as Partial<AgentPromptInspection>).context;
+    const { container } = render(<Inspector view={view} error={undefined} />);
+    expect(screen.getByRole('region', { name: '模块' }).textContent).toContain('2,126');
+    const details = container.querySelector('details') as HTMLDetailsElement;
+    act(() => {
+      details.open = true;
+      fireEvent(details, new Event('toggle'));
+    });
+    expect(details.textContent).toContain('mst_01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    expect(container.querySelector('.snapshot-json')).toBeNull();
+  });
 });

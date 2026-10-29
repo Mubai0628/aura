@@ -20,7 +20,7 @@ use std::path::Path;
 /// so a database that merely resembles a predecessor fails closed instead of
 /// acquiring tables nobody reviewed.
 pub(crate) fn migrate(path: &Path) -> StoreResult<()> {
-    let planned = plan_migration(path)?;
+    let planned = plan_migration(path, Check::Whole)?;
     let Some(planned) = planned else {
         return Ok(());
     };
@@ -32,13 +32,63 @@ pub(crate) fn migrate(path: &Path) -> StoreResult<()> {
     Ok(())
 }
 
-/// Whether this build would migrate the store at `path`, decided read-only exactly as [`migrate`]
-/// decides it. A missing store is a new one, which nothing needs to protect.
+/// Whether this build would migrate the store at `path`, decided read-only from its schema as
+/// [`migrate`] decides it: identity, module digests and structure. The check of every page and
+/// key that `migrate` runs before it writes is left out. The launcher asks before every newer
+/// version's first start and waits 20 s for the answer, the check took minutes on a large store,
+/// and a store it would refuse is copied all the same. A missing store is a new one, which nothing
+/// needs to protect.
 pub fn migration_pending(path: &Path) -> StoreResult<bool> {
     if !path.is_file() {
         return Ok(false);
     }
-    Ok(plan_migration(path)?.is_some())
+    Ok(plan_migration(path, Check::Schema)?.is_some())
+}
+
+/// What a store owes this build before it is current.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Pending {
+    Nothing,
+    /// Only indexes: the tables and their rows are the current ones, so the store can be worked
+    /// on as it is, and the version it was written by still opens it.
+    Indexes,
+    /// Tables or other statements the current code reads.
+    Tables,
+}
+
+/// What the store at `path` owes, decided from its schema as [`migration_pending`] decides it.
+pub(crate) fn pending(path: &Path) -> StoreResult<Pending> {
+    Ok(match plan_migration(path, Check::Schema)? {
+        None => Pending::Nothing,
+        Some(planned) if indexes_only(&planned.migrations) => Pending::Indexes,
+        Some(_) => Pending::Tables,
+    })
+}
+
+/// Whether every statement the moves apply only adds an index.
+fn indexes_only(migrations: &[PlannedMigration]) -> bool {
+    migrations.iter().all(|migration| {
+        migration
+            .statements
+            .split(';')
+            .map(str::trim)
+            .filter(|statement| !statement.is_empty())
+            .all(|statement| statement.starts_with("CREATE INDEX "))
+    })
+}
+
+/// How much of the store a plan checks before it is trusted.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Check {
+    /// Identity, module digests and structure.
+    Schema,
+    /// The schema, then every page, index and foreign key, before a migration that adds tables
+    /// writes. One that only adds indexes is not checked further, as a store with nothing to
+    /// migrate is not: building an index reads every row of its table and fails on a damaged
+    /// page, nothing else is written, and the check took minutes on a store of several gigabytes,
+    /// longer than Main waits for Core. A development store, which no launcher slims, is that
+    /// large.
+    Whole,
 }
 
 fn apply_plan(
@@ -97,7 +147,7 @@ struct PlannedMigrations {
 /// Identity, the module inventory and — for every module that is out of date — an
 /// exactly supported predecessor, all before a writer is opened. `None` means the
 /// database is already current.
-fn plan_migration(path: &Path) -> StoreResult<Option<PlannedMigrations>> {
+fn plan_migration(path: &Path, check: Check) -> StoreResult<Option<PlannedMigrations>> {
     let reader = aura_persistence_core::open_reader(path)?;
     let application_id: i32 = reader.query_row("PRAGMA application_id", [], |row| row.get(0))?;
     let user_version: i32 = reader.query_row("PRAGMA user_version", [], |row| row.get(0))?;
@@ -140,7 +190,7 @@ fn plan_migration(path: &Path) -> StoreResult<Option<PlannedMigrations>> {
     // The whole set is checked against the live structure before anything is
     // written, exactly as a single-module migration was.
     if live_structure(&reader)? != expected_combined_structure(&migrations)?
-        || !database_is_intact(&reader)?
+        || (check == Check::Whole && !indexes_only(&migrations) && !database_is_intact(&reader)?)
     {
         return Err(Error::Invalid("unsupported schema structure"));
     }
@@ -162,6 +212,7 @@ fn expected_module_digests() -> std::collections::BTreeMap<&'static str, String>
 fn planned_predecessor(owner: &str, digest: &str) -> StoreResult<PlannedMigration> {
     let (predecessors, current_sql) = match owner {
         "agent" => (AGENT_PREDECESSORS, include_str!("agent.sql")),
+        "execution" => (EXECUTION_PREDECESSORS, include_str!("execution.sql")),
         "security" => (SECURITY_PREDECESSORS, include_str!("security.sql")),
         "tool" => (TOOL_PREDECESSORS, include_str!("tool.sql")),
         _ => return Err(Error::Invalid("unsupported schema digest")),
@@ -196,6 +247,14 @@ const AGENT_PREDECESSORS: &[&str] = &[
     "\nCREATE TABLE agent_visible_index",
 ];
 
+/// Supported `execution.sql` predecessors, newest first.
+///
+/// The only change so far is three indexes on columns that point at artifacts or their objects:
+/// deleting an artifact checks every row that may point at it, and without them read whole
+/// tables that grow with every tool call. The core tables they cover have no migration path of
+/// their own, so this module, which writes the operation links and execution receipts, adds them.
+const EXECUTION_PREDECESSORS: &[&str] = &["\nCREATE INDEX execution_results_by_receipt"];
+
 /// Supported `security.sql` predecessors, newest first.
 ///
 /// The only security change so far is the reusable Native session consent table.
@@ -203,11 +262,12 @@ const AGENT_PREDECESSORS: &[&str] = &[
 /// adds the table only: it never rewrites a stored Grant, so a historical
 /// `allow_session` row keeps its exact-operation meaning.
 const SECURITY_PREDECESSORS: &[&str] = &["\nCREATE TABLE native_session_consents"];
-/// Supported `tool.sql` predecessors, newest first, each named by what it lacks: no MCP secrets or
-/// OAuth sessions, no MCP catalogs, no Hook records, package content without installed
-/// settings or credential bindings, no package tables, and the schema before Agent
-/// terminals.
+/// Supported `tool.sql` predecessors, newest first, each named by what it lacks: no index on the
+/// artifacts terminal output points at, no MCP secrets or OAuth sessions, no MCP catalogs, no
+/// Hook records, package content without installed settings or credential bindings, no package
+/// tables, and the schema before Agent terminals.
 const TOOL_PREDECESSORS: &[&str] = &[
+    "\nCREATE INDEX terminal_output_segments_by_artifact",
     "\nCREATE TABLE mcp_secrets",
     "\nCREATE TABLE mcp_catalogs",
     "\nCREATE TABLE hook_invocations",

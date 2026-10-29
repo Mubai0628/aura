@@ -81,7 +81,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.9"
+version = "0.1.10"
 edition = "2024"
 rust-version = "1.97.1"
 
@@ -146,10 +146,17 @@ todo = "deny"
 unwrap_used = "deny"
 
 # Third-party crates build without debug information in
-# development and test builds; Aura's own crates keep theirs. The programs link faster and the
-# build directory shrinks; only stepping into a dependency in a debugger is lost.
+# development and test builds; Aura's own crates keep theirs, aura-core only its line tables
+# (below). The programs link faster and the build directory shrinks; only stepping into a
+# dependency in a debugger is lost.
 [profile.dev.package."*"]
 debug = false
+
+# aura-core is one crate of over 100,000 lines. With full debug information its development
+# library passed 4 GB, the size rust-lld can read as an archive, and the link failed. Line tables
+# keep files and lines in backtraces; a debugger shows no local variables inside aura-core.
+[profile.dev.package.aura-core]
+debug = "line-tables-only"
 
 # Every Core test fixture hashes the ~200 MB test
 # program twice, and SHA-256 built without optimization took 4.1 s each time, most of a test's

@@ -4,6 +4,7 @@ use super::*;
 use aura_context_domain::*;
 use aura_context_runtime::*;
 use aura_model_transport::*;
+use aura_persistence_v2::agent::stream;
 use aura_security_contract::*;
 use std::collections::BTreeSet;
 
@@ -289,24 +290,44 @@ pub(super) async fn execute(
         Some(run) => StoreStep::run(run, "agent.provider.stream_event"),
         None => StoreStep::operation("agent.provider.stream_event"),
     };
+    // What arrives within `stream::BATCH` of the first event is stored in one transaction; a call
+    // that ends stores what was still held first.
+    let (mut batch, mut due) = (Vec::new(), None);
     loop {
         tokio::select! {
-            result=&mut execution=>return Ok(result?),
+            result=&mut execution=>{
+                store_stream(app, stream_step, batch).await?;
+                return Ok(result?);
+            }
             event=receive.recv()=>{
                 let event = event.ok_or_else(|| anyhow::anyhow!("model.event_channel_closed"))?;
                 // A tool call's growing input is only counted; nothing of it is stored.
-                if super::tool_input::observe(&event) {
-                    continue;
+                if !super::tool_input::observe(&event) {
+                    batch.push(event);
+                    due = due.or_else(|| Some(tokio::time::Instant::now() + stream::BATCH));
                 }
-                app.store
-                    .write(stream_step, move |journal| {
-                        journal.database.unit_of_work(|tx| {
-                            aura_persistence_v2::agent::stream::append(tx, &event)
-                        })
-                    })
-                    .await
-                    .map_err(|error| anyhow::anyhow!("{error}"))?;
+            }
+            () = tokio::time::sleep_until(due.unwrap_or_else(tokio::time::Instant::now)),
+                if due.is_some() => {
+                due = None;
+                store_stream(app, stream_step, std::mem::take(&mut batch)).await?;
             }
         }
     }
+}
+
+async fn store_stream(
+    app: &AgentApplication,
+    step: StoreStep,
+    events: Vec<aura_model_domain::ModelStreamEventEnvelope>,
+) -> anyhow::Result<()> {
+    if events.is_empty() {
+        return Ok(());
+    }
+    app.store
+        .write(step, move |journal| {
+            journal.database.unit_of_work(|tx| stream::append_all(tx, &events))
+        })
+        .await
+        .map_err(|error| anyhow::anyhow!("{error}"))
 }

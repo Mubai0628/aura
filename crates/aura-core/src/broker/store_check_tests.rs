@@ -110,6 +110,24 @@ fn a_check_running_at_quit_is_stopped_and_the_exit_recorded_at_once() {
     }
 }
 
+/// A passed check is recorded beside the store, so the next starts within a week owe none.
+#[test]
+fn a_passed_check_spares_the_quick_check_of_the_next_starts() {
+    let dir = tempfile::tempdir().expect("temp");
+    let root = dir.path().join("v2");
+    drop(aura_persistence_v2::V2Store::create(&root).expect("store"));
+    let store = aura_persistence_v2::V2Store::open(&root).expect("open");
+    let check = StoreCheck::start_after(PendingCheck::Full, store.database_path(), Duration::ZERO);
+    assert_eq!(settled(&check, OWED), SOUND);
+    assert!(root.join("store-checked.json").exists(), "the pass is recorded");
+    assert!(check.record_exit(&store).expect("record"));
+    drop(store);
+    assert_eq!(
+        aura_persistence_v2::V2Store::open(&root).expect("reopen").pending_check(),
+        PendingCheck::None
+    );
+}
+
 /// The owed full check, once passed, lets the exit be recorded again.
 #[test]
 fn a_passed_full_check_lets_the_normal_exit_be_recorded() {

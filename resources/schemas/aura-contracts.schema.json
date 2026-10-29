@@ -3068,7 +3068,15 @@
           "type": "array"
         },
         "context": {
-          "$ref": "#/$defs/ContextProjectionSnapshot"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextProjectionSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The step's full snapshot, kept only for a conversation's newest steps; the figures shown\nare in `projection`."
         },
         "execution": {
           "$ref": "#/$defs/ModelExecutionSnapshot"
@@ -3090,8 +3098,7 @@
       },
       "required": [
         "projection",
-        "execution",
-        "context"
+        "execution"
       ],
       "type": "object"
     },

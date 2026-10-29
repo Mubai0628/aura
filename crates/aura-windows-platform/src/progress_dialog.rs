@@ -6,7 +6,7 @@ use std::{
     mem::size_of,
     ptr,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     thread,
@@ -21,6 +21,7 @@ use windows_sys::{
             Controls::{
                 TASKDIALOGCONFIG, TDCBF_CANCEL_BUTTON, TDE_CONTENT, TDF_CALLBACK_TIMER,
                 TDF_SHOW_PROGRESS_BAR, TDM_CLICK_BUTTON, TDM_ENABLE_BUTTON, TDM_SET_ELEMENT_TEXT,
+                TDM_SET_MARQUEE_PROGRESS_BAR, TDM_SET_PROGRESS_BAR_MARQUEE,
                 TDM_SET_PROGRESS_BAR_POS, TDM_SET_PROGRESS_BAR_RANGE, TDN_BUTTON_CLICKED,
                 TDN_CREATED, TDN_TIMER,
             },
@@ -64,6 +65,12 @@ pub struct Progress {
     done: AtomicU64,
     total: AtomicU64,
     finished: AtomicBool,
+    /// Work that is not a copy names itself and shows a percentage instead of megabytes.
+    stage: Mutex<Option<String>>,
+    /// The work cannot say how far it got: the bar moves without a position.
+    unmeasured: AtomicBool,
+    /// What the window last showed of `unmeasured`.
+    shown_unmeasured: AtomicBool,
 }
 
 impl Progress {
@@ -73,6 +80,19 @@ impl Progress {
 
     pub fn advance(&self, amount: u64) {
         self.done.fetch_add(amount, Ordering::AcqRel);
+    }
+
+    /// Sets how far the work got outright, for work that reports its own totals.
+    pub fn set_done(&self, done: u64) {
+        self.done.store(done, Ordering::Release);
+    }
+
+    /// Names the work's current stage; `unmeasured` when it cannot say how far it got.
+    pub fn set_stage(&self, stage: &str, unmeasured: bool) {
+        if let Ok(mut current) = self.stage.lock() {
+            *current = Some(stage.to_owned());
+        }
+        self.unmeasured.store(unmeasured, Ordering::Release);
     }
 
     /// Done out of the total, in thousandths.
@@ -87,11 +107,16 @@ impl Progress {
 
     fn text(&self) -> String {
         const MIB: u64 = 1024 * 1024;
-        format!(
-            "已复制 {} MB / {} MB",
-            self.done.load(Ordering::Acquire) / MIB,
-            self.total.load(Ordering::Acquire) / MIB
-        )
+        let stage = self.stage.lock().ok().and_then(|stage| stage.clone());
+        match stage {
+            Some(stage) if self.unmeasured.load(Ordering::Acquire) => stage,
+            Some(stage) => format!("{stage} {}%", self.permille() / 10),
+            None => format!(
+                "已复制 {} MB / {} MB",
+                self.done.load(Ordering::Acquire) / MIB,
+                self.total.load(Ordering::Acquire) / MIB
+            ),
+        }
     }
 }
 
@@ -189,7 +214,17 @@ unsafe extern "system" fn callback(
             S_OK
         }
         TDN_TIMER => {
-            send(TDM_SET_PROGRESS_BAR_POS, progress.permille() as usize, 0);
+            let unmeasured = progress.unmeasured.load(Ordering::Acquire);
+            if progress.shown_unmeasured.swap(unmeasured, Ordering::AcqRel) != unmeasured {
+                send(TDM_SET_MARQUEE_PROGRESS_BAR, usize::from(unmeasured), 0);
+                send(TDM_SET_PROGRESS_BAR_MARQUEE, usize::from(unmeasured), 30);
+                if !unmeasured {
+                    send(TDM_SET_PROGRESS_BAR_RANGE, 0, (RANGE as isize) << 16);
+                }
+            }
+            if !unmeasured {
+                send(TDM_SET_PROGRESS_BAR_POS, progress.permille() as usize, 0);
+            }
             let text = wide_null(&progress.text());
             send(TDM_SET_ELEMENT_TEXT, TDE_CONTENT as usize, text.as_ptr() as isize);
             if progress.finished.load(Ordering::Acquire) {
@@ -243,5 +278,16 @@ mod tests {
         assert_eq!(progress.text(), "已复制 1 MB / 4 MB");
         progress.advance(10 * 1024 * 1024);
         assert_eq!(progress.permille(), RANGE);
+    }
+
+    #[test]
+    fn a_named_stage_shows_its_percentage_or_only_its_name_while_unmeasured() {
+        let progress = Progress::default();
+        progress.set_total(200);
+        progress.set_done(50);
+        progress.set_stage("删除旧记录", false);
+        assert_eq!(progress.text(), "删除旧记录 25%");
+        progress.set_stage("整理数据库文件", true);
+        assert_eq!(progress.text(), "整理数据库文件");
     }
 }

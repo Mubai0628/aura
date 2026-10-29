@@ -135,6 +135,11 @@ impl RawStreamWriter for ModelStreamWriter {
     async fn finalize(self) -> Result<ArtifactId, ModelTransportError> {
         self.owner.put("text/event-stream", &self.bytes).await
     }
+
+    /// A conversation's answers are recorded parsed; the raw stream of one is never read again.
+    fn keeps_completed_stream(&self) -> bool {
+        false
+    }
 }
 
 impl TransportStore for AgentModelStore {

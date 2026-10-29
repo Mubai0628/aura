@@ -15,14 +15,15 @@ export interface UpdateNoticeDeps {
 
 /**
  * A new version, announced once: a Windows notification and the red dot, unless 关于与更新 is in
- * front already.
+ * front already. One the automatic check downloaded and prepared is announced as ready.
  */
 export async function announceUpdate(state: AppUpdateState, deps: UpdateNoticeDeps): Promise<void> {
-  const version = state.latest?.version;
-  if (state.phase !== 'available' || version === undefined) return;
+  const ready = state.phase === 'ready' ? (state.waiting ?? undefined) : undefined;
+  const version = ready ?? (state.phase === 'available' ? state.latest?.version : undefined);
+  if (version === undefined) return;
   if (!(await deps.allowed()) || deps.announced() === version) return;
   await deps.remember(version);
   if (deps.inFront(UPDATES_IN_FRONT)) return;
-  deps.show('Aura 有新版本', `${version} 可以下载更新`);
+  deps.show('Aura 有新版本', ready ? `${version} 已下载，重启即可更新` : `${version} 可以下载更新`);
   deps.attention(UPDATES_IN_FRONT);
 }

@@ -54,6 +54,7 @@ pub(crate) mod acceptance_hold;
 
 pub(crate) use health::{StoreDependency, StoreHealthSnapshot};
 use readers::Readers;
+pub(crate) use readers::lent as lent_reader;
 
 /// The V2 store. One dependency today; named so a second one cannot be conflated with it.
 const JOURNAL: StoreDependency = StoreDependency::Journal;
@@ -729,9 +730,12 @@ impl AgentStore {
                 .and_then(|readers| readers.take().ok().map(|connection| (readers, connection)));
             let on_reader = lent.is_some();
             let value = match lent {
-                Some((readers, connection)) => {
-                    let value = work(&connection);
-                    readers.put_back(connection);
+                Some((readers, (number, connection))) => {
+                    let value = {
+                        let _lent = readers::Lent::to(number);
+                        work(&connection)
+                    };
+                    readers.put_back((number, connection));
                     value?
                 }
                 None => {

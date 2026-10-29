@@ -2,10 +2,10 @@
 //! structure checked, and SQLite's quick check runs on its own thread while the Store serves; a
 //! failed check withholds the next normal exit.
 //!
-//! The quick check reads every page (2.2 GB on the
-//! owner's Store) and slowed the start it was meant to spare, so it waits until the start is over
-//! and runs with background priority. A check still running at quit withholds nothing: the next
-//! start, after this normal exit, runs it again.
+//! The quick check reads every page (184 s on a 7.3 GB Store) and slowed the start it was meant
+//! to spare, so it waits until the start is over and runs with background priority, and after a
+//! normal exit it runs at most once a week: a passed check is recorded beside the Store. A check
+//! still running at quit withholds nothing: the next start, after this normal exit, runs it again.
 //!
 //! Two faults made the owner's development
 //! Aura start over and over. A quit while the quick check ran left no normal exit: the check held
@@ -63,8 +63,14 @@ impl StoreCheck {
 
     fn start_after(pending: PendingCheck, database: PathBuf, delay: Duration) -> Self {
         Self::start_with(pending, delay, move |stop| {
-            background_check(&database, pending, move || stop.requested())
-                .map_err(|error| error.to_string())
+            let checked = background_check(&database, pending, move || stop.requested())
+                .map_err(|error| error.to_string());
+            // A passed check spares the quick check of the next week's starts; a record that
+            // cannot be written only means the next start checks again.
+            if checked.is_ok() {
+                let _ = aura_persistence_v2::record_store_checked(&database);
+            }
+            checked
         })
     }
 

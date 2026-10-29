@@ -3,3 +3,6 @@ CREATE TABLE execution_results(operation_id TEXT NOT NULL, ordinal INTEGER NOT N
 CREATE TABLE execution_operational_state(operation_id TEXT NOT NULL, ordinal INTEGER NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), progress TEXT NOT NULL CHECK(json_valid(progress)), PRIMARY KEY(operation_id,ordinal), FOREIGN KEY(operation_id,ordinal) REFERENCES execution_attempts(operation_id,ordinal)) STRICT;
 CREATE TRIGGER immutable_execution_result_update BEFORE UPDATE ON execution_results BEGIN SELECT RAISE(ABORT,'immutable terminal result'); END;
 CREATE TRIGGER immutable_execution_result_delete BEFORE DELETE ON execution_results BEGIN SELECT RAISE(ABORT,'immutable terminal result'); END;
+CREATE INDEX execution_results_by_receipt ON execution_results(receipt_artifact_id);
+CREATE INDEX operation_artifact_links_by_artifact ON operation_artifact_links(artifact_id);
+CREATE INDEX artifacts_by_object ON artifacts(object_hash);

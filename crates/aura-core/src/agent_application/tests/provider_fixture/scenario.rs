@@ -191,6 +191,9 @@ pub enum Scenario {
     /// Read [`HOOK_SOURCE`] with the always-offered `fs.read`, then answer; the
     /// test's Hooks decide what is really read and what the model sees.
     HookRead,
+    /// [`HELD_DELTAS`] text deltas that arrive together, then a stream that stays open, so the
+    /// step stays running with what it streamed, until `release_window` ends the answer there.
+    DeltasThenHold,
     /// A plain answer to every request and a valid summary to every compaction request,
     /// so a test can shape the context with the window alone.
     Plain,
@@ -239,6 +242,9 @@ static SIZED_IN_BYTES: Mutex<std::collections::BTreeSet<String>> =
 pub fn sized_in_bytes(url: &str) -> bool {
     SIZED_IN_BYTES.lock().is_ok_and(|urls| urls.contains(url))
 }
+
+/// How many deltas the `DeltasThenHold` scenario streams; the n-th says `piece n. `.
+pub const HELD_DELTAS: usize = 40;
 
 /// The file the `HookRead` scenario asks to read.
 pub const HOOK_SOURCE: &str = "hook-source.txt";

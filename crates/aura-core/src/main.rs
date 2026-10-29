@@ -42,6 +42,19 @@ async fn main() -> ExitCode {
         );
         return ExitCode::SUCCESS;
     }
+    // Before the desktop starts, the launcher has this build clear what older versions wrote into
+    // the execution store and nothing reads (`aura_persistence_v2::slimming::command`).
+    if let Some(at) = arguments.iter().position(|argument| argument == "--store-slim") {
+        let Some(root) = arguments.get(at + 1).map(std::path::PathBuf::from) else {
+            eprintln!("Aura Core argument error: --store-slim needs the data folder");
+            return ExitCode::from(2);
+        };
+        return ExitCode::from(aura_persistence_v2::slimming::command(
+            &root,
+            &aura_windows_platform::free_disk_space,
+            &mut std::io::stdout(),
+        ));
+    }
     if env::args().any(|argument| argument == "--help" || argument == "-h") {
         println!(
             "Aura Core P01 Sidecar\n\nAura Core is started by Electron Main with a private bootstrap contract."

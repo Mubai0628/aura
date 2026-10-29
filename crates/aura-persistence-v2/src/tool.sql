@@ -28,3 +28,4 @@ CREATE TABLE mcp_catalogs(server_id TEXT PRIMARY KEY, config_fingerprint TEXT NO
 CREATE TABLE mcp_tool_revisions(tool_id TEXT NOT NULL, definition_key TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), created_at TEXT NOT NULL, PRIMARY KEY(tool_id,definition_key), UNIQUE(tool_id,revision)) STRICT;
 CREATE TABLE mcp_secrets(secret_id TEXT PRIMARY KEY, server_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), state TEXT NOT NULL CHECK(state IN('pending','stored')), updated_at TEXT NOT NULL) STRICT;
 CREATE TABLE mcp_oauth_sessions(server_id TEXT PRIMARY KEY, config_fingerprint TEXT NOT NULL, credential_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), authorization TEXT NOT NULL CHECK(json_valid(authorization)), protected_tokens BLOB NOT NULL, expires_at TEXT, updated_at TEXT NOT NULL) STRICT;
+CREATE INDEX terminal_output_segments_by_artifact ON terminal_output_segments(artifact_id);

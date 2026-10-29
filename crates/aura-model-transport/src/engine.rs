@@ -84,6 +84,13 @@ pub trait RawStreamWriter: Send {
     {
         Ok(())
     }
+
+    /// Whether a stream that ended in a recorded answer is kept. A writer whose answers are kept
+    /// in their parsed form answers `false`, and that stream is dropped instead of stored; a
+    /// failed attempt's stream is kept either way.
+    fn keeps_completed_stream(&self) -> bool {
+        true
+    }
 }
 
 /// The transport's storage port.

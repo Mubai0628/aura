@@ -113,11 +113,16 @@ pub fn release_owner(tx: &Transaction<'_>, id: ArtifactId, owner: &str) -> Store
 /// Deletes the queued artifacts nothing owns or links, and the objects only they held.
 ///
 /// Only the objects of the artifacts deleted here are checked. Checking every object against
-/// every artifact (`object_hash` has no index) cost O(n²) in the store's artifacts, and a
-/// terminal's output is collected on every save: 24 s per save beside 20 000 artifacts.
+/// every artifact cost O(n²) in the store's artifacts, and a terminal's output is collected on
+/// every save: 24 s per save beside 20 000 artifacts.
+///
+/// The queue is read first and each artifact found by its key: the queue holds what one change
+/// gave up, and without statistics SQLite chose to walk every artifact and look each one up in
+/// the queue instead.
 pub fn collect(tx: &Transaction<'_>) -> StoreResult<usize> {
     let mut query = tx.prepare(
-        "SELECT a.id,a.object_hash FROM artifact_gc_queue q JOIN artifacts a ON a.id=q.artifact_id \
+        "SELECT a.id,a.object_hash FROM artifact_gc_queue q CROSS JOIN artifacts a \
+         ON a.id=q.artifact_id \
          WHERE NOT EXISTS(SELECT 1 FROM artifact_owners WHERE artifact_id=a.id) \
          AND NOT EXISTS(SELECT 1 FROM operation_artifact_links WHERE artifact_id=a.id)",
     )?;
@@ -129,11 +134,12 @@ pub fn collect(tx: &Transaction<'_>) -> StoreResult<usize> {
         tx.execute("DELETE FROM artifacts WHERE id=?1", [id])?;
     }
     let hashes: std::collections::BTreeSet<&String> = unused.iter().map(|(_, hash)| hash).collect();
-    for hash in hashes {
+    if !hashes.is_empty() {
+        // One pass over the artifacts for all the objects, however many the deleted ones held.
         tx.execute(
-            "DELETE FROM artifact_objects WHERE hash=?1 \
-             AND NOT EXISTS(SELECT 1 FROM artifacts WHERE object_hash=?1)",
-            [hash],
+            "DELETE FROM artifact_objects WHERE hash IN (SELECT value FROM json_each(?1)) \
+             AND hash NOT IN (SELECT object_hash FROM artifacts)",
+            [serde_json::to_string(&hashes)?],
         )?;
     }
     Ok(unused.len())

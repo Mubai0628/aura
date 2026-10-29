@@ -11,16 +11,11 @@ use tail::{index_has_byte_gap, mark_coverage};
 
 mod tail;
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-struct Delta {
-    attempt: TransportAttemptId,
-    sequence: u64,
-    text: String,
-    reasoning: String,
-}
-
 mod append;
-pub use append::append;
+use append::Delta;
+pub use append::{BATCH, append, append_all};
+mod sealed;
+pub use sealed::drop_sealed;
 mod repair;
 pub use repair::{
     RepairScan, advance_repair_cursor, discover_outstanding, repair_outstanding, repair_pass,

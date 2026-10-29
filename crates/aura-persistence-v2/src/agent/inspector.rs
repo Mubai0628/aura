@@ -6,7 +6,7 @@ use aura_context_domain::{
 };
 use aura_domain_common::*;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
-use rusqlite::{Connection, OptionalExtension, Transaction};
+use rusqlite::{Connection, Transaction};
 
 /// A turn awaiting semantic reconciliation has only a reserved lineage ID.
 /// Do not fabricate that lineage or read it as an existing persistent record.
@@ -56,8 +56,12 @@ pub fn previous_context(
     db: &Connection,
     session: SessionId,
 ) -> StoreResult<Option<ContextProjectionSnapshot>> {
-    let id: Option<String> = db.query_row("SELECT c.id FROM context_snapshots c JOIN model_execution_snapshots e ON json_extract(e.payload,'$.context_snapshot_id')=c.id JOIN model_steps s ON s.snapshot_id=e.id WHERE c.session_id=?1 ORDER BY c.rowid DESC LIMIT 1",
-        [session.to_string()], |r| r.get(0)).optional()?;
+    // The context the newest step was sent with (`counted_request::last_sent_steps`).
+    let newest = super::counted_request::last_sent_steps(db, session, 1)?;
+    let id = match newest.first() {
+        Some((_, sent)) => super::counted_request::sent_context(db, session, sent)?,
+        None => None,
+    };
     match id {
         Some(id) => crate::context::snapshot(db, id.parse().map_err(|_| Error::Conflict)?),
         None => Ok(None),
@@ -115,10 +119,10 @@ pub fn read(
         facts::latest(db, &step.model_step_id.to_string(), "agent.prompt_inspector")?
             .ok_or(Error::Invalid("agent.inspector_not_recorded"))?;
     let execution = crate::model::step_snapshot(db, step.model_step_id)?;
-    let context =
-        crate::context::snapshot(db, execution.context_snapshot_id)?.ok_or(Error::Conflict)?;
+    // Only a conversation's newest full snapshots are kept; an older step shows its figures.
+    let context = crate::context::snapshot(db, execution.context_snapshot_id)?;
     if projection.session_id != request.session_id
-        || projection.context_snapshot_id != Some(context.id)
+        || projection.context_snapshot_id != Some(execution.context_snapshot_id)
     {
         return Err(Error::Conflict);
     }

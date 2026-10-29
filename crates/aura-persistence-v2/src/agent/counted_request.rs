@@ -27,42 +27,95 @@ pub struct CountedRequest {
 
 /// The newest counted request among the conversation's last steps, if any.
 pub fn latest(db: &Connection, session: SessionId) -> StoreResult<Option<CountedRequest>> {
+    let Some(counted) = newest_counted(db, session)? else {
+        return Ok(None);
+    };
+    let sent = crate::model::step_snapshot(db, counted.step)?;
+    Ok(Some(CountedRequest {
+        input_tokens: counted.input_tokens,
+        provider_id: sent.provider_id,
+        model_name: sent.model_name,
+        parts: serde_json::from_str(&counted.parts)?,
+    }))
+}
+
+/// The snapshot behind the conversation's newest counted request: the next request is measured
+/// by it, so the conversation keeps it beside its newest snapshot (`context::insert_snapshot`).
+pub fn latest_counted_snapshot(db: &Connection, session: SessionId) -> StoreResult<Option<String>> {
+    Ok(newest_counted(db, session)?.map(|counted| counted.context))
+}
+
+struct Counted {
+    context: String,
+    step: ModelStepId,
+    input_tokens: u64,
+    parts: String,
+}
+
+/// The conversation's last `limit` steps that were sent, newest first, with the execution snapshot
+/// each was sent with. Reached through the conversation's turns, runs and steps, which are indexed:
+/// matching every execution snapshot's JSON against the conversation instead read all of them,
+/// 30 MB for each lookup on a store of a thousand requests.
+pub(crate) fn last_sent_steps(
+    db: &Connection,
+    session: SessionId,
+    limit: u32,
+) -> StoreResult<Vec<(ModelStepId, String)>> {
     let mut query = db.prepare(
-        "SELECT c.id, s.id FROM context_snapshots c \
-         JOIN model_execution_snapshots e ON json_extract(e.payload,'$.context_snapshot_id')=c.id \
-         JOIN model_steps s ON s.snapshot_id=e.id \
-         WHERE c.session_id=?1 ORDER BY c.rowid DESC LIMIT ?2",
+        "SELECT s.id, s.snapshot_id FROM turn_tasks t \
+         JOIN agent_runs r ON r.turn_task_id=t.id \
+         JOIN model_steps s ON s.agent_run_id=r.id \
+         WHERE t.session_id=?1 AND s.snapshot_id IS NOT NULL ORDER BY s.rowid DESC LIMIT ?2",
     )?;
     let steps = query
-        .query_map(params![session.to_string(), STEPS_BACK], |row| {
+        .query_map(params![session.to_string(), limit], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    drop(query);
-    for (context, step) in steps {
-        let step: ModelStepId = step.parse().map_err(|_| Error::Conflict)?;
+    steps
+        .into_iter()
+        .map(|(step, sent)| Ok((step.parse().map_err(|_| Error::Conflict)?, sent)))
+        .collect()
+}
+
+/// The context snapshot a step was sent with, while the conversation still keeps it.
+pub(crate) fn sent_context(
+    db: &Connection,
+    session: SessionId,
+    execution_snapshot: &str,
+) -> StoreResult<Option<String>> {
+    Ok(db
+        .query_row(
+            "SELECT c.id FROM model_execution_snapshots e \
+             JOIN context_snapshots c ON c.id=json_extract(e.payload,'$.context_snapshot_id') \
+             WHERE e.id=?1 AND c.session_id=?2",
+            params![execution_snapshot, session.to_string()],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
+/// Among the conversation's last steps, the newest whose provider reported its count and whose
+/// snapshot, still kept, names the parts it was counted by.
+fn newest_counted(db: &Connection, session: SessionId) -> StoreResult<Option<Counted>> {
+    for (step, sent) in last_sent_steps(db, session, STEPS_BACK)? {
         // A step without an answer — failed, stopped or still running — has no count.
         let Ok(output) = super::history::output(db, step) else { continue };
         if output.usage.source != UsageSource::ProviderReported {
             continue;
         }
-        let sent = crate::model::step_snapshot(db, step)?;
+        let Some(context) = sent_context(db, session, &sent)? else { continue };
         let parts: Option<String> = db
             .query_row(
                 "SELECT json_extract(payload,'$.budget.item_estimates') FROM context_snapshots \
                  WHERE id=?1",
-                [context],
+                [&context],
                 |row| row.get(0),
             )
             .optional()?
             .flatten();
         let Some(parts) = parts else { continue };
-        return Ok(Some(CountedRequest {
-            input_tokens: output.usage.input_tokens,
-            provider_id: sent.provider_id,
-            model_name: sent.model_name,
-            parts: serde_json::from_str(&parts)?,
-        }));
+        return Ok(Some(Counted { context, step, input_tokens: output.usage.input_tokens, parts }));
     }
     Ok(None)
 }

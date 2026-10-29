@@ -316,6 +316,34 @@ fn a_newer_version_gets_a_copy_of_only_the_store_it_migrates() {
     assert!(!copy.join("data/v2-execution").exists(), "{}", install.log());
 }
 
+/// A newer version clears what older versions wrote before its copy is taken: the copy kept until
+/// the next version is the slimmed store, and the store changes shape only after it, when Core
+/// first opens it.
+#[test]
+fn a_newer_version_slims_the_store_before_it_is_copied() {
+    let install = Install::new("0.1.9", "exit");
+    let v2 = install.store().parent().unwrap().join("v2-execution/aura-v2.db");
+    fs::create_dir_all(v2.parent().unwrap()).unwrap();
+    fs::write(install.store(), "conversations of 0.1.9").unwrap();
+    fs::write(&v2, "operations of 0.1.9").unwrap();
+    install.add_with_core("0.1.10", "ready", fs::read(fake_desktop()).unwrap());
+    fs::write(
+        install.root.path().join("versions/0.1.10/fake-migration.json"),
+        r#"{"data/aura.db":false,"data/v2-execution/aura-v2.db":true}"#,
+    )
+    .unwrap();
+    install.wait("0.1.10");
+    install.launch();
+    assert_eq!(install.state().active, "0.1.10", "{}", install.log());
+    let copy = install.store().parent().unwrap().parent().unwrap().join("backups/before-0.1.10");
+    assert_eq!(
+        fs::read_to_string(copy.join("data/v2-execution/aura-v2.db")).unwrap(),
+        "slimmed operations of 0.1.9",
+        "{}",
+        install.log()
+    );
+}
+
 #[test]
 fn a_desktop_that_applied_an_update_restarts_into_the_new_version() {
     let install = Install::new("0.1.0", "update-and-restart");

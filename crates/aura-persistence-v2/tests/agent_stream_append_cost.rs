@@ -104,6 +104,38 @@ fn a_late_delta_of_a_long_stream_costs_about_the_same_as_an_early_one() {
     assert_eq!(body.sequence, Some(4_199));
 }
 
+/// Compactions of other conversations, each with two attempts in its record and a body of the size
+/// a real one keeps.
+fn other_conversations_compactions(store: &V2Store, count: u64) {
+    let db = store.database.connection();
+    db.pragma_update(None, "foreign_keys", "OFF").unwrap();
+    db.execute_batch(&format!(
+        "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<{count}) \
+         INSERT INTO context_compactions(id, session_id, state, revision, payload) \
+         SELECT 'ctx_compaction_'||x, 'ses_other', 'completed', 1, json_object('attempts', \
+         json_array(json_object('model_step_id', 'stp_compaction_'||x||'_1'), \
+         json_object('model_step_id', 'stp_compaction_'||x||'_2')), \
+         'padding', hex(zeroblob(8000))) FROM n;"
+    ))
+    .unwrap();
+    db.pragma_update(None, "foreign_keys", "ON").unwrap();
+}
+
+/// Each delta first asks whether its step is a compaction's request. The answer was looked up in
+/// every compaction's record, so a reply cost more the more compactions the store held: on a
+/// long-used store 1.5 MB of reading per delta, 1.3 GB for one reply.
+#[test]
+fn a_delta_costs_the_same_however_many_compactions_the_store_holds() {
+    let (_root, mut store, fixture, attempt) = setup();
+    let alone = steps_per_append(&mut store, &fixture, attempt, 1, 50);
+    other_conversations_compactions(&store, 500);
+    let beside = steps_per_append(&mut store, &fixture, attempt, 51, 50);
+    assert!(
+        beside < alone + 500,
+        "a delta ran {alone} SQLite steps alone and {beside} beside 500 compactions"
+    );
+}
+
 /// A row removed from the middle of the index is found when the index has doubled, and the full
 /// path puts it back; the stored text is whole throughout.
 #[test]

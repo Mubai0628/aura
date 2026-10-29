@@ -2845,7 +2845,11 @@ const schema19 = {
           items: { $ref: '#/$defs/PromptInspectorActivitySourceView' },
           type: 'array',
         },
-        context: { $ref: '#/$defs/ContextProjectionSnapshot' },
+        context: {
+          anyOf: [{ $ref: '#/$defs/ContextProjectionSnapshot' }, { type: 'null' }],
+          description:
+            "The step's full snapshot, kept only for a conversation's newest steps; the figures shown\nare in `projection`.",
+        },
         execution: { $ref: '#/$defs/ModelExecutionSnapshot' },
         projection: { $ref: '#/$defs/PromptInspectorProjection' },
         session_cache: {
@@ -2853,7 +2857,7 @@ const schema19 = {
           description: "The whole conversation's cache use when the step was read.",
         },
       },
-      required: ['projection', 'execution', 'context'],
+      required: ['projection', 'execution'],
       type: 'object',
     },
     PromptInspectorActivitySourceView: {
@@ -51529,7 +51533,11 @@ const schema170 = {
           items: { $ref: '#/$defs/PromptInspectorActivitySourceView' },
           type: 'array',
         },
-        context: { $ref: '#/$defs/ContextProjectionSnapshot' },
+        context: {
+          anyOf: [{ $ref: '#/$defs/ContextProjectionSnapshot' }, { type: 'null' }],
+          description:
+            "The step's full snapshot, kept only for a conversation's newest steps; the figures shown\nare in `projection`.",
+        },
         execution: { $ref: '#/$defs/ModelExecutionSnapshot' },
         projection: { $ref: '#/$defs/PromptInspectorProjection' },
         session_cache: {
@@ -51537,7 +51545,7 @@ const schema170 = {
           description: "The whole conversation's cache use when the step was read.",
         },
       },
-      required: ['projection', 'execution', 'context'],
+      required: ['projection', 'execution'],
       type: 'object',
     },
     PromptInspectorActivitySourceView: {
@@ -82800,7 +82808,11 @@ const schema266 = {
       items: { $ref: '#/$defs/PromptInspectorActivitySourceView' },
       type: 'array',
     },
-    context: { $ref: '#/$defs/ContextProjectionSnapshot' },
+    context: {
+      anyOf: [{ $ref: '#/$defs/ContextProjectionSnapshot' }, { type: 'null' }],
+      description:
+        "The step's full snapshot, kept only for a conversation's newest steps; the figures shown\nare in `projection`.",
+    },
     execution: { $ref: '#/$defs/ModelExecutionSnapshot' },
     projection: { $ref: '#/$defs/PromptInspectorProjection' },
     session_cache: {
@@ -82808,7 +82820,7 @@ const schema266 = {
       description: "The whole conversation's cache use when the step was read.",
     },
   },
-  required: ['projection', 'execution', 'context'],
+  required: ['projection', 'execution'],
   type: 'object',
 };
 const schema267 = {
@@ -100503,8 +100515,7 @@ function validate796(
       let missing0;
       if (
         (data.projection === undefined && (missing0 = 'projection')) ||
-        (data.execution === undefined && (missing0 = 'execution')) ||
-        (data.context === undefined && (missing0 = 'context'))
+        (data.execution === undefined && (missing0 = 'execution'))
       ) {
         validate796.errors = [
           {
@@ -100586,9 +100597,13 @@ function validate796(
           }
           if (valid0) {
             if (data.context !== undefined) {
+              let data2 = data.context;
               const _errs5 = errors;
+              const _errs6 = errors;
+              let valid2 = false;
+              const _errs7 = errors;
               if (
-                !validate801(data.context, {
+                !validate801(data2, {
                   instancePath: instancePath + '/context',
                   parentData: data,
                   parentDataProperty: 'context',
@@ -100600,13 +100615,59 @@ function validate796(
                   vErrors === null ? validate801.errors : vErrors.concat(validate801.errors);
                 errors = vErrors.length;
               }
+              var _valid0 = _errs7 === errors;
+              valid2 = valid2 || _valid0;
+              const _errs8 = errors;
+              if (data2 !== null) {
+                const err0 = {
+                  instancePath: instancePath + '/context',
+                  schemaPath: '#/properties/context/anyOf/1/type',
+                  keyword: 'type',
+                  params: { type: 'null' },
+                  message: 'must be null',
+                };
+                if (vErrors === null) {
+                  vErrors = [err0];
+                } else {
+                  vErrors.push(err0);
+                }
+                errors++;
+              }
+              var _valid0 = _errs8 === errors;
+              valid2 = valid2 || _valid0;
+              if (!valid2) {
+                const err1 = {
+                  instancePath: instancePath + '/context',
+                  schemaPath: '#/properties/context/anyOf',
+                  keyword: 'anyOf',
+                  params: {},
+                  message: 'must match a schema in anyOf',
+                };
+                if (vErrors === null) {
+                  vErrors = [err1];
+                } else {
+                  vErrors.push(err1);
+                }
+                errors++;
+                validate796.errors = vErrors;
+                return false;
+              } else {
+                errors = _errs6;
+                if (vErrors !== null) {
+                  if (_errs6) {
+                    vErrors.length = _errs6;
+                  } else {
+                    vErrors = null;
+                  }
+                }
+              }
               var valid0 = _errs5 === errors;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.execution !== undefined) {
-                const _errs6 = errors;
+                const _errs10 = errors;
                 if (
                   !validate929(data.execution, {
                     instancePath: instancePath + '/execution',
@@ -100620,13 +100681,13 @@ function validate796(
                     vErrors === null ? validate929.errors : vErrors.concat(validate929.errors);
                   errors = vErrors.length;
                 }
-                var valid0 = _errs6 === errors;
+                var valid0 = _errs10 === errors;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.projection !== undefined) {
-                  const _errs7 = errors;
+                  const _errs11 = errors;
                   if (
                     !validate965(data.projection, {
                       instancePath: instancePath + '/projection',
@@ -100640,17 +100701,17 @@ function validate796(
                       vErrors === null ? validate965.errors : vErrors.concat(validate965.errors);
                     errors = vErrors.length;
                   }
-                  var valid0 = _errs7 === errors;
+                  var valid0 = _errs11 === errors;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.session_cache !== undefined) {
                     let data5 = data.session_cache;
-                    const _errs8 = errors;
-                    const _errs9 = errors;
-                    let valid2 = false;
-                    const _errs10 = errors;
+                    const _errs12 = errors;
+                    const _errs13 = errors;
+                    let valid3 = false;
+                    const _errs14 = errors;
                     if (
                       !validate1032(data5, {
                         instancePath: instancePath + '/session_cache',
@@ -100666,11 +100727,11 @@ function validate796(
                           : vErrors.concat(validate1032.errors);
                       errors = vErrors.length;
                     }
-                    var _valid0 = _errs10 === errors;
-                    valid2 = valid2 || _valid0;
-                    const _errs11 = errors;
+                    var _valid1 = _errs14 === errors;
+                    valid3 = valid3 || _valid1;
+                    const _errs15 = errors;
                     if (data5 !== null) {
-                      const err0 = {
+                      const err2 = {
                         instancePath: instancePath + '/session_cache',
                         schemaPath: '#/properties/session_cache/anyOf/1/type',
                         keyword: 'type',
@@ -100678,16 +100739,16 @@ function validate796(
                         message: 'must be null',
                       };
                       if (vErrors === null) {
-                        vErrors = [err0];
+                        vErrors = [err2];
                       } else {
-                        vErrors.push(err0);
+                        vErrors.push(err2);
                       }
                       errors++;
                     }
-                    var _valid0 = _errs11 === errors;
-                    valid2 = valid2 || _valid0;
-                    if (!valid2) {
-                      const err1 = {
+                    var _valid1 = _errs15 === errors;
+                    valid3 = valid3 || _valid1;
+                    if (!valid3) {
+                      const err3 = {
                         instancePath: instancePath + '/session_cache',
                         schemaPath: '#/properties/session_cache/anyOf',
                         keyword: 'anyOf',
@@ -100695,24 +100756,24 @@ function validate796(
                         message: 'must match a schema in anyOf',
                       };
                       if (vErrors === null) {
-                        vErrors = [err1];
+                        vErrors = [err3];
                       } else {
-                        vErrors.push(err1);
+                        vErrors.push(err3);
                       }
                       errors++;
                       validate796.errors = vErrors;
                       return false;
                     } else {
-                      errors = _errs9;
+                      errors = _errs13;
                       if (vErrors !== null) {
-                        if (_errs9) {
-                          vErrors.length = _errs9;
+                        if (_errs13) {
+                          vErrors.length = _errs13;
                         } else {
                           vErrors = null;
                         }
                       }
                     }
-                    var valid0 = _errs8 === errors;
+                    var valid0 = _errs12 === errors;
                   } else {
                     var valid0 = true;
                   }
@@ -178395,7 +178456,11 @@ const schema576 = {
           items: { $ref: '#/$defs/PromptInspectorActivitySourceView' },
           type: 'array',
         },
-        context: { $ref: '#/$defs/ContextProjectionSnapshot' },
+        context: {
+          anyOf: [{ $ref: '#/$defs/ContextProjectionSnapshot' }, { type: 'null' }],
+          description:
+            "The step's full snapshot, kept only for a conversation's newest steps; the figures shown\nare in `projection`.",
+        },
         execution: { $ref: '#/$defs/ModelExecutionSnapshot' },
         projection: { $ref: '#/$defs/PromptInspectorProjection' },
         session_cache: {
@@ -178403,7 +178468,7 @@ const schema576 = {
           description: "The whole conversation's cache use when the step was read.",
         },
       },
-      required: ['projection', 'execution', 'context'],
+      required: ['projection', 'execution'],
       type: 'object',
     },
     PromptInspectorActivitySourceView: {
@@ -187391,7 +187456,11 @@ const schema581 = {
           items: { $ref: '#/$defs/PromptInspectorActivitySourceView' },
           type: 'array',
         },
-        context: { $ref: '#/$defs/ContextProjectionSnapshot' },
+        context: {
+          anyOf: [{ $ref: '#/$defs/ContextProjectionSnapshot' }, { type: 'null' }],
+          description:
+            "The step's full snapshot, kept only for a conversation's newest steps; the figures shown\nare in `projection`.",
+        },
         execution: { $ref: '#/$defs/ModelExecutionSnapshot' },
         projection: { $ref: '#/$defs/PromptInspectorProjection' },
         session_cache: {
@@ -187399,7 +187468,7 @@ const schema581 = {
           description: "The whole conversation's cache use when the step was read.",
         },
       },
-      required: ['projection', 'execution', 'context'],
+      required: ['projection', 'execution'],
       type: 'object',
     },
     PromptInspectorActivitySourceView: {

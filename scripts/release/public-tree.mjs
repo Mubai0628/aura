@@ -74,12 +74,13 @@ export const TRANSFORMS = {
     for (const name of ['dev:acceptance', 'dev:acceptance:install']) delete value.scripts[name];
     return `${JSON.stringify(value, null, 2)}\n`;
   },
-  // The size check reads only the ceilings; files that are not exported have none to keep.
+  // The size check reads only the ceilings; files that are not exported have none to keep. A
+  // capped crate's ceiling stays: the exported crate holds at most the lines it counts here.
   'scripts/architecture/file-size-baseline.json': (text, exported) => {
-    const { metric, ceilings } = JSON.parse(text);
+    const { metric, crate_ceilings: crateCeilings, ceilings } = JSON.parse(text);
     const kept = Object.fromEntries(
       Object.entries(ceilings).filter(([path]) => exported.has(path)),
     );
-    return `${JSON.stringify({ metric, ceilings: kept }, null, 2)}\n`;
+    return `${JSON.stringify({ metric, crate_ceilings: crateCeilings, ceilings: kept }, null, 2)}\n`;
   },
 };

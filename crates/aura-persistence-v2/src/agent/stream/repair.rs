@@ -135,9 +135,11 @@ fn sweep(db: &Connection, scan: &mut RepairScan, until: Option<Instant>) -> Stor
     Ok(())
 }
 
+/// A completed step is not one: its window reads the sealed text, and its seal drops its deltas
+/// with their coverage, so every completed step would otherwise be asked about at every start.
 fn steps_without_coverage(db: &Connection, after: &str) -> StoreResult<Vec<String>> {
     let mut statement = db.prepare(
-        "SELECT id FROM model_steps WHERE id > ?1 \
+        "SELECT id FROM model_steps WHERE id > ?1 AND state <> 'completed' \
          AND id NOT IN (SELECT owner FROM agent_visible_coverage) ORDER BY id LIMIT ?2",
     )?;
     let steps = statement

@@ -31,18 +31,31 @@ export function UpdateNotifications({
       onNotify(input);
     };
     const available = state.available && state.phase === 'available' ? state.latest : null;
-    const availableKey = available ? `app-update:available:${available.version}` : undefined;
+    // One the automatic check downloaded and prepared waits only for the restart.
+    const ready = state.available && state.phase === 'ready' ? state.waiting : null;
+    const availableKey = ready
+      ? `app-update:available:${ready}:ready`
+      : available
+        ? `app-update:available:${available.version}`
+        : undefined;
     publish(
       'available',
       availableKey,
-      available && availableKey
+      ready && availableKey
         ? {
             dedupeKey: availableKey,
-            title: '发现新版本',
-            message: `Aura ${available.version} 已可更新，可前往设置 → 关于与更新查看。`,
+            title: '新版本已准备好',
+            message: `Aura ${ready} 已下载，可前往设置 → 关于与更新重启并更新。`,
             tone: 'info',
           }
-        : undefined,
+        : available && availableKey
+          ? {
+              dedupeKey: availableKey,
+              title: '发现新版本',
+              message: `Aura ${available.version} 已可更新，可前往设置 → 关于与更新查看。`,
+              tone: 'info',
+            }
+          : undefined,
     );
     const notice = state.notice;
     const noticeKey = notice ? `app-update:notice:${JSON.stringify(notice)}` : undefined;

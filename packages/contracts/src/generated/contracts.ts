@@ -17961,7 +17961,11 @@ export interface AgentPromptInspection {
    * Which session runs each other task the step's task state numbered.
    */
   activity_sources?: PromptInspectorActivitySourceView[];
-  context: ContextProjectionSnapshot;
+  /**
+   * The step's full snapshot, kept only for a conversation's newest steps; the figures shown
+   * are in `projection`.
+   */
+  context?: ContextProjectionSnapshot | null;
   execution: ModelExecutionSnapshot;
   projection: PromptInspectorProjection;
   /**

@@ -47,6 +47,6 @@ pub(super) use wire::{flat_call, recovery_response, send_with, state};
 mod scenario;
 use super::activity_provider;
 pub use scenario::{
-    COMPACTION_SOURCE_FILE, COMPACTION_TOOL_FILE, HOOK_SOURCE, INIT_COMMAND, INIT_EVIDENCE_FILE,
-    Scenario, sized_in_bytes,
+    COMPACTION_SOURCE_FILE, COMPACTION_TOOL_FILE, HELD_DELTAS, HOOK_SOURCE, INIT_COMMAND,
+    INIT_EVIDENCE_FILE, Scenario, sized_in_bytes,
 };

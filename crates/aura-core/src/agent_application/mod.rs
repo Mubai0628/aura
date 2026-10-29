@@ -34,6 +34,7 @@ mod derived_backfill;
 mod desktop;
 mod estimators;
 pub(crate) mod fault;
+mod history_memo;
 mod history_revision;
 mod hook_events;
 mod inbox;

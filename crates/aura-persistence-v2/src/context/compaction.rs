@@ -130,6 +130,17 @@ fn save(tx: &Transaction<'_>, old: &Compaction, next: &mut Compaction) -> StoreR
     )?)
 }
 pub fn model_owner(db: &Connection, step: ModelStepId) -> StoreResult<Option<Compaction>> {
+    // A compaction's request has a step of its own that no Agent run records. Every streamed
+    // delta and every attempt record asks this, so an Agent step is told by its key before the
+    // compactions' records, which hold the attempts, are read.
+    let agent_step: bool = db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM model_steps WHERE id=?1)",
+        [step.to_string()],
+        |r| r.get(0),
+    )?;
+    if agent_step {
+        return Ok(None);
+    }
     let id: Option<String> = db.query_row("SELECT c.id FROM context_compactions c,json_each(c.payload,'$.attempts') a WHERE json_extract(a.value,'$.model_step_id')=?1", [step.to_string()], |r| r.get(0)).optional()?;
     id.map(|s| load(db, s.parse().map_err(|_| Error::Conflict)?)).transpose()
 }

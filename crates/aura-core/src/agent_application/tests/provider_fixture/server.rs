@@ -204,6 +204,29 @@ data: {overloaded}
                 if matches!(scenario, Scenario::WindowHold) && ordinal == 1 {
                     release.notified().await;
                 }
+                if matches!(scenario, Scenario::DeltasThenHold) {
+                    let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\
+                                Cache-Control: no-cache\r\nConnection: close\r\n\r\n";
+                    let frames = (0..super::scenario::HELD_DELTAS)
+                        .map(|n| {
+                            let delta = json!({"id":format!("fixture-response-{ordinal}"),"object":"chat.completion.chunk","model":"fixture","choices":[{"index":0,"delta":{"content":format!("piece {n}. ")},"finish_reason":null}]});
+                            format!("data: {delta}\n\n")
+                        })
+                        .collect::<String>();
+                    stream
+                        .write_all(format!("{head}{frames}").as_bytes())
+                        .await
+                        .expect("deltas, then a stream left open");
+                    let release = release.clone();
+                    held.spawn(async move {
+                        release.notified().await;
+                        let end = json!({"id":format!("fixture-response-{ordinal}"),"object":"chat.completion.chunk","model":"fixture","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":20,"total_tokens":40}});
+                        let end = format!("data: {end}\n\ndata: [DONE]\n\n");
+                        let _ = stream.write_all(end.as_bytes()).await;
+                        let _ = stream.shutdown().await;
+                    });
+                    continue;
+                }
                 if matches!(scenario, Scenario::Hold)
                     || matches!(scenario, Scenario::RecoveredSession) && ordinal == 0
                 {

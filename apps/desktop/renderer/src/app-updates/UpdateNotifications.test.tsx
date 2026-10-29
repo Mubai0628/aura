@@ -75,6 +75,24 @@ test('announces an available release once across repeated progress pushes and ca
   expect(api.appUpdate.mock.calls.map(([command]) => command.command)).toEqual(['state']);
 });
 
+test('a release downloaded and prepared in the background is announced once, as ready to restart into', async () => {
+  const api = bridge(),
+    notify = vi.fn(),
+    withdraw = vi.fn();
+  render(<UpdateNotifications onNotify={notify} onWithdraw={withdraw} />);
+  await act(async () => {});
+  const ready = state({ phase: 'ready', waiting: '2.0.0' });
+  api.push(ready);
+  api.push({ ...ready });
+  expect(notify).toHaveBeenCalledTimes(1);
+  expect(notify.mock.calls[0]![0]).toMatchObject({
+    tone: 'info',
+    title: '新版本已准备好',
+    message: expect.stringContaining('2.0.0 已下载'),
+  });
+  expect(notify.mock.calls[0]![0].message).toContain('设置 → 关于与更新');
+});
+
 function Harness({
   notify,
   withdraw,
@@ -211,13 +229,15 @@ test('a failed older-version rollback says it returned and maps internal launche
   expect(api.appUpdate).toHaveBeenCalledTimes(1);
 });
 
-test('a ready or unavailable state does not announce a pending version as newly available', async () => {
+test('a pending version is announced as ready to restart into, never as newly available, and an unavailable state says nothing', async () => {
   const api = bridge(state({ phase: 'ready', waiting: '2.0.0', latest: release })),
     notify = vi.fn(),
     withdraw = vi.fn();
   render(<UpdateNotifications onNotify={notify} onWithdraw={withdraw} />);
   await act(async () => {});
+  expect(notify).toHaveBeenCalledTimes(1);
+  expect(notify.mock.calls[0]![0].title).toBe('新版本已准备好');
   api.push(state({ available: false, phase: 'available', latest: release }));
-  expect(notify).not.toHaveBeenCalled();
+  expect(notify).toHaveBeenCalledTimes(1);
   expect(api.appUpdate).toHaveBeenCalledTimes(1);
 });

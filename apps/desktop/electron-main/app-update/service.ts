@@ -17,8 +17,8 @@ import {
   type RunProgram,
 } from './installation.js';
 
-const FIRST_CHECK_MS = 60_000;
-const CHECK_EVERY_MS = 24 * 60 * 60_000;
+const FIRST_CHECK_MS = 10_000;
+const CHECK_EVERY_MS = 4 * 60 * 60_000;
 const PROGRESS_EVERY_MS = 200;
 // The launcher looks for this window's ready report every 500 ms; it may also never come (a
 // version started without the launcher), so the record is read again for two minutes at most.
@@ -183,11 +183,16 @@ export class AppUpdates {
     this.#timer = null;
     if (!this.#state.auto_check || !this.#state.available) return;
     this.#timer = setTimeout(() => {
-      void this.check().finally(() => this.#schedule(CHECK_EVERY_MS));
+      void this.#check(true).finally(() => this.#schedule(CHECK_EVERY_MS));
     }, delay);
   }
 
-  async check(): Promise<AppUpdateState> {
+  check(): Promise<AppUpdateState> {
+    return this.#check(false);
+  }
+
+  /** An automatic check goes on to download and prepare what it found; only the restart is left. */
+  async #check(automatic: boolean): Promise<AppUpdateState> {
     if (
       !this.#state.available ||
       ['checking', 'downloading', 'applying'].includes(this.#state.phase)
@@ -220,12 +225,21 @@ export class AppUpdates {
         : null;
       const waitingIsLatest =
         this.#state.waiting !== null && this.#state.waiting === latest?.version;
+      const fetching = automatic && latest !== null && !waitingIsLatest;
       this.#set({
-        phase: waitingIsLatest ? 'ready' : latest ? 'available' : 'up_to_date',
+        // Still checking until the download takes over: it starts from any phase but its own.
+        phase: waitingIsLatest
+          ? 'ready'
+          : fetching
+            ? 'checking'
+            : latest
+              ? 'available'
+              : 'up_to_date',
         latest,
         checked_at: checked,
       });
       await this.#saveSettings();
+      if (fetching) return await this.download();
     } catch (error) {
       this.#set({ phase: 'error', error: checkFailure(error) });
     }

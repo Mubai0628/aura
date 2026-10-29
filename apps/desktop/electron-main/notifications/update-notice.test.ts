@@ -42,6 +42,21 @@ test('a new version is announced once, with the red dot until 关于与更新 ha
   expect(calls.show).toHaveBeenCalledTimes(2);
 });
 
+test('a version downloaded and prepared in the background is announced once, as ready to restart into', async () => {
+  const { value, calls } = deps();
+  const ready: AppUpdateState = {
+    ...UNAVAILABLE_UPDATE_STATE,
+    available: true,
+    phase: 'ready',
+    waiting: '0.1.9',
+  };
+  await announceUpdate(ready, value);
+  expect(calls.show).toHaveBeenCalledWith('Aura 有新版本', '0.1.9 已下载，重启即可更新');
+  expect(calls.attention).toHaveBeenCalledWith(UPDATES_IN_FRONT);
+  await announceUpdate(ready, value);
+  expect(calls.show).toHaveBeenCalledTimes(1);
+});
+
 test('nothing is said while the switch is off, 关于与更新 is in front or no version waits', async () => {
   const off = deps({ allowed: false });
   await announceUpdate(available('0.1.7'), off.value);

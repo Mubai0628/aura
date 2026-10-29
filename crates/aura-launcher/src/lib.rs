@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod data_backup;
+mod data_slimming;
 mod install_state;
 mod trial;
 mod version;
@@ -172,18 +173,43 @@ fn fail_trial(
     )
 }
 
-/// Before a trial: a newer version gets a copy of the stores it will migrate or leave unreadable to
-/// the active version taken first (its own Core in `version_directory` says which); going back to an older one puts the copy from before
-/// the current version back when the user asked for that. `false` when the user chose not to
-/// start the newer version without a copy.
-fn prepare_data(
+/// Before a trial: going back to an older version puts the copy from before the current version
+/// back when the user asked for that.
+fn restore_data(
+    data_root: &Path,
+    state: &ActiveInstallState,
+    version: &str,
+    log: &Path,
+) -> Result<()> {
+    let request = data_backup::take_request(data_root);
+    if !newer(version, &state.active)
+        && let Some(request) = request
+        && request.before_version == state.active
+        && data_backup::restore(data_root, &request.before_version)?
+    {
+        append_log(
+            log,
+            json!({
+                "timestamp": UtcTimestamp::now(),
+                "component": "launcher",
+                "event": "data_restored",
+                "before_version": request.before_version,
+            }),
+        )?;
+    }
+    Ok(())
+}
+
+/// Before a newer version's first start, after its slimming: a copy of the stores it will migrate
+/// or leave unreadable to the active version (its own Core in `version_directory` says which).
+/// `false` when the user chose not to start the newer version without a copy.
+fn back_up_data(
     data_root: &Path,
     state: &ActiveInstallState,
     version: &str,
     version_directory: &Path,
     log: &Path,
 ) -> Result<bool> {
-    let request = data_backup::take_request(data_root);
     if newer(version, &state.active) {
         let started = std::time::Instant::now();
         let pending = data_backup::pending_stores(
@@ -232,21 +258,30 @@ fn prepare_data(
         };
         return start_without_backup(version, problem);
     }
-    if let Some(request) = request
-        && request.before_version == state.active
-        && data_backup::restore(data_root, &request.before_version)?
-    {
-        append_log(
-            log,
-            json!({
-                "timestamp": UtcTimestamp::now(),
-                "component": "launcher",
-                "event": "data_restored",
-                "before_version": request.before_version,
-            }),
-        )?;
-    }
     Ok(true)
+}
+
+/// Clears what older versions wrote into the execution store and nothing reads, before the desktop
+/// opens it (`data_slimming`). The outcome is logged; a failed run never keeps Aura from starting.
+fn slim_data(data_root: &Path, version_directory: &Path, log: &Path) -> Result<()> {
+    let started = std::time::Instant::now();
+    let outcome =
+        aura_windows_platform::with_progress_window("Aura", "正在整理数据", |progress| {
+            data_slimming::run(&version_directory.join("aura-core.exe"), data_root, progress)
+        });
+    let elapsed_ms = started.elapsed().as_millis() as u64;
+    let event = match outcome {
+        data_slimming::Outcome::Report(report) => {
+            json!({ "event": "data_slimmed", "report": report, "elapsed_ms": elapsed_ms })
+        }
+        data_slimming::Outcome::Failed(detail) => {
+            json!({ "event": "data_slim_failed", "detail": detail, "elapsed_ms": elapsed_ms })
+        }
+    };
+    append_log(
+        log,
+        json!({ "timestamp": UtcTimestamp::now(), "component": "launcher", "data": event }),
+    )
 }
 
 /// No copy could be taken before `version` migrates the data: the user decides whether it starts
@@ -329,11 +364,20 @@ pub fn run_launcher() -> Result<()> {
         };
         let selection = launch.selection;
         let data_root = local_data_root(&selection.manifest.bundle_namespace)?;
+        let version = &selection.manifest.product_version;
+        if launch.trial {
+            restore_data(&data_root, &state, version, &launcher_log)?;
+        }
+        // Slimmed before the copy, so the copy kept until the next version is the slimmed store.
+        // The slimming changes no structure; the version's Core migrates the store after the copy.
+        if data_slimming::owed(&data_root, version, launch.trial) {
+            slim_data(&data_root, &selection.version_directory, &launcher_log)?;
+        }
         if launch.trial
-            && !prepare_data(
+            && !back_up_data(
                 &data_root,
                 &state,
-                &selection.manifest.product_version,
+                version,
                 &selection.version_directory,
                 &launcher_log,
             )?

@@ -126,6 +126,7 @@ fn append(
 fn steps_without_a_stream(
     store: &V2Store,
     fixture: &support::Fixture,
+    state: &str,
     steps: u32,
     events: u32,
     pad: usize,
@@ -138,11 +139,12 @@ fn steps_without_a_stream(
         connection
             .execute(
                 "INSERT INTO model_steps(id, agent_run_id, ordinal, snapshot_id, state, payload) \
-                 VALUES(?1, ?2, ?3, NULL, 'completed', '{}')",
+                 VALUES(?1, ?2, ?3, NULL, ?4, '{}')",
                 rusqlite::params![
                     id,
                     fixture.turn.agent_run_id.to_string(),
-                    i64::from(ordinal) + 100
+                    i64::from(ordinal) + 100,
+                    state
                 ],
             )
             .unwrap();
@@ -161,7 +163,8 @@ fn steps_without_a_stream(
 }
 
 /// More steps of the fixture's run on the fixture step's snapshot, so they share its transport
-/// attempt and their deltas can be copied.
+/// attempt and their deltas can be copied. They failed: a failed reply is shown from its deltas,
+/// while a completed one is read from its sealed text and never repaired.
 fn steps_sharing_the_attempt(
     store: &V2Store,
     fixture: &support::Fixture,
@@ -175,7 +178,7 @@ fn steps_sharing_the_attempt(
             connection
                 .execute(
                     "INSERT INTO model_steps(id, agent_run_id, ordinal, snapshot_id, state, payload) \
-                     VALUES(?1, ?2, ?3, ?4, 'completed', '{}')",
+                     VALUES(?1, ?2, ?3, ?4, 'failed', '{}')",
                     rusqlite::params![
                         id,
                         fixture.turn.agent_run_id.to_string(),
@@ -294,7 +297,7 @@ fn a_covered_stream_that_lost_its_first_index_row_is_published_again() {
 
 fn steady_discovery_cost(events: u32) -> u64 {
     let (_root, mut store, fixture, _attempt) = setup();
-    steps_without_a_stream(&store, &fixture, 20, events, 16);
+    steps_without_a_stream(&store, &fixture, "failed", 20, events, 16);
     let mut scan = stream::RepairScan::default();
     discover(&store, &mut scan);
     assert!(!scan.sweeping() && !scan.has_outstanding(), "the sweep finished and found nothing");
@@ -315,12 +318,53 @@ fn once_swept_finding_streams_reads_none_of_the_steps_events() {
     );
 }
 
+thread_local! {
+    static VM_STEPS: std::cell::Cell<i64> = const { std::cell::Cell::new(0) };
+}
+
+/// Adds up each statement's instructions: a sweep asks many short questions, each below the
+/// progress handler's interval.
+fn count_vm_steps(event: rusqlite::trace::TraceEvent<'_>) {
+    if let rusqlite::trace::TraceEvent::Profile(statement, _) = event {
+        let steps = i64::from(statement.get_status(rusqlite::StatementStatus::VmStep));
+        VM_STEPS.with(|total| total.set(total.get() + steps));
+    }
+}
+
+/// The first sweep after a start, over `completed` completed steps with no stream left.
+fn first_sweep_cost(completed: u32) -> i64 {
+    let (_root, store, fixture, _attempt) = setup();
+    steps_without_a_stream(&store, &fixture, "completed", completed, 20, 16);
+    let mut scan = stream::RepairScan::default();
+    let connection = store.database.connection();
+    VM_STEPS.with(|total| total.set(0));
+    connection
+        .trace_v2(rusqlite::trace::TraceEventCodes::SQLITE_TRACE_PROFILE, Some(count_vm_steps));
+    discover(&store, &mut scan);
+    connection.trace_v2(rusqlite::trace::TraceEventCodes::empty(), None);
+    assert!(!scan.sweeping() && !scan.has_outstanding());
+    VM_STEPS.with(std::cell::Cell::get)
+}
+
+/// A completed step is read from its sealed text, and its seal drops its deltas with their
+/// coverage. The sweep, which asks each step without coverage whether it holds a delta, passes
+/// over completed steps: otherwise every start would read the events of every completed step.
+#[test]
+fn the_sweep_passes_over_completed_steps() {
+    let few = first_sweep_cost(10);
+    let many = first_sweep_cost(400);
+    assert!(
+        many <= few + 20_000,
+        "the sweep read completed steps' events: 10 steps -> {few}, 400 -> {many} instructions"
+    );
+}
+
 /// With its deadline gone the sweep asks one step and lets go, so a store with many steps is
 /// swept over many short reads. It still finds a stream stored before the index.
 #[test]
 fn the_sweep_runs_in_slices_and_finds_a_stream_stored_before_the_index() {
     let (_root, mut store, fixture, attempt) = setup();
-    let steps = steps_without_a_stream(&store, &fixture, 30, 50, 16);
+    let steps = steps_without_a_stream(&store, &fixture, "failed", 30, 50, 16);
     let owner = fixture.step.model_step_id.to_string();
     legacy_deltas(&mut store, &owner, attempt, 1..=3, "abc ");
     let mut scan = stream::RepairScan::default();
@@ -488,7 +532,7 @@ fn measure_one_shot_repair_on_a_large_journal() {
     let (_root, mut store, fixture, attempt) = setup();
     let built = Instant::now();
     store.database.connection().execute_batch("BEGIN").unwrap();
-    steps_without_a_stream(&store, &fixture, steps, events, pad);
+    steps_without_a_stream(&store, &fixture, "failed", steps, events, pad);
     store.database.connection().execute_batch("COMMIT").unwrap();
     let total: i64 = store
         .database
@@ -537,7 +581,7 @@ fn measure_scan_passes_on_a_large_journal() {
     let deltas = env_or("AURA_MEASURE_DELTAS", 2_000);
     let (_root, mut store, fixture, attempt) = setup();
     store.database.connection().execute_batch("BEGIN").unwrap();
-    steps_without_a_stream(&store, &fixture, steps, events, pad);
+    steps_without_a_stream(&store, &fixture, "failed", steps, events, pad);
     store.database.connection().execute_batch("COMMIT").unwrap();
     let mut scan = stream::RepairScan::default();
     let started = Instant::now();

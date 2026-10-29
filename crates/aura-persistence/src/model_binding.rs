@@ -55,10 +55,8 @@ impl PersistenceCoordinator {
             let key = ProjectionKey { runtime_instance_id,
                 projection_kind: ProjectionKind::SessionModelSelector,
                 projection_scope: ProjectionScope::Session { session_id: proposed.session_id } };
-            let previous: Option<String> = tx.query_row(
-                "SELECT payload_json FROM projection_outbox WHERE projection_kind='session_model_selector'
-                 AND projection_key=?1 ORDER BY revision DESC,outbox_id DESC LIMIT 1",
-                [serde_json::to_string(&key)?], |row| row.get(0)).optional()?;
+            let previous = crate::projection_latest::latest_payload(
+                &tx, "session_model_selector", &serde_json::to_string(&key)?)?;
             if let Some(previous) = previous {
                 let previous: ProjectionChange = serde_json::from_str(&previous)?;
                 if matches!(&previous, ProjectionChange::SessionModelSelector { payload, .. }

@@ -1,7 +1,8 @@
 //! The data an update could change, kept from before a newer version's first start. Only a store
 //! the new version will migrate, or will write records into that the version it replaces refuses,
 //! is copied: its own Core says which (`--store-migration-check … --replacing <version>`), and an
-//! answer that cannot be had copies them all. A trial that fails puts the copy back before
+//! answer that cannot be had copies them all. The copy is taken after the new version's slimming
+//! (`data_slimming`), which changes no structure, so it is of the slimmed store. A trial that fails puts the copy back before
 //! the version it replaced starts again; going back to an older version puts it back only when
 //! the user asked for that (`launcher/restore.v1.json`), because it drops what was written since.
 use std::{

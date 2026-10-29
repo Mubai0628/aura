@@ -86,6 +86,7 @@ fn process_crash_rolls_back_uncommitted_work_and_preserves_dispatch_for_reconcil
         );
         let expected = usize::from(phase == "after_commit");
         assert_eq!(operation::recoverable(store.database.connection()).expect("process crash rolls back uncommitted work and preserves dispatch for reconciliation").len(), expected);
-        assert_eq!(event::pending(store.database.connection(), 10).expect("process crash rolls back uncommitted work and preserves dispatch for reconciliation").len(), expected);
+        let events: usize = store.database.connection().query_row("SELECT count(*) FROM events", [], |r| r.get::<_, i64>(0)).map(|n| usize::try_from(n).unwrap_or(usize::MAX)).expect("process crash rolls back uncommitted work and preserves dispatch for reconciliation");
+        assert_eq!(events, expected);
     }
 }

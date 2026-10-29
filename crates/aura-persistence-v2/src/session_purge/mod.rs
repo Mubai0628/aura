@@ -11,7 +11,7 @@
 //! nothing, so an interrupted deletion can simply run again.
 mod collect;
 mod edges;
-mod guards;
+pub(crate) mod guards;
 mod plan;
 mod scope;
 mod steps;
