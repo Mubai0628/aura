@@ -241,7 +241,7 @@ fn failed_attempts_keep_one_manual_request_and_never_publish_partial_compaction(
             };
             compaction::begin(tx, &value, sources)?;
             manual::consume(tx, &record, Some(&value), f.at)?;
-            for ordinal in 1..=2 {
+            for ordinal in 1..=MAX_COMPACTION_ATTEMPTS {
                 let mut snapshot = model::step_snapshot(tx, f.step.model_step_id)?;
                 snapshot.id = ModelExecutionSnapshotId::new();
                 snapshot.model_step_id = ModelStepId::new();
@@ -271,7 +271,7 @@ fn failed_attempts_keep_one_manual_request_and_never_publish_partial_compaction(
                     CompactionModelAttemptState::Failed,
                     None,
                     Some("context.invalid_compaction".into()),
-                    ordinal == 1,
+                    ordinal < MAX_COMPACTION_ATTEMPTS,
                     f.at,
                 )?;
                 let status = manual::status(
@@ -286,7 +286,7 @@ fn failed_attempts_keep_one_manual_request_and_never_publish_partial_compaction(
                 assert_eq!(status.command_invocation_id, command);
                 assert_eq!(
                     status.state,
-                    if ordinal == 1 {
+                    if ordinal < MAX_COMPACTION_ATTEMPTS {
                         ManualCompactionRequestState::Running
                     } else {
                         ManualCompactionRequestState::Failed
@@ -297,7 +297,10 @@ fn failed_attempts_keep_one_manual_request_and_never_publish_partial_compaction(
                     "failed/partial data never becomes the current compaction"
                 );
             }
-            assert_eq!(compaction::load(tx, value.id)?.attempts.len(), 2);
+            assert_eq!(
+                compaction::load(tx, value.id)?.attempts.len(),
+                usize::from(MAX_COMPACTION_ATTEMPTS)
+            );
             Ok(())
         })
         .expect("retry lifecycle");

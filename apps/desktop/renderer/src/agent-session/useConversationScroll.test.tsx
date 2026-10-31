@@ -1,6 +1,6 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { useRef } from 'react';
-import { afterEach, expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { useConversationScroll } from './useConversationScroll';
 
 // Every switch to another conversation opens it at its last message. The
@@ -48,6 +48,57 @@ test('switching to another conversation opens it at its last message', () => {
   scrollTo(viewport, 0);
   rerender(<Harness session="ses_a" version="a2" />);
   expect(viewport.scrollTop).toBe(4600);
+});
+
+/** The wheel turned up, and the first frames of its smooth scroll: a few pixels from the end. */
+function wheelUp(element: HTMLElement, top: number) {
+  element.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+  scrollTo(element, top);
+}
+
+// Scrolling up from the end counted as following until the reader was 90 px up, so new output
+// pulled them back to the end while the wheel was still turning: the view flashed and stuck.
+test('a wheel turned up at the end stops following at once, and the end is followed again', () => {
+  const { getByTestId, rerender } = render(<Harness session="ses_a" version="a1" />);
+  const viewport = getByTestId('viewport');
+  measure(viewport, 5000);
+  rerender(<Harness session="ses_a" version="a2" />);
+  expect(viewport.scrollTop).toBe(4600);
+  act(() => wheelUp(viewport, 4570));
+  rerender(<Harness session="ses_a" version="a3" />);
+  expect(viewport.scrollTop).toBe(4570);
+  // Back down at the end, new output is followed again.
+  act(() => scrollTo(viewport, 4600));
+  measure(viewport, 5100);
+  rerender(<Harness session="ses_a" version="a4" />);
+  expect(viewport.scrollTop).toBe(4700);
+});
+
+test('content growing while the reader scrolls up does not pull them back', () => {
+  const grown: (() => void)[] = [];
+  class Observer {
+    constructor(callback: () => void) {
+      grown.push(callback);
+    }
+    observe(): void {
+      /* the test says when content grew */
+    }
+    disconnect(): void {
+      /* nothing to release */
+    }
+  }
+  vi.stubGlobal('ResizeObserver', Observer);
+  try {
+    const { getByTestId, rerender } = render(<Harness session="ses_a" version="a1" />);
+    const viewport = getByTestId('viewport');
+    measure(viewport, 5000);
+    rerender(<Harness session="ses_a" version="a2" />);
+    act(() => wheelUp(viewport, 4570));
+    act(() => grown.at(-1)?.());
+    expect(viewport.scrollTop).toBe(4570);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
 
 test('within a conversation, reading older messages is not interrupted by new output', () => {

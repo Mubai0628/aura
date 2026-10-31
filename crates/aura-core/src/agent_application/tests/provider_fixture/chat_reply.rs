@@ -166,22 +166,18 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
             json!({"role":"assistant","content":"Every read is done."})
         };
     }
-    if matches!(scenario, Scenario::CompactOnPrefix | Scenario::CompactToolOnPrefix)
-        && (2..=3).contains(&ordinal)
-    {
+    if scenario.compacts_on_prefix() && (2..=3).contains(&ordinal) {
         // Two answers cut off at their limit, a short one, then one the step continuing
         // it must compact for first.
         let repeat = if ordinal == 2 { 1 } else { 800 };
         return json!({"role":"assistant","content":format!("Observed intermediate response {ordinal}: {}","stable historical detail ".repeat(repeat))});
     }
-    if matches!(
-        scenario,
-        Scenario::Plain
-            | Scenario::PlainMeasured
-            | Scenario::PlainMeasuredRefusingSecond
-            | Scenario::CompactOnPrefix
-            | Scenario::CompactToolOnPrefix
-    ) {
+    if scenario.compacts_on_prefix()
+        || matches!(
+            scenario,
+            Scenario::Plain | Scenario::PlainMeasured | Scenario::PlainMeasuredRefusingSecond
+        )
+    {
         return json!({"role":"assistant","content":format!("Answered request {ordinal}.")});
     }
     if matches!(scenario, Scenario::HookRead) {

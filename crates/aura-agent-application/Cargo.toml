@@ -71,6 +71,7 @@ tokio.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+aura-context-fixtures = { path = "../aura-context-fixtures" }
 # This crate's own tests see the crates split out of Core with their test-time behaviour, as
 # Core's tests do (memory roots under TEMP, a test's own log route).
 aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }

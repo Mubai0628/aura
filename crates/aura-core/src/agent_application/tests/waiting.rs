@@ -92,9 +92,18 @@ mod l12_1_borrowed_count;
 // A compaction the model cannot answer never ends the turn.
 #[path = "l12_4_compaction.rs"]
 mod l12_4_compaction;
+// A compaction the step's request cannot answer is taken a part at a time the isolated way.
+#[path = "compaction_parts.rs"]
+mod compaction_parts;
+// A compaction that failed on the step's request is asked on it again while it can still answer.
+#[path = "compaction_retries.rs"]
+mod compaction_retries;
 // The conversation by round: the history tools and what a compaction leaves.
 #[path = "history_rounds.rs"]
 mod history_rounds;
+// The task state does not repeat the to-do the conversation shows.
+#[path = "todo_state.rs"]
+mod todo_state;
 // Reasoning that loops before any answer is stopped and the step asked again.
 #[path = "l12_4_reasoning_loop.rs"]
 mod l12_4_reasoning_loop;

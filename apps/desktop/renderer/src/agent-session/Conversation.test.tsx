@@ -1,3 +1,5 @@
+// eslint-disable-next-line no-restricted-imports -- a test reads its stylesheet: Vitest hands a CSS import over empty, and the rule is for the renderer's own code.
+import { readFileSync } from 'node:fs';
 import type { AgentSessionProjection } from '@aura/contracts/generated';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -96,6 +98,26 @@ test.each(['cancelled', 'failed', 'recovery_required'] as const)(
     expect(screen.queryByText(/恢复来源/)).toBeNull();
   },
 );
+
+// The way back to the latest message took 50 px of the conversation's flow: it made the content
+// taller just as the reader scrolled up from the end, which pulled them back to the end, where it
+// went away again - the view flashed. It sits in a dock of no height that is always there.
+test('offering the way back never changes how tall the conversation is', () => {
+  show('completed');
+  const conversation = screen.getByLabelText('会话消息');
+  expect(conversation.querySelector(':scope > .agent-follow-dock')).not.toBeNull();
+  // Vitest hands a CSS import over empty, so the stylesheet is read as a file.
+  const css = readFileSync(`${__dirname}/agent-session.css`, 'utf8').replace(
+    /\/\*[\s\S]*?\*\//gu,
+    '',
+  );
+  const rule = (selector: string) =>
+    css.match(new RegExp(`(?:^|\\})\\s*${selector}\\s*\\{([^}]*)\\}`, 'u'))?.[1] ?? '';
+  expect(rule('\\.agent-follow-dock')).toMatch(/position: sticky;/u);
+  expect(rule('\\.agent-follow-dock')).toMatch(/height: 0;/u);
+  expect(rule('\\.agent-follow')).toMatch(/position: absolute;/u);
+  expect(rule('\\.agent-follow')).not.toMatch(/margin/u);
+});
 
 test('completed plan keeps the implement entry', async () => {
   show('completed', true);

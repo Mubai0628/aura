@@ -2630,6 +2630,8 @@ pub fn canonical_fixture() -> Result<CanonicalContractFixture> {
             format: ModelOutputFormat::Text,
             effective_max_output_tokens: 512,
         },
+        closing_question: None,
+        closing_exchange: Vec::new(),
     };
     logical_request.validate_contract_shape()?;
     let provider_request_evidence = ProviderRequestEvidence {

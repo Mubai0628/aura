@@ -150,19 +150,30 @@ pub(super) fn json_object(body: &Value, key: &str) -> Value {
 /// What every compaction request says about the summary it asks for.
 pub(crate) const COMPACTION_FORMAT: &str = "Write the summary as one paragraph";
 
-/// The instruction message that asks for a compaction — the last system or developer
-/// message carrying the summary's format. On the step's prefix it is the task state; asked the
-/// isolated way it is the only instruction message.
+/// The message that asks for a compaction — the last one carrying the summary's format. On the
+/// step's prefix it is the user message after the task state; asked the isolated way it is the
+/// only instruction message.
 pub(super) fn compaction_ask(body: &Value) -> String {
     body["messages"]
         .as_array()
         .expect("real Provider fixture request and response")
         .iter()
-        .filter(|message| matches!(message["role"].as_str(), Some("system" | "developer")))
+        .filter(|message| matches!(message["role"].as_str(), Some("system" | "developer" | "user")))
         .filter_map(|message| message["content"].as_str())
         .rfind(|content| content.contains(COMPACTION_FORMAT))
         .expect("a compaction ask")
         .to_owned()
+}
+
+/// An answer that breaks off: its first words arrive, then the connection closes before it ends,
+/// so the transport cannot try again itself.
+pub(super) async fn break_off(stream: &mut tokio::net::TcpStream, ordinal: usize) {
+    let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n";
+    let delta = json!({"id":format!("fixture-response-{ordinal}"),"object":"chat.completion.chunk",
+        "model":"fixture","choices":[{"index":0,"delta":{"content":"The summary "},"finish_reason":null}]});
+    stream.write_all(head.as_bytes()).await.expect("broken answer head");
+    stream.write_all(format!("data: {delta}\n\n").as_bytes()).await.expect("broken answer words");
+    stream.shutdown().await.expect("the connection really breaks");
 }
 
 /// A compaction answered with a write instead of its summary. The request carries the

@@ -50,7 +50,7 @@ node scripts/release/export-public.mjs --out <新文件夹> --build
 
 ## 发布
 
-1. 在开发仓库运行 `cargo xtask check-all`。
+1. 在开发仓库运行 `cargo xtask check-all`，再从要构建的提交导出一次公开源码（不带 `--build`，约半分钟）。导出检查不通过时在构建前改好，公开的源码才能就是构建提交。
 2. 构建并安装测试，确认更新、回退、卸载正常。
 3. 导出公开源码，作为一次提交推送到公开仓库，打上版本标签。
 4. 在 GitHub 建 Release，上传安装程序、更新包和 `SHA256SUMS`；说明取自 `CHANGELOG.md` 里这个版本的一节，包括已知限制。

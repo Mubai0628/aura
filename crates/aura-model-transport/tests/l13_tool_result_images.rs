@@ -189,6 +189,8 @@ fn fixture(api_format: ModelApiFormat) -> Fixture {
             format: ModelOutputFormat::Text,
             effective_max_output_tokens: 512,
         },
+        closing_question: None,
+        closing_exchange: Vec::new(),
     };
     Fixture { request, snapshot, result_event, user_event, wire_call_id }
 }

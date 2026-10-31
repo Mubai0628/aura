@@ -60,18 +60,20 @@ export function StepActivity({ item }: { item: AgentTurnView }) {
     (live?.reasoning_total_bytes ?? 0) +
     inputs.reduce((sum, input) => sum + input.received_bytes, 0);
   // A step whose context is being compacted waits on that, counted from when the part running now
-  // began; any other step that has written nothing yet has been quiet since it started.
+  // began; any other step that has written nothing yet has been quiet since it started, or since
+  // the compaction before its request ended.
   const compacting = live?.context_compacting;
+  const prepared = live?.compacted_until;
   const quiet = useQuietSeconds(
     live
       ? compacting
         ? `${live.model_step_id}:compacting:${compacting.since}`
-        : `${live.model_step_id}:${arrived}`
+        : `${live.model_step_id}:${arrived}:${prepared ?? ''}`
       : undefined,
     compacting
       ? Date.parse(compacting.since)
       : live && arrived === 0
-        ? Date.parse(live.at)
+        ? Date.parse(prepared ?? live.at)
         : undefined,
   );
   if (!live) return null;

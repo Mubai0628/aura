@@ -11,8 +11,9 @@ use super::{
 /// P06 §30.2 sent a
 /// compaction with `tools=[]` and only its sources (`Isolated`). `SessionPrefix` is the request the
 /// step would have sent — its instructions, tools, attachments and conversation unchanged, so the
-/// provider's cache of them is used again — with the compaction asked in its task state. A tool
-/// call in the answer fails the attempt like any malformed answer; nothing it asks for runs.
+/// provider's cache of them is used again — with the compaction asked after it as its closing
+/// question, which no tool may answer. A tool call in the answer fails the attempt like any
+/// malformed answer; nothing it asks for runs.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompactionRequestShape {
     Isolated,
@@ -33,6 +34,7 @@ pub(super) fn validate_prepared_compaction_attempt(
         || logical.validate_contract_shape().is_err()
         || (isolated
             && (!logical.tool_schema_set.tools.is_empty() || !logical.attachments.is_empty()))
+        || isolated == logical.closing_question.is_some()
         || logical.provider_continuation.is_some()
         || !matches!(logical.output_request.format, ModelOutputFormat::Text)
         || logical.model_step_id != execution.model_step_id

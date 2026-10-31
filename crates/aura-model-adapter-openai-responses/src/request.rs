@@ -8,22 +8,36 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         validate_model_compilation_input(input, ModelApiFormat::OpenAiResponses)?;
         let tool_name_bindings = provider_tool_name_bindings(input.request)?;
         let layout = aura_model_transport::instruction_layout(input.request);
-        let state =
-            json!({"role":"developer","content":[{"type":"input_text","text":layout.current}]});
-        let conversation = history::compile_responses_history(
-            input.request,
-            input.snapshot,
-            input.resolved_attachments,
-        )?;
+        let message = |role: &str, text: &str| json!({"role":role,"content":[{"type":"input_text","text":text}]});
+        let compile = |items: &[LogicalConversationItem]| {
+            history::compile_responses_history(
+                input.request,
+                items,
+                input.snapshot,
+                input.resolved_attachments,
+            )
+        };
+        let conversation = compile(&input.request.conversation_items)?;
+        // A question asked after the step's request - a compaction - is a user message of its own
+        // after the step's input, and what followed it when the model called tools comes next, so
+        // all before them is the step's input as it was sent.
+        let closing = input
+            .request
+            .closing_question
+            .as_deref()
+            .map(|question| message("user", question))
+            .into_iter()
+            .chain(compile(&input.request.closing_exchange)?);
+        let state = message("developer", &layout.current);
         // At OpenAI's cache the task's current state goes before the conversation: it kept a
         // turn's steps only as far as the instructions while a few hundred tokens or more followed
         // the conversation, and as far as the last step once nothing did; the state changes rarely
-        // within a turn, so each step's input begins with the one before. Elsewhere it stays after
-        // the conversation, where DeepSeek cached nearly every step.
+        // within a turn, so each step's input begins with the one before. Elsewhere the state stays
+        // after the conversation, where DeepSeek cached nearly every step.
         let history = if aura_model_transport::reaches_openai_cache(input.snapshot) {
-            std::iter::once(state).chain(conversation).collect::<Vec<_>>()
+            std::iter::once(state).chain(conversation).chain(closing).collect::<Vec<_>>()
         } else {
-            conversation.into_iter().chain(std::iter::once(state)).collect()
+            conversation.into_iter().chain(std::iter::once(state)).chain(closing).collect()
         };
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));
@@ -89,6 +103,11 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
                         Ok(Value::Object(wire))
                     })
                     .collect::<Result<Vec<_>, _>>()?;
+            // The tools of a question asked after the step's request are there for the cache, and
+            // no tool choice is named for it: DeepSeek leaves the tools out of the prompt it reads
+            // when none may be called, so the request was cached only as far as the instructions,
+            // and thinking models refuse the forced forms. The question itself asks that no tool
+            // be called.
             body.insert("tools".to_owned(), Value::Array(provider_tools));
         }
         let body = serde_json::to_vec(&Value::Object(body)).map_err(|_| {

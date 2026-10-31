@@ -1023,6 +1023,17 @@
             "null"
           ]
         },
+        "compacted_until": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "While the step runs, when the last compaction part before its request ended: a step that\nhas written nothing since has been waiting on the model from then, not from its start."
+        },
         "context_cleared": {
           "anyOf": [
             {
@@ -22839,6 +22850,20 @@
             "$ref": "#/$defs/ModelAttachmentSnapshot"
           },
           "type": "array"
+        },
+        "closing_exchange": {
+          "description": "What followed the closing question when the model called tools instead of answering it:\nthat answer, then a result for each call saying no tool runs. Sent after the question in\nthis order, so all before them is the request already sent and the model answers again.",
+          "items": {
+            "$ref": "#/$defs/LogicalConversationItem"
+          },
+          "type": "array"
+        },
+        "closing_question": {
+          "description": "A question asked after the whole request the step would have sent - a compaction asked on\nthat request, so the provider reads it from its cache. It is a user message of its own\nafter the conversation and the task state, which stay where the step put them. The tools\nthe request carries for the cache stay declared; the question itself says none may be\ncalled.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "context_snapshot_id": {
           "$ref": "#/$defs/ContextProjectionSnapshotId"

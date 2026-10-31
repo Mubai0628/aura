@@ -225,6 +225,8 @@ fn logical_request(
                 format: ModelOutputFormat::Text,
                 effective_max_output_tokens: 512,
             },
+            closing_question: None,
+            closing_exchange: Vec::new(),
         },
         request_snapshot,
     )

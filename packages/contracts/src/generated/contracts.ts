@@ -11242,6 +11242,20 @@ export interface NormalizedModelFailure {
  */
 export interface LogicalModelRequest {
   attachments: ModelAttachmentSnapshot[];
+  /**
+   * What followed the closing question when the model called tools instead of answering it:
+   * that answer, then a result for each call saying no tool runs. Sent after the question in
+   * this order, so all before them is the request already sent and the model answers again.
+   */
+  closing_exchange?: LogicalConversationItem[];
+  /**
+   * A question asked after the whole request the step would have sent - a compaction asked on
+   * that request, so the provider reads it from its cache. It is a user message of its own
+   * after the conversation and the task state, which stay where the step put them. The tools
+   * the request carries for the cache stay declared; the question itself says none may be
+   * called.
+   */
+  closing_question?: string | null;
   context_snapshot_id: ContextProjectionSnapshotId;
   conversation_items: LogicalConversationItem[];
   execution_snapshot_id: ModelExecutionSnapshotId;
@@ -17238,6 +17252,11 @@ export interface AgentAssistantView {
    * went through, because the one before it failed before answering.
    */
   backup_connection?: string | null;
+  /**
+   * While the step runs, when the last compaction part before its request ended: a step that
+   * has written nothing since has been waiting on the model from then, not from its start.
+   */
+  compacted_until?: UtcTimestamp | null;
   /**
    * This step's request first gave older tool results' room back, with
    * nothing summarized.

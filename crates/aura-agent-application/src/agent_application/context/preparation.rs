@@ -232,15 +232,16 @@ impl AgentApplication {
             activity_summary.belongs_to_step(step.model_step_id),
             "the frozen activity must belong to the step it was taken for"
         );
+        // Written again before each compilation pass, as the conversation then stands.
         let mut task_state_fragments = vec![ContextFragment {
             source_ref: ContextSourceRef::RuntimeState {
-                state_kind: "agent.control_state.v1".into(),
+                state_kind: CONTROL_STATE.into(),
                 state_revision: turn.revision,
             },
             source_kind: ModelEgressSourceKind::AuraCore,
             data_class: NetworkDataClass::PublicContent,
             authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
-            content: serde_json::to_string(&prompt_state(&state))?,
+            content: serde_json::to_string(&prompt_state(&state, &history.items))?,
         }];
         task_state_fragments.extend(activity_summary.fragments()?);
         // The Skills loaded in this turn, re-checked for this step.
@@ -501,6 +502,8 @@ impl AgentApplication {
             attachments: context.attachments,
             provider_continuation: context.provider_continuation,
             output_request: context.output_request,
+            closing_question: None,
+            closing_exchange: Vec::new(),
         };
         // Boundary: the final commit. It is one indivisible transaction - the goal-budget
         // check, the checkpoint CAS, the artifacts, the exposure head, the context and model

@@ -168,7 +168,7 @@ pub fn start_attempt(
     validate_owner(tx, &old)?;
     if old.state != "running"
         || attempt.attempt_ordinal as usize != old.attempts.len() + 1
-        || attempt.attempt_ordinal > 2
+        || attempt.attempt_ordinal > MAX_COMPACTION_ATTEMPTS
         || old.attempts.last().is_some_and(|a| a.state != CompactionModelAttemptState::Failed)
         || attempt.state != CompactionModelAttemptState::Running
         || attempt.model_step_id != snapshot.model_step_id

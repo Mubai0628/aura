@@ -48,13 +48,27 @@ impl ModelProtocolCompiler for OpenAiChatCompletionsAdapter {
             "role": chat_instruction_role(instruction_role),
             "content": layout.stable,
         })];
-        messages.extend(history::compile_chat_history(
-            input.request,
-            input.snapshot,
-            input.resolved_attachments,
-        )?);
-        messages
-            .push(json!({"role":chat_instruction_role(instruction_role),"content":layout.current}));
+        let compile = |items: &[LogicalConversationItem]| {
+            history::compile_chat_history(
+                input.request,
+                items,
+                input.snapshot,
+                input.resolved_attachments,
+            )
+        };
+        messages.extend(compile(&input.request.conversation_items)?);
+        messages.push(json!({
+            "role": chat_instruction_role(instruction_role),
+            "content": layout.current,
+        }));
+        // A question asked after the step's request - a compaction - is a user message of its own
+        // after the task state, and what followed it when the model called tools comes next, so all
+        // before them is the step's request as it was sent. Chat endpoints are not sent
+        // `tool_choice`, which DeepSeek's thinking models refuse in its forced forms.
+        if let Some(question) = &input.request.closing_question {
+            messages.push(json!({"role": "user", "content": question}));
+        }
+        messages.extend(compile(&input.request.closing_exchange)?);
 
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));

@@ -33,11 +33,15 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
         validate_model_compilation_input(input, ModelApiFormat::AnthropicMessages)?;
         let tool_name_bindings = provider_tool_name_bindings(input.request)?;
         let layout = aura_model_transport::instruction_layout(input.request);
-        let mut history = history::compile_anthropic_history(
-            input.request,
-            input.snapshot,
-            input.resolved_attachments,
-        )?;
+        let compile = |items: &[LogicalConversationItem]| {
+            history::compile_anthropic_history(
+                input.request,
+                items,
+                input.snapshot,
+                input.resolved_attachments,
+            )
+        };
+        let mut history = compile(&input.request.conversation_items)?;
         // Compatible Messages endpoints may reject Anthropic's cache extensions.
         // Only the native endpoint gets explicit, default-TTL cache breakpoints.
         let native_cache =
@@ -45,12 +49,20 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
         if native_cache {
             history::mark_cacheable_tail(&mut history);
         }
-        let state = json!({"type":"text","text":layout.current});
-        if let Some(last) = history.last_mut().filter(|m| m["role"] == "user") {
-            last["content"].as_array_mut().expect("compiled content blocks").push(state);
-        } else {
-            history.push(json!({"role":"user","content":[state]}));
+        // The task state follows the history in the last user turn. A question asked after the
+        // step's request - a compaction - is a text block of its own after it, and what followed it
+        // when the model called tools comes next, so all before them is the step's request as it
+        // was sent. No `tool_choice` is sent: changing it drops Anthropic's cache of the messages.
+        let mut turn = vec![json!({"type":"text","text":layout.current})];
+        if let Some(question) = &input.request.closing_question {
+            turn.push(json!({"type":"text","text":question}));
         }
+        if let Some(last) = history.last_mut().filter(|m| m["role"] == "user") {
+            last["content"].as_array_mut().expect("compiled content blocks").extend(turn);
+        } else {
+            history.push(json!({"role":"user","content":turn}));
+        }
+        history.extend(compile(&input.request.closing_exchange)?);
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));
         body.insert(

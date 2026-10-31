@@ -30,10 +30,13 @@ use thiserror::Error;
 use crate::attachment_sources::validate_attachment_sources;
 use crate::current_user::{current_user_content, input_batch_content};
 use crate::{
-    CanonicalTextBudgetItem, ContextEstimatorRegistry, ContextSectionAssembly, ContextSectionError,
-    ContextSectionInput, MeasuredRequest, ModelEgressSourceDraft, ModelEstimatorKey,
-    NativeAttachmentBudgetItem, assemble_context_sections, build_model_egress_manifest,
+    ContextEstimatorRegistry, ContextSectionAssembly, ContextSectionError, ContextSectionInput,
+    MeasuredRequest, ModelEgressSourceDraft, ModelEstimatorKey, assemble_context_sections,
+    build_model_egress_manifest,
 };
+
+mod budget_items;
+use budget_items::{PendingBudgetItem, build_pending_budget_items, estimator_inputs};
 
 #[derive(Clone, Debug)]
 pub struct ContextToolInput {
@@ -615,28 +618,6 @@ impl<'a> ContextPreparationCompiler<'a> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct BudgetAssignment {
-    usage: ContextUsageKind,
-    section: ContextSectionKind,
-    compressibility: ContextCompressibility,
-    tool_index: Option<usize>,
-    attachment_index: Option<usize>,
-}
-
-#[derive(Clone, Debug)]
-enum PendingBudgetPayload {
-    Text(String),
-    NativeAttachment(ModelAttachmentSnapshot),
-}
-
-#[derive(Clone, Debug)]
-struct PendingBudgetItem {
-    ordinal: u32,
-    payload: PendingBudgetPayload,
-    assignment: BudgetAssignment,
-}
-
 #[derive(Clone, Debug)]
 struct ContextAccounting {
     usage: ContextUsageSummaryView,
@@ -922,201 +903,6 @@ fn tool_egress_sources(
             })
         })
         .collect()
-}
-
-fn build_pending_budget_items(
-    assembly: &ContextSectionAssembly,
-    schema_set: &ToolSchemaSetSnapshotV1,
-    tools: &[ContextToolInput],
-    recent_history: &[LogicalConversationItem],
-    attachments: &[ModelAttachmentSnapshot],
-) -> Result<Vec<PendingBudgetItem>, ContextPreparationError> {
-    let mut items = Vec::new();
-    for (index, block) in assembly.instruction_envelope.ordered_blocks.iter().enumerate() {
-        let section = instruction_section(block.kind);
-        let mut content = block.content.clone();
-        if index + 1 < assembly.instruction_envelope.ordered_blocks.len() {
-            content.push('\n');
-        }
-        push_text_budget_item(
-            &mut items,
-            content,
-            instruction_usage(block.kind),
-            section,
-            budget_compressibility(assembly, section)?,
-            None,
-        )?;
-    }
-    for (index, (tool, schema)) in tools.iter().zip(&schema_set.tools).enumerate() {
-        let bytes = canonical_json_v1(schema)
-            .map_err(|_| ContextPreparationError::CanonicalSerialization)?;
-        let content = String::from_utf8(bytes)
-            .map_err(|_| ContextPreparationError::CanonicalSerialization)?;
-        push_text_budget_item(
-            &mut items,
-            content,
-            ContextUsageKind::ToolsAndResults,
-            ContextSectionKind::LoadedToolSchemas,
-            tool.compressibility,
-            Some(index),
-        )?;
-    }
-    for item in recent_history {
-        match item {
-            LogicalConversationItem::User { content, .. } => push_text_budget_item(
-                &mut items,
-                content.clone(),
-                ContextUsageKind::Conversation,
-                ContextSectionKind::RecentHistory,
-                ContextCompressibility::CompressibleHistory,
-                None,
-            )?,
-            LogicalConversationItem::Assistant {
-                content, tool_calls, provider_history, ..
-            } => {
-                if let Some(history) = provider_history {
-                    push_text_budget_item(
-                        &mut items,
-                        serde_json::to_string(history)
-                            .map_err(|_| ContextPreparationError::CanonicalSerialization)?,
-                        ContextUsageKind::Conversation,
-                        ContextSectionKind::RecentHistory,
-                        ContextCompressibility::CompressibleHistory,
-                        None,
-                    )?;
-                }
-                if let Some(content) = content {
-                    push_text_budget_item(
-                        &mut items,
-                        content.clone(),
-                        ContextUsageKind::Conversation,
-                        ContextSectionKind::RecentHistory,
-                        ContextCompressibility::CompressibleHistory,
-                        None,
-                    )?;
-                }
-                for call in tool_calls {
-                    let bytes = canonical_json_v1(call)
-                        .map_err(|_| ContextPreparationError::CanonicalSerialization)?;
-                    push_text_budget_item(
-                        &mut items,
-                        String::from_utf8(bytes)
-                            .map_err(|_| ContextPreparationError::CanonicalSerialization)?,
-                        ContextUsageKind::ToolsAndResults,
-                        ContextSectionKind::RecentHistory,
-                        ContextCompressibility::CompressibleHistory,
-                        None,
-                    )?;
-                }
-            }
-            LogicalConversationItem::ToolResult { content, .. } => push_text_budget_item(
-                &mut items,
-                content.clone(),
-                ContextUsageKind::ToolsAndResults,
-                ContextSectionKind::RecentHistory,
-                ContextCompressibility::CompressibleHistory,
-                None,
-            )?,
-        }
-    }
-    let current_kinds = [
-        ContextSectionKind::FileReferencesAndPendingAttachments,
-        ContextSectionKind::CurrentTurnWorkingSet,
-        ContextSectionKind::SteeredUserAdditions,
-    ];
-    for (index, kind) in current_kinds.into_iter().enumerate() {
-        let section = assembly
-            .sections
-            .iter()
-            .find(|section| section.kind == kind)
-            .ok_or(ContextPreparationError::SectionsInvalid)?;
-        let mut content = section.canonical_content.clone();
-        if index + 1 < current_kinds.len() {
-            content.push('\n');
-        }
-        push_text_budget_item(
-            &mut items,
-            content,
-            if kind == ContextSectionKind::FileReferencesAndPendingAttachments {
-                ContextUsageKind::BackgroundAndCompaction
-            } else {
-                ContextUsageKind::Conversation
-            },
-            kind,
-            if section.is_empty_marker {
-                ContextCompressibility::NeverCompress
-            } else {
-                section.compressibility
-            },
-            None,
-        )?;
-    }
-    for (index, attachment) in attachments.iter().enumerate() {
-        let ordinal = next_ordinal(&items)?;
-        items.push(PendingBudgetItem {
-            ordinal,
-            payload: PendingBudgetPayload::NativeAttachment(attachment.clone()),
-            assignment: BudgetAssignment {
-                usage: ContextUsageKind::BackgroundAndCompaction,
-                section: ContextSectionKind::FileReferencesAndPendingAttachments,
-                compressibility: ContextCompressibility::UserReducibleOnly,
-                tool_index: None,
-                attachment_index: Some(index),
-            },
-        });
-    }
-    Ok(items)
-}
-
-fn push_text_budget_item(
-    items: &mut Vec<PendingBudgetItem>,
-    content: String,
-    usage: ContextUsageKind,
-    section: ContextSectionKind,
-    compressibility: ContextCompressibility,
-    tool_index: Option<usize>,
-) -> Result<(), ContextPreparationError> {
-    let ordinal = next_ordinal(items)?;
-    items.push(PendingBudgetItem {
-        ordinal,
-        payload: PendingBudgetPayload::Text(content),
-        assignment: BudgetAssignment {
-            usage,
-            section,
-            compressibility,
-            tool_index,
-            attachment_index: None,
-        },
-    });
-    Ok(())
-}
-
-fn next_ordinal(items: &[PendingBudgetItem]) -> Result<u32, ContextPreparationError> {
-    u32::try_from(items.len() + 1).map_err(|_| ContextPreparationError::ArithmeticOverflow)
-}
-
-fn estimator_inputs(
-    items: &[PendingBudgetItem],
-) -> Result<(Vec<CanonicalTextBudgetItem>, Vec<NativeAttachmentBudgetItem>), ContextPreparationError>
-{
-    let mut text = Vec::new();
-    let mut native = Vec::new();
-    for item in items {
-        match &item.payload {
-            PendingBudgetPayload::Text(content) => text.push(CanonicalTextBudgetItem {
-                ordinal: item.ordinal,
-                content_hash: ContentHash::sha256(content.as_bytes()),
-                canonical_text: content.clone(),
-            }),
-            PendingBudgetPayload::NativeAttachment(attachment) => {
-                native.push(NativeAttachmentBudgetItem {
-                    ordinal: item.ordinal,
-                    attachment: attachment.clone(),
-                });
-            }
-        }
-    }
-    Ok((text, native))
 }
 
 fn build_accounting(
@@ -1757,6 +1543,7 @@ mod tests {
     use super::*;
 
     mod compacted_additions;
+    mod measured_parts;
 
     fn prompt_bundle(turn_task_id: TurnTaskId) -> PromptBundleSnapshot {
         let module_content = "core\n";

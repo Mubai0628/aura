@@ -55,12 +55,18 @@ impl AgentApplication {
         // request goes as it is when it fits, and otherwise old results are cleared, then the user
         // decides - the turn never ends for it.
         let mut fell_short = false;
+        // A compaction asked on the step's request gave no summary: the rest of this preparation
+        // takes the history a part at a time the isolated way, never resending that request.
+        let mut isolated_only = false;
         // What this preparation gave back, for the line the conversation shows -
         // the request's estimate when it first did not fit, results cleared, history compacted.
         let mut reduction: Option<PromptInspectorReductionView> = None;
         let mut prepared = loop {
             // Only the screenshots whose results this pass still carries as they were.
             screenshots.attach(&mut input);
+            // The state as of this pass: a compaction or a clearing may have taken the result
+            // that showed the to-do.
+            write_control_state(&mut input, &state)?;
             // Boundary: the manual-compaction request read, one bounded section per pass.
             let manual = {
                 let journal = Arc::clone(&self.execution.journal);
@@ -189,8 +195,9 @@ impl AgentApplication {
                         non_history_tokens,
                         manual: manual.as_ref(),
                         everything_sealed,
-                        prefix: Some(&prefix),
+                        prefix: if isolated_only { None } else { Some(&prefix) },
                         fixed_tool_ids,
+                        resolved_attachments: screenshots.resolved(&prefix.attachments)?.into(),
                     },
                     cancel,
                 )
@@ -220,6 +227,12 @@ impl AgentApplication {
                 }
                 Ok(Compacted::FellShort { code }) => {
                     Some(anyhow::anyhow!("context.compaction_failed: {code}"))
+                }
+                Ok(Compacted::PrefixFailed) => {
+                    isolated_only = true;
+                    deep = true;
+                    passes += 1;
+                    continue;
                 }
                 // Nothing left to
                 // compact never ends the turn. A request that fits is sent as it is; one that does
@@ -349,12 +362,6 @@ impl AgentApplication {
             }
             state["mode_episode"] = refreshed.4;
             state["guard"] = refreshed.5;
-            for fragment in input.section_inputs.iter_mut().flat_map(|s| &mut s.fragments) {
-                if matches!(&fragment.source_ref,ContextSourceRef::RuntimeState{state_kind,..} if state_kind=="agent.control_state.v1")
-                {
-                    fragment.content = serde_json::to_string(&prompt_state(&state))?;
-                }
-            }
         };
         prepared.prompt_inspector.reduction =
             reduction.filter(|reduced| reduced.compacted || reduced.cleared_tool_results > 0);

@@ -7,7 +7,7 @@ use super::l10_15_compaction::{call, compactions, first_request_tokens, start};
 use super::*;
 
 /// What a conversation's request was counted at, as its step's context meter shows it.
-async fn used(runtime: &crate::RuntimeState, session: SessionId, turn: usize) -> u64 {
+pub(super) async fn used(runtime: &crate::RuntimeState, session: SessionId, turn: usize) -> u64 {
     let page: AgentSessionProjection = serde_json::from_value(
         call(
             runtime,
@@ -47,7 +47,7 @@ pub(super) fn asks_compaction(request: &Value) -> bool {
 /// its task state still leaves the summary about 26,000 less the ask. Compacting at a turn's third
 /// step compares it with a step that sent the turn's message as the history does: the first step
 /// alone sends it with the turn's working set.
-async fn just_over_the_line(
+pub(super) async fn just_over_the_line(
     host: &crate::r03_tests::Fixture,
     provider: &Provider,
     output: u64,
@@ -128,12 +128,20 @@ async fn a_compaction_is_asked_on_the_request_the_step_would_have_sent() {
             layout(&now)
         );
     }
-    let ask = now.last().expect("the ask")["content"].as_str().expect("text").to_owned();
+    // The step's task state stays where the step sends it, and the ask follows it as a user
+    // message of its own; no tool choice is named, so the request's tools stay as they were.
+    let state = &now[now.len() - 2];
+    assert_eq!(state["role"], before.last().expect("the step's task state")["role"]);
+    assert!(state["content"].as_str().is_some_and(|text| text.contains("\"turn\"")), "{state}");
+    let ask = now.last().expect("the ask");
+    assert_eq!(ask["role"], "user", "{}", layout(&now));
+    let ask = ask["content"].as_str().expect("text").to_owned();
     assert!(
         ask.contains("Compaction request:")
             && ask.contains("from its first message through the one that begins"),
         "{ask}"
     );
+    assert!(compaction.get("tool_choice").is_none());
 }
 
 #[tokio::test]
@@ -141,16 +149,17 @@ async fn a_tool_call_in_a_compaction_answer_never_runs() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::CompactToolOnPrefix).await;
     let (runtime, session) = just_over_the_line(&host, &provider, 64_000).await;
-    assert_eq!(compactions(&runtime, session), 1, "the second attempt summarized");
+    assert_eq!(compactions(&runtime, session), 1, "the third attempt summarized");
     let written =
         host.root.path().join("waiting-workspace").join(provider_fixture::COMPACTION_TOOL_FILE);
-    assert!(!written.exists(), "the write a compaction answer asked for never ran");
+    assert!(!written.exists(), "the writes compaction answers asked for never ran");
     let requests = provider.requests.lock().expect("provider requests").clone();
     let asked = requests.iter().filter(|request| asks_compaction(request)).collect::<Vec<_>>();
-    assert_eq!(asked.len(), 2);
+    assert_eq!(asked.len(), 3);
     let tools = |request: &Value| request["tools"].as_array().map_or(0, Vec::len);
     assert!(tools(asked[0]) > 0, "first on the step's prefix, its tools included");
-    assert_eq!(tools(asked[1]), 0, "then the isolated way, without tools");
+    assert_eq!(tools(asked[1]), tools(asked[0]), "then on it again with the call answered");
+    assert_eq!(tools(asked[2]), 0, "then, called again, the isolated way, without tools");
 }
 
 /// The model's window and output limit, set through the routes the settings page uses.
@@ -408,7 +417,7 @@ async fn all_steps(
 /// From a real DeepSeek run: a model whose output limit is larger than its window less
 /// the safety margin. Its steps fit with the floor kept for the output; its compaction sized its
 /// room with the whole limit, found none, and ended the turn ("context.compaction_output_budget").
-/// The compaction keeps the floor too, on the prefix and, after the tool call, the isolated way.
+/// The compaction keeps the floor too, on the prefix and, after its tool calls, the isolated way.
 #[tokio::test]
 async fn a_model_whose_output_limit_passes_its_window_still_compacts() {
     let host = crate::r03_tests::Fixture::new();

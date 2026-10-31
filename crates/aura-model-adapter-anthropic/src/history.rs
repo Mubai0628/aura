@@ -19,17 +19,19 @@ pub(super) fn mark_cacheable_tail(messages: &mut [Value]) {
     }
 }
 
-/// A tool result carries the images its tool returned beside its text.
+/// A tool result carries the images its tool returned beside its text. `items` are the request's
+/// conversation, or what followed its closing question.
 pub(super) fn compile_anthropic_history(
     request: &aura_model_domain::LogicalModelRequest,
+    items: &[LogicalConversationItem],
     snapshot: &ModelExecutionSnapshot,
     resolved: &[aura_model_domain::ResolvedModelAttachment],
 ) -> Result<Vec<Value>, ModelAdapterError> {
     let bindings = historical_tool_call_wire_bindings(snapshot);
     let images = aura_model_transport::tool_result_images(request, resolved)?;
-    let mut messages = Vec::with_capacity(request.conversation_items.len());
+    let mut messages = Vec::with_capacity(items.len());
     let mut pending_tool_results = Vec::new();
-    for item in &request.conversation_items {
+    for item in items {
         match item {
             // Messages rejects consecutive user roles. Text that follows a tool
             // result shares that tool_result user message; other user messages

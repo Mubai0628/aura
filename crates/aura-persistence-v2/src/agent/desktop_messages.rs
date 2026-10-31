@@ -278,6 +278,30 @@ fn compacting_before(
     .transpose()
 }
 
+/// When the last attempt of a finished compaction before this step ended, if one did.
+fn compacted_until(
+    db: &Connection,
+    step: &ModelStep,
+    session: SessionId,
+) -> StoreResult<Option<UtcTimestamp>> {
+    let mut query = db.prepare(concat!(
+        "SELECT json_extract(a.value,'$.terminal_at') ",
+        "FROM context_compactions c, json_each(c.payload,'$.attempts') a ",
+        "WHERE c.session_id=?2 AND c.state<>'running' ",
+        "AND json_extract(c.payload,'$.source_step_id')=?1"
+    ))?;
+    let ended = query
+        .query_map(params![step.model_step_id.to_string(), session.to_string()], |row| {
+            row.get::<_, Option<String>>(0)
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    ended
+        .into_iter()
+        .flatten()
+        .map(|at| at.parse::<UtcTimestamp>().map_err(|_| Error::Conflict))
+        .try_fold(None, |latest: Option<UtcTimestamp>, at| Ok(latest.max(Some(at?))))
+}
+
 fn assistant(
     db: &Connection,
     step: &ModelStep,
@@ -353,6 +377,7 @@ fn assistant(
         context_usage: meter.usage,
         context_compaction_running: meter.compaction_running,
         context_compacting: compacting_before(db, step, session)?,
+        compacted_until: if complete { None } else { compacted_until(db, step, session)? },
         context_compacted,
         context_cleared,
         backup_connection: crate::model::connections::backup_of(db, step.model_step_id)?,

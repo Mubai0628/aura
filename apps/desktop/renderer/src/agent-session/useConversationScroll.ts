@@ -21,6 +21,7 @@ export function useConversationScroll(
   contentVersion: string,
 ) {
   const following = useRef(true);
+  const lastTop = useRef(0);
   const shown = useRef<string | undefined>(undefined);
   const previousContent = useRef(contentVersion);
   const [hasNew, setHasNew] = useState(false);
@@ -44,13 +45,24 @@ export function useConversationScroll(
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || !runtime) return;
+    lastTop.current = viewport.scrollTop;
     const save = () => {
       const below = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-      following.current = below < FOLLOW_SLACK;
+      const down = viewport.scrollTop > lastTop.current;
+      lastTop.current = viewport.scrollTop;
+      // Near the end, a reader who turned the wheel up follows again only by moving back toward
+      // it: the first frames of a smooth scroll up are still within the slack.
+      following.current = below < FOLLOW_SLACK && (following.current || down);
       if (following.current) setHasNew(false);
       setAway(below > AWAY_SLACK);
     };
+    // Turning the wheel up leaves the end at once; output arriving in the same frames would
+    // otherwise pull the reader back to it.
+    const leave = (event: WheelEvent) => {
+      if (event.deltaY < 0) following.current = false;
+    };
     viewport.addEventListener('scroll', save, { passive: true });
+    viewport.addEventListener('wheel', leave, { passive: true });
     // Content that grows after it is shown (tool rows, code, images) keeps a follower at the end.
     const resized =
       typeof ResizeObserver === 'undefined'
@@ -61,6 +73,7 @@ export function useConversationScroll(
     for (const child of viewport.children) resized?.observe(child);
     return () => {
       viewport.removeEventListener('scroll', save);
+      viewport.removeEventListener('wheel', leave);
       resized?.disconnect();
     };
   }, [viewportRef, session, runtime, contentVersion]);

@@ -150,6 +150,18 @@ pub struct LogicalModelRequest {
     pub attachments: Vec<ModelAttachmentSnapshot>,
     pub provider_continuation: Option<ProviderContinuationState>,
     pub output_request: ModelOutputRequest,
+    /// A question asked after the whole request the step would have sent - a compaction asked on
+    /// that request, so the provider reads it from its cache. It is a user message of its own
+    /// after the conversation and the task state, which stay where the step put them. The tools
+    /// the request carries for the cache stay declared; the question itself says none may be
+    /// called.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closing_question: Option<String>,
+    /// What followed the closing question when the model called tools instead of answering it:
+    /// that answer, then a result for each call saying no tool runs. Sent after the question in
+    /// this order, so all before them is the request already sent and the model answers again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub closing_exchange: Vec<LogicalConversationItem>,
 }
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
@@ -172,6 +184,8 @@ pub enum LogicalModelRequestError {
     InvalidAttachmentMetadata,
     #[error("compiled instruction envelope is not canonical or its hash does not match")]
     InvalidInstructionEnvelope,
+    #[error("a closing question must be canonical, non-empty instruction text")]
+    InvalidClosingQuestion,
     #[error("model output request requires a non-zero resolved output token limit")]
     InvalidOutputLimit,
     #[error("model request attachments have not been resolved through the authorized pipeline")]
@@ -195,7 +209,7 @@ impl LogicalModelRequest {
             return Err(LogicalModelRequestError::InvalidToolOrder);
         }
 
-        for item in &self.conversation_items {
+        for item in self.sent_items() {
             if let LogicalConversationItem::Assistant {
                 content, content_hash, tool_calls, ..
             } = item
@@ -230,7 +244,18 @@ impl LogicalModelRequest {
         if self.output_request.effective_max_output_tokens == 0 {
             return Err(LogicalModelRequestError::InvalidOutputLimit);
         }
+        if self.closing_question.as_deref().is_some_and(|q| !is_canonical_instruction_text(q))
+            || (self.closing_question.is_none() && !self.closing_exchange.is_empty())
+        {
+            return Err(LogicalModelRequestError::InvalidClosingQuestion);
+        }
         Ok(())
+    }
+
+    /// The conversation as the request sends it: the history, then what followed the closing
+    /// question.
+    pub fn sent_items(&self) -> impl Iterator<Item = &LogicalConversationItem> {
+        self.conversation_items.iter().chain(&self.closing_exchange)
     }
 }
 
@@ -530,6 +555,8 @@ mod tests {
                 format: ModelOutputFormat::Text,
                 effective_max_output_tokens: 128,
             },
+            closing_question: None,
+            closing_exchange: Vec::new(),
         };
         assert!(request.validate_contract_shape().is_ok());
         assert_eq!(
@@ -580,6 +607,8 @@ mod tests {
                 format: ModelOutputFormat::Text,
                 effective_max_output_tokens: 128,
             },
+            closing_question: None,
+            closing_exchange: Vec::new(),
         };
         assert!(request.validate_contract_shape().is_err());
 
@@ -606,5 +635,60 @@ mod tests {
             ],
         }];
         assert!(request.validate_contract_shape().is_err());
+    }
+
+    #[test]
+    fn a_closing_question_is_canonical_text_and_left_out_when_absent() {
+        let mut request = LogicalModelRequest {
+            fixed_tool_ids: vec![],
+            model_step_id: ModelStepId::new(),
+            execution_snapshot_id: ModelExecutionSnapshotId::new(),
+            context_snapshot_id: ContextProjectionSnapshotId::new(),
+            instruction_envelope: instruction_envelope(),
+            conversation_items: Vec::new(),
+            tool_schema_set: empty_schema_set(),
+            attachments: Vec::new(),
+            provider_continuation: None,
+            output_request: ModelOutputRequest {
+                format: ModelOutputFormat::Text,
+                effective_max_output_tokens: 128,
+            },
+            closing_question: None,
+            closing_exchange: Vec::new(),
+        };
+        assert!(request.validate_contract_shape().is_ok());
+        let wire = serde_json::to_value(&request).expect("request");
+        assert!(wire.get("closing_question").is_none(), "{wire}");
+        for invalid in ["", "\nask", "ask\r\nmore", "ask\n"] {
+            request.closing_question = Some(invalid.to_owned());
+            assert!(request.validate_contract_shape().is_err(), "{invalid:?}");
+        }
+        request.closing_question = Some("Summarize the conversation.".to_owned());
+        assert!(request.validate_contract_shape().is_ok());
+        let wire = serde_json::to_value(&request).expect("request");
+        assert_eq!(wire["closing_question"], "Summarize the conversation.");
+        assert!(wire.get("closing_exchange").is_none(), "{wire}");
+        let read: LogicalModelRequest = serde_json::from_value(wire).expect("round trip");
+        assert_eq!(read, request);
+
+        // What followed the question is checked as the history is, and only follows a question.
+        let answered = |content: Option<&str>| LogicalConversationItem::Assistant {
+            provider_history: None,
+            source_event_id: EventId::new(),
+            content: content.map(ToOwned::to_owned),
+            content_hash: None,
+            tool_calls: Vec::new(),
+        };
+        request.closing_exchange = vec![answered(Some("text"))];
+        assert!(request.validate_contract_shape().is_err(), "content without its hash");
+        request.closing_exchange = vec![answered(None)];
+        assert!(request.validate_contract_shape().is_ok());
+        assert_eq!(request.sent_items().count(), 1);
+        let wire = serde_json::to_value(&request).expect("request");
+        assert_eq!(wire["closing_exchange"].as_array().map(Vec::len), Some(1));
+        let read: LogicalModelRequest = serde_json::from_value(wire).expect("round trip");
+        assert_eq!(read, request);
+        request.closing_question = None;
+        assert!(request.validate_contract_shape().is_err(), "no question to follow");
     }
 }

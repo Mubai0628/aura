@@ -32,13 +32,15 @@ impl Provider {
             let mut held = tokio::task::JoinSet::new();
             let mut normal_ordinal = 0;
             let mut compaction_ordinal = 0;
-            // A branch and its source both continue, so that scenario answers more; so does a turn of eleven reads.
+            // A branch and its source both continue, so that scenario answers more; so does a turn of
+            // eleven reads, and a compaction asked twice on the step's request and then in parts.
             let connections = if matches!(
                 scenario,
                 Scenario::Branching
                     | Scenario::BranchingCompaction
                     | Scenario::BranchingThenCompact
                     | Scenario::ClearOldResults
+                    | Scenario::CompactToolOnPrefix
             ) {
                 16
             } else {
@@ -273,33 +275,50 @@ data: {overloaded}
                     continue;
                 }
                 if auxiliary {
-                    assert!(matches!(
-                        scenario,
-                        Scenario::Compact
-                            | Scenario::CompactHold
-                            | Scenario::CompactedAddition
-                            | Scenario::CompactAfterTool
-                            | Scenario::BranchingCompaction
-                            | Scenario::BranchingThenCompact
-                            | Scenario::Plain
-                            | Scenario::PlainMeasured
-                            | Scenario::PlainMeasuredRefusingSecond
-                            | Scenario::CompactOnPrefix
-                            | Scenario::CompactToolOnPrefix
-                            | Scenario::ClearOldResults
-                    ));
-                    // A compaction asked on the step's prefix carries the step's tools,
-                    // and its ask is its last instruction; one asked the isolated way has none.
-                    let asked = compaction_ask(&body);
                     assert!(
-                        body.get("tools").is_none_or(|v| v.as_array().is_some_and(Vec::is_empty))
-                            || asked.contains("Compaction request:"),
+                        scenario.compacts_on_prefix()
+                            || matches!(
+                                scenario,
+                                Scenario::Compact
+                                    | Scenario::CompactHold
+                                    | Scenario::CompactedAddition
+                                    | Scenario::CompactAfterTool
+                                    | Scenario::BranchingCompaction
+                                    | Scenario::BranchingThenCompact
+                                    | Scenario::Plain
+                                    | Scenario::PlainMeasured
+                                    | Scenario::PlainMeasuredRefusingSecond
+                                    | Scenario::ClearOldResults
+                            )
+                    );
+                    // A compaction asked on the step's prefix carries the step's tools, and its
+                    // ask is a user message after the task state; one asked the isolated way has
+                    // none. No compaction names a tool choice.
+                    let asked = compaction_ask(&body);
+                    let tools = body["tools"].as_array().is_some_and(|tools| !tools.is_empty());
+                    assert!(
+                        !tools || asked.contains("Compaction request:"),
                         "a compaction with Tools is asked on the step's prefix"
                     );
-                    if matches!(scenario, Scenario::CompactToolOnPrefix) && compaction_ordinal == 0
+                    assert!(body.get("tool_choice").is_none(), "no tool choice: {body}");
+                    // A call answered after the ask: the request's last message is its result.
+                    let answered = body["messages"]
+                        .as_array()
+                        .and_then(|messages| messages.last())
+                        .is_some_and(|message| message["role"] == "tool");
+                    if tools
+                        && (matches!(scenario, Scenario::CompactToolOnPrefix)
+                            || matches!(scenario, Scenario::CompactToolOnceOnPrefix) && !answered)
                     {
                         compaction_ordinal += 1;
                         send(&mut stream, ordinal, compaction_tool_call(&body)).await;
+                        continue;
+                    }
+                    if matches!(scenario, Scenario::CompactInterruptedOnPrefix)
+                        && compaction_ordinal == 0
+                    {
+                        compaction_ordinal += 1;
+                        super::wire::break_off(&mut stream, ordinal).await;
                         continue;
                     }
                     let content = if long_compactions {
@@ -509,10 +528,7 @@ data: {overloaded}
                         ) && ordinal == 1)
                         || (matches!(scenario, Scenario::BranchingThenCompact)
                             && (4..=5).contains(&ordinal))
-                        || (matches!(
-                            scenario,
-                            Scenario::CompactOnPrefix | Scenario::CompactToolOnPrefix
-                        ) && (2..=3).contains(&ordinal));
+                        || (scenario.compacts_on_prefix() && (2..=3).contains(&ordinal));
                 if matches!(scenario, Scenario::PlainMeasuredRefusingSecond) && ordinal == 1 {
                     let body = json!({"error":{"type":"invalid_request_error","message":"refused by the fixture"}}).to_string();
                     let response = format!(

@@ -9,7 +9,7 @@ use super::l10_19_compaction::{
 use super::*;
 
 /// The compactions of a conversation that completed.
-fn completed(runtime: &crate::RuntimeState, session: SessionId) -> usize {
+pub(super) fn completed(runtime: &crate::RuntimeState, session: SessionId) -> usize {
     let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
     let store = services.broker.lock().expect("V2 store");
     store

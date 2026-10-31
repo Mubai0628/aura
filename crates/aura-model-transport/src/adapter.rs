@@ -362,7 +362,7 @@ pub fn validate_model_compilation_input(
         )
     })?;
     let mut historical_calls = BTreeMap::new();
-    for item in &input.request.conversation_items {
+    for item in input.request.sent_items() {
         if let LogicalConversationItem::Assistant { tool_calls, .. } = item {
             for call in tool_calls {
                 if historical_calls.insert(call.tool_call_id, call.tool_id).is_some() {
@@ -374,7 +374,7 @@ pub fn validate_model_compilation_input(
             }
         }
     }
-    if input.request.conversation_items.iter().any(|item| {
+    if input.request.sent_items().any(|item| {
         matches!(item, LogicalConversationItem::ToolResult { tool_call_id, .. }
             if !historical_calls.contains_key(tool_call_id))
     }) {

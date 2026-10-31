@@ -16,6 +16,16 @@ pub struct ModelHistory {
     pub groups: Vec<HistoryAtomicGroupPreimageV1>,
     pub cutoff: SessionSequence,
 }
+/// What the provider gave of how a step's answer was reached - its reasoning or thinking - as a
+/// request sends it back with that answer.
+pub fn provider_history(
+    db: &Connection,
+    step: ModelStepId,
+    snapshot: &ModelExecutionSnapshot,
+    output: &NormalizedModelOutput,
+) -> StoreResult<Option<LogicalProviderHistory>> {
+    continuation::read(db, step, snapshot, output)
+}
 pub fn bundle(
     db: &Connection,
     id: PromptBundleSnapshotId,

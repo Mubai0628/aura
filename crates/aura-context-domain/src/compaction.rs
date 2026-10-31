@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 use crate::ContextSourceRef;
 
 pub const MANUAL_COMPACTION_FOCUS_MAX_CHARS: usize = 4_096;
+/// The requests one compaction may send: the first; the same one twice more after failures that
+/// left no answer; one that answers the tool calls of an answer; and the isolated one, or where
+/// none follows, the same one once more.
+pub const MAX_COMPACTION_ATTEMPTS: u8 = 5;
 pub const LARGE_TOOL_RESULT_THRESHOLD_CHARS: usize = 8_192;
 pub const LARGE_TOOL_RESULT_PREFIX_CHARS: usize = 2_048;
 pub const LARGE_TOOL_RESULT_SUFFIX_CHARS: usize = 1_024;

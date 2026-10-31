@@ -77,8 +77,15 @@ pub enum Scenario {
     ReasoningLoopThenText,
     /// Plain answers, and a compaction answered the first time it is asked.
     CompactOnPrefix,
-    /// Plain answers; the first compaction is answered with a write that must never run.
+    /// Plain answers; every compaction asked on the step's request, which carries its tools, is
+    /// answered with a write that must never run, and one asked the isolated way with a summary.
     CompactToolOnPrefix,
+    /// Plain answers; a compaction asked on the step's request is answered with a write that must
+    /// never run, and once its call is answered, with the summary.
+    CompactToolOnceOnPrefix,
+    /// Plain answers; the first compaction's answer breaks off after its first words, and the
+    /// next is answered with the summary.
+    CompactInterruptedOnPrefix,
     /// Eleven reads, of `read-0.txt` to `read-10.txt`, then an answer; the tenth request
     /// is parked until `release_window`, so a test can set the window from its size.
     ClearOldResults,
@@ -210,19 +217,30 @@ impl Scenario {
     /// request no provider had counted went byte for byte, so their models are counted that way
     /// (`count_by_bytes`); every other scenario's model by character class.
     pub const fn sized_in_bytes(self) -> bool {
+        self.compacts_on_prefix()
+            || matches!(
+                self,
+                Self::Compact
+                    | Self::CompactHold
+                    | Self::ClearOldResults
+                    | Self::CompactAfterTool
+                    | Self::CompactedAddition
+                    | Self::BranchingCompaction
+                    | Self::BranchingThenCompact
+                    | Self::Window { .. }
+                    | Self::WindowHold
+            )
+    }
+
+    /// The scenarios of a compaction asked on the step's request: plain answers, two of them long,
+    /// and a summary as each scenario answers its compaction.
+    pub const fn compacts_on_prefix(self) -> bool {
         matches!(
             self,
-            Self::Compact
-                | Self::CompactHold
-                | Self::CompactOnPrefix
+            Self::CompactOnPrefix
                 | Self::CompactToolOnPrefix
-                | Self::ClearOldResults
-                | Self::CompactAfterTool
-                | Self::CompactedAddition
-                | Self::BranchingCompaction
-                | Self::BranchingThenCompact
-                | Self::Window { .. }
-                | Self::WindowHold
+                | Self::CompactToolOnceOnPrefix
+                | Self::CompactInterruptedOnPrefix
         )
     }
 

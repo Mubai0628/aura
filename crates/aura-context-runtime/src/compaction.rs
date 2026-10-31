@@ -3,21 +3,23 @@ use std::{collections::BTreeSet, future::Future, pin::Pin};
 use aura_context_domain::{
     CompactionAnchor, CompactionAnchorKind, CompactionAnchorManifest, CompactionModelAttemptState,
     CompactionSourceSpan, ContextRetentionException, ContextSourceRef,
-    MANUAL_COMPACTION_FOCUS_MAX_CHARS, ModelEgressManifestV1,
+    MANUAL_COMPACTION_FOCUS_MAX_CHARS, MAX_COMPACTION_ATTEMPTS, ModelEgressManifestV1,
 };
 use aura_domain_common::{
     AgentRunId, ContentHash, ContextProjectionSnapshotId, ModelProfileId, SessionId,
     TransportAttemptId, canonical_json_v1, canonical_json_v1_sha256,
 };
-use aura_model_domain::{
-    LogicalModelRequest, ModelExecutionSnapshot, NormalizedModelOutput, NormalizedStopReason,
-};
+use aura_model_domain::{LogicalModelRequest, ModelExecutionSnapshot, NormalizedModelOutput};
 use thiserror::Error;
 
+mod answer;
 mod attempt;
+mod execution;
 mod paragraph;
+pub use answer::{FailedCompactionAttempt, UnusableAnswer};
 pub use attempt::CompactionRequestShape;
 use attempt::validate_prepared_compaction_attempt;
+pub use execution::execute_context_compaction;
 pub use paragraph::parse_paragraph_output;
 
 const HEADINGS: [&str; 7] = [
@@ -268,6 +270,21 @@ pub trait CompactionAttemptFactory: Send + Sync {
                 + 'a,
         >,
     >;
+
+    /// Whether another attempt follows a failed one, up to [`MAX_COMPACTION_ATTEMPTS`] in all; the
+    /// factory prepares it with what this told it. By default only the first is asked again,
+    /// after an answer Core cannot use or a failure the transport judged retryable.
+    fn asks_again(
+        &self,
+        failed: &PreparedCompactionModelAttempt,
+        how: FailedCompactionAttempt,
+    ) -> bool {
+        failed.attempt_ordinal == 1
+            && match how {
+                FailedCompactionAttempt::UnusableAnswer { .. } => true,
+                FailedCompactionAttempt::NoAnswer { retryable } => retryable,
+            }
+    }
 }
 
 pub trait CompactionModelCaller: Send + Sync {
@@ -298,268 +315,6 @@ pub trait CompactionLifecycleSink: Send + Sync {
         &'a self,
         failure: &'a CompactionAttemptFailureCommit,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
-}
-
-pub async fn execute_context_compaction<Factory, Caller, Sink, Facts>(
-    operation: ContextCompactionOperationSpec,
-    factory: &Factory,
-    caller: &Caller,
-    sink: &Sink,
-    authorization_facts: &Facts,
-) -> ContextCompactionExecutionOutcome
-where
-    Factory: CompactionAttemptFactory,
-    Caller: CompactionModelCaller,
-    Sink: CompactionLifecycleSink,
-    Facts: crate::ModelEgressAuthorizationFacts,
-{
-    if let Err(failure) = validate_compaction_operation(&operation) {
-        return finish_without_attempt(operation, sink, failure, 0).await;
-    }
-    let mut context_snapshot_ids = BTreeSet::new();
-    let mut model_step_ids = BTreeSet::new();
-    for attempt_ordinal in 1..=2 {
-        let attempt = match factory.prepare_attempt(&operation, attempt_ordinal).await {
-            Ok(attempt) => attempt,
-            Err(failure) => {
-                return finish_without_attempt(
-                    operation,
-                    sink,
-                    failure,
-                    attempt_ordinal.saturating_sub(1),
-                )
-                .await;
-            }
-        };
-        if let Err(failure) = validate_prepared_compaction_attempt(
-            &operation,
-            &attempt,
-            attempt_ordinal,
-            &mut context_snapshot_ids,
-            &mut model_step_ids,
-        ) {
-            return finish_without_attempt(
-                operation,
-                sink,
-                failure,
-                attempt_ordinal.saturating_sub(1),
-            )
-            .await;
-        }
-        if let Err(error) = crate::ModelEgressAuthorizer::new(authorization_facts)
-            .validate(operation.session_id, operation.model_profile_id, &attempt.egress_manifest)
-            .await
-        {
-            return finish_without_attempt(
-                operation,
-                sink,
-                CompactionExecutionFailure {
-                    code: error.to_string(),
-                    retryable: false,
-                    side_effect_unknown: false,
-                },
-                attempt_ordinal.saturating_sub(1),
-            )
-            .await;
-        }
-        if let Err(error_code) = sink.mark_attempt_running(&operation, &attempt).await {
-            return ContextCompactionExecutionOutcome::PersistenceInterrupted { error_code };
-        }
-
-        match caller.call(&attempt).await {
-            CompactionModelCallTerminal::Completed { output, transport_attempt_id } => {
-                let parsed = normalized_compaction_output(&attempt, output).and_then(|output| {
-                    parse_paragraph_output(&output, operation.output_character_limit).map_err(
-                        |error| CompactionExecutionFailure {
-                            code: error.to_string(),
-                            retryable: true,
-                            side_effect_unknown: false,
-                        },
-                    )
-                });
-                match parsed {
-                    Ok(parsed) => {
-                        let completed = ValidatedCompactionCommit {
-                            operation,
-                            attempt,
-                            transport_attempt_id,
-                            parsed,
-                        };
-                        if let Err(error_code) = sink.commit_completed(&completed).await {
-                            return ContextCompactionExecutionOutcome::PersistenceInterrupted {
-                                error_code,
-                            };
-                        }
-                        return ContextCompactionExecutionOutcome::Completed {
-                            attempt_ordinal,
-                            transport_attempt_id,
-                        };
-                    }
-                    Err(failure) => {
-                        let commit = CompactionAttemptFailureCommit {
-                            operation: operation.clone(),
-                            attempt: Some(attempt),
-                            state: CompactionModelAttemptState::Failed,
-                            transport_attempt_id: Some(transport_attempt_id),
-                            error_code: failure.code.clone(),
-                        };
-                        if attempt_ordinal == 1 {
-                            if let Err(error_code) = sink.finish_retryable_attempt(&commit).await {
-                                return ContextCompactionExecutionOutcome::PersistenceInterrupted {
-                                    error_code,
-                                };
-                            }
-                            continue;
-                        }
-                        return finish_with_attempt(commit, sink, failure, attempt_ordinal).await;
-                    }
-                }
-            }
-            CompactionModelCallTerminal::Failed { error_code, transport_attempt_id, retryable } => {
-                let failure = CompactionExecutionFailure {
-                    code: error_code.clone(),
-                    retryable,
-                    side_effect_unknown: false,
-                };
-                let commit = CompactionAttemptFailureCommit {
-                    operation: operation.clone(),
-                    attempt: Some(attempt),
-                    state: CompactionModelAttemptState::Failed,
-                    transport_attempt_id,
-                    error_code,
-                };
-                if attempt_ordinal == 1 && retryable {
-                    if let Err(error_code) = sink.finish_retryable_attempt(&commit).await {
-                        return ContextCompactionExecutionOutcome::PersistenceInterrupted {
-                            error_code,
-                        };
-                    }
-                    continue;
-                }
-                return finish_with_attempt(commit, sink, failure, attempt_ordinal).await;
-            }
-            CompactionModelCallTerminal::Cancelled { error_code, transport_attempt_id } => {
-                let commit = CompactionAttemptFailureCommit {
-                    operation,
-                    attempt: Some(attempt),
-                    state: CompactionModelAttemptState::Cancelled,
-                    transport_attempt_id,
-                    error_code: error_code.clone(),
-                };
-                if let Err(error_code) = sink.finish_operation(&commit).await {
-                    return ContextCompactionExecutionOutcome::PersistenceInterrupted {
-                        error_code,
-                    };
-                }
-                return ContextCompactionExecutionOutcome::Cancelled {
-                    error_code,
-                    completed_attempts: attempt_ordinal,
-                };
-            }
-            CompactionModelCallTerminal::UnknownSideEffect { error_code, transport_attempt_id } => {
-                let failure = CompactionExecutionFailure {
-                    code: error_code.clone(),
-                    retryable: false,
-                    side_effect_unknown: true,
-                };
-                let commit = CompactionAttemptFailureCommit {
-                    operation,
-                    attempt: Some(attempt),
-                    state: CompactionModelAttemptState::UnknownSideEffect,
-                    transport_attempt_id: Some(transport_attempt_id),
-                    error_code,
-                };
-                return finish_with_attempt(commit, sink, failure, attempt_ordinal).await;
-            }
-        }
-    }
-    ContextCompactionExecutionOutcome::Failed {
-        failure: CompactionExecutionFailure {
-            code: "context.compaction.retry_exhausted".to_owned(),
-            retryable: false,
-            side_effect_unknown: false,
-        },
-        completed_attempts: 2,
-    }
-}
-
-fn validate_compaction_operation(
-    operation: &ContextCompactionOperationSpec,
-) -> Result<(), CompactionExecutionFailure> {
-    let source_refs = operation
-        .anchor_manifest
-        .anchors
-        .iter()
-        .map(|anchor| anchor.source_ref.clone())
-        .collect::<Vec<_>>();
-    if operation.sequence == 0
-        || operation.output_character_limit == 0
-        || operation.source_span.start_sequence > operation.source_span.end_sequence
-        || operation.source_span.source_refs != source_refs
-        || canonical_json_v1_sha256(&operation.anchor_manifest.anchors)
-            .map_or(true, |hash| hash != operation.anchor_manifest.manifest_hash)
-    {
-        return Err(CompactionExecutionFailure {
-            code: "context.compaction.operation_invalid".to_owned(),
-            retryable: false,
-            side_effect_unknown: false,
-        });
-    }
-    Ok(())
-}
-
-fn normalized_compaction_output(
-    attempt: &PreparedCompactionModelAttempt,
-    output: Box<NormalizedModelOutput>,
-) -> Result<String, CompactionExecutionFailure> {
-    let output = *output;
-    if output.model_step_id != attempt.logical_request.model_step_id
-        || !output.tool_calls.is_empty()
-        || output.refusal.is_some()
-        || !matches!(
-            output.stop_reason,
-            NormalizedStopReason::EndTurn | NormalizedStopReason::StopSequence
-        )
-        || output.assistant_blocks.is_empty()
-    {
-        return Err(CompactionExecutionFailure {
-            code: "context.compaction.model_output_invalid".to_owned(),
-            retryable: true,
-            side_effect_unknown: false,
-        });
-    }
-    Ok(output.assistant_blocks.into_iter().map(|block| block.text).collect())
-}
-
-async fn finish_without_attempt<Sink: CompactionLifecycleSink>(
-    operation: ContextCompactionOperationSpec,
-    sink: &Sink,
-    failure: CompactionExecutionFailure,
-    completed_attempts: u8,
-) -> ContextCompactionExecutionOutcome {
-    let commit = CompactionAttemptFailureCommit {
-        operation,
-        attempt: None,
-        state: CompactionModelAttemptState::Failed,
-        transport_attempt_id: None,
-        error_code: failure.code.clone(),
-    };
-    if let Err(error_code) = sink.finish_operation(&commit).await {
-        return ContextCompactionExecutionOutcome::PersistenceInterrupted { error_code };
-    }
-    ContextCompactionExecutionOutcome::Failed { failure, completed_attempts }
-}
-
-async fn finish_with_attempt<Sink: CompactionLifecycleSink>(
-    commit: CompactionAttemptFailureCommit,
-    sink: &Sink,
-    failure: CompactionExecutionFailure,
-    completed_attempts: u8,
-) -> ContextCompactionExecutionOutcome {
-    if let Err(error_code) = sink.finish_operation(&commit).await {
-        return ContextCompactionExecutionOutcome::PersistenceInterrupted { error_code };
-    }
-    ContextCompactionExecutionOutcome::Failed { failure, completed_attempts }
 }
 
 #[must_use]
@@ -625,7 +380,8 @@ mod tests {
     use aura_model_domain::{
         AssistantContentBlock, CompiledInstructionEnvelope, EndpointAuthScheme,
         LogicalInstructionBlock, LogicalInstructionKind, ModelApiFormat, ModelOutputFormat,
-        ModelOutputRequest, ModelUsage, ResolvedModelRequestOptions, UsageSource,
+        ModelOutputRequest, ModelUsage, NormalizedStopReason, ResolvedModelRequestOptions,
+        UsageSource,
     };
     use aura_security_contract::NetworkDataClass;
     use aura_tool_contract::{ToolRegistrySnapshotRef, ToolSchemaSetSnapshotV1};
@@ -728,6 +484,8 @@ mod tests {
                 format: ModelOutputFormat::Text,
                 effective_max_output_tokens: 1_024,
             },
+            closing_question: None,
+            closing_exchange: Vec::new(),
         };
         let execution_snapshot = ModelExecutionSnapshot {
             id: execution_snapshot_id,

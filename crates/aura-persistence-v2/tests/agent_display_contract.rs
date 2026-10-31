@@ -267,3 +267,43 @@ fn a_step_waiting_on_a_compaction_says_since_when_and_how_many_parts_are_done() 
     let wire: Value = serde_json::to_value(assistant).expect("assistant wire");
     assert!(wire.get("context_compacting").is_none());
 }
+
+/// Once the compaction before a step has ended, the step's wait for the model counts from then:
+/// the latest end among the attempts of the step's finished compactions. A compaction still
+/// running is shown as such and does not count.
+#[test]
+fn a_step_after_its_compaction_says_when_the_compaction_ended() {
+    let root = tempfile::tempdir().expect("directory");
+    let mut store = V2Store::create(&root.path().join("v2")).expect("store");
+    let f = support::Fixture::preflight(&mut store, AgentTaskMode::Normal);
+    let insert = |store: &mut V2Store, state: &str, ends: &[&str]| {
+        let attempts = ends.iter().map(|at| json!({"terminal_at": at})).collect::<Vec<_>>();
+        let payload = json!({"source_step_id": f.step.model_step_id,
+            "created_at": "2026-10-31T00:00:00Z", "attempts": attempts})
+        .to_string();
+        let id = ContextProjectionSnapshotId::new().to_string();
+        store
+            .database
+            .unit_of_work(|tx| -> rusqlite::Result<usize> {
+                tx.execute(
+                    "INSERT INTO context_compactions VALUES(?1,?2,?3,1,?4)",
+                    [id, f.turn.session_id.to_string(), state.to_owned(), payload],
+                )
+            })
+            .expect("compaction row");
+    };
+    let latest = |store: &V2Store| {
+        let view = history_of(store, f.turn.session_id);
+        view.turns[0].assistant_messages.last().expect("the step").compacted_until
+    };
+    assert_eq!(latest(&store), None, "no compaction yet");
+    insert(&mut store, "failed", &["2026-10-31T00:01:00Z"]);
+    insert(&mut store, "completed", &["2026-10-31T00:02:00Z", "2026-10-31T00:03:30Z"]);
+    insert(&mut store, "running", &["2026-10-31T00:09:00Z"]);
+    assert_eq!(latest(&store), Some("2026-10-31T00:03:30Z".parse().unwrap()));
+    let view = history_of(&store, f.turn.session_id);
+    let wire: Value =
+        serde_json::to_value(view.turns[0].assistant_messages.last().expect("the step"))
+            .expect("assistant wire");
+    assert!(wire.get("compacted_until").is_some());
+}

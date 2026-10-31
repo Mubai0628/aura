@@ -132,5 +132,7 @@ pub(super) fn logical_request(snapshot: &ModelExecutionSnapshot) -> LogicalModel
             format: ModelOutputFormat::Text,
             effective_max_output_tokens: 512,
         },
+        closing_question: None,
+        closing_exchange: Vec::new(),
     }
 }

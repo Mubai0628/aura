@@ -278,17 +278,25 @@
 }
 /* The way back to the latest message, centred just above the composer while any of the
    conversation is below the window; a dot when something new arrived meanwhile. The sticky edge
-   is the scroll area's content edge, which the composer's clearance already ends. */
-.agent-follow {
+   is the scroll area's content edge, which the composer's clearance already ends. The dock has no
+   height and the button is laid over the conversation, so showing it never makes the
+   conversation taller: that pulled a reader near the end back to it, and the button flickered. */
+.agent-follow-dock {
   position: sticky;
   bottom: 12px;
   z-index: 5;
+  height: 0;
+}
+.agent-follow {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
   min-height: 34px;
-  margin: 8px auto;
   padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: 50%;

@@ -180,18 +180,22 @@ export function Conversation({
           onClose={() => setBranchTurn(undefined)}
         />
       ) : null}
-      {away || hasNew ? (
-        <button
-          aria-label="回到最新消息"
-          className="agent-follow"
-          data-new={hasNew ? 'true' : undefined}
-          onClick={follow}
-          title="回到最新消息"
-          type="button"
-        >
-          <AppIcon name="arrow-down" />
-        </button>
-      ) : null}
+      {/* No height of its own, and always there: offering the way back never changes how tall
+          the conversation is, which would pull a reader near its end back to it. */}
+      <div className="agent-follow-dock">
+        {away || hasNew ? (
+          <button
+            aria-label="回到最新消息"
+            className="agent-follow"
+            data-new={hasNew ? 'true' : undefined}
+            onClick={follow}
+            title="回到最新消息"
+            type="button"
+          >
+            <AppIcon name="arrow-down" />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

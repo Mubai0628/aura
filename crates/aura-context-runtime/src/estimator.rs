@@ -47,6 +47,21 @@ pub struct CanonicalTextBudgetItem {
     pub ordinal: u32,
     pub content_hash: ContentHash,
     pub canonical_text: String,
+    pub kind: BudgetTextKind,
+}
+
+/// What a text part is, which decides how it is counted when the provider's count of the previous
+/// request ([`MeasuredRequest`]) does not include it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BudgetTextKind {
+    /// Text the model reads ([`MeasuredRequest::new_text`]).
+    Text,
+    /// A provider's own record of an answer, such as encrypted reasoning or thinking and its
+    /// signature ([`MeasuredRequest::at_rate`]).
+    ProviderHistory,
+    /// Text that carries such records serialized, as a summary request's sources do
+    /// ([`MeasuredRequest::serialized`]).
+    Serialized,
 }
 
 #[derive(Clone, Debug)]
@@ -156,13 +171,16 @@ impl ContextEstimatorRegistry {
                 return Err(ContextBudgetError::ContentHashMismatch);
             }
             let byte_length = utf8_byte_upper_bound(&item.canonical_text);
-            // With the provider's count of the previous request, a part not sent before is
-            // counted at half again its rate rather than byte for byte.
-            let sent_again = measured.map(|m| {
-                m.sent_again(&item.content_hash, byte_length)
-                    .unwrap_or_else(|| m.new_part(byte_length))
+            // With the provider's count of the previous request, a part sent again is counted at
+            // its rate and a part not sent before by what it is.
+            let counted = measured.map(|m| {
+                m.sent_again(&item.content_hash, byte_length).unwrap_or_else(|| match item.kind {
+                    BudgetTextKind::Text => m.new_text(&item.canonical_text),
+                    BudgetTextKind::ProviderHistory => m.at_rate(byte_length),
+                    BudgetTextKind::Serialized => m.serialized(byte_length),
+                })
             });
-            let (estimated_tokens, estimator) = match (exact, sent_again) {
+            let (estimated_tokens, estimator) = match (exact, counted) {
                 (Some(estimator), _) => {
                     (estimator.estimate_canonical_text(&item.canonical_text)?, estimator.identity())
                 }
@@ -329,6 +347,7 @@ mod tests {
             ordinal,
             content_hash: ContentHash::sha256(value.as_bytes()),
             canonical_text: value.to_owned(),
+            kind: BudgetTextKind::Text,
         }
     }
 
@@ -380,24 +399,69 @@ mod tests {
     }
 
     /// With the provider's count of the previous request, a part sent again is counted at
-    /// its rate and a new part at half again that rate, at least half a token a byte.
+    /// its rate, new text by character class and serialized records at least half a token a byte.
     #[test]
-    fn a_measured_request_counts_new_parts_at_half_again_its_rate() {
+    fn a_measured_request_counts_new_parts_by_what_they_are() {
         let (old, new) = ("a".repeat(8_000), "b".repeat(4_000));
         let measured = MeasuredRequest::new(2_000, [(ContentHash::sha256(old.as_bytes()), 8_000)])
             .expect("plausible");
+        let records = "c".repeat(6_000);
+        let serialized =
+            CanonicalTextBudgetItem { kind: BudgetTextKind::Serialized, ..text(3, &records) };
         let budget = ContextEstimatorRegistry::default()
             .estimate_budget_measured(
                 &key(),
                 256_000,
                 4_096,
-                &[text(1, &old), text(2, &new)],
+                &[text(1, &old), text(2, &new), serialized],
                 &[],
                 Some(&measured),
             )
             .expect("budget");
-        // 2,000 tokens for 8,000 bytes plus a tenth: 2,200; the new 4,000 bytes at half a token.
-        assert_eq!(budget.estimated_input_tokens, 2_200 + 2_000);
+        // 2,000 tokens for 8,000 bytes; the new 4,000 bytes of text three characters a token; the
+        // 6,000 serialized bytes half a token a byte.
+        assert_eq!(budget.estimated_input_tokens, 2_000 + 1_334 + 3_000);
+    }
+
+    /// A provider's own record of an answer, such as the model's encrypted reasoning.
+    fn history(ordinal: u32, value: &str) -> CanonicalTextBudgetItem {
+        CanonicalTextBudgetItem { kind: BudgetTextKind::ProviderHistory, ..text(ordinal, value) }
+    }
+
+    /// Two steps of a Responses conversation as their provider counted them: 120,623 tokens for
+    /// the first request's 1,018,614 bytes, most of them the model's encrypted reasoning, which the
+    /// provider counts far below its bytes; 122,219 for the next, which sent 1,012,876 of those
+    /// bytes again and added the step's encrypted reasoning (19,634 bytes) and its call, result and
+    /// task state (7,355 bytes). Counted within a twentieth of that, a compaction is not begun
+    /// early and a summary asked on the step's request keeps its room.
+    #[test]
+    fn a_step_is_counted_within_a_twentieth_of_its_providers_count() {
+        let (kept, replaced) = ("k".repeat(1_012_876), "s".repeat(5_738));
+        let measured = MeasuredRequest::new(
+            120_623,
+            [
+                (ContentHash::sha256(kept.as_bytes()), 1_012_876),
+                (ContentHash::sha256(replaced.as_bytes()), 5_738),
+            ],
+        )
+        .expect("plausible");
+        let (reasoning, added) = ("r".repeat(19_634), "a".repeat(7_355));
+        let budget = ContextEstimatorRegistry::default()
+            .estimate_budget_measured(
+                &key(),
+                512_000,
+                64_000,
+                &[text(1, &kept), history(2, &reasoning), text(3, &added)],
+                &[],
+                Some(&measured),
+            )
+            .expect("budget");
+        let counted = 122_219_u64;
+        assert!(
+            budget.estimated_input_tokens.abs_diff(counted) <= counted / 20,
+            "{} for a request its provider counted at {counted}",
+            budget.estimated_input_tokens
+        );
     }
 
     #[test]

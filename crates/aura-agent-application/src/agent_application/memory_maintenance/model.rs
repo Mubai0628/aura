@@ -148,6 +148,8 @@ impl AgentApplication {
                 format: ModelOutputFormat::Text,
                 effective_max_output_tokens: snapshot.request_options.effective_max_output_tokens,
             },
+            closing_question: None,
+            closing_exchange: Vec::new(),
         };
         let artifact = ArtifactId::new();
         let source = pending.input.as_bytes().to_vec();

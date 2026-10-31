@@ -59,6 +59,10 @@ pub struct AgentAssistantView {
     /// parts are already done. Absent once the compaction ends.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_compacting: Option<AgentContextCompactingView>,
+    /// While the step runs, when the last compaction part before its request ended: a step that
+    /// has written nothing since has been waiting on the model from then, not from its start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compacted_until: Option<UtcTimestamp>,
     /// This step's request first gave older tool results' room back, with
     /// nothing summarized.
     #[serde(default, skip_serializing_if = "Option::is_none")]

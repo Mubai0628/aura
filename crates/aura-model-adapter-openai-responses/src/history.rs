@@ -2,16 +2,18 @@
 //! returned follows the run of function outputs as a user message.
 use super::*;
 
+/// `items` are the request's conversation, or what followed its closing question.
 pub(super) fn compile_responses_history(
     request: &aura_model_domain::LogicalModelRequest,
+    items: &[LogicalConversationItem],
     snapshot: &ModelExecutionSnapshot,
     resolved: &[aura_model_domain::ResolvedModelAttachment],
 ) -> Result<Vec<Value>, ModelAdapterError> {
     let bindings = historical_tool_call_wire_bindings(snapshot);
     let images = aura_model_transport::tool_result_images(request, resolved)?;
-    let mut input = Vec::with_capacity(request.conversation_items.len());
+    let mut input = Vec::with_capacity(items.len());
     let mut pending_images = Vec::new();
-    for item in &request.conversation_items {
+    for item in items {
         if !matches!(item, LogicalConversationItem::ToolResult { .. }) && !pending_images.is_empty()
         {
             input.push(json!({"role": "user", "content": std::mem::take(&mut pending_images)}));

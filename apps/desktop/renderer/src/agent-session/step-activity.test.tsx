@@ -129,3 +129,35 @@ test('a step waiting on a compaction says so, how long its part has run, and the
   expect(screen.getByRole('status').textContent).toBe('正在压缩上下文 · 109 秒 · 已完成 2 段');
   expect(turnStatus(compacting, new Map(), false)).toBe('正在压缩上下文');
 });
+
+// The wait for a compaction was counted again as the model thinking once the compaction ended.
+test('a step prepared after a compaction counts its thinking from when the compaction ended', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-31T12:00:00Z'));
+  const thinking = turn('running', [
+    {
+      model_step_id: 'step-after-compaction',
+      partial: true,
+      at: '2026-10-31T11:55:00Z',
+      compacted_until: '2026-10-31T11:59:30Z',
+    },
+  ]);
+  render(<StepActivity item={thinking} />);
+  expect(screen.getByRole('status').textContent).toBe('正在思考下一步 · 30 秒');
+});
+
+test('a view that saw the step before its compaction starts the count again after it', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-31T12:00:00Z'));
+  const step = { model_step_id: 'step-seen-before', partial: true, at: '2026-10-31T11:50:00Z' };
+  const view = render(<StepActivity item={turn('running', [step])} />);
+  expect(screen.getByRole('status').textContent).toBe('正在思考下一步 · 600 秒');
+  const compacting = { since: '2026-10-31T11:51:00Z', finished_parts: 0 };
+  view.rerender(
+    <StepActivity item={turn('running', [{ ...step, context_compacting: compacting }])} />,
+  );
+  expect(screen.getByRole('status').textContent).toBe('正在压缩上下文 · 540 秒');
+  const prepared = { ...step, compacted_until: '2026-10-31T11:59:50Z' };
+  view.rerender(<StepActivity item={turn('running', [prepared])} />);
+  expect(screen.getByRole('status').textContent).toBe('正在思考下一步 · 10 秒');
+});

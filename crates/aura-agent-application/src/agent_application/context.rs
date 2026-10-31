@@ -12,8 +12,8 @@ use aura_persistence_v2::{
 };
 use aura_prompt_runtime::*;
 use aura_security_contract::*;
+use sources::{CONTROL_STATE, prompt_state, section, write_control_state};
 pub(super) use sources::{core_tool, frozen_prompt, history_fragment};
-use sources::{prompt_state, section};
 pub(super) struct Prepared {
     pub request: super::provider::Request,
     pub profile: ModelProfileConfig,

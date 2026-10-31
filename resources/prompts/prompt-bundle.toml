@@ -1,5 +1,5 @@
 schema_version = 1
-bundle_version = "1.18.0"
+bundle_version = "1.19.0"
 serializer_version = 1
 
 [[modules]]
@@ -13,7 +13,7 @@ order = 10
 
 [[modules]]
 id = "core.environment"
-version = "1.0.0"
+version = "1.1.0"
 path = "core/environment.md"
 required = true
 section = "core"
