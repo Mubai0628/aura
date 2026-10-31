@@ -22,8 +22,10 @@ export function treeArguments(features) {
     'x86_64-pc-windows-msvc',
     '--color',
     'never',
+    // Not `--offline`: the listing reads every package of the graph, and a fresh checkout or CI
+    // runner has only downloaded what it has built so far. With all locked packages cached,
+    // Cargo makes no network request.
     '--locked',
-    '--offline',
     ...(features.length ? ['--features', features.join(',')] : []),
   ];
 }

@@ -28,6 +28,12 @@ test('the listing is requested without colour', () => {
   assert.equal(args[args.indexOf('--color') + 1], 'never');
 });
 
+test('the listing keeps the lock file but may fetch packages a fresh checkout lacks', () => {
+  const args = treeArguments([]);
+  assert.ok(args.includes('--locked'));
+  assert.ok(!args.includes('--offline'), 'a fresh checkout has not downloaded the whole graph');
+});
+
 test('ordinary and similarly named features pass', () => {
   const tree = [
     'aura-fs-tools v0.1.10 (C:\\x)|search-test-faults',
