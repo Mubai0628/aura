@@ -16,9 +16,9 @@
 //! write-only record with no consumer, and the capability stayed reported as
 //! broken even after a successful repair.
 use super::*;
-use crate::config_degradation::ConfigDependentCapability;
 use crate::r03_tests::{Fixture, attempt, success};
 use aura_config::{ConfigModule, SettingsFacade};
+use aura_core_base::config_degradation::ConfigDependentCapability;
 use serde_json::json;
 #[path = "recovery_entry/preview_binding.rs"]
 mod preview_binding;

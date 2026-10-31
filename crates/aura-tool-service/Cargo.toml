@@ -1,0 +1,44 @@
+[package]
+name = "aura-tool-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-core-base = { path = "../aura-core-base" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-ipc = { path = "../aura-ipc" }
+aura-network-control = { path = "../aura-network-control" }
+aura-package-service = { path = "../aura-package-service" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-persistence = { path = "../aura-persistence" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-sandbox = { path = "../aura-sandbox" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+aura-tool-runtime = { path = "../aura-tool-runtime" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# This crate's own tests see the crates split out of Core with their test-time behaviour, as
+# Core's tests do (memory roots under TEMP, a test's own log route).
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

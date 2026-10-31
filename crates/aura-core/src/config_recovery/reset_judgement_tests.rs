@@ -1,7 +1,8 @@
 //! An ordinary whole-set confirmation must settle its own unknown-scope record.
+use crate::StartupMode;
 use crate::r03_tests::{Fixture, success};
-use crate::{StartupMode, config_degradation::ConfigDependentCapability};
 use aura_config::{ConfigModule, SettingsFacade};
+use aura_core_base::config_degradation::{self, ConfigDependentCapability};
 use serde_json::json;
 use std::fs;
 
@@ -109,8 +110,13 @@ async fn ordinary_full_reset_clears_only_its_own_unknown_bundle_judgement() {
                 .is_available(ConfigDependentCapability::ConfigTransactionRecovery),
             !unrelated_journal,
         );
-        assert!(!services.config_degradation.all().iter().any(|fault|
-            fault.fault_code == crate::config_degradation::BUNDLE_SCOPE_UNRESOLVED));
+        assert!(
+            !services
+                .config_degradation
+                .all()
+                .iter()
+                .any(|fault| fault.fault_code == config_degradation::BUNDLE_SCOPE_UNRESOLVED)
+        );
         if unrelated_journal {
             assert_eq!(
                 fs::read(transactions.join("legacy.json"))

@@ -1,7 +1,7 @@
 //! Test-only: a real package install through Core's own package service, for
 //! scenarios outside this module (Agent registry and execution).
-use crate::package_program::tests::support::{Fixture as Source, Kind};
 use crate::package_services::{ImportSource, PackageServices, RunEnvironment};
+use aura_package_service::package_program::tests::support::{Fixture as Source, Kind};
 use aura_tool_domain::*;
 use std::time::{Duration, Instant};
 

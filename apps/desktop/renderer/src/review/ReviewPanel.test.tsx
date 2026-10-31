@@ -337,4 +337,5 @@ test('thousands of files keep one page of cards, a bounded list, and at most two
   await waitFor(() => expect(pending).toHaveLength(3));
   fireEvent.click(screen.getByRole('button', { name: '显示更多文件（还有 2401 个）' }));
   expect(document.querySelectorAll('.review-card')).toHaveLength(200);
-});
+  // Rendering 2,500 rows took 17.7 s on a hosted CI runner, past the suite's 15 s default.
+}, 60_000);

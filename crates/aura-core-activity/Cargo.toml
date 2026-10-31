@@ -1,0 +1,32 @@
+[package]
+name = "aura-core-activity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = []
+
+[dependencies]
+anyhow.workspace = true
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-activity-runtime = { path = "../aura-activity-runtime" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-workspace = { path = "../aura-workspace" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+aura-windows-platform = { path = "../aura-windows-platform" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

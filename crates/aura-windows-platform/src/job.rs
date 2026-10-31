@@ -209,6 +209,8 @@ impl ComponentJob {
         working_directory: &Path,
         bootstrap_secret: &[u8; 32],
     ) -> io::Result<ManagedProcess> {
+        #[cfg(test)]
+        let launch_window = crate::test_spawn::launch_window();
         let (bootstrap_read, bootstrap_write) = create_inheritable_pipe()?;
         set_non_inheritable(&bootstrap_write)?;
         let inherited_handle = bootstrap_read.as_raw();
@@ -250,6 +252,8 @@ impl ComponentJob {
             return Err(io::Error::last_os_error());
         }
         drop(bootstrap_read);
+        #[cfg(test)]
+        drop(launch_window);
         let process = OwnedHandle::from_raw(information.hProcess)?;
         let thread = OwnedHandle::from_raw(information.hThread)?;
 

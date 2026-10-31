@@ -1,0 +1,57 @@
+[package]
+name = "aura-model-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = ["aura-core-base/test-hooks"]
+
+[dependencies]
+anyhow.workspace = true
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-config = { path = "../aura-config" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-context-runtime = { path = "../aura-context-runtime" }
+aura-core-base = { path = "../aura-core-base" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-ipc = { path = "../aura-ipc" }
+aura-model-adapter-anthropic = { path = "../aura-model-adapter-anthropic" }
+aura-model-adapter-openai-chat = { path = "../aura-model-adapter-openai-chat" }
+aura-model-adapter-openai-responses = { path = "../aura-model-adapter-openai-responses" }
+aura-model-catalog = { path = "../aura-model-catalog" }
+aura-model-config = { path = "../aura-model-config" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-model-transport = { path = "../aura-model-transport" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-persistence = { path = "../aura-persistence" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+base64.workspace = true
+regex.workspace = true
+resvg.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+aura-contract-schema = { path = "../aura-contract-schema" }
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+rusqlite.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

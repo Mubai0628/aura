@@ -45,6 +45,7 @@ use std::{
 };
 
 use aura_domain_common::CredentialRef;
+use aura_model_service::p05_credential;
 use aura_windows_platform::{CredentialStoreError, SecretBytes, WindowsCredentialStore};
 
 /// A distinctive value. Never a real credential, never reused across cases, so a
@@ -395,7 +396,7 @@ async fn the_real_provider_resolver_refuses_rather_than_borrowing_another_creden
     let crate::StartupMode::Ready(services) = &state.startup_mode else {
         panic!("Core must start for this case");
     };
-    let resolver = crate::p05_credential::PersistentProviderCredentialResolver::new(Arc::clone(
+    let resolver = p05_credential::PersistentProviderCredentialResolver::new(Arc::clone(
         &services.persistence,
     ));
 
@@ -452,7 +453,7 @@ async fn the_real_provider_resolver_never_returns_another_namespaces_canary() {
     let crate::StartupMode::Ready(services) = &state.startup_mode else {
         panic!("Core must start for this case");
     };
-    let resolver = crate::p05_credential::PersistentProviderCredentialResolver::new(Arc::clone(
+    let resolver = p05_credential::PersistentProviderCredentialResolver::new(Arc::clone(
         &services.persistence,
     ));
 
@@ -485,8 +486,7 @@ async fn the_p05_credential_journal_recovers_without_leaking_a_value() {
     let crate::StartupMode::Ready(services) = &state.startup_mode else {
         panic!("Core must start for this case");
     };
-    let journal =
-        crate::p05_credential::P05CredentialJournal::new(Arc::clone(&services.persistence));
+    let journal = p05_credential::P05CredentialJournal::new(Arc::clone(&services.persistence));
 
     // A recovery with no incomplete journal is a real, empty recovery: it must not
     // error, and it must not invent a credential. The factory returns no drafts,

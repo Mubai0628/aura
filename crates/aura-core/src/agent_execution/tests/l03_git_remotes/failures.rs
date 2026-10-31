@@ -1,5 +1,6 @@
 use super::super::l03_git_writes::result;
 use super::*;
+use aura_git_service::git;
 
 #[tokio::test]
 async fn an_exact_lease_can_replace_only_the_observed_remote_branch() {
@@ -192,9 +193,8 @@ async fn configured_pushurl_is_the_only_receipt_destination_and_multiple_pushurl
     assert_eq!(oid(&push_temp.path().join("remote.git"), "refs/heads/main"), expected);
     assert!(git(&fetch_temp.path().join("remote.git"), &["for-each-ref"]).is_empty());
     git(&f.root, &["remote", "set-url", "--add", "--push", "origin", &fetch_url]);
-    let reader =
-        crate::git::GitReader::open(&f.root, Arc::new(std::sync::atomic::AtomicBool::new(false)))
-            .expect("isolated reader");
+    let reader = git::GitReader::open(&f.root, Arc::new(std::sync::atomic::AtomicBool::new(false)))
+        .expect("isolated reader");
     let error = reader
         .remote_plan("git.push", &json!({"remote":"origin","remote_branch":"main"}))
         .expect_err("cannot authorize multiple endpoints");

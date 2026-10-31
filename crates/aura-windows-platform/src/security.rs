@@ -8,8 +8,8 @@ use windows_sys::{
                 ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
                 SDDL_REVISION_1,
             },
-            GetTokenInformation, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_GROUPS,
-            TOKEN_QUERY, TokenLogonSid,
+            GetTokenInformation, PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES, TOKEN_GROUPS,
+            TOKEN_INFORMATION_CLASS, TOKEN_QUERY, TOKEN_USER, TokenLogonSid, TokenUser,
         },
         System::Threading::{GetCurrentProcess, OpenProcessToken},
     },
@@ -56,6 +56,12 @@ impl ObjectSecurityDescriptor {
         ))
     }
 
+    /// The user's Credential Manager lock: the user may wait for and release it, and its medium
+    /// label lets an elevated and an ordinary process of that user open it whichever created it.
+    pub(crate) fn for_credential_lock(user_sid: &str) -> io::Result<Self> {
+        Self::from_sddl(&credential_lock_sddl(user_sid))
+    }
+
     fn from_sddl(sddl: &str) -> io::Result<Self> {
         let encoded = wide_null(sddl);
         let mut descriptor: PSECURITY_DESCRIPTOR = ptr::null_mut();
@@ -99,6 +105,11 @@ fn sidecar_pipe_sddl(logon_sid: &str) -> String {
     format!(
         "D:P(A;;0x{SIDECAR_PIPE_ACCESS_MASK:08X};;;{logon_sid})(A;;0x{SIDECAR_PIPE_ACCESS_MASK:08X};;;SY)"
     )
+}
+
+fn credential_lock_sddl(user_sid: &str) -> String {
+    let access = crate::credential_lock::MUTEX_USE;
+    format!("D:P(A;;0x{access:08X};;;{user_sid})S:(ML;;NW;;;ME)")
 }
 
 impl Drop for ObjectSecurityDescriptor {
@@ -166,6 +177,31 @@ pub(crate) fn verify_execution_job_owner(handle: HANDLE) -> io::Result<()> {
 }
 
 fn current_logon_sid_string() -> io::Result<String> {
+    let aligned = current_process_token_information(TokenLogonSid)?;
+    // SAFETY: TokenLogonSid returns TOKEN_GROUPS with one valid SID entry for
+    // the lifetime of `aligned`.
+    let groups = unsafe { &*aligned.as_ptr().cast::<TOKEN_GROUPS>() };
+    if groups.GroupCount != 1 || groups.Groups[0].Sid.is_null() {
+        return Err(io::Error::other("process token has no unique logon SID"));
+    }
+    sid_to_string(groups.Groups[0].Sid)
+}
+
+/// The SID of the user this process runs as.
+pub(crate) fn current_user_sid_string() -> io::Result<String> {
+    let aligned = current_process_token_information(TokenUser)?;
+    // SAFETY: TokenUser returns TOKEN_USER and the SID it points to, both
+    // inside `aligned` for its lifetime.
+    let user = unsafe { &*aligned.as_ptr().cast::<TOKEN_USER>() };
+    if user.User.Sid.is_null() {
+        return Err(io::Error::other("process token has no user SID"));
+    }
+    sid_to_string(user.User.Sid)
+}
+
+/// One class of the process token's information, in storage aligned for the
+/// structure Windows writes into it.
+fn current_process_token_information(class: TOKEN_INFORMATION_CLASS) -> io::Result<Vec<usize>> {
     let mut token: HANDLE = ptr::null_mut();
     // SAFETY: the pseudo handle is valid in this process and `token` is a
     // writable output pointer. The resulting real token handle is owned below.
@@ -176,9 +212,8 @@ fn current_logon_sid_string() -> io::Result<String> {
 
     let mut required = 0_u32;
     // SAFETY: a null buffer with length zero is the documented sizing call.
-    let sized = unsafe {
-        GetTokenInformation(token.as_raw(), TokenLogonSid, ptr::null_mut(), 0, &mut required)
-    };
+    let sized =
+        unsafe { GetTokenInformation(token.as_raw(), class, ptr::null_mut(), 0, &mut required) };
     // SAFETY: GetLastError has no preconditions and is read immediately after
     // the failed sizing call.
     let sizing_error = unsafe { GetLastError() };
@@ -194,7 +229,7 @@ fn current_logon_sid_string() -> io::Result<String> {
     if unsafe {
         GetTokenInformation(
             token.as_raw(),
-            TokenLogonSid,
+            class,
             aligned.as_mut_ptr().cast::<c_void>(),
             required,
             &mut required,
@@ -203,18 +238,14 @@ fn current_logon_sid_string() -> io::Result<String> {
     {
         return Err(io::Error::last_os_error());
     }
+    Ok(aligned)
+}
 
-    // SAFETY: TokenLogonSid returns TOKEN_GROUPS with one valid SID entry for
-    // the lifetime of `aligned`.
-    let groups = unsafe { &*aligned.as_ptr().cast::<TOKEN_GROUPS>() };
-    if groups.GroupCount != 1 || groups.Groups[0].Sid.is_null() {
-        return Err(io::Error::other("process token has no unique logon SID"));
-    }
-
+fn sid_to_string(sid: PSID) -> io::Result<String> {
     let mut sid_text: PWSTR = ptr::null_mut();
     // SAFETY: the SID comes from a successful token query and `sid_text` is a
     // writable output pointer. Windows allocates the result with LocalAlloc.
-    if unsafe { ConvertSidToStringSidW(groups.Groups[0].Sid, &mut sid_text) } == 0 {
+    if unsafe { ConvertSidToStringSidW(sid, &mut sid_text) } == 0 {
         return Err(io::Error::last_os_error());
     }
     let result = wide_ptr_to_string(sid_text);
@@ -246,7 +277,15 @@ fn wide_null(value: &str) -> Vec<u16> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SIDECAR_PIPE_ACCESS_MASK, sidecar_pipe_sddl};
+    use super::{SIDECAR_PIPE_ACCESS_MASK, credential_lock_sddl, sidecar_pipe_sddl};
+
+    #[test]
+    fn credential_lock_acl_grants_the_user_only_wait_and_release_at_medium_integrity() {
+        assert_eq!(
+            credential_lock_sddl("S-1-5-21-1-2-3-1001"),
+            "D:P(A;;0x00100001;;;S-1-5-21-1-2-3-1001)S:(ML;;NW;;;ME)"
+        );
+    }
 
     #[test]
     fn sidecar_pipe_acl_excludes_instance_creation_and_generic_rights() {

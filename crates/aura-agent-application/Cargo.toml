@@ -1,0 +1,80 @@
+[package]
+name = "aura-agent-application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# The acceptance boundary's hold point in the Agent application. aura-core's own
+# `acceptance-barrier` feature enables it; no product build does.
+acceptance-barrier = ["aura-core-broker/acceptance-barrier"]
+# Memory maintenance's model in an E2E build reads the test profile. aura-core's own
+# `memory-test-profile` feature enables it; no product build does.
+memory-test-profile = []
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = ["aura-core-base/test-hooks"]
+
+[dependencies]
+anyhow.workspace = true
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-activity-runtime = { path = "../aura-activity-runtime" }
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-agent-execution = { path = "../aura-agent-execution" }
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-browser-domain = { path = "../aura-browser-domain" }
+aura-config = { path = "../aura-config" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-context-runtime = { path = "../aura-context-runtime" }
+aura-core-base = { path = "../aura-core-base" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-extension-service = { path = "../aura-extension-service" }
+aura-git-service = { path = "../aura-git-service" }
+aura-hooks = { path = "../aura-hooks" }
+aura-memory = { path = "../aura-memory" }
+aura-model-adapter-anthropic = { path = "../aura-model-adapter-anthropic" }
+aura-model-adapter-openai-chat = { path = "../aura-model-adapter-openai-chat" }
+aura-model-adapter-openai-responses = { path = "../aura-model-adapter-openai-responses" }
+aura-model-config = { path = "../aura-model-config" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-model-service = { path = "../aura-model-service" }
+aura-model-transport = { path = "../aura-model-transport" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-prompt-runtime = { path = "../aura-prompt-runtime" }
+aura-secret-scanner = { path = "../aura-secret-scanner" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-security-service = { path = "../aura-security-service" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-workspace = { path = "../aura-workspace" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+base64.workspace = true
+blake3.workspace = true
+schemars.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+# This crate's own tests see the crates split out of Core with their test-time behaviour, as
+# Core's tests do (memory roots under TEMP, a test's own log route).
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
+
+[lints]
+workspace = true

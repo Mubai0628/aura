@@ -1,18 +1,19 @@
 use super::*;
+use aura_core_base::{command_settlement, ipc_session};
 
 fn start_owned_handler(
     runtime: &tokio::runtime::Runtime,
     state: Arc<RuntimeState>,
     call: SessionCall,
-) -> crate::ipc_session::IpcSession {
-    let mut session = crate::ipc_session::IpcSession::new();
+) -> ipc_session::IpcSession {
+    let mut session = ipc_session::IpcSession::new();
     let _ = session.admit(call.request.clone());
     let ready = session.take_ready();
     assert_eq!(ready.len(), 1, "the real execution lane admitted this request");
     let (ticket, _) = ready.into_iter().next().expect("admitted request").into_parts();
     let handle = runtime.spawn(async move {
         let _ = drive_session(state, call).await;
-        crate::ipc_session::HandlerTerminal::Answered(IpcRequestTerminal::Succeeded)
+        ipc_session::HandlerTerminal::Answered(IpcRequestTerminal::Succeeded)
     });
     session.attach(ticket, handle);
     session
@@ -198,7 +199,7 @@ fn a_late_timeout_response_cannot_replace_the_original_confirmed_result() {
     let original = runtime.block_on(query_command_outcome(Arc::clone(&state), call.invocation));
     let late_timeout = aura_ipc::JsonRpcResponse::failure(
         call.request.id,
-        crate::command_settlement::outcome_unknown_envelope(
+        command_settlement::outcome_unknown_envelope(
             call.request.id,
             Some(call.invocation),
             "this caller stopped waiting before receiving the value".into(),

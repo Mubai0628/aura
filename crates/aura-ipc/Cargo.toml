@@ -17,7 +17,6 @@ zeroize.workspace = true
 
 [features]
 default = []
-p08-contract-driver = []
 
 [lints]
 workspace = true

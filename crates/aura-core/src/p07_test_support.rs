@@ -1,272 +1,24 @@
-#![allow(
-    clippy::too_many_lines,
-    reason = "the integration fixture deliberately assembles the complete reviewed P07 evidence chain"
-)]
-#![cfg_attr(
-    all(feature = "p08-contract-driver", not(test)),
-    allow(
-        dead_code,
-        reason = "the E2E-only build reuses the three vertical fixtures while ordinary test-only recovery variants remain compiled out of production"
-    )
-)]
-
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{fs, path::Path};
 
 use anyhow::{Context, Result, bail};
-use aura_context_domain::ContextPreparationTriggerV1;
 use aura_context_fixtures::{P06PreparedFixture, P06ToolContextFixtureInputV1};
-use aura_domain_common::jcs::{CanonicalHashV1, canonical_json_jcs};
+use aura_domain_common::jcs::CanonicalHashV1;
 use aura_domain_common::{
-    AgentRunId, ArtifactId, CommandInvocationId, ContentHash, ContextProjectionSnapshotId,
-    CorrelationId, EndpointId, ModelExecutionSnapshotId, ModelProfileId, ModelStepId,
-    PromptBundleSnapshotId, ProviderId, Revision, RuntimeInstanceId, SessionId, TurnTaskId,
-    UtcTimestamp, WorkspaceId,
+    AgentRunId, CorrelationId, EndpointId, ModelProfileId, ModelStepId, ProviderId, Revision,
+    RuntimeInstanceId, SessionId, TurnTaskId, UtcTimestamp, WorkspaceId,
 };
-use aura_domain_common::{ToolBatchId, ToolCallId};
-use aura_model_domain::{
-    EndpointAuthScheme, ModelAdapterIdentity, ModelApiFormat, ModelExecutionSnapshot, ModelUsage,
-    NormalizedModelOutput, NormalizedStopReason,
-    NormalizedToolCall as ProviderNormalizedToolCallV1, ProviderRequestEvidence,
-    ProviderRequestTargetMetadata, ProviderToolCallId, ProviderToolNameBinding,
-    ResolvedModelRequestOptions, TransportOperationContext, UsageSource,
-    derive_p07_normalized_tool_calls_v1,
-};
-use aura_permission_domain::NormalizedOrigin;
 use aura_persistence::{
     ContextArtifactDraft, ContextProjectionCommitRequest, ContextSourceEventCommitRequest,
     EventActor, PersistenceCoordinator, PersistenceOptions, PersistenceStartup,
     PersistentEventDraft, PromptBundleCommitRequest, ToolRegistryBuildRequestV1,
 };
 use aura_security_contract::PermissionMode;
-use aura_tool_contract::{
-    CoreInvocationIdentityV1, ToolRegistryScopeV1, ToolRegistrySnapshotV1, ToolSchemaSnapshotV1,
-    ToolSettingsSnapshotV1,
-};
+use aura_tool_contract::{ToolRegistryScopeV1, ToolSettingsSnapshotV1};
 use aura_workspace_domain::{CatalogFreshness, SessionSummary, WorkspaceState, WorkspaceSummary};
 use rusqlite::{Connection, params};
-use serde_json::Value;
 use tempfile::TempDir;
-use url::Url;
 
-use crate::p07_continuation::P08ToolContinuationAuthorityV1;
-use crate::p07_registry::ToolRegistryControlServiceV1;
-
-/// Test-infrastructure-only owner of the P08 identities that do not exist in
-/// the P07 production services yet. Provider output still crosses the real
-/// Normalization boundary, and the returned Batch is consumed by the real
-/// Admission, scheduler, P04, Runtime and persistence path.
-#[derive(Clone)]
-pub(crate) struct P08ContractTestDriverV1 {
-    invocation_identity: CoreInvocationIdentityV1,
-    control_state_revision: Revision,
-    control_state_hash: CanonicalHashV1,
-}
-
-pub(crate) struct P08NormalizedToolBatchFixtureV1 {
-    pub(crate) batch: aura_tool_contract::ToolBatchRequestV1,
-}
-
-pub(crate) struct P08ToolContinuationTransitionV1 {
-    pub(crate) next_model_step_id: ModelStepId,
-    pub(crate) trigger: ContextPreparationTriggerV1,
-}
-
-impl P08ContractTestDriverV1 {
-    pub(crate) fn new(
-        session_id: SessionId,
-        turn_task_id: TurnTaskId,
-        agent_run_id: AgentRunId,
-    ) -> Self {
-        Self {
-            invocation_identity: CoreInvocationIdentityV1 {
-                command_invocation_id: CommandInvocationId::new(),
-                session_id,
-                turn_task_id,
-                agent_run_id,
-                model_step_id: ModelStepId::new(),
-            },
-            control_state_revision: Revision::INITIAL,
-            control_state_hash: CanonicalHashV1::sha256(b"P08 contract-test control state"),
-        }
-    }
-
-    pub(crate) fn batch_from_p05_provider_output(
-        &self,
-        registry: &ToolRegistrySnapshotV1,
-        schema: &ToolSchemaSnapshotV1,
-        purpose: &str,
-        arguments: Value,
-    ) -> Result<aura_tool_contract::ToolBatchRequestV1> {
-        let snapshot = ModelExecutionSnapshot {
-            id: ModelExecutionSnapshotId::new(),
-            model_step_id: self.invocation_identity.model_step_id,
-            provider_id: ProviderId::new(),
-            endpoint_id: EndpointId::new(),
-            model_profile_id: ModelProfileId::new(),
-            provider_display_name: "P08 Contract Test Provider".to_owned(),
-            endpoint_display_name: "P08 Contract Test Endpoint".to_owned(),
-            model_name: "p08-contract-test-model".to_owned(),
-            readable_ref: "P08 Contract Test Provider / p08-contract-test-model".to_owned(),
-            api_format: ModelApiFormat::OpenAiResponses,
-            auth_scheme: EndpointAuthScheme::None,
-            base_url: "https://p08-contract.test/v1".to_owned(),
-            resolved_request_url: "https://p08-contract.test/v1/responses".to_owned(),
-            openai_organization_id: None,
-            openai_project_id: None,
-            anthropic_workspace_id: None,
-            chat_output_token_field: None,
-            chat_instruction_role: None,
-            endpoint_config_revision: 1,
-            model_config_revision: 1,
-            runtime_effective_window_tokens: 16_384,
-            historical_snapshot_max_tokens: 1_024,
-            request_options: ResolvedModelRequestOptions {
-                effective_max_output_tokens: 1_024,
-                temperature: None,
-                top_p: None,
-                reasoning_effort: None,
-                reasoning_by_effort: false,
-                image_input: false,
-            },
-            historical_tool_call_wire_bindings: Vec::new(),
-            credential_id: None,
-            credential_revision: None,
-            credential_binding_fingerprint: None,
-            context_snapshot_id: ContextProjectionSnapshotId::new(),
-            prompt_bundle_snapshot_id: PromptBundleSnapshotId::new(),
-            endpoint_fingerprint: ContentHash::sha256(b"P08 contract-test endpoint"),
-            created_at: UtcTimestamp::now(),
-        };
-        Ok(self
-            .normalize_p05_provider_output(registry, schema, &snapshot, purpose, arguments, None)?
-            .batch)
-    }
-
-    pub(crate) const fn model_step_id(&self) -> ModelStepId {
-        self.invocation_identity.model_step_id
-    }
-
-    pub(crate) fn normalize_p05_provider_output(
-        &self,
-        registry: &ToolRegistrySnapshotV1,
-        schema: &ToolSchemaSnapshotV1,
-        snapshot: &ModelExecutionSnapshot,
-        purpose: &str,
-        arguments: Value,
-        raw_response_ref: Option<ArtifactId>,
-    ) -> Result<P08NormalizedToolBatchFixtureV1> {
-        if snapshot.model_step_id != self.invocation_identity.model_step_id {
-            bail!("P08 Contract Driver ModelStep does not match the exact P06 execution")
-        }
-        let binding = ProviderToolNameBinding::from_snapshot(
-            &registry.snapshot_ref,
-            schema,
-            CanonicalHashV1::sha256(b"P08 contract-test Provider wrapper schema"),
-        );
-        let operation_context = TransportOperationContext::AgentModelAttempt {
-            model_step_id: snapshot.model_step_id,
-            model_execution_snapshot_id: snapshot.id,
-            context_snapshot_id: snapshot.context_snapshot_id,
-            prompt_bundle_snapshot_id: snapshot.prompt_bundle_snapshot_id,
-        };
-        let request_body = b"{\"fixture\":true}";
-        let request_url = Url::parse(&snapshot.resolved_request_url)
-            .context("parse exact P06 provider request URL")?;
-        let request_host =
-            request_url.host_str().context("exact P06 provider request URL has no host")?;
-        let request_port = request_url
-            .port_or_known_default()
-            .context("exact P06 provider request URL has no effective port")?;
-        let evidence = ProviderRequestEvidence {
-            body_sha256: ContentHash::sha256(request_body),
-            body_byte_length: u64::try_from(request_body.len())?,
-            target: ProviderRequestTargetMetadata {
-                method: "POST".to_owned(),
-                origin: NormalizedOrigin {
-                    scheme: request_url.scheme().to_owned(),
-                    host: request_host.to_ascii_lowercase(),
-                    port: request_port,
-                },
-                path: request_url.path().to_owned(),
-                query_parameter_names: request_url
-                    .query_pairs()
-                    .map(|(name, _)| name.into_owned())
-                    .collect(),
-            },
-            headers: Vec::new(),
-            compatibility_removals: BTreeSet::new(),
-            applied_output_token_field_alias: None,
-            adapter: ModelAdapterIdentity::v1(snapshot.api_format),
-            operation_context,
-            tool_registry_snapshot_ref: Some(registry.snapshot_ref.clone()),
-            tool_name_bindings: vec![binding.clone()],
-            historical_tool_call_wire_bindings: Vec::new(),
-            canonical_body_artifact_id: None,
-        };
-        let mut fields = arguments.as_object().cloned().context("envelope 3 needs an object")?;
-        fields.insert("aura_purpose".to_owned(), Value::String(purpose.to_owned()));
-        let provider_arguments = String::from_utf8(canonical_json_jcs(&Value::Object(fields))?)?;
-        let output = NormalizedModelOutput {
-            model_step_id: snapshot.model_step_id,
-            assistant_blocks: Vec::new(),
-            reasoning_blocks: Vec::new(),
-            tool_calls: vec![ProviderNormalizedToolCallV1 {
-                tool_call_id: ToolCallId::new(),
-                provider_call_id: ProviderToolCallId::new("call_p08_contract_fixture")?,
-                tool_name: binding.provider_wire_name,
-                arguments_json: provider_arguments,
-                position: 1,
-            }],
-            refusal: None,
-            stop_reason: NormalizedStopReason::ToolCalls,
-            usage: ModelUsage {
-                input_tokens: 1,
-                output_tokens: 1,
-                total_tokens: 2,
-                reasoning_tokens: None,
-                cached_input_tokens: None,
-                cache_write_tokens: None,
-                source: UsageSource::LocalExactTokenizer,
-            },
-            provider_continuation: None,
-            provider_request_id: Some("p08-contract-test-request".to_owned()),
-            raw_response_ref,
-        };
-        let calls = derive_p07_normalized_tool_calls_v1(snapshot, &evidence, &output)?;
-        let batch = aura_tool_contract::ToolBatchRequestV1::new(
-            ToolBatchId::new(),
-            self.invocation_identity.clone(),
-            self.control_state_revision,
-            self.control_state_hash.clone(),
-            registry.snapshot_ref.clone(),
-            calls,
-        )
-        .map_err(anyhow::Error::from)?;
-        Ok(P08NormalizedToolBatchFixtureV1 { batch })
-    }
-
-    pub(crate) fn begin_tool_continuation(
-        &self,
-        authority: &P08ToolContinuationAuthorityV1,
-    ) -> Result<P08ToolContinuationTransitionV1> {
-        if authority.previous_model_step_id != self.invocation_identity.model_step_id
-            || authority.originating_user_event_id == authority.assistant_response_event_id
-        {
-            bail!("P08 ToolContinuation authority does not belong to this ModelStep")
-        }
-        Ok(P08ToolContinuationTransitionV1 {
-            next_model_step_id: ModelStepId::new(),
-            trigger: ContextPreparationTriggerV1::ToolContinuation {
-                originating_user_event_id: authority.originating_user_event_id,
-                previous_model_step_id: authority.previous_model_step_id,
-                assistant_response_event_id: authority.assistant_response_event_id,
-                tool_batch_id: authority.tool_batch_id,
-                history_atomic_group_ref: authority.history_atomic_group_ref.clone(),
-                provider_continuation: authority.provider_continuation.clone(),
-            },
-        })
-    }
-}
+use aura_tool_service::p07_registry::ToolRegistryControlServiceV1;
 
 fn commit_initial_p06_context_fixture(
     persistence: &PersistenceCoordinator,
@@ -465,14 +217,13 @@ impl BuiltinHttpCredentialFixtureV1 {
         let corpus = persistence
             .read_tool_registry_search_corpus(&initial.commit.registry_snapshot_ref)?
             .context("the initial Registry Snapshot")?;
-        let driver = P08ContractTestDriverV1::new(session_id, turn_task_id, agent_run_id);
         let p06_initial = aura_context_fixtures::p06_prepared_tool_context_fixture(
             P06ToolContextFixtureInputV1 {
                 workspace_id,
                 session_id,
                 turn_task_id,
                 agent_run_id,
-                model_step_id: driver.model_step_id(),
+                model_step_id: ModelStepId::new(),
                 model_profile_id: ModelProfileId::new(),
                 provider_id: ProviderId::new(),
                 endpoint_id: EndpointId::new(),

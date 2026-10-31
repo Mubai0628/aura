@@ -1016,7 +1016,7 @@ fn a_production_catalog_query_while_the_index_lock_is_held() {
 fn v2_and_broker_lock_reachability_is_source_confirmed_and_marked_untested() {
     let broker = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../aura-core/src/broker/journal.rs"
+        "/../aura-core-broker/src/broker/journal.rs"
     ))
     .expect("broker journal source");
     let core = std::fs::read_to_string(concat!(
@@ -1032,7 +1032,7 @@ fn v2_and_broker_lock_reachability_is_source_confirmed_and_marked_untested() {
 
     // The Broker ledger really is one mutex around one V2Store...
     assert!(
-        broker.contains("pub(crate) struct BrokerJournal(\n    Arc<Mutex<V2Store>>,"),
+        broker.contains("struct BrokerJournal(\n    Arc<Mutex<V2Store>>,"),
         "the Broker journal ownership fact changed; re-derive it before reusing any conclusion"
     );
     // ...and its mutating entries hold it across the whole unit of work, statement by

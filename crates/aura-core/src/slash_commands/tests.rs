@@ -1,9 +1,9 @@
 //! A ready plugin's commands follow the built-in, the user's and the workspace's, lose a
 //! name another command already offers, and are switched only with their plugin.
 use super::CommandContext;
-use crate::plugins::{PluginContext, PluginRuntime};
 use aura_agent_domain::{CommandSetEnabledRequest, CommandSource};
 use aura_config::{AuraPaths, SettingsFacade};
+use aura_extension_service::plugins::{PluginContext, PluginRuntime};
 use serde_json::json;
 use std::path::Path;
 use std::sync::Arc;

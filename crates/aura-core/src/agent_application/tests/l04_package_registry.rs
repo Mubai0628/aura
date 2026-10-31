@@ -2,8 +2,8 @@
 //! preparation: offered as discoverable, loaded by the session's own membership,
 //! and gone from the next registry once the package is disabled.
 use super::*;
-use crate::package_program::tests::support::Kind;
 use crate::package_services::test_support::{install, set_enabled};
+use aura_package_service::package_program::tests::support::Kind;
 use aura_persistence_v2::tool::session_tools;
 use aura_tool_contract::{SessionDynamicTools, ToolLoadStateV1};
 

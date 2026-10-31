@@ -1,6 +1,6 @@
 {
   "name": "@aura/desktop",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "type": "module",
   "main": "dist/electron-main/main.js",
@@ -16,7 +16,7 @@
     "package:dir": "node ../../scripts/package-desktop.mjs",
     "test:e2e": "cargo build -p aura-core -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper -p aura-chrome-host &&node ../../scripts/verify-p08-production-surface.mjs core && cargo build -p aura-core -p aura-tool-fixtures -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper --bins --features aura-core/p08-contract-driver && cross-env AURA_E2E_BUILD=1 corepack pnpm build && node ../../scripts/verify-p08-production-surface.mjs desktop && cross-env NODE_USE_ENV_PROXY=1 playwright test",
     "test:unit": "vitest run --configLoader native --pool=threads --maxWorkers=6",
-    "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.renderer.json --noEmit && tsc --project tsconfig.tools.json --noEmit && tsc --project tsconfig.e2e.json --noEmit && tsc --project tsconfig.e2e-preload.json --noEmit"
+    "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.renderer.json --noEmit && tsc --project tsconfig.tools.json --noEmit && tsc --project tsconfig.e2e.json --noEmit"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.3.0",

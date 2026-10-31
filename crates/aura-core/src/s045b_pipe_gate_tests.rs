@@ -49,7 +49,10 @@ use aura_workspace_domain::{
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::ipc_session::{Admission, IpcSession, Lane, MAX_CONCURRENT_CONTROL, lane_key_for};
+use aura_core_base::ipc_session;
+use aura_core_base::ipc_session::{
+    Admission, IpcSession, Lane, MAX_CONCURRENT_CONTROL, lane_key_for,
+};
 
 /// A request the connection admits. The lane decision reads only the method and params, exactly as
 /// `serve_connection` does.
@@ -311,8 +314,7 @@ async fn a_real_named_pipe_carries_cross_connection_resource_coordination() {
     );
     for admitted in control_ready {
         let (ticket, _request) = admitted.into_parts();
-        session_a
-            .attach(ticket, tokio::spawn(async { crate::ipc_session::HandlerTerminal::Unreplied }));
+        session_a.attach(ticket, tokio::spawn(async { ipc_session::HandlerTerminal::Unreplied }));
     }
     while session_a.running_count() > 0 {
         session_a.poll_completions();
@@ -490,7 +492,7 @@ async fn a_real_named_pipe_carries_cross_connection_resource_coordination() {
                 ticket,
                 tokio::spawn(async move {
                     served_for_body.fetch_add(1, Ordering::SeqCst);
-                    crate::ipc_session::HandlerTerminal::Unreplied
+                    ipc_session::HandlerTerminal::Unreplied
                 }),
             );
         }
@@ -732,4 +734,4 @@ async fn file_service_batches_and_a_mixed_buffer_sequence_settle_on_one_file() {
 /// counters belongs in the same module as the production entry. See
 /// `p03_resource_wait_tests::a_resource_wait_releases_the_worker_and_the_session_authority`.
 #[allow(dead_code)]
-const A_R1_WORKER_RELEASE_MEASURED_IN: &str = "p03::resource_wait_tests";
+const A_R1_WORKER_RELEASE_MEASURED_IN: &str = "p03_tests::resource_wait_tests";

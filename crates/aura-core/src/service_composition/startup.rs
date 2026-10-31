@@ -1,4 +1,7 @@
 use crate::*;
+use aura_chrome_service::chrome_control;
+use aura_core_base::sync_boundary;
+use aura_extension_service::{plugins, skills};
 
 #[cfg(feature = "p08-contract-driver")]
 #[path = "../l01_e2e_fixture.rs"]
@@ -101,7 +104,7 @@ pub(crate) async fn initialize_services_at(
     }
     append_startup_stage("settings_loaded");
     // The Skill folders' first reading after a build or an install runs beside the start.
-    crate::skills::preread_in_background(Arc::clone(&settings));
+    skills::preread_in_background(Arc::clone(&settings));
     // The recovery entry is created beside the settings facade it repairs
     // and the degradation registry it updates, so both halves of "recover the
     // configuration and stop reporting the capability as unavailable" share one
@@ -134,12 +137,6 @@ pub(crate) async fn initialize_services_at(
         );
     }
 
-    #[cfg(feature = "p08-contract-driver")]
-    p08_contract_driver::seed_isolated_workspace_session_v1(
-        options.p08_contract_driver.as_ref(),
-        &persistence,
-    )
-    .context("failed to seed isolated E2E Workspace and Session fixture")?;
     match aura_tool_registry::embedded_builtin_tool_definition_set_v1() {
         Ok(_) => {
             let materialized = persistence
@@ -261,7 +258,7 @@ pub(crate) async fn initialize_services_at(
     // layer share the same `Arc<AgentStore>` the application layer uses, instead of opening a
     // second admission capacity or taking `journal.lock()` inline on a reactive task. The web
     // application's synchronous sections run on it too.
-    let sync = crate::sync_boundary::SyncBoundary::open();
+    let sync = sync_boundary::SyncBoundary::open();
     let agent_store = Arc::new(agent_store::AgentStore::new(Arc::clone(&broker), sync.clone()));
     // The controlled-web application is built inside
     // `open_dependent_services`, on the same boundary and the same Agent Store
@@ -471,7 +468,7 @@ pub(crate) async fn initialize_services_at(
     if let Some(execution) = &agent_execution_for_state {
         let _ = execution.mcp.set(Arc::clone(&mcp));
     }
-    let skills = crate::skills::SkillRuntime::new(
+    let skills = skills::SkillRuntime::new(
         Arc::clone(&settings),
         p03_config.as_ref().map(|p03| Arc::clone(&p03.workspace)),
     );
@@ -480,25 +477,25 @@ pub(crate) async fn initialize_services_at(
     }
     // An interrupted plugin change is finished or rolled back here, before anything a
     // plugin brings can be offered.
-    let plugins = crate::plugins::PluginRuntime::new(Arc::clone(&settings), Some(Arc::clone(&mcp)));
+    let plugins = plugins::PluginRuntime::new(Arc::clone(&settings), Some(Arc::clone(&mcp)));
     mcp.attach_plugins(&plugins);
     skills.attach_plugins(Arc::clone(&plugins));
     // The first listing hashes every Skill file; a thread
     // at low CPU priority does it once now, so the page finds them known.
-    crate::skills::warm_in_background(Arc::clone(&skills));
+    skills::warm_in_background(Arc::clone(&skills));
     if let Some(execution) = &agent_execution_for_state {
         let _ = execution.plugins.set(Arc::clone(&plugins));
     }
     // Chrome control opens its pipe only when the user turned it on.
-    let chrome = Arc::new(crate::chrome_control::ChromeControl::new(
-        crate::chrome_control::ChromeControlOptions::for_installation(
+    let chrome = Arc::new(chrome_control::ChromeControl::new(
+        chrome_control::ChromeControlOptions::for_installation(
             release.release_descriptor.bundle_namespace.as_str(),
             &paths.local_root,
         ),
         Arc::clone(&settings),
         chrome_secrets(&release.release_descriptor.bundle_namespace),
     ));
-    chrome.set_sessions(Arc::new(crate::chrome_control::PersistedSessions(Arc::clone(
+    chrome.set_sessions(Arc::new(chrome_control::PersistedSessions(Arc::clone(
         &persistence_for_dependencies,
     ))));
     if let Some(execution) = &agent_execution_for_state {
@@ -582,14 +579,14 @@ pub(crate) async fn initialize_services_at(
 /// The pairing secret lives in the Credential Manager; Core's own tests keep it in memory.
 fn chrome_secrets(
     namespace: &aura_runtime_contract::BundleNamespace,
-) -> Arc<dyn crate::chrome_control::ChromeSecrets> {
+) -> Arc<dyn chrome_control::ChromeSecrets> {
     #[cfg(test)]
     return {
         let _ = namespace;
-        Arc::new(crate::chrome_control::MemoryChromeSecrets::default())
+        Arc::new(chrome_control::MemoryChromeSecrets::default())
     };
     #[cfg(not(test))]
-    Arc::new(crate::chrome_control::secret::WindowsChromeSecrets::for_installation(
+    Arc::new(chrome_control::secret::WindowsChromeSecrets::for_installation(
         namespace.object_name_hash(),
     ))
 }

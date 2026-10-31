@@ -1,6 +1,7 @@
 //! Entry requires the authenticated Main channel; Agent identity is allocated
 //! by Core only after the user submission transaction has committed.
 use crate::*;
+use aura_extension_service::{hooks, plugins, skills};
 pub(crate) async fn dispatch(
     state: &RuntimeState,
     queue: &AsyncPriorityQueue,
@@ -204,7 +205,8 @@ pub(crate) async fn dispatch(
                     "ipc.command_invocation_id_required"
                 );
             }
-            let context = crate::hooks::HookContext::of(services);
+            let context =
+                hooks::HookContext::of(&services._settings, &services.broker, &services.plugins);
             let (method, params) = (request.method.clone(), request.params.clone());
             return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
                 .await
@@ -233,7 +235,7 @@ pub(crate) async fn dispatch(
                     "ipc.command_invocation_id_required"
                 );
             }
-            let context = crate::skills::SkillContext::new(Arc::clone(&services.skills));
+            let context = skills::SkillContext::new(Arc::clone(&services.skills));
             let (method, params) = (request.method.clone(), request.params.clone());
             return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
                 .await
@@ -248,7 +250,7 @@ pub(crate) async fn dispatch(
                     "ipc.command_invocation_id_required"
                 );
             }
-            let context = crate::plugins::PluginContext::new(Arc::clone(&services.plugins));
+            let context = plugins::PluginContext::new(Arc::clone(&services.plugins));
             let (method, params) = (request.method.clone(), request.params.clone());
             return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
                 .await

@@ -11,7 +11,7 @@
 //!   nothing by this module and depends on nothing in it. See
 //!   `publishing_never_touches_admission_or_protection` and
 //!   `the_index_has_no_admission_surface` for the executable form of that.
-//! * It is not `aura-core::activity::AgentActivities`. That registry is the Web
+//! * It is not `aura-core-activity::activity::AgentActivities`. That registry is the Web
 //!   permission/cancel authority; expanding it would have merged observer and
 //!   authority. This is a separate owner with a separate identity type.
 //!
@@ -75,12 +75,12 @@ pub struct ActivityPublisherRow {
 pub const ACTIVITY_PUBLISHERS: &[ActivityPublisherRow] = &[
     ActivityPublisherRow {
         kind: ActivityKind::AgentTool,
-        real_owner: "aura-core::agent_activity::execution::ObservedBackend; the actual \
+        real_owner: "aura-agent-execution::agent_activity::execution::ObservedBackend; the actual \
                      file/Web/task worker begins observation after admission and owns the lease",
         reused_identity: "ToolCallId + the reserved SecurityOperationId + the reservation's real \
                           attempt ordinal; real AgentRunId",
         may_carry_agent_identity: true,
-        source_file: "crates/aura-core/src/agent_execution/dispatch.rs",
+        source_file: "crates/aura-agent-execution/src/agent_execution/dispatch.rs",
     },
     ActivityPublisherRow {
         kind: ActivityKind::MainFs,
@@ -100,25 +100,25 @@ pub const ACTIVITY_PUBLISHERS: &[ActivityPublisherRow] = &[
     },
     ActivityPublisherRow {
         kind: ActivityKind::P04Publication,
-        real_owner: "aura-core::p04 (real publication commit point)",
+        real_owner: "aura-security-service::p04 (real publication commit point)",
         reused_identity: "the actual CorrelationId + optional SecurityOperationId; no AgentRunId",
         may_carry_agent_identity: false,
-        source_file: "crates/aura-core/src/p04.rs",
+        source_file: "crates/aura-security-service/src/p04.rs",
     },
     ActivityPublisherRow {
         kind: ActivityKind::ShellForeground,
-        real_owner: "aura-core::command_execution::CorePort's ShellExecutionObserver, \
+        real_owner: "aura-agent-execution::command_execution::CorePort's ShellExecutionObserver, \
                      handed to the actual native or managed execution owner",
         reused_identity: "ToolCallId + SecurityOperationId + real attempt ordinal; the call's own Agent identity",
         may_carry_agent_identity: true,
-        source_file: "crates/aura-core/src/agent_execution/dispatch.rs",
+        source_file: "crates/aura-agent-execution/src/agent_execution/dispatch.rs",
     },
     ActivityPublisherRow {
         kind: ActivityKind::ShellManagedBackground,
-        real_owner: "aura-core::command_execution (managed background owner)",
+        real_owner: "aura-agent-execution::command_execution (managed background owner)",
         reused_identity: "the background's actual SecurityOperationId + attempt ordinal; no AgentRunId",
         may_carry_agent_identity: false,
-        source_file: "crates/aura-core/src/command_execution/port.rs",
+        source_file: "crates/aura-agent-execution/src/command_execution/port.rs",
     },
 ];
 

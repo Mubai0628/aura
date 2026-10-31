@@ -1,6 +1,7 @@
 //! The real directory decision's companion authority is checked on frozen-batch recovery.
 use super::*;
 use aura_permission_domain::{ExternalGrantCapability, ExternalGrantTerm};
+use aura_security_service::external_grants;
 use std::time::Duration;
 
 #[tokio::test]
@@ -21,7 +22,7 @@ async fn s06_b6_directory_answer_resumes_without_reentering_the_journal_lock() {
     engine
         .external_grants
         .issue_approved_directory(
-            crate::external_grants::ApprovedDirectoryGrant {
+            external_grants::ApprovedDirectoryGrant {
                 session_id: f.turn.session_id,
                 workspace_id: f.turn.workspace_id,
                 canonical_root: CanonicalPath { utf16: display.encode_utf16().collect(), display },

@@ -58,7 +58,7 @@ impl RuntimeServices {
     #[must_use]
     pub(crate) fn agent_work_blocker(
         &self,
-    ) -> Option<(crate::config_degradation::ConfigDependentCapability, String)> {
+    ) -> Option<(aura_core_base::config_degradation::ConfigDependentCapability, String)> {
         self.config_recovery.agent_work_blocker()
     }
 

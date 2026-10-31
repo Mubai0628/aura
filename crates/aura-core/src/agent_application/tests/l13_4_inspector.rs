@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used)]
 use super::*;
 use aura_agent_domain::AgentStartRequest;
+use aura_agent_execution::agent_activity;
 use aura_domain_common::CommandInvocationId;
 
 async fn turn(runtime: &crate::RuntimeState, session: SessionId, model: ModelProfileId) {
@@ -84,7 +85,7 @@ async fn a_steps_details_name_the_session_behind_another_task() {
     let session = create_session(&runtime, workspace, PermissionMode::ReadOnly).await;
     let other = create_session(&runtime, workspace, PermissionMode::ReadOnly).await;
     let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("ready") };
-    let mut record = crate::agent_activity::tests_support::synthetic_record();
+    let mut record = agent_activity::tests_support::synthetic_record();
     let owner = services.activity_runtime_instance_id;
     (record.runtime_instance_id, record.owner.runtime_instance_id) = (owner, owner);
     (record.owner.session_id, record.owner.workspace_id) = (other, workspace);

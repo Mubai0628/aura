@@ -1306,9 +1306,8 @@ mod tests {
         }
         let pid_file =
             PathBuf::from(std::env::var_os("AURA_JOB_TREE_PID_FILE").expect("job tree PID file"));
-        let mut child = std::process::Command::new(r"C:\Windows\System32\ping.exe")
-            .args(["-n", "30", "127.0.0.1"])
-            .spawn()
+        let mut ping = std::process::Command::new(r"C:\Windows\System32\ping.exe");
+        let mut child = crate::test_spawn::spawn(ping.args(["-n", "30", "127.0.0.1"]))
             .expect("spawn job tree child");
         std::fs::write(pid_file, child.id().to_string()).expect("publish child PID");
         let _ = child.wait();

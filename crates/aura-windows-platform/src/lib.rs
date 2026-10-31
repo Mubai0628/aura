@@ -25,6 +25,9 @@ mod bootstrap;
 mod capability;
 mod child_environment;
 mod credential;
+mod credential_lock;
+#[cfg(test)]
+mod credential_lock_tests;
 mod dialog;
 mod directory_create;
 mod disk_load;
@@ -61,6 +64,8 @@ pub use recycle::{RecycleOutcome, move_to_recycle_bin};
 mod security;
 mod system_cmd;
 mod system_path;
+#[cfg(test)]
+mod test_spawn;
 mod user_profile;
 pub use user_profile::user_profile_directory;
 mod watcher;

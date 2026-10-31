@@ -250,7 +250,9 @@ impl CompatExecution {
             self.output.finish();
         }
         if stop_confirmed {
-            let end = Instant::now() + Duration::from_millis(100);
+            // No process holds the input pipe's read end any more, so the writer ends as soon as
+            // it runs; the bound only covers scheduling on a busy machine.
+            let end = Instant::now() + Duration::from_secs(1);
             while self.resources.input.is_some() && Instant::now() < end {
                 self.drain()?;
                 std::thread::sleep(Duration::from_millis(1));

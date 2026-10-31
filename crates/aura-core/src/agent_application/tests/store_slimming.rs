@@ -4,6 +4,7 @@
 //! that was recorded. An older step's context details still show its figures.
 use super::*;
 use aura_agent_domain::AgentInspectorRequest;
+use aura_core_broker::agent_store;
 use aura_projection_contract::AgentTurnView;
 
 async fn finished_turn(
@@ -44,7 +45,7 @@ async fn turns_leave_only_what_is_read_again() {
     let first_step = turns[0].assistant_messages[0].model_step_id;
     let counted = agent
         .store
-        .read(crate::agent_store::StoreStep::operation("test.store_counts"), move |db| {
+        .read(agent_store::StoreStep::operation("test.store_counts"), move |db| {
             let count = |sql: &str| -> Result<i64, aura_persistence_core::PersistenceCoreError> {
                 Ok(db.query_row(sql, [], |row| row.get(0))?)
             };
@@ -269,7 +270,7 @@ async fn a_store_slimmed_before_core_starts_serves_the_conversation_on() {
     assert!(newest.context.is_some(), "the newest step keeps its full snapshot");
     let left = agent
         .store
-        .read(crate::agent_store::StoreStep::operation("test.store_counts"), move |db| {
+        .read(agent_store::StoreStep::operation("test.store_counts"), move |db| {
             Ok(db
                 .prepare("SELECT id FROM context_snapshots WHERE session_id=?1")?
                 .query_map([session.to_string()], |row| row.get::<_, String>(0))?
@@ -319,7 +320,7 @@ async fn deltas_that_arrive_together_are_stored_together_until_the_reply_is_seal
     };
     let stored = agent
         .store
-        .read(crate::agent_store::StoreStep::operation("test.stored_deltas"), move |db| {
+        .read(agent_store::StoreStep::operation("test.stored_deltas"), move |db| {
             Ok(db.query_row(
                 "SELECT count(*) FROM events WHERE owner=?1 AND kind='agent.visible_delta'",
                 [step.to_string()],
@@ -339,7 +340,7 @@ async fn deltas_that_arrive_together_are_stored_together_until_the_reply_is_seal
         .await;
     let left = agent
         .store
-        .read(crate::agent_store::StoreStep::operation("test.streamed_rows"), move |db| {
+        .read(agent_store::StoreStep::operation("test.streamed_rows"), move |db| {
             Ok(db.query_row(
                 "SELECT (SELECT count(*) FROM events WHERE owner=?1 AND kind IN \
                  ('agent.visible_delta','agent.visible_delta_index','agent.visible_delta_epoch')) \

@@ -1,4 +1,7 @@
 use super::*;
+use aura_agent_execution::security_control;
+use aura_core_base::sync_boundary;
+use aura_core_broker::agent_store;
 
 pub(super) struct Case {
     pub(super) _root: tempfile::TempDir,
@@ -185,7 +188,7 @@ impl Case {
             },
             plan,
         };
-        crate::security_control::reserve_dispatch(
+        security_control::reserve_dispatch(
             &persistence,
             &mut journal.lock().unwrap(),
             request.clone(),
@@ -202,9 +205,9 @@ impl Case {
                 persistence: Arc::new(persistence),
                 // The port's bounded owner. A test rig shares the one boundary the
                 // rest of Core's test fixture uses; the sections below still run whole on it.
-                store: Arc::new(crate::agent_store::AgentStore::new(
+                store: Arc::new(agent_store::AgentStore::new(
                     Arc::clone(&journal),
-                    crate::sync_boundary::SyncBoundary::open(),
+                    sync_boundary::SyncBoundary::open(),
                 )),
                 journal,
                 // The fixture's own index, so a test can observe the real publication

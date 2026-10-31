@@ -1,0 +1,38 @@
+[package]
+name = "aura-git-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Enabled by aura-core's feature of the same name: the E2E driver build of Core, which also
+# switches on the offline Git fixtures (as aura-core's git-test-profile does).
+p08-contract-driver = ["aura-backend-windows-user/git-test-profile"]
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = ["aura-core-base/test-hooks"]
+
+[dependencies]
+anyhow.workspace = true
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-core-base = { path = "../aura-core-base" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+serde_json.workspace = true
+time.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

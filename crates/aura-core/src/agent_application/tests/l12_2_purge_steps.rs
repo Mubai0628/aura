@@ -2,7 +2,7 @@
 //! records go, another write waits for one deletion step at most, where it used to wait for the
 //! whole deletion (up to 14 seconds in the owner's development store).
 use super::*;
-use crate::agent_store::StoreStep;
+use aura_core_broker::agent_store::StoreStep;
 use std::time::{Duration, Instant};
 
 /// Events filed under the conversation, written straight to the store.

@@ -1,0 +1,35 @@
+[package]
+name = "aura-chrome-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build: pairing secrets in memory, no relay registration, the test extension. Only
+# aura-core's dev-dependencies enable it; check-architecture fails a product build that carries it.
+test-hooks = ["aura-core-base/test-hooks"]
+
+[dependencies]
+anyhow.workspace = true
+aura-chrome-domain = { path = "../aura-chrome-domain" }
+aura-chrome-host = { path = "../aura-chrome-host" }
+aura-config = { path = "../aura-config" }
+aura-core-base = { path = "../aura-core-base" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-persistence = { path = "../aura-persistence" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+base64.workspace = true
+getrandom.workspace = true
+serde_json.workspace = true
+time.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

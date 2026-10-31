@@ -2,6 +2,7 @@
 //! only directory identity is inspected, and the calls stop after admission.
 
 use super::*;
+use aura_security_service::external_grants;
 use std::path::PathBuf;
 
 #[test]
@@ -34,7 +35,7 @@ async fn recursive_parent_grant(handler: &str) -> (Fixture, PathBuf) {
         .agent_execution_required()
         .external_grants
         .issue_approved_directory(
-            crate::external_grants::ApprovedDirectoryGrant {
+            external_grants::ApprovedDirectoryGrant {
                 session_id: f.turn.session_id,
                 workspace_id: f.turn.workspace_id,
                 canonical_root: CanonicalPath { utf16: display.encode_utf16().collect(), display },

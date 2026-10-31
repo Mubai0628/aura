@@ -192,7 +192,8 @@ mod tests {
         } else {
             // Give a private child real Unicode and an excluded compatibility
             // variable; never change the test process or the host environment.
-            let output = std::process::Command::new(std::env::current_exe().unwrap())
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+            child
                 .args([
                     "child_environment::tests::unicode_names_and_values_round_trip",
                     "--exact",
@@ -200,9 +201,8 @@ mod tests {
                 ])
                 .env(CHILD, "1")
                 .env(NAME, VALUE)
-                .env("__ComPat_LaYeR", "DetectorsAppHealth")
-                .output()
-                .unwrap();
+                .env("__ComPat_LaYeR", "DetectorsAppHealth");
+            let output = crate::test_spawn::output(&mut child).unwrap();
             assert!(output.status.success(), "isolated Unicode fixture failed: {}", output.status);
         }
     }

@@ -1,8 +1,8 @@
 //! The owners a deletion touches, cloned from the runtime's services so a deletion can finish on
 //! its own task after the route that started it has answered.
 use super::execution_purge::Target;
-use crate::agent_store::{AgentStore, StoreStep};
 use crate::*;
+use aura_core_broker::agent_store::{AgentStore, StoreStep};
 use aura_domain_common::SessionId;
 use aura_persistence::RemovedWorkspace;
 use aura_persistence_v2::session_purge;
@@ -167,7 +167,7 @@ impl Purger {
         let _one = RUNNING.lock().await;
         let mut failed = None;
         for session in self.registry(|p| p.deleting_sessions()).await? {
-            let _busy = crate::busy::begin(deleting);
+            let _busy = aura_core_base::busy::begin(deleting);
             if let Err(error) = self.finish(session).await {
                 failed.get_or_insert(error);
             }
@@ -187,7 +187,7 @@ impl Purger {
     }
 
     async fn remove_workspace(&self, removed: RemovedWorkspace) -> anyhow::Result<()> {
-        let _busy = crate::busy::begin(CoreBusyActivityV1::RemovingWorkspace);
+        let _busy = aura_core_base::busy::begin(CoreBusyActivityV1::RemovingWorkspace);
         let workspace = removed.workspace_id;
         let sessions = self
             .store

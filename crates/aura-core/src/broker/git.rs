@@ -14,7 +14,7 @@ pub(crate) async fn dispatch_git(
     cancel: Arc<AtomicBool>,
 ) -> Result<Value, IpcErrorEnvelope> {
     let input: GitWorkspaceReadRequestV1 = serde_json::from_value(request.params.clone())
-        .map_err(|error| crate::git::envelope(request.id, error.into()))?;
+        .map_err(|error| aura_git_service::git::envelope(request.id, error.into()))?;
     let operation = super::operation(
         &request.method,
         &request.params,
@@ -22,7 +22,7 @@ pub(crate) async fn dispatch_git(
         vec![ResolvedCapability::GitRead],
         vec![ResourceDescriptor::GitRepository { workspace_id: input.workspace_id }],
     )
-    .map_err(|error| crate::git::envelope(request.id, error))?;
+    .map_err(|error| aura_git_service::git::envelope(request.id, error))?;
     let persistence = services.persistence.clone();
     let workspace = services
         .p03()
@@ -46,7 +46,7 @@ pub(crate) async fn dispatch_git(
         let root = resolver.resolve_existing(&aura_domain_common::WorkspacePath::parse(
             aura_domain_common::WorkspacePath::ROOT,
         )?)?;
-        let reader = crate::git::GitReader::open(&root.absolute_path, cancel.clone())?;
+        let reader = aura_git_service::git::GitReader::open(&root.absolute_path, cancel.clone())?;
         let facts = reader.facts()?;
         *slot.lock().map_err(|_| anyhow::anyhow!("git.preparation_lock"))? = Some(reader);
         Ok(facts)
@@ -87,36 +87,8 @@ pub(crate) async fn dispatch_git(
             })
             .await
             .map_err(|error| super::error_envelope(correlation, error))?
-            .map_err(|error| crate::git::envelope(correlation, error))
+            .map_err(|error| aura_git_service::git::envelope(correlation, error))
         },
     )
     .await
-}
-
-pub(crate) fn descriptor(
-    runtime: aura_domain_common::RuntimeInstanceId,
-) -> aura_execution_contract::BackendDescriptor {
-    let mut descriptor = super::descriptor(runtime);
-    descriptor.id = aura_execution_contract::BackendId("native-git-broker-v1".into());
-    descriptor.capabilities = [ResolvedCapability::GitRead].into();
-    // AuthorizedWritesOnly + ReadOnlyUserFiles: duplicated Core token at Low IL;
-    // worktree/git-dir/common-dir must be above Low and enforce no-write-up.
-    // ChildProcessControl: creation-time membership in a kill-on-close Job with
-    // ActiveProcessLimit=1. BoundedOutput: the adapter's combined stream quota.
-    // AuthorizedReadsOnly + CredentialIsolation are construction guarantees, as
-    // with the retired Core reader: Core fixes the read argv after repository
-    // identification/authorization, protocols are disabled and no child (including
-    // helpers, hooks, textconv or filters) can start. No credential is materialized.
-    descriptor.guarantees = [
-        aura_security_contract::EnforcementGuarantee::AuthorizedReadsOnly,
-        aura_security_contract::EnforcementGuarantee::AuthorizedWritesOnly,
-        aura_security_contract::EnforcementGuarantee::ReadOnlyUserFiles,
-        aura_security_contract::EnforcementGuarantee::CredentialIsolation,
-        aura_security_contract::EnforcementGuarantee::ChildProcessControl,
-        aura_security_contract::EnforcementGuarantee::BoundedOutput,
-    ]
-    .into();
-    descriptor.protocol_fingerprint =
-        aura_domain_common::jcs::canonical_sha256(&"aura.native-git-broker.v1").expect("literal");
-    descriptor
 }

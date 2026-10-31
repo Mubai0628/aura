@@ -2,6 +2,7 @@ use crate::{JsonRpcRequest, RuntimeServices, RuntimeState};
 use aura_config::ConfigModule;
 use aura_domain_common::jcs::canonical_sha256;
 use aura_execution_contract::{BrokerEvidence, SideEffectStateV1};
+use aura_model_service::p05;
 use aura_runtime_contract::IpcErrorEnvelope;
 use aura_security_contract::{ResolvedCapability, ResourceDescriptor};
 use serde_json::{Value, json};
@@ -11,7 +12,7 @@ pub(crate) async fn dispatch_model(
     state: &RuntimeState,
     services: &RuntimeServices,
     request: &JsonRpcRequest,
-) -> Result<crate::p05::P05CommandDispatch, IpcErrorEnvelope> {
+) -> Result<p05::P05CommandDispatch, IpcErrorEnvelope> {
     let mutation = aura_ipc::routes::side_effecting(&request.method);
     let operation = super::operation(
         &request.method,
@@ -34,9 +35,9 @@ pub(crate) async fn dispatch_model(
     let evidence_persistence = Arc::clone(&services.persistence);
     let event_method = request.method.clone();
     let event_invocation = request.command_invocation_id;
-    let evidence: super::OwnedEvidence<crate::p05::P05CommandDispatch> = Arc::new(
+    let evidence: super::OwnedEvidence<p05::P05CommandDispatch> = Arc::new(
         move |dispatch: &aura_execution_contract::DispatchRequest,
-              output: &Result<crate::p05::P05CommandDispatch, IpcErrorEnvelope>| {
+              output: &Result<p05::P05CommandDispatch, IpcErrorEnvelope>| {
             let before = dispatch.plan.prepared.preparation.clone();
             let after = evidence_inspect().unwrap_or(Value::Null);
             let journal = event_invocation

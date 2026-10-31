@@ -74,7 +74,6 @@ export type WorkspaceFilesProjectionChange = Extract<
 >;
 
 export interface CoreSupervisorOptions {
-  additionalCoreArguments?: readonly string[];
   appIsPackaged: boolean;
   localAppData: string;
   onEscalated: () => void;
@@ -93,11 +92,6 @@ export interface CoreSupervisorOptions {
   responsiveness?: Partial<ResponsivenessTimings>;
   /** Reads the Core process's work; only tests replace the native reading. */
   readProcessActivity?: (pid: number, creationTime: string) => CoreProcessActivity | undefined;
-}
-
-export interface BuildExtensionInvocationIdentityV1 {
-  coreRuntimeInstanceId: string;
-  mainRuntimeInstanceId: string;
 }
 
 /**

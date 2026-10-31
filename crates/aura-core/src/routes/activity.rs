@@ -41,21 +41,21 @@ pub(crate) async fn dispatch(
             // The projection rebuild/read is the existing owner's own section: this route reads the
             // same projection that section maintains, so it uses that classification rather than
             // inventing a new one.
-            crate::sync_boundary::SyncSection::Projection,
-            crate::sync_boundary::SyncSubject::new()
+            aura_core_base::sync_boundary::SyncSection::Projection,
+            aura_core_base::sync_boundary::SyncSubject::new()
                 .request(session.to_string())
                 .method("agent.activity.query"),
             move || persistence.workspace_session_projection(),
         )
         .await
     {
-        crate::blocking_pool::BlockingAdmission::Completed(result) => result?,
+        aura_core_base::blocking_pool::BlockingAdmission::Completed(result) => result?,
         // The bounded owner refused or did not answer. This is a *query* failure and never a tool
         // outcome: nothing about any running tool changes, and A's protection is untouched. It is
         // reported as unavailable rather than as "nothing is running", which is the distinction the
         // coverage contract exists to preserve.
-        crate::blocking_pool::BlockingAdmission::Refused { .. }
-        | crate::blocking_pool::BlockingAdmission::Unknown { .. } => {
+        aura_core_base::blocking_pool::BlockingAdmission::Refused { .. }
+        | aura_core_base::blocking_pool::BlockingAdmission::Unknown { .. } => {
             anyhow::bail!("activity.query_unavailable")
         }
     };
@@ -99,7 +99,7 @@ pub(crate) async fn dispatch(
 
     // One held snapshot, then one page of it. The snapshot is taken here and only here,
     // so the page, its coverage block and its revision all describe one instant.
-    let result = crate::agent_activity::query::page(
+    let result = aura_agent_execution::agent_activity::query::page(
         &services.activity_index,
         visibility,
         input.query.clone(),

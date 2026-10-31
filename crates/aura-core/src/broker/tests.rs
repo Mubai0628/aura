@@ -1,4 +1,5 @@
 use super::*;
+use aura_core_base::{command_settlement, ipc_session, sync_boundary};
 use serde_json::{Value, json};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -74,13 +75,13 @@ async fn r05_exact_claim_replay_handle_and_unique_result_use_real_sqlite() {
     let evidence_file = file.clone();
     let handler_file = file.clone();
     let backend=CoreBroker::new(descriptor.clone(),port::CallPort {journal:std::sync::Arc::clone(&journal),output:std::sync::Arc::clone(&output),live:&live,
-        boundary:crate::sync_boundary::SyncBoundary::open(),subject:crate::sync_boundary::SyncSubject::new(),
+        boundary:sync_boundary::SyncBoundary::open(),subject:sync_boundary::SyncSubject::new(),
         post_execution:crate::broker::completion::PostExecutionOwners::new(aura_domain_common::RuntimeInstanceId::new()),
-        settlements:crate::command_settlement::CommandSettlements::new(aura_domain_common::RuntimeInstanceId::new(),std::sync::Arc::new(Mutex::new(crate::command_claims::CommandOutcomeLedger::default()))),
+        settlements:command_settlement::CommandSettlements::new(aura_domain_common::RuntimeInstanceId::new(),std::sync::Arc::new(Mutex::new(crate::command_claims::CommandOutcomeLedger::default()))),
         responsibility:std::sync::Arc::new(Mutex::new(None)),
         inspect:std::sync::Arc::new(||Ok(json!({"scope":"test"}))),
         evidence:std::sync::Arc::new(move |r:&DispatchRequest,_:&Result<Value,IpcErrorEnvelope>|Ok(BrokerEvidence {action_kind:r.operation.content.action_kind.clone(),request_fingerprint:r.operation.fingerprint.0.clone(),before:json!({}),after:json!({"hash":aura_domain_common::ContentHash::blake3(&std::fs::read(&evidence_file)?)}),domain_journal:Value::Null,side_effect:SideEffectStateV1::Unknown})),
-        call:Mutex::new(Some(move ||async move {assert!(crate::ipc_session::current_resource_wait_handler().is_some(), "the real Broker owned task must inherit the connection wait ticket");std::fs::write(&handler_file,"once").expect("real effect");Ok(json!({"done":true}))})),
+        call:Mutex::new(Some(move ||async move {assert!(ipc_session::current_resource_wait_handler().is_some(), "the real Broker owned task must inherit the connection wait ticket");std::fs::write(&handler_file,"once").expect("real effect");Ok(json!({"done":true}))})),
     }).expect("backend");
     let plan = backend
         .prepare(PrepareRequest {
@@ -98,8 +99,8 @@ async fn r05_exact_claim_replay_handle_and_unique_result_use_real_sqlite() {
     )
     .expect("checked");
     journal.reserve(&dispatch, &auth, "exact-once").expect("reserve");
-    let (wait_handler, _wait_signals) = crate::ipc_session::ResourceWaitSignals::channel();
-    let handle = crate::ipc_session::RESOURCE_WAIT_HANDLER
+    let (wait_handler, _wait_signals) = ipc_session::ResourceWaitSignals::channel();
+    let handle = ipc_session::RESOURCE_WAIT_HANDLER
         .scope(wait_handler.for_ticket(1), backend.execute(dispatch.clone()))
         .await
         .expect("execute");
@@ -230,12 +231,12 @@ async fn r05_changed_preparation_and_replaced_main_channel_never_invoke() {
             journal: std::sync::Arc::clone(&journal),
             output: std::sync::Arc::clone(&output),
             live: &live,
-            boundary: crate::sync_boundary::SyncBoundary::open(),
-            subject: crate::sync_boundary::SyncSubject::new(),
+            boundary: sync_boundary::SyncBoundary::open(),
+            subject: sync_boundary::SyncSubject::new(),
             post_execution: crate::broker::completion::PostExecutionOwners::new(
                 aura_domain_common::RuntimeInstanceId::new(),
             ),
-            settlements: crate::command_settlement::CommandSettlements::new(
+            settlements: command_settlement::CommandSettlements::new(
                 aura_domain_common::RuntimeInstanceId::new(),
                 std::sync::Arc::new(Mutex::new(
                     crate::command_claims::CommandOutcomeLedger::default(),

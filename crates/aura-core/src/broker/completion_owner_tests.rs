@@ -1,6 +1,6 @@
 use super::completion::{MAX_PENDING_TAILS, PostExecutionOwners, UnenteredClaim};
 use crate::command_claims::CommandOutcomeLedger;
-use crate::command_settlement::{CommandSettlements, TaskEnding};
+use aura_core_base::command_settlement::{CommandSettlements, TaskEnding};
 use aura_domain_common::{CommandInvocationId, CorrelationId, RuntimeInstanceId};
 use std::sync::{Arc, Mutex};
 

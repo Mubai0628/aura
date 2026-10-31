@@ -1,4 +1,5 @@
 use super::*;
+use aura_core_base::ipc_session;
 use aura_domain_common::SessionId;
 
 fn progress(
@@ -267,7 +268,7 @@ async fn disconnect_reclaims_only_its_openings_and_reconnect_reuses_capacity() {
             )
             .unwrap();
         launching.0.before_launch().unwrap();
-        let mut lanes = crate::ipc_session::IpcSession::new();
+        let mut lanes = ipc_session::IpcSession::new();
         crate::reclaim_connection_work(
             &state,
             &AsyncPriorityQueue::new(),

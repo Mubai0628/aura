@@ -18,6 +18,8 @@ pub(super) fn spawn_job_process(
         .join(" ");
     let mut command = wide_null(&command);
     let directory = wide_null(&working_directory.to_string_lossy());
+    #[cfg(test)]
+    let launch_window = crate::test_spawn::launch_window();
     let (stdin_read, stdin_write) = create_inheritable_pipe().map_err(map_io)?;
     set_non_inheritable(&stdin_write).map_err(map_io)?;
     let (stdout_read, stdout_write) = create_inheritable_pipe().map_err(map_io)?;
@@ -71,6 +73,8 @@ pub(super) fn spawn_job_process(
     drop(stdout_write);
     drop(stderr_write);
     drop(stdin_write);
+    #[cfg(test)]
+    drop(launch_window);
     if created == 0 {
         return Err(HeadlessRenderError::Unavailable);
     }

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { compareBaseline, dependencyGraph } from './graph.mjs';
 import { capture } from './capture.mjs';
+import { PRODUCT_FEATURE_SETS, testOnlyFeatureViolations, treeArguments } from './features.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
 const metadata = JSON.parse(
@@ -36,6 +37,15 @@ if (result.resolved.length)
   throw new Error(`remove resolved legacy exceptions:\n${result.resolved.join('\n')}`);
 if (result.added.length)
   throw new Error(`new architecture violations:\n${result.added.join('\n')}`);
+for (const features of PRODUCT_FEATURE_SETS) {
+  const found = testOnlyFeatureViolations(
+    capture(root, 'cargo', treeArguments(features)).toString('utf8'),
+  );
+  if (found.length)
+    throw new Error(
+      `test-only features in the ${features.join(',') || 'default'} build of aura-core: ${found.join(', ')}`,
+    );
+}
 console.log(
   JSON.stringify(
     {

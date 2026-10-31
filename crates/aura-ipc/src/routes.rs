@@ -333,10 +333,7 @@ mod tests {
 
     /// The Core surface holds the authoritative commands. These have no renderer
     /// entry: internal broker channels, the runtime ledger, host preparation,
-    /// and lifecycle handshakes. Git reads use the authenticated Main bridge. The
-    /// test-only contract-driver route is not in the registry at all unless the
-    /// `p08-contract-driver` feature is enabled, so it is not listed here — that is
-    /// also why the generated inventory is one entry smaller than the declarations.
+    /// and lifecycle handshakes. Git reads use the authenticated Main bridge.
     const CORE_ONLY: [&str; 23] = [
         "media.host.read",
         "media.host.result",
@@ -399,7 +396,6 @@ mod tests {
                 );
                 assert_ne!(route.idempotency, RouteIdempotency::ReadOnly);
             }
-            #[cfg(not(feature = "p08-contract-driver"))]
             assert!(!route.test_only && !route.method.contains("e2e"));
         }
 
@@ -488,19 +484,7 @@ mod tests {
         let main_only: BTreeSet<&str> = main_methods.difference(&core_methods).copied().collect();
         let core_only: BTreeSet<&str> = core_methods.difference(&main_methods).copied().collect();
         assert_eq!(main_only, MAIN_ONLY.into_iter().collect::<BTreeSet<_>>());
-        // CORE_ONLY deliberately does not list the contract-driver route: it only enters the registry
-        // when `p08-contract-driver` is enabled. That feature is off for this crate's own test run but
-        // ON for a workspace-wide `--all-features` run, so the expected set has to account for it in
-        // both cases. The equality stays exact either way - any OTHER new Core-only route, and any
-        // missing one, still fails this assertion.
-        #[cfg(feature = "p08-contract-driver")]
-        let expected_core_only: BTreeSet<&str> = CORE_ONLY
-            .into_iter()
-            .chain(["internal.e2e.p08_contract_driver.run_vertical_suite"])
-            .collect();
-        #[cfg(not(feature = "p08-contract-driver"))]
-        let expected_core_only: BTreeSet<&str> = CORE_ONLY.into_iter().collect();
-        assert_eq!(core_only, expected_core_only);
+        assert_eq!(core_only, CORE_ONLY.into_iter().collect::<BTreeSet<_>>());
 
         assert!(core_route("__proto__").is_none());
         assert!(!side_effecting("runtime.readiness"));

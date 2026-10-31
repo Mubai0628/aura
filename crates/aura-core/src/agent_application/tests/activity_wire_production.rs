@@ -1,5 +1,6 @@
 //! Real Core prepare/permission/ledger/transport, with only the remote HTTP service substituted.
 use super::*;
+use aura_core_broker::agent_store;
 use provider_fixture::Scenario;
 
 fn services(runtime: &crate::RuntimeState) -> &crate::RuntimeServices {
@@ -201,21 +202,16 @@ async fn drive(format: ModelApiFormat, retry: bool) {
     let (history, steps, logical_history) = services(&runtime)
         .agent_required()
         .store()
-        .read(
-            crate::agent_store::StoreStep::run(run_id, "activity.wire.verified_history"),
-            move |db| {
-                Ok((
-                    aura_persistence_v2::context::history(db, session)?,
-                    aura_persistence_v2::agent::model_context::steps(db, run_id)?,
-                    // Continuations include this turn's verified tool results. The initial
-                    // request intentionally excludes them and cannot prove their source class.
-                    aura_persistence_v2::agent::model_context::history_for_model(
-                        db, run_id, false,
-                    )?
+        .read(agent_store::StoreStep::run(run_id, "activity.wire.verified_history"), move |db| {
+            Ok((
+                aura_persistence_v2::context::history(db, session)?,
+                aura_persistence_v2::agent::model_context::steps(db, run_id)?,
+                // Continuations include this turn's verified tool results. The initial
+                // request intentionally excludes them and cannot prove their source class.
+                aura_persistence_v2::agent::model_context::history_for_model(db, run_id, false)?
                     .items,
-                ))
-            },
-        )
+            ))
+        })
         .await
         .expect("actual activity wire fixture");
     let groups = history.iter().filter(|group| group.agent_run_id == run_id).collect::<Vec<_>>();

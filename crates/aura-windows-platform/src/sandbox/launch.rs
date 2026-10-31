@@ -195,6 +195,8 @@ pub(super) fn spawn_restricted_process_inner(
     // The plan's entries stay reachable for the failure report, which lists the
     // environment's names; the packed block is a separate value.
     let environment_wide = environment_block(environment, secret_environment, &directory_path)?;
+    #[cfg(test)]
+    let launch_window = crate::test_spawn::launch_window();
     let (stdin_read, stdin_write) = create_inheritable_pipe()?;
     set_non_inheritable(&stdin_write)?;
     let (stdout_read, stdout_write) = create_inheritable_pipe()?;
@@ -275,6 +277,8 @@ pub(super) fn spawn_restricted_process_inner(
     drop(stdin_read);
     drop(stdout_write);
     drop(stderr_write);
+    #[cfg(test)]
+    drop(launch_window);
     let process = adopt_created_process(&job, information, &mut overrides)?;
     Ok(NativeSandboxProcess {
         process,

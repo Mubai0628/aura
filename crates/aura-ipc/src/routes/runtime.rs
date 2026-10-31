@@ -221,18 +221,4 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         ReadOnly,
         None
     ),
-    #[cfg(feature = "p08-contract-driver")]
-    RouteDescriptor {
-        test_only: true,
-        ..route!(
-            "internal.e2e.p08_contract_driver.run_vertical_suite",
-            Runtime,
-            Core,
-            AuthenticatedMain,
-            "Record<string, never>",
-            "Record<string, unknown>",
-            CommandInvocation,
-            None
-        )
-    },
 ];

@@ -35,7 +35,7 @@ pub(super) fn session_unknown_envelope(
     correlation_id: CorrelationId,
     waited_ms: u64,
 ) -> IpcErrorEnvelope {
-    crate::command_settlement::outcome_unknown_envelope(
+    aura_core_base::command_settlement::outcome_unknown_envelope(
         correlation_id,
         Some(command_invocation_id),
         format!(
@@ -63,7 +63,7 @@ pub(super) fn session_write_failure(
     error: &anyhow::Error,
 ) -> IpcErrorEnvelope {
     if crate::broker::completion::writer_may_still_answer(error) {
-        crate::command_settlement::outcome_unknown_envelope(
+        aura_core_base::command_settlement::outcome_unknown_envelope(
             correlation_id,
             Some(command_invocation_id),
             format!(

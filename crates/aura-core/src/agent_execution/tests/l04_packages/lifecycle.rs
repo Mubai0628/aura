@@ -3,8 +3,8 @@
 //! installed version refuses calls admitted for the old one.
 use super::support::*;
 use super::*;
-use crate::package_program::tests::support::Kind;
 use crate::package_services::test_support::{payloads, uninstall};
+use aura_package_service::package_program::tests::support::Kind;
 
 fn waiting(service: &crate::RuntimeServices) -> Installed {
     install(service, Kind::Command, |raw| {

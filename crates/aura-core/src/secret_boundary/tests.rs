@@ -1,5 +1,5 @@
 use super::*;
-use crate::ipc_session::{Admission, IpcSession};
+use aura_core_base::ipc_session::{Admission, IpcSession};
 
 fn request(method: &str) -> JsonRpcRequest {
     JsonRpcRequest {

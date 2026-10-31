@@ -34,11 +34,15 @@ impl ConsoleSession {
         wake: Arc<wait::TerminalWake>,
     ) -> io::Result<Self> {
         let coord = size.coord()?;
+        #[cfg(test)]
+        let launch_window = crate::test_spawn::launch_window();
         let (input_read, input_write) = create_inheritable_pipe()?;
         let (output_read, output_write) = create_inheritable_pipe()?;
         for handle in [&input_read, &input_write, &output_read, &output_write] {
             set_non_inheritable(handle)?;
         }
+        #[cfg(test)]
+        drop(launch_window);
         let mut raw = 0;
         // SAFETY: synchronous pipe ends, positive dimensions; no inherited-cursor query.
         let result = unsafe {

@@ -330,13 +330,14 @@ mod tests {
 
     #[test]
     fn failed_post_launch_verification_terminates_and_waits_for_the_child() {
-        let mut child = Command::new("cmd.exe")
-            .args(["/d", "/s", "/c", "ping.exe -n 30 127.0.0.1 >nul"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .expect("spawn long-running verification fixture");
+        let mut child = crate::test_spawn::spawn(
+            Command::new("cmd.exe")
+                .args(["/d", "/s", "/c", "ping.exe -n 30 127.0.0.1 >nul"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null()),
+        )
+        .expect("spawn long-running verification fixture");
         let process = child.as_raw_handle().cast();
 
         terminate_and_confirm_exit(process).expect("terminate and confirm child exit");

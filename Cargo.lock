@@ -151,8 +151,65 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-agent-application"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-activity-domain",
+ "aura-activity-runtime",
+ "aura-agent-domain",
+ "aura-agent-execution",
+ "aura-backend-windows-user",
+ "aura-browser-domain",
+ "aura-config",
+ "aura-context-domain",
+ "aura-context-runtime",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-execution-contract",
+ "aura-extension-service",
+ "aura-git-service",
+ "aura-hooks",
+ "aura-memory",
+ "aura-model-adapter-anthropic",
+ "aura-model-adapter-openai-chat",
+ "aura-model-adapter-openai-responses",
+ "aura-model-config",
+ "aura-model-domain",
+ "aura-model-service",
+ "aura-model-transport",
+ "aura-network-control",
+ "aura-permission-domain",
+ "aura-persistence-core",
+ "aura-persistence-v2",
+ "aura-projection-contract",
+ "aura-prompt-runtime",
+ "aura-secret-scanner",
+ "aura-security-contract",
+ "aura-security-service",
+ "aura-tool-contract",
+ "aura-tool-domain",
+ "aura-tool-projection",
+ "aura-tool-registry",
+ "aura-windows-platform",
+ "aura-workspace",
+ "aura-workspace-domain",
+ "base64",
+ "blake3",
+ "schemars",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "time",
+ "tokio",
+ "zip",
+]
+
+[[package]]
 name = "aura-agent-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "schemars",
@@ -162,8 +219,80 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-agent-execution"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-activity-domain",
+ "aura-activity-runtime",
+ "aura-agent-domain",
+ "aura-backend-api",
+ "aura-backend-core",
+ "aura-backend-windows-user",
+ "aura-browser-domain",
+ "aura-chrome-domain",
+ "aura-chrome-service",
+ "aura-commands",
+ "aura-config",
+ "aura-context-domain",
+ "aura-core-activity",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-execution-contract",
+ "aura-execution-orchestrator",
+ "aura-extension-service",
+ "aura-fs-tools",
+ "aura-git-service",
+ "aura-ipc",
+ "aura-mcp",
+ "aura-memory",
+ "aura-memory-domain",
+ "aura-model-domain",
+ "aura-model-service",
+ "aura-net-tools",
+ "aura-network-control",
+ "aura-package-service",
+ "aura-permission-domain",
+ "aura-permission-engine",
+ "aura-persistence",
+ "aura-persistence-core",
+ "aura-persistence-v2",
+ "aura-runtime-contract",
+ "aura-secret-scanner",
+ "aura-security-contract",
+ "aura-security-service",
+ "aura-skills",
+ "aura-tool-contract",
+ "aura-tool-domain",
+ "aura-tool-package",
+ "aura-tool-registry",
+ "aura-tool-scheduler",
+ "aura-tool-service",
+ "aura-web-domain",
+ "aura-web-runtime",
+ "aura-windows-platform",
+ "aura-windows-user-contract",
+ "aura-workspace",
+ "aura-workspace-domain",
+ "aura-workspace-service",
+ "base64",
+ "blake3",
+ "junction",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "time",
+ "tokio",
+ "url",
+ "zeroize",
+]
+
+[[package]]
 name = "aura-approval"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-permission-domain",
@@ -177,7 +306,7 @@ dependencies = [
 
 [[package]]
 name = "aura-artifact-contract"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-workspace-domain",
@@ -188,14 +317,14 @@ dependencies = [
 
 [[package]]
 name = "aura-backend-api"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-execution-contract",
 ]
 
 [[package]]
 name = "aura-backend-core"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-backend-api",
  "aura-domain-common",
@@ -206,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "aura-backend-windows-user"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-backend-api",
@@ -228,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "aura-browser-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "schemars",
@@ -240,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "aura-chrome-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "schemars",
@@ -251,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "aura-chrome-host"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-chrome-domain",
@@ -261,8 +390,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-chrome-service"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-chrome-domain",
+ "aura-chrome-host",
+ "aura-config",
+ "aura-core-base",
+ "aura-domain-common",
+ "aura-persistence",
+ "aura-security-contract",
+ "aura-windows-platform",
+ "base64",
+ "getrandom 0.3.4",
+ "serde_json",
+ "tempfile",
+ "time",
+ "tokio",
+]
+
+[[package]]
 name = "aura-command-runner"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-backend-windows-user",
@@ -271,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "aura-commands"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-agent-domain",
  "aura-domain-common",
@@ -286,7 +436,7 @@ dependencies = [
 
 [[package]]
 name = "aura-config"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-browser-domain",
  "aura-domain-common",
@@ -310,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "aura-context-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-activity-domain",
  "aura-domain-common",
@@ -325,7 +475,7 @@ dependencies = [
 
 [[package]]
 name = "aura-context-fixtures"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-context-domain",
  "aura-context-runtime",
@@ -339,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "aura-context-runtime"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-config",
  "aura-context-domain",
@@ -357,7 +507,7 @@ dependencies = [
 
 [[package]]
 name = "aura-context-tools"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-artifact-contract",
  "aura-context-domain",
@@ -373,7 +523,7 @@ dependencies = [
 
 [[package]]
 name = "aura-contract-schema"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-activity-domain",
@@ -415,20 +565,21 @@ dependencies = [
 
 [[package]]
 name = "aura-core"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-activity-domain",
  "aura-activity-runtime",
+ "aura-agent-application",
  "aura-agent-domain",
- "aura-approval",
+ "aura-agent-execution",
  "aura-artifact-contract",
  "aura-backend-api",
  "aura-backend-core",
  "aura-backend-windows-user",
  "aura-browser-domain",
  "aura-chrome-domain",
- "aura-chrome-host",
+ "aura-chrome-service",
  "aura-commands",
  "aura-config",
  "aura-context-domain",
@@ -436,24 +587,24 @@ dependencies = [
  "aura-context-runtime",
  "aura-context-tools",
  "aura-contract-schema",
+ "aura-core-activity",
+ "aura-core-base",
+ "aura-core-broker",
  "aura-domain-common",
  "aura-execution-contract",
  "aura-execution-orchestrator",
+ "aura-extension-service",
  "aura-fs-tools",
- "aura-hooks",
+ "aura-git-service",
  "aura-ipc",
  "aura-mcp",
  "aura-memory",
- "aura-memory-domain",
- "aura-model-adapter-anthropic",
- "aura-model-adapter-openai-chat",
- "aura-model-adapter-openai-responses",
  "aura-model-catalog",
  "aura-model-config",
  "aura-model-domain",
- "aura-model-transport",
- "aura-net-tools",
+ "aura-model-service",
  "aura-network-control",
+ "aura-package-service",
  "aura-permission-domain",
  "aura-permission-engine",
  "aura-persistence",
@@ -461,35 +612,28 @@ dependencies = [
  "aura-persistence-v2",
  "aura-plugins",
  "aura-projection-contract",
- "aura-prompt-runtime",
  "aura-runtime-contract",
  "aura-sandbox",
  "aura-sandbox-host",
- "aura-secret-scanner",
  "aura-security-contract",
- "aura-skills",
+ "aura-security-service",
  "aura-tool-contract",
  "aura-tool-domain",
- "aura-tool-package",
  "aura-tool-projection",
  "aura-tool-registry",
  "aura-tool-runtime",
- "aura-tool-scheduler",
- "aura-web-domain",
- "aura-web-runtime",
+ "aura-tool-service",
  "aura-windows-platform",
  "aura-windows-user-contract",
  "aura-workspace",
  "aura-workspace-domain",
+ "aura-workspace-service",
  "base64",
  "blake3",
  "flate2",
  "getrandom 0.3.4",
  "junction",
- "regex",
- "resvg",
  "rusqlite",
- "schemars",
  "serde",
  "serde_json",
  "sha2",
@@ -504,8 +648,78 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-core-activity"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-activity-domain",
+ "aura-activity-runtime",
+ "aura-domain-common",
+ "aura-execution-contract",
+ "aura-security-contract",
+ "aura-windows-platform",
+ "aura-windows-user-contract",
+ "aura-workspace",
+ "aura-workspace-domain",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "aura-core-base"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-backend-api",
+ "aura-backend-windows-user",
+ "aura-config",
+ "aura-domain-common",
+ "aura-execution-contract",
+ "aura-ipc",
+ "aura-permission-domain",
+ "aura-projection-contract",
+ "aura-runtime-contract",
+ "aura-security-contract",
+ "aura-windows-platform",
+ "aura-windows-user-contract",
+ "aura-workspace-domain",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "aura-core-broker"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-backend-api",
+ "aura-backend-core",
+ "aura-core-base",
+ "aura-domain-common",
+ "aura-execution-contract",
+ "aura-memory",
+ "aura-persistence",
+ "aura-persistence-core",
+ "aura-persistence-v2",
+ "aura-runtime-contract",
+ "aura-security-contract",
+ "aura-tool-contract",
+ "aura-tool-domain",
+ "aura-windows-platform",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
+ "time",
+ "tokio",
+]
+
+[[package]]
 name = "aura-domain-common"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "blake3",
  "ryu-js",
@@ -522,7 +736,7 @@ dependencies = [
 
 [[package]]
 name = "aura-egress-proxy"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-domain-common",
@@ -540,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "aura-elevated-helper"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-domain-common",
@@ -559,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "aura-execution-contract"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-security-contract",
@@ -571,7 +785,7 @@ dependencies = [
 
 [[package]]
 name = "aura-execution-helper"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-backend-windows-user",
@@ -585,7 +799,7 @@ dependencies = [
 
 [[package]]
 name = "aura-execution-maintainer"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-domain-common",
@@ -598,7 +812,7 @@ dependencies = [
 
 [[package]]
 name = "aura-execution-orchestrator"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-backend-api",
  "aura-contract-schema",
@@ -616,8 +830,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-extension-service"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-backend-windows-user",
+ "aura-config",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-hooks",
+ "aura-mcp",
+ "aura-network-control",
+ "aura-permission-domain",
+ "aura-persistence-core",
+ "aura-persistence-v2",
+ "aura-plugins",
+ "aura-security-contract",
+ "aura-skills",
+ "aura-tool-contract",
+ "aura-windows-platform",
+ "aura-windows-user-contract",
+ "aura-workspace",
+ "base64",
+ "getrandom 0.3.4",
+ "junction",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "time",
+ "tokio",
+ "url",
+ "zeroize",
+ "zip",
+]
+
+[[package]]
 name = "aura-fs-tools"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-artifact-contract",
  "aura-domain-common",
@@ -643,8 +894,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-git-service"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-backend-windows-user",
+ "aura-core-base",
+ "aura-domain-common",
+ "aura-execution-contract",
+ "aura-runtime-contract",
+ "aura-security-contract",
+ "aura-tool-domain",
+ "aura-tool-registry",
+ "aura-windows-platform",
+ "aura-workspace-domain",
+ "serde_json",
+ "tempfile",
+ "time",
+ "url",
+]
+
+[[package]]
 name = "aura-hooks"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "blake3",
@@ -659,7 +931,7 @@ dependencies = [
 
 [[package]]
 name = "aura-ipc"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-runtime-contract",
@@ -674,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "aura-launcher"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-domain-common",
@@ -691,7 +963,7 @@ dependencies = [
 
 [[package]]
 name = "aura-mcp"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "blake3",
@@ -704,7 +976,7 @@ dependencies = [
 
 [[package]]
 name = "aura-memory"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-fs-tools",
@@ -726,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "aura-memory-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "schemars",
@@ -737,7 +1009,7 @@ dependencies = [
 
 [[package]]
 name = "aura-model-adapter-anthropic"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-model-domain",
@@ -748,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "aura-model-adapter-openai-chat"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-model-domain",
@@ -759,7 +1031,7 @@ dependencies = [
 
 [[package]]
 name = "aura-model-adapter-openai-responses"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-model-domain",
@@ -770,7 +1042,7 @@ dependencies = [
 
 [[package]]
 name = "aura-model-catalog"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-artifact-contract",
  "aura-domain-common",
@@ -791,7 +1063,7 @@ dependencies = [
 
 [[package]]
 name = "aura-model-config"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-config",
  "aura-domain-common",
@@ -808,7 +1080,7 @@ dependencies = [
 
 [[package]]
 name = "aura-model-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-permission-domain",
@@ -821,7 +1093,7 @@ dependencies = [
 
 [[package]]
 name = "aura-model-fixtures"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-model-adapter-anthropic",
@@ -841,8 +1113,51 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-model-service"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-artifact-contract",
+ "aura-config",
+ "aura-context-domain",
+ "aura-context-runtime",
+ "aura-contract-schema",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-ipc",
+ "aura-model-adapter-anthropic",
+ "aura-model-adapter-openai-chat",
+ "aura-model-adapter-openai-responses",
+ "aura-model-catalog",
+ "aura-model-config",
+ "aura-model-domain",
+ "aura-model-transport",
+ "aura-network-control",
+ "aura-permission-domain",
+ "aura-persistence",
+ "aura-persistence-v2",
+ "aura-projection-contract",
+ "aura-runtime-contract",
+ "aura-security-contract",
+ "aura-windows-platform",
+ "aura-workspace-domain",
+ "base64",
+ "regex",
+ "resvg",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "time",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "aura-model-transport"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-model-adapter-anthropic",
@@ -866,7 +1181,7 @@ dependencies = [
 
 [[package]]
 name = "aura-net-tools"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-domain-common",
@@ -881,7 +1196,7 @@ dependencies = [
 
 [[package]]
 name = "aura-network-control"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "async-compression",
  "aura-artifact-contract",
@@ -922,8 +1237,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-package-service"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-backend-windows-user",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-network-control",
+ "aura-permission-domain",
+ "aura-persistence",
+ "aura-persistence-core",
+ "aura-persistence-v2",
+ "aura-security-contract",
+ "aura-tool-contract",
+ "aura-tool-domain",
+ "aura-tool-package",
+ "aura-tool-runtime",
+ "aura-windows-platform",
+ "junction",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "time",
+ "url",
+]
+
+[[package]]
 name = "aura-permission-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-artifact-contract",
  "aura-domain-common",
@@ -938,7 +1281,7 @@ dependencies = [
 
 [[package]]
 name = "aura-permission-engine"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-contract-schema",
  "aura-domain-common",
@@ -952,7 +1295,7 @@ dependencies = [
 
 [[package]]
 name = "aura-persistence"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-artifact-contract",
  "aura-context-domain",
@@ -987,7 +1330,7 @@ dependencies = [
 
 [[package]]
 name = "aura-persistence-core"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "blake3",
@@ -1001,7 +1344,7 @@ dependencies = [
 
 [[package]]
 name = "aura-persistence-v2"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-agent-domain",
  "aura-backend-windows-user",
@@ -1036,7 +1379,7 @@ dependencies = [
 
 [[package]]
 name = "aura-plugins"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-agent-domain",
  "aura-commands",
@@ -1057,7 +1400,7 @@ dependencies = [
 
 [[package]]
 name = "aura-projection-contract"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-agent-domain",
  "aura-context-domain",
@@ -1076,7 +1419,7 @@ dependencies = [
 
 [[package]]
 name = "aura-prompt-runtime"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-config",
  "aura-context-domain",
@@ -1096,7 +1439,7 @@ dependencies = [
 
 [[package]]
 name = "aura-restricted-user-spike"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-backend-windows-user",
@@ -1110,7 +1453,7 @@ dependencies = [
 
 [[package]]
 name = "aura-runtime-contract"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "blake3",
@@ -1124,7 +1467,7 @@ dependencies = [
 
 [[package]]
 name = "aura-sandbox"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-permission-domain",
@@ -1146,7 +1489,7 @@ dependencies = [
 
 [[package]]
 name = "aura-sandbox-host"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-config",
@@ -1169,14 +1512,14 @@ dependencies = [
 
 [[package]]
 name = "aura-secret-scanner"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "regex",
 ]
 
 [[package]]
 name = "aura-security-contract"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "schemars",
@@ -1186,8 +1529,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-security-service"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-activity-domain",
+ "aura-activity-runtime",
+ "aura-agent-domain",
+ "aura-artifact-contract",
+ "aura-backend-windows-user",
+ "aura-config",
+ "aura-core-activity",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-execution-contract",
+ "aura-fs-tools",
+ "aura-ipc",
+ "aura-network-control",
+ "aura-permission-domain",
+ "aura-permission-engine",
+ "aura-persistence",
+ "aura-persistence-core",
+ "aura-persistence-v2",
+ "aura-runtime-contract",
+ "aura-sandbox",
+ "aura-security-contract",
+ "aura-tool-domain",
+ "aura-windows-platform",
+ "aura-workspace",
+ "aura-workspace-domain",
+ "aura-workspace-service",
+ "blake3",
+ "getrandom 0.3.4",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "time",
+ "tokio",
+]
+
+[[package]]
 name = "aura-setup"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-chrome-domain",
@@ -1205,7 +1592,7 @@ dependencies = [
 
 [[package]]
 name = "aura-skills"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "blake3",
@@ -1220,7 +1607,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-contract"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-execution-contract",
@@ -1236,7 +1623,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-security-contract",
@@ -1252,7 +1639,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-eval"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-domain-common",
@@ -1280,7 +1667,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-fixtures"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-security-contract",
@@ -1300,7 +1687,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-package"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-tool-contract",
@@ -1321,7 +1708,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-projection"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-execution-contract",
@@ -1336,7 +1723,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-registry"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-activity-domain",
  "aura-agent-domain",
@@ -1360,7 +1747,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-runtime"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-execution-contract",
@@ -1377,7 +1764,7 @@ dependencies = [
 
 [[package]]
 name = "aura-tool-scheduler"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-execution-contract",
@@ -1393,8 +1780,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "aura-tool-service"
+version = "0.1.11"
+dependencies = [
+ "aura-activity-domain",
+ "aura-artifact-contract",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-ipc",
+ "aura-network-control",
+ "aura-package-service",
+ "aura-permission-domain",
+ "aura-persistence",
+ "aura-projection-contract",
+ "aura-runtime-contract",
+ "aura-sandbox",
+ "aura-security-contract",
+ "aura-tool-contract",
+ "aura-tool-domain",
+ "aura-tool-projection",
+ "aura-tool-registry",
+ "aura-tool-runtime",
+ "aura-windows-platform",
+ "blake3",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "aura-v2-importer"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-config",
  "aura-contract-schema",
@@ -1418,7 +1836,7 @@ dependencies = [
 
 [[package]]
 name = "aura-web-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "schemars",
@@ -1428,7 +1846,7 @@ dependencies = [
 
 [[package]]
 name = "aura-web-runtime"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-web-domain",
@@ -1441,7 +1859,7 @@ dependencies = [
 
 [[package]]
 name = "aura-windows-platform"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-runtime-contract",
@@ -1461,7 +1879,7 @@ dependencies = [
 
 [[package]]
 name = "aura-windows-user-contract"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-execution-contract",
@@ -1474,7 +1892,7 @@ dependencies = [
 
 [[package]]
 name = "aura-workspace"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "aura-persistence",
@@ -1499,7 +1917,7 @@ dependencies = [
 
 [[package]]
 name = "aura-workspace-domain"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "aura-domain-common",
  "junction",
@@ -1507,6 +1925,32 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "aura-workspace-service"
+version = "0.1.11"
+dependencies = [
+ "anyhow",
+ "aura-activity-runtime",
+ "aura-config",
+ "aura-core-activity",
+ "aura-core-base",
+ "aura-core-broker",
+ "aura-domain-common",
+ "aura-fs-tools",
+ "aura-ipc",
+ "aura-persistence",
+ "aura-persistence-core",
+ "aura-persistence-v2",
+ "aura-runtime-contract",
+ "aura-security-contract",
+ "aura-workspace",
+ "aura-workspace-domain",
+ "serde",
+ "serde_json",
+ "time",
+ "tokio",
 ]
 
 [[package]]
@@ -4648,7 +5092,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "aura-contract-schema",

@@ -129,15 +129,16 @@ mod tests {
         let nonce = nonce();
         let job = RootJob::create_recoverable(INSTALL, &nonce).expect("job");
         // A native CMD waiting on this test's pipe, with no file/network action.
-        let mut child = std::process::Command::new(
-            crate::windows_directory().expect("Windows").join("System32/cmd.exe"),
+        let mut child = crate::test_spawn::spawn(
+            std::process::Command::new(
+                crate::windows_directory().expect("Windows").join("System32/cmd.exe"),
+            )
+            .args(["/d", "/c", "set /p AURA_JOB_FIXTURE="])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(0x0800_0000),
         )
-        .args(["/d", "/c", "set /p AURA_JOB_FIXTURE="])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .creation_flags(0x0800_0000)
-        .spawn()
         .expect("bounded CMD fixture");
         // SAFETY: both handles are live; this test owns the harmless process.
         let assigned =

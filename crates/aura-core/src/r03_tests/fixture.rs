@@ -63,8 +63,6 @@ impl Fixture {
             safe_mode: false,
             test_mode: CoreTestMode::Normal,
             continue_after: None,
-            #[cfg(feature = "p08-contract-driver")]
-            p08_contract_driver: None,
         };
         // Optional executables deliberately do not exist in this release directory.
         let release =
@@ -131,8 +129,6 @@ impl Fixture {
             safe_mode: false,
             test_mode: CoreTestMode::Normal,
             continue_after: None,
-            #[cfg(feature = "p08-contract-driver")]
-            p08_contract_driver: None,
         };
         let release =
             load_release_identity(&options).expect("R03 isolated fixture operation must succeed");

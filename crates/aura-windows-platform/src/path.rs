@@ -1067,10 +1067,9 @@ mod tests {
         let path = directory.path().join("denied.bin");
         std::fs::write(&path, b"fixture").expect("seed");
         let path_text = path.to_str().expect("utf8 path");
-        let denied = std::process::Command::new("icacls.exe")
-            .args([path_text, "/inheritance:r", "/deny", "*S-1-1-0:(REA,RA)"])
-            .status()
-            .expect("icacls deny");
+        let mut deny = std::process::Command::new("icacls.exe");
+        deny.args([path_text, "/inheritance:r", "/deny", "*S-1-1-0:(REA,RA)"]);
+        let denied = crate::test_spawn::status(&mut deny).expect("icacls deny");
         assert!(denied.success(), "icacls deny read attributes");
         let inspect = match inspect_existing_path(&path, false) {
             Err(error) => error,
@@ -1086,8 +1085,7 @@ mod tests {
             Ok(_) => panic!("open must fail"),
         };
         assert_eq!(open.raw_os_error(), Some(5));
-        let _ = std::process::Command::new("icacls.exe")
-            .args([path_text, "/grant", "*S-1-1-0:F"])
-            .status();
+        let mut grant = std::process::Command::new("icacls.exe");
+        let _ = crate::test_spawn::status(grant.args([path_text, "/grant", "*S-1-1-0:F"]));
     }
 }

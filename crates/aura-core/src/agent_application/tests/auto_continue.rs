@@ -3,6 +3,7 @@
 //! closed nothing continues by itself; the user's 继续 does, and the queue stays paused. A turn
 //! cut off again right after Aura continued it is left for the user.
 use super::*;
+use aura_core_broker::agent_store;
 use aura_persistence_v2::agent::restart_continuation::Decision;
 use aura_projection_contract::AgentTurnView;
 use provider_fixture::Scenario;
@@ -111,7 +112,7 @@ async fn completed_turns(
 async fn bind_model(runtime: &crate::RuntimeState, session_id: SessionId, cut: TurnTaskId) {
     let configured = agent(runtime)
         .store
-        .read(crate::agent_store::StoreStep::operation("test.model"), move |db| {
+        .read(agent_store::StoreStep::operation("test.model"), move |db| {
             let run = aura_persistence_v2::agent::turns::load(db, cut)?.agent_run_id;
             aura_persistence_v2::agent::application::configuration(db, run)
         })

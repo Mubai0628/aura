@@ -199,16 +199,6 @@ async fn controlled_sandbox_host(
                     let id = CorrelationId::new();
                     write_sidecar_request(&mut server, id, request.method_name, request.params)
                         .await?;
-                    if let Some(secret) = request.tool_runtime_secret {
-                        write_frame(&mut server, &WireFrame::ToolRuntimeSecret(secret)).await?;
-                    }
-                    if let Some(secret) = request.tool_conformance_runtime_secret {
-                        write_frame(
-                            &mut server,
-                            &WireFrame::ToolConformanceRuntimeSecret(secret),
-                        )
-                        .await?;
-                    }
                     pending.insert(id, PendingRequest::Caller(request.reply));
                 }
                 frame = read_frame(&mut server) => {

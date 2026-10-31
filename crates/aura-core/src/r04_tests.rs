@@ -1,5 +1,5 @@
 //! Actual Core policy + V2 SQLite transaction integration; no runner simulation.
-use crate::security_control::reserve_dispatch;
+use aura_agent_execution::security_control::reserve_dispatch;
 use aura_domain_common::{ApprovalRequestId, PermissionSnapshotId, Revision};
 use aura_execution_contract::*;
 use aura_permission_engine::policy::{PolicyInput, authorize};

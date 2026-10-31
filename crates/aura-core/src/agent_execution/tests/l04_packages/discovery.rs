@@ -2,7 +2,7 @@
 //! built-in registry tools as optional built-ins; nothing exposes them directly.
 use super::support::*;
 use super::*;
-use crate::package_program::tests::support::Kind;
+use aura_package_service::package_program::tests::support::Kind;
 
 #[tokio::test]
 async fn l04_installed_package_tools_are_searched_described_and_loaded_like_other_tools() {

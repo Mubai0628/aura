@@ -18,11 +18,6 @@ impl CredentialCanaryOutputScannerV1 {
     }
 
     #[must_use]
-    pub(super) fn canary(&self) -> Option<&[u8]> {
-        self.canary.as_ref().map(|value| value.as_slice())
-    }
-
-    #[must_use]
     pub(super) const fn detected(&self) -> bool {
         self.detected
     }

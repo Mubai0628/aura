@@ -2,7 +2,7 @@
 //! result, recovery, invalidation and cancellation.
 use super::support::*;
 use super::*;
-use crate::package_program::tests::support::Kind;
+use aura_package_service::package_program::tests::support::Kind;
 
 fn command(service: &crate::RuntimeServices) -> Installed {
     install(service, Kind::Command, |_| {})

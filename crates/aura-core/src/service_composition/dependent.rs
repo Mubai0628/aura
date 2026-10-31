@@ -26,7 +26,7 @@ pub(crate) async fn open_dependent_services(
     broker_http: &Arc<aura_network_control::CoreHttpClientGateway>,
     activities: &activity::AgentActivities,
     agent_store: &Arc<agent_store::AgentStore>,
-    sync: &crate::sync_boundary::SyncBoundary,
+    sync: &aura_core_base::sync_boundary::SyncBoundary,
     activity_index: &aura_activity_runtime::ActivityIndex,
     activity_observer: &aura_activity_runtime::ActivityObserverHandle,
     p03: Arc<P03Services>,

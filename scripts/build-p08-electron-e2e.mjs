@@ -16,16 +16,3 @@ const result = spawnSync(
 );
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status ?? 1);
-
-const preloadResult = spawnSync(
-  process.execPath,
-  [
-    resolve(desktopRoot, 'node_modules/vite/bin/vite.js'),
-    'build',
-    '--config',
-    resolve(desktopRoot, 'vite.e2e-preload.config.ts'),
-  ],
-  { cwd: desktopRoot, env: process.env, stdio: 'inherit' },
-);
-if (preloadResult.error) throw preloadResult.error;
-if (preloadResult.status !== 0) process.exit(preloadResult.status ?? 1);

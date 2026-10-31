@@ -45,7 +45,11 @@ use crate::{
 mod launch;
 use launch::spawn_job_process;
 #[cfg(test)]
+mod account_tests;
+#[cfg(test)]
 mod launch_tests;
+#[cfg(test)]
+mod network_probes;
 
 const MAX_RENDERED_BYTES: usize = 8 * 1024 * 1024;
 const STILL_ACTIVE: u32 = 259;
@@ -451,15 +455,18 @@ fn start_headless_render_configured(
         // under this AppContainer (confirmed by the crash dump and symbols).
         // This ephemeral headless renderer needs no Windows task-manager tab
         // integration. Its OS token, Job and network isolation are unchanged.
+        // Its Web Account Manager sign-in of the Windows account makes Windows
+        // rewrite the user's Microsoft account credentials during the render;
+        // Credential Manager calls overlapping those rewrites lose updates.
         NetworkIsolation::ZeroCapabilityAppContainer => {
-            "Translate,MediaRouter,AcceptCHFrame,msWindowsTaskManager"
+            "Translate,MediaRouter,AcceptCHFrame,msWindowsTaskManager,msImplicitSignin,msOneAuthWAM,msForceOneAuthWAM"
         }
         // Positive-control launches only: file:// pages must still be able to
         // attempt loopback so the AppContainer deny has a contrast. Isolated
         // launches keep the default Chromium private-network behavior.
         #[cfg(test)]
         NetworkIsolation::None => {
-            "Translate,MediaRouter,AcceptCHFrame,msWindowsTaskManager,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests"
+            "Translate,MediaRouter,AcceptCHFrame,msWindowsTaskManager,msImplicitSignin,msOneAuthWAM,msForceOneAuthWAM,PrivateNetworkAccessSendPreflights,BlockInsecurePrivateNetworkRequests"
         }
     };
     let mut arguments = vec![
@@ -598,9 +605,10 @@ fn map_io(error: io::Error) -> HeadlessRenderError {
 
 #[cfg(test)]
 mod tests {
+    use super::network_probes::*;
     use super::*;
     use std::io::{self, Write};
-    use std::net::{TcpListener, UdpSocket};
+    use std::net::TcpListener;
 
     const COMPUTED: &str = "JS-OK-9";
     const FROM_CHAR_CODE: &str = "String.fromCharCode(74,83,45,79,75,45,57)";
@@ -609,52 +617,6 @@ mod tests {
         format!(
             "<!doctype html><html><body><div id=\"app\">static</div><script>{script}</script></body></html>"
         )
-    }
-
-    fn start_unrestricted(
-        page: &HeadlessPage,
-    ) -> Result<HeadlessRenderSession, HeadlessRenderError> {
-        start_headless_render_with(page, NetworkIsolation::None, Some(take_edge_slot_blocking()))
-    }
-
-    fn start_real_time(
-        page: &HeadlessPage,
-        isolation: NetworkIsolation,
-    ) -> Result<HeadlessRenderSession, HeadlessRenderError> {
-        start_headless_render_configured(
-            page,
-            isolation,
-            Some(take_edge_slot_blocking()),
-            None,
-            Some(8_000),
-        )
-    }
-
-    fn render_unrestricted(
-        page: &HeadlessPage,
-        timeout: Duration,
-    ) -> Result<RenderedHtml, HeadlessRenderError> {
-        start_unrestricted(page)?.finish(timeout).into_rendered()
-    }
-
-    fn render_real_time(
-        page: &HeadlessPage,
-        isolation: NetworkIsolation,
-        timeout: Duration,
-    ) -> Result<RenderedHtml, HeadlessRenderError> {
-        start_real_time(page, isolation)?.finish(timeout).into_rendered()
-    }
-
-    fn stun_endpoint() -> (UdpSocket, String, u16) {
-        let probe = UdpSocket::bind("0.0.0.0:0").expect("probe");
-        probe.connect("1.1.1.1:80").expect("route");
-        let ip = match probe.local_addr().expect("probe addr").ip() {
-            std::net::IpAddr::V4(ip) if !ip.is_loopback() && !ip.is_unspecified() => ip,
-            other => panic!("not_exercised: no non-loopback IPv4 for STUN ({other})"),
-        };
-        let socket = UdpSocket::bind((ip, 0)).expect("stun bind");
-        let port = socket.local_addr().expect("stun addr").port();
-        (socket, ip.to_string(), port)
     }
 
     fn fixture_kind_from_workspace() -> Option<String> {
@@ -713,15 +675,16 @@ mod tests {
             Some("hold-pipe") => {
                 let _ = io::stdout().write_all(b"holder-root\n");
                 let _ = io::stdout().flush();
-                let _child = std::process::Command::new(std::env::current_exe().expect("exe"))
-                    .env("AURA_RENDER_FIXTURE", "child-hold")
-                    .args([
-                        "--exact",
-                        "headless_web::tests::render_job_fixture_helper",
-                        "--nocapture",
-                    ])
-                    .spawn()
-                    .expect("child holder");
+                let _child = crate::test_spawn::spawn(
+                    std::process::Command::new(std::env::current_exe().expect("exe"))
+                        .env("AURA_RENDER_FIXTURE", "child-hold")
+                        .args([
+                            "--exact",
+                            "headless_web::tests::render_job_fixture_helper",
+                            "--nocapture",
+                        ]),
+                )
+                .expect("child holder");
                 thread::sleep(Duration::from_millis(200));
             }
             Some("ignore-short-wait") => {
@@ -763,7 +726,7 @@ mod tests {
                 Some(name) => command.env(name, "DetectorsAppHealth"),
                 None => command.env_remove("__COMPAT_LAYER"),
             };
-            let output = command.output().expect("fixture child");
+            let output = crate::test_spawn::output(&mut command).expect("fixture child");
             let stdout = String::from_utf8_lossy(&output.stdout);
             assert!(
                 stdout.contains(&format!("AURA_COMPAT inherited={expected} ")),
@@ -851,163 +814,18 @@ mod tests {
         assert!(rendered.html.contains(COMPUTED), "external script did not run: {}", rendered.html);
     }
 
-    fn fetch_attempt_page(port: u16) -> String {
-        format!(
-            "<!doctype html><html><body data-attempt=\"pending\"><script>\
-document.body.setAttribute('data-attempt','started');\
-var ctrl=new AbortController();\
-setTimeout(function(){{ctrl.abort();}},800);\
-fetch('http://127.0.0.1:{port}/leak',{{mode:'no-cors',signal:ctrl.signal}}).then(function(){{\
-document.body.setAttribute('data-attempt','resolved');\
-}}).catch(function(err){{\
-document.body.setAttribute('data-attempt','rejected');\
-document.body.setAttribute('data-error', String(err && err.message || err));\
-}});\
-</script></body></html>"
-        )
-    }
-
-    fn rtc_hold_page(stun_host: &str, stun_port: u16, hold_port: u16) -> String {
-        format!(
-            "<!doctype html><html><body data-rtc=\"pending\">\
-<img src=\"http://127.0.0.1:{hold_port}/hold\" alt=\"\">\
-<script>\
-try {{\
-  document.body.setAttribute('data-rtc','started');\
-  var pc = new RTCPeerConnection({{iceServers:[{{urls:'stun:{stun_host}:{stun_port}'}}],iceCandidatePoolSize:4,iceTransportPolicy:'all'}});\
-  pc.createDataChannel('x');\
-  pc.onicecandidate = function(ev){{\
-    if(ev.candidate) document.body.setAttribute('data-ice','candidate');\
-  }};\
-  pc.createOffer().then(function(o){{return pc.setLocalDescription(o);}})\
-    .then(function(){{document.body.setAttribute('data-rtc','offer');}})\
-    .catch(function(err){{document.body.setAttribute('data-rtc','error'); document.body.setAttribute('data-error', String(err));}});\
-}} catch (err) {{\
-  document.body.setAttribute('data-rtc','unavailable');\
-  document.body.setAttribute('data-error', String(err));\
-}}\
-</script></body></html>"
-        )
-    }
-
-    fn rtc_isolated_page(stun_host: &str, stun_port: u16, hold_port: u16) -> HeadlessPage {
-        HeadlessPage {
-            html: format!(
-                "<!doctype html><html><body data-rtc=\"pending\"><script>\
-try {{\
-  document.body.setAttribute('data-rtc','started');\
-  var pc = new RTCPeerConnection({{iceServers:[{{urls:'stun:{stun_host}:{stun_port}'}}],iceCandidatePoolSize:4,iceTransportPolicy:'all'}});\
-  pc.createDataChannel('x');\
-  pc.onicecandidate = function(ev){{\
-    if(ev.candidate) document.body.setAttribute('data-ice','candidate');\
-  }};\
-  pc.createOffer().then(function(o){{return pc.setLocalDescription(o);}})\
-    .then(function(){{document.body.setAttribute('data-rtc','offer');}})\
-    .catch(function(err){{document.body.setAttribute('data-rtc','error'); document.body.setAttribute('data-error', String(err));}});\
-}} catch (err) {{\
-  document.body.setAttribute('data-rtc','unavailable');\
-  document.body.setAttribute('data-error', String(err));\
-}}\
-fetch('http://127.0.0.1:{hold_port}/hold',{{mode:'no-cors'}}).catch(function(){{}});\
-document.body.setAttribute('data-wait','fetch-hold');\
-</script></body></html>"
-            ),
-            scripts: Vec::new(),
-        }
-    }
-
-    fn serve_delayed_http(listener: TcpListener, delay: Duration) {
-        thread::spawn(move || {
-            if let Ok((mut stream, _)) = listener.accept() {
-                thread::sleep(delay);
-                let _ = stream.write_all(
-                    b"HTTP/1.1 204 No Content\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
-                );
-            }
-        });
-    }
-
-    fn observe_tcp(listener: TcpListener) -> thread::JoinHandle<bool> {
-        observe_tcp_for(listener, Duration::from_secs(20))
-    }
-
-    fn observe_tcp_for(listener: TcpListener, timeout: Duration) -> thread::JoinHandle<bool> {
-        thread::spawn(move || accept_tcp(listener, timeout))
-    }
-
-    fn observe_udp(socket: UdpSocket) -> thread::JoinHandle<bool> {
-        thread::spawn(move || recv_udp(&socket, Duration::from_secs(12)))
-    }
-
-    fn accept_tcp(listener: TcpListener, timeout: Duration) -> bool {
-        listener.set_nonblocking(true).expect("nonblocking");
-        let started = Instant::now();
-        loop {
-            match listener.accept() {
-                Ok((mut stream, _)) => {
-                    let _ = stream.set_nonblocking(false);
-                    let _ = stream.write_all(
-                        b"HTTP/1.1 204 No Content\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
-                    );
-                    return true;
-                }
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-                Err(_) => return false,
-            }
-            if started.elapsed() > timeout {
-                return false;
-            }
-            thread::sleep(Duration::from_millis(10));
-        }
-    }
-
-    fn recv_udp(socket: &UdpSocket, timeout: Duration) -> bool {
-        socket.set_read_timeout(Some(Duration::from_millis(50))).expect("read timeout");
-        let started = Instant::now();
-        let mut buf = [0_u8; 512];
-        loop {
-            if socket.recv_from(&mut buf).is_ok() {
-                return true;
-            }
-            if started.elapsed() > timeout {
-                return false;
-            }
-        }
-    }
-
-    fn network_evidence(
-        name: &str,
-        isolation: &str,
-        api: &str,
-        html: Option<&str>,
-        peer: bool,
-        error: Option<&str>,
-    ) {
-        eprintln!(
-            "network_case={name} isolation={isolation} api={api} peer_reached={peer} error={error:?} html={}",
-            html.unwrap_or("<none>")
-        );
-    }
-
-    fn fetch_attempted(html: &str) -> bool {
-        html.contains("data-attempt=\"started\"")
-            || html.contains("data-attempt=\"rejected\"")
-            || html.contains("data-attempt=\"resolved\"")
-            || html.contains("data-attempt=\"aborted\"")
-    }
-
     #[test]
     fn unauthorized_fetch_is_attempted_and_blocked_by_appcontainer() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
         let port = listener.local_addr().expect("addr").port();
         let html = fetch_attempt_page(port);
-        let observed = observe_tcp_for(listener, Duration::from_secs(20));
+        let peer = tcp_peer(listener);
         let rendered = render_real_time(
             &HeadlessPage { html, scripts: Vec::new() },
             NetworkIsolation::ZeroCapabilityAppContainer,
             Duration::from_secs(20),
         );
-        let connected = observed.join().expect("tcp observer");
+        let connected = peer.reached();
         match rendered {
             Ok(rendered) => {
                 network_evidence(
@@ -1052,10 +870,10 @@ document.body.setAttribute('data-wait','fetch-hold');\
         let port = listener.local_addr().expect("addr").port();
         let html = fetch_attempt_page(port);
         let page = HeadlessPage { html, scripts: Vec::new() };
-        let observed = observe_tcp(listener);
+        let peer = tcp_peer(listener);
         let rendered =
             render_unrestricted(&page, Duration::from_secs(25)).expect("positive control");
-        let connected = observed.join().expect("tcp observer");
+        let connected = peer.reached();
         network_evidence(
             "unrestricted_fetch",
             "none",
@@ -1082,14 +900,14 @@ document.body.setAttribute('data-wait','fetch-hold');\
         let hold = TcpListener::bind("127.0.0.1:0").expect("hold");
         let hold_port = hold.local_addr().expect("hold addr").port();
         let page = rtc_isolated_page(&host, port, hold_port);
-        let observed = observe_udp(socket);
+        let peer = udp_peer(socket);
         let rendered = render_real_time(
             &page,
             NetworkIsolation::ZeroCapabilityAppContainer,
             Duration::from_secs(25),
         )
         .expect("isolated webrtc render");
-        let reached = observed.join().expect("udp observer");
+        let reached = peer.reached();
         network_evidence(
             "unauthorized_webrtc",
             "appcontainer",
@@ -1117,20 +935,48 @@ document.body.setAttribute('data-wait','fetch-hold');\
     }
 
     #[test]
+    fn a_positive_control_queued_behind_another_render_still_reaches_its_peer() {
+        // Renders take the browser slot one at a time. The peer listens from before this render
+        // queues; the queue must not end it before the browser has started.
+        let (socket, host, port) = stun_endpoint();
+        let hold = TcpListener::bind("127.0.0.1:0").expect("hold");
+        let hold_port = hold.local_addr().expect("hold addr").port();
+        serve_delayed_http(hold, Duration::from_secs(6));
+        let ahead = take_edge_slot_blocking();
+        let peer = udp_peer(socket);
+        let release = thread::spawn(move || {
+            thread::sleep(Duration::from_secs(13));
+            drop(ahead);
+        });
+        let rendered = render_real_time(
+            &HeadlessPage { html: rtc_hold_page(&host, port, hold_port), scripts: Vec::new() },
+            NetworkIsolation::None,
+            Duration::from_secs(25),
+        )
+        .expect("queued positive webrtc");
+        release.join().expect("render ahead");
+        assert!(
+            peer.reached(),
+            "a queued render's STUN must reach its peer; DOM={}",
+            rendered.html
+        );
+    }
+
+    #[test]
     fn unrestricted_webrtc_stun_is_the_positive_control() {
         let (socket, host, port) = stun_endpoint();
         let hold = TcpListener::bind("127.0.0.1:0").expect("hold");
         let hold_port = hold.local_addr().expect("hold addr").port();
         serve_delayed_http(hold, Duration::from_secs(6));
         let html = rtc_hold_page(&host, port, hold_port);
-        let observed = observe_udp(socket);
+        let peer = udp_peer(socket);
         let rendered = render_real_time(
             &HeadlessPage { html, scripts: Vec::new() },
             NetworkIsolation::None,
             Duration::from_secs(25),
         )
         .expect("positive webrtc");
-        let reached = observed.join().expect("udp observer");
+        let reached = peer.reached();
         network_evidence(
             "unrestricted_webrtc",
             "none",

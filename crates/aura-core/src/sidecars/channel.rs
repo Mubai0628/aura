@@ -12,53 +12,10 @@ impl SidecarClient {
         method_name: &'static str,
         input: &T,
     ) -> Result<R> {
-        self.request_with_tool_runtime_secret(method_name, input, None).await
-    }
-
-    pub(super) async fn request_with_tool_runtime_secret<T: Serialize, R: DeserializeOwned>(
-        &self,
-        method_name: &'static str,
-        input: &T,
-        tool_runtime_secret: Option<ToolRuntimeSecretFrameV1>,
-    ) -> Result<R> {
         let params = serde_json::to_value(input)?;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.requests
-            .send(SidecarRequest {
-                method_name,
-                params,
-                tool_runtime_secret,
-                tool_conformance_runtime_secret: None,
-                reply: reply_tx,
-            })
-            .await
-            .context("security Sidecar request channel closed")?;
-        let value = reply_rx
-            .await
-            .context("security Sidecar request was abandoned")?
-            .map_err(|envelope| anyhow::Error::new(SidecarRemoteError { envelope }))?;
-        serde_json::from_value(value).context("security Sidecar response contract mismatch")
-    }
-
-    pub(super) async fn request_with_tool_conformance_runtime_secret<
-        T: Serialize,
-        R: DeserializeOwned,
-    >(
-        &self,
-        method_name: &'static str,
-        input: &T,
-        tool_conformance_runtime_secret: Option<ToolConformanceRuntimeSecretFrameV1>,
-    ) -> Result<R> {
-        let params = serde_json::to_value(input)?;
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.requests
-            .send(SidecarRequest {
-                method_name,
-                params,
-                tool_runtime_secret: None,
-                tool_conformance_runtime_secret,
-                reply: reply_tx,
-            })
+            .send(SidecarRequest { method_name, params, reply: reply_tx })
             .await
             .context("security Sidecar request channel closed")?;
         let value = reply_rx
@@ -77,8 +34,6 @@ impl SidecarClient {
 pub(super) struct SidecarRequest {
     pub(super) method_name: &'static str,
     pub(super) params: Value,
-    pub(super) tool_runtime_secret: Option<ToolRuntimeSecretFrameV1>,
-    pub(super) tool_conformance_runtime_secret: Option<ToolConformanceRuntimeSecretFrameV1>,
     pub(super) reply: oneshot::Sender<Result<Value, IpcErrorEnvelope>>,
 }
 
@@ -214,12 +169,6 @@ pub(super) async fn run_actor_loop(
                 let request = request.context("security Sidecar request channel closed")?;
                 let id = CorrelationId::new();
                 write_sidecar_request(pipe, id, request.method_name, request.params).await?;
-                if let Some(secret) = request.tool_runtime_secret {
-                    write_frame(pipe, &WireFrame::ToolRuntimeSecret(secret)).await?;
-                }
-                if let Some(secret) = request.tool_conformance_runtime_secret {
-                    write_frame(pipe, &WireFrame::ToolConformanceRuntimeSecret(secret)).await?;
-                }
                 pending.insert(id, PendingRequest::Caller(request.reply));
             }
             frame = read_frame(pipe) => {

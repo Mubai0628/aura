@@ -35,7 +35,7 @@ use aura_config::{
     recovery::{BundleRecoveryPlan, ConfigRecoveryAction, ConfigRecoveryError, DomainRecoveryPlan},
 };
 
-use crate::config_degradation::{ConfigDegradationRegistry, ConfigDependentCapability};
+use aura_core_base::config_degradation::{ConfigDegradationRegistry, ConfigDependentCapability};
 
 /// Builds path-free notices from actual configuration and service availability.
 struct RecoveryNoticeBuilder;
@@ -145,7 +145,7 @@ impl RecoveryNoticeBuilder {
 /// would keep telling the user to fix something that is already fixed.
 pub struct ConfigRecoveryEntry {
     settings: std::sync::Arc<SettingsFacade>,
-    degradation: crate::config_degradation::SharedConfigDegradation,
+    degradation: aura_core_base::config_degradation::SharedConfigDegradation,
     /// The live runtime's way to fill missing dependent services, when one was supplied.
     ///
     /// `None` in a process that has no dependent services to rebuild (and in tests that
@@ -174,7 +174,7 @@ impl ConfigRecoveryEntry {
     #[must_use]
     pub fn new(
         settings: std::sync::Arc<SettingsFacade>,
-        degradation: crate::config_degradation::SharedConfigDegradation,
+        degradation: aura_core_base::config_degradation::SharedConfigDegradation,
     ) -> Self {
         let admission = admission::ApplyAdmission::for_owner(&settings);
         Self { settings, degradation, rebuilder: None, admission }
@@ -740,7 +740,7 @@ pub fn code_is_recoverable(code: &str) -> bool {
     // recovery-required lifecycle) is named in the notice but is not something a
     // configuration restore can fix.
     code.starts_with("config.")
-        || code == crate::config_degradation::BUNDLE_SCOPE_UNRESOLVED
+        || code == aura_core_base::config_degradation::BUNDLE_SCOPE_UNRESOLVED
         || ConfigDependentCapability::ALL
             .into_iter()
             .any(|capability| capability.unavailable_code() == code)

@@ -94,7 +94,9 @@ export async function captureSecretProducts({
   } finally {
     db.close();
   }
-  for (const [name, rows] of Object.entries({ events, projections, contexts, artifacts }))
+  // Core no longer copies events into projection_outbox (store slimming), so that table may be
+  // empty; whatever rows it holds are still scanned below.
+  for (const [name, rows] of Object.entries({ events, contexts, artifacts }))
     assert.ok(rows.length > 0, `${name}: missing products cannot constitute a clean scan`);
   const artifactBytes = Buffer.concat(
     artifacts.flatMap((row) => [Buffer.from(row.id + '\n'), Buffer.from(row.bytes)]),

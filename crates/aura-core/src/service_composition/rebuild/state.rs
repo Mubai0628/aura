@@ -16,7 +16,7 @@ pub(crate) struct P03Dependencies {
     /// The process's **one** bounded synchronous boundary. A supplied service must run its
     /// sections on this pool rather than opening a second one, which would be a second
     /// admission capacity over the same disk work.
-    pub(crate) sync: crate::sync_boundary::SyncBoundary,
+    pub(crate) sync: aura_core_base::sync_boundary::SyncBoundary,
     /// The facts needed to build the process's sidecar set when it never got one.
     ///
     /// `None` only when the runtime was assembled without them, which does not happen on the
@@ -102,7 +102,7 @@ pub(crate) struct RuntimeDependentRebuilder {
     /// how it ensures exactly one caller discharges each.
     pub(crate) startup_ledger: Arc<service_rebuild::StartupLedger>,
     /// The bounded synchronous boundary, for the one-time steps that must read state through it.
-    pub(crate) sync: crate::sync_boundary::SyncBoundary,
+    pub(crate) sync: aura_core_base::sync_boundary::SyncBoundary,
     /// The settings facade, for the maintenance task a supplied model authority owns.
     pub(crate) settings: Arc<SettingsFacade>,
     /// Retains the maintenance task a supplied model authority starts, so the process owns it and

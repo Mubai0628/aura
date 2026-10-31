@@ -14,10 +14,12 @@
 //! reactor. A section that cannot be admitted is refused inside its budget, honestly, and
 //! its permit comes back only when the work that owns it really finishes.
 use crate::r03_tests::Fixture;
-use crate::sync_boundary::{SYNC_WORKERS, SyncSection};
 use crate::*;
+use aura_core_base::sync_boundary::{SYNC_WORKERS, SyncSection};
+use aura_core_base::{blocking_pool, command_settlement, sync_boundary};
 use aura_domain_common::{SessionId, WorkspaceId};
 use aura_ipc::method;
+use aura_model_service::p05;
 use aura_workspace_domain::SessionSummary;
 use serde_json::{Value, json};
 use std::{
@@ -1888,7 +1890,7 @@ fn a_settlement_cap_refusal_is_a_definite_not_run_answer() {
     });
     assert!(filled, "every settlement slot and worker must really be occupied");
     // Fill the remaining slots directly, so the request under test is the one refused at the cap.
-    let cap = crate::command_settlement::MAX_PENDING_SETTLEMENTS;
+    let cap = command_settlement::MAX_PENDING_SETTLEMENTS;
     let mut held = Vec::new();
     for _ in workers..cap {
         let invocation = CommandInvocationId::new();
@@ -2964,7 +2966,7 @@ fn a_completion_cap_refusal_on_the_broker_path_is_a_definite_not_run_answer() {
     let runtime = test_runtime();
     let harness = runtime.block_on(Harness::new(BUDGET_MS));
     let state = Arc::clone(&harness.state);
-    let cap = crate::command_settlement::MAX_PENDING_SETTLEMENTS;
+    let cap = command_settlement::MAX_PENDING_SETTLEMENTS;
     let started_before = state.post_execution.facts().started;
     let mut held = Vec::new();
     for _ in 0..cap {
@@ -3184,11 +3186,11 @@ struct CatalogStack {
     log_path: PathBuf,
     persistence: Arc<aura_persistence::PersistenceCoordinator>,
     model_config: Arc<aura_model_config::ModelConfigService>,
-    sync: crate::sync_boundary::SyncBoundary,
+    sync: sync_boundary::SyncBoundary,
     source: Arc<ScriptedCatalogSource>,
     fault: Arc<AtomicU64>,
     catalog: Arc<ScriptedCatalog>,
-    icons: crate::p05::provider_icon::ProviderIconService,
+    icons: p05::provider_icon::ProviderIconService,
 }
 
 impl CatalogStack {
@@ -3256,10 +3258,10 @@ impl CatalogStack {
             aura_network_control::NetworkControlOptions::default(),
         ));
         let real_catalog = Arc::new(
-            crate::p05::catalog::open_catalog(Arc::clone(&gateway), Arc::clone(&persistence))
+            p05::catalog::open_catalog(Arc::clone(&gateway), Arc::clone(&persistence))
                 .expect("real catalog for the icon service"),
         );
-        let icons = crate::p05::provider_icon::ProviderIconService::new(
+        let icons = p05::provider_icon::ProviderIconService::new(
             gateway,
             real_catalog,
             Arc::clone(&model_config),
@@ -3271,7 +3273,7 @@ impl CatalogStack {
             log_path,
             persistence,
             model_config,
-            sync: crate::sync_boundary::SyncBoundary::with_budget(budget),
+            sync: sync_boundary::SyncBoundary::with_budget(budget),
             source,
             fault,
             catalog,
@@ -3281,11 +3283,9 @@ impl CatalogStack {
 
     fn path(
         &self,
-    ) -> crate::p05::catalog::CatalogRefreshPath<
-        Arc<ScriptedCatalogSource>,
-        Arc<ScriptedCatalogCache>,
-    > {
-        crate::p05::catalog::CatalogRefreshPath {
+    ) -> p05::catalog::CatalogRefreshPath<Arc<ScriptedCatalogSource>, Arc<ScriptedCatalogCache>>
+    {
+        p05::catalog::CatalogRefreshPath {
             sync: self.sync.clone(),
             catalog: Arc::clone(&self.catalog),
             model_config: Arc::clone(&self.model_config),
@@ -3311,7 +3311,7 @@ impl CatalogStack {
         // from its caller is the runtime context `tokio::spawn` requires, which entering the
         // runtime provides without driving or polling anything.
         let _entered = runtime.enter();
-        crate::p05::catalog::spawn_catalog_refresh(
+        p05::catalog::spawn_catalog_refresh(
             path.sync,
             path.catalog,
             path.model_config,
@@ -3409,7 +3409,7 @@ fn a_refresh_announcement_over_its_budget_keeps_the_only_occupancy_while_control
     let probe = TimerProbe::start(&runtime, 6, 100);
     let path = stack.path();
     let announce =
-        runtime.spawn(async move { crate::p05::catalog::refresh_catalog_if_due_for(path).await });
+        runtime.spawn(async move { p05::catalog::refresh_catalog_if_due_for(path).await });
     assert!(
         wait_until_async(Duration::from_secs(10), || still_inside_hold(&hold).is_some()),
         "the scheduled announcement must really reach the writer and park there"
@@ -3437,11 +3437,11 @@ fn a_refresh_announcement_over_its_budget_keeps_the_only_occupancy_while_control
     );
     let served = runtime.block_on(stack.sync.run(
         SyncSection::JournalRead,
-        crate::sync_boundary::SyncSubject::new().method("control"),
+        sync_boundary::SyncSubject::new().method("control"),
         || 7_u64,
     ));
     assert!(
-        matches!(served, crate::blocking_pool::BlockingAdmission::Completed(7)),
+        matches!(served, blocking_pool::BlockingAdmission::Completed(7)),
         "another section is still admitted while the refresh is over its budget"
     );
     assert!(
@@ -3672,7 +3672,7 @@ fn a_refused_or_failing_catalog_refresh_returns_its_permit_and_occupancy_and_kee
         let held = stack.sync.clone();
         let gate = Arc::clone(&gate);
         holders.push(runtime.spawn(async move {
-            held.run(SyncSection::Inspect, crate::sync_boundary::SyncSubject::new(), move || {
+            held.run(SyncSection::Inspect, sync_boundary::SyncSubject::new(), move || {
                 let deadline = Instant::now() + Duration::from_secs(10);
                 while gate.load(Ordering::Acquire) == 0 && Instant::now() < deadline {
                     std::thread::sleep(Duration::from_millis(5));
@@ -3683,7 +3683,7 @@ fn a_refused_or_failing_catalog_refresh_returns_its_permit_and_occupancy_and_kee
     }
     assert!(wait_until_async(Duration::from_secs(10), || stack.sync.available() == 0));
     let refused = runtime
-        .block_on(crate::p05::catalog::refresh_catalog_if_due_for(stack.path()))
+        .block_on(p05::catalog::refresh_catalog_if_due_for(stack.path()))
         .expect("a refused announcement is not an error");
     assert!(!refused, "a refused section is never reported as a started refresh");
     assert!(
@@ -3833,7 +3833,7 @@ struct MaintenanceHarness {
     harness: Harness,
     settings: Arc<SettingsFacade>,
     persistence: Arc<aura_persistence::PersistenceCoordinator>,
-    sync: crate::sync_boundary::SyncBoundary,
+    sync: sync_boundary::SyncBoundary,
 }
 
 impl MaintenanceHarness {
@@ -3906,7 +3906,7 @@ impl MaintenanceHarness {
     }
 
     /// The completed section spans of one maintenance method, oldest first.
-    fn maintenance_spans(&self, method: &str) -> Vec<crate::sync_boundary::SyncSpan> {
+    fn maintenance_spans(&self, method: &str) -> Vec<sync_boundary::SyncSpan> {
         self.sync
             .spans()
             .into_iter()
@@ -4186,7 +4186,7 @@ fn a_refused_maintenance_section_keeps_the_consumed_configuration_change_and_app
         let held = maintenance.sync.clone();
         let gate = Arc::clone(&gate);
         holders.push(runtime.spawn(async move {
-            held.run(SyncSection::Inspect, crate::sync_boundary::SyncSubject::new(), move || {
+            held.run(SyncSection::Inspect, sync_boundary::SyncSubject::new(), move || {
                 let deadline = Instant::now() + Duration::from_secs(20);
                 while gate.load(Ordering::Acquire) == 0 && Instant::now() < deadline {
                     std::thread::sleep(Duration::from_millis(5));

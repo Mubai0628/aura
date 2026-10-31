@@ -138,7 +138,8 @@ mod tests {
         std::fs::copy(r"C:\Windows\System32\PING.EXE", &program).expect("copy");
         assert!(programs_running_in(folder.path()).expect("before").is_empty());
         let mut child =
-            Command::new(&program).args(["-n", "30", "127.0.0.1"]).spawn().expect("start");
+            crate::test_spawn::spawn(Command::new(&program).args(["-n", "30", "127.0.0.1"]))
+                .expect("start");
         let running = programs_running_in(folder.path()).expect("during");
         let _ = child.kill();
         let _ = child.wait();
@@ -157,11 +158,10 @@ mod tests {
         std::fs::copy(r"C:\Windows\System32\PING.EXE", &program).expect("copy");
         // Started in its own folder, as Chrome starts a native-messaging host: the working
         // directory is what keeps the folder from being moved.
-        let mut child = Command::new(&program)
-            .args(["-n", "60", "127.0.0.1"])
-            .current_dir(&inner)
-            .spawn()
-            .expect("start");
+        let mut child = crate::test_spawn::spawn(
+            Command::new(&program).args(["-n", "60", "127.0.0.1"]).current_dir(&inner),
+        )
+        .expect("start");
         let running = programs_running_in(&inner).expect("running");
         assert_eq!(running.len(), 1, "{running:?}");
         assert!(

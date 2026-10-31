@@ -30,7 +30,7 @@ impl CommandContext {
                 .plugins
                 .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("commands.from_plugin: 插件暂时不可用"))?;
-            let command = crate::plugins::PartKind::Command;
+            let command = aura_extension_service::plugins::PartKind::Command;
             plugins.switch_part(&plugin, command, &request.name, request.enabled)?;
             return self.catalog(request.workspace_id);
         }

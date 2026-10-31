@@ -5,7 +5,7 @@
 //! task and its cancellation signals, what the persisted turn says, and what happened to the
 //! side effect. A `stopped` flag is never accepted as evidence of any of them.
 use super::*;
-use crate::agent_store::ReceiptState;
+use aura_core_broker::agent_store::{self, ReceiptState};
 use provider_fixture::{Provider, Scenario};
 use std::time::{Duration, Instant};
 
@@ -179,7 +179,7 @@ async fn c2_a_handler_panic_ends_the_run_and_records_an_unknown_interruption() {
     let persisted = services
         .agent_required()
         .store()
-        .read(crate::agent_store::StoreStep::run(run, "c2.persisted_panic"), move |db| {
+        .read(agent_store::StoreStep::run(run, "c2.persisted_panic"), move |db| {
             let mut q = db.prepare(
                 "SELECT payload FROM events WHERE kind='agent.application_error' AND owner=?1",
             )?;
@@ -210,10 +210,7 @@ async fn c2_a_handler_panic_ends_the_run_and_records_an_unknown_interruption() {
         "a durable record spends the local diagnostic: {diagnostics:?}"
     );
     assert!(
-        services
-            .agent_required()
-            .store_health(crate::agent_store::StoreDependency::Journal)
-            .available,
+        services.agent_required().store_health(agent_store::StoreDependency::Journal).available,
         "a panic in a handler is not a store-wide fact"
     );
 }
@@ -273,7 +270,7 @@ fn c3_a_failing_error_record_does_not_block_the_run_s_teardown() {
         })
     });
     let errors = runtime.block_on(agent.store().read(
-        crate::agent_store::StoreStep::run(request_a.agent_run_id, "c3.error_events"),
+        agent_store::StoreStep::run(request_a.agent_run_id, "c3.error_events"),
         move |db| {
             let mut q =
                 db.prepare("SELECT COUNT(*) FROM events WHERE kind='agent.application_error'")?;
@@ -602,7 +599,7 @@ async fn c8_a_receipt_reports_the_real_terminal_fact() {
     let committed = services
         .agent_required()
         .store()
-        .write_retained(crate::agent_store::StoreStep::run(run, "c8.real_write"), move |journal| {
+        .write_retained(agent_store::StoreStep::run(run, "c8.real_write"), move |journal| {
             journal.database.unit_of_work(|tx| {
                 aura_persistence_v2::agent::application::request_cancel(
                     tx,

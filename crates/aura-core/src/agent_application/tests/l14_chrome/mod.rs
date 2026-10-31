@@ -3,10 +3,13 @@
 //! The test plays the extension through the real relay and pipe; the user's answers go through
 //! Aura's approval routes.
 use super::*;
-use crate::chrome_control::test_extension::{Answers, PlayedExtension};
 use aura_chrome_domain::commands::*;
 use aura_chrome_domain::protocol::{CommandOutcome, ExtensionMessage};
 use aura_chrome_domain::*;
+use aura_chrome_service::chrome_control::{
+    self,
+    test_extension::{Answers, PlayedExtension},
+};
 
 mod acting;
 mod asking;
@@ -54,7 +57,7 @@ fn answers(found: Page) -> Answers {
         ChromeCommand::Inspect { .. } => done(ChromeInspection {
             refused: found.refused.map(str::to_owned),
             sensitive: found.sensitive,
-            origin: crate::chrome_control::shares::origin_of(found.url),
+            origin: chrome_control::shares::origin_of(found.url),
         }),
         ChromeCommand::Open { url } => done(ChromeOpenReport {
             tab: ChromeOpenedTab {

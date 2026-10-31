@@ -1,8 +1,6 @@
 //! One-time recovery belongs to the candidate service before it becomes callable.
-use crate::{
-    P05Services, RuntimeDependentRebuilder, agent_application, service_rebuild,
-    spawn_p05_maintenance,
-};
+use crate::{RuntimeDependentRebuilder, agent_application, service_rebuild, spawn_p05_maintenance};
+use aura_model_service::p05::P05Services;
 use std::sync::Arc;
 impl RuntimeDependentRebuilder {
     pub(crate) fn discharge_model_one_time_steps(

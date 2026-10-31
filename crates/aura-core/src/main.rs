@@ -67,7 +67,7 @@ async fn main() -> ExitCode {
             // matrix can tell "this image carries the adapter" from "the hold never happened".
             // Compiled out of every product build.
             #[cfg(feature = "acceptance-barrier")]
-            aura_core::acceptance_barrier::announce_startup();
+            aura_core_base::acceptance_barrier::announce_startup();
             match aura_core::run_core(options).await {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => {

@@ -110,24 +110,6 @@ const PRODUCTION_CSP = [
   "form-action 'none'",
 ].join('; ');
 const APP_CRASH_ESCALATED_EXIT_CODE = 78;
-const MAIN_BUILD_EXTENSION_SYMBOL = Symbol.for('aura.main-build-extension.v1');
-
-interface MainBuildExtensionContextV1 {
-  assertTrustedSender(event: IpcMainInvokeEvent): void;
-  invokeCore(
-    method: string,
-    params: (identity: { coreRuntimeInstanceId: string; mainRuntimeInstanceId: string }) => unknown,
-  ): Promise<unknown>;
-}
-
-interface MainBuildExtensionV1 {
-  additionalCoreArguments: readonly string[];
-  preloadPath: string;
-  registerIpc(context: MainBuildExtensionContextV1): void;
-}
-
-const mainBuildExtension = Reflect.get(globalThis, MAIN_BUILD_EXTENSION_SYMBOL) as
-  MainBuildExtensionV1 | undefined;
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -320,7 +302,7 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: mainBuildExtension?.preloadPath ?? resolve(currentDirectory, '../preload/index.cjs'),
+      preload: resolve(currentDirectory, '../preload/index.cjs'),
       sandbox: true,
     },
   });
@@ -432,9 +414,6 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
 const startSupervisor = async (release: ReleaseContext): Promise<void> => {
   try {
     supervisor = new CoreSupervisor({
-      ...(mainBuildExtension === undefined
-        ? {}
-        : { additionalCoreArguments: mainBuildExtension.additionalCoreArguments }),
       appIsPackaged: app.isPackaged,
       localAppData,
       onEscalated: () => app.exit(APP_CRASH_ESCALATED_EXIT_CODE),
@@ -911,15 +890,6 @@ app.whenReady().then(async () => {
   if (app.isPackaged) Menu.setApplicationMenu(null);
   registerProductionProtocol();
   registerIpc();
-  mainBuildExtension?.registerIpc({
-    assertTrustedSender(event) {
-      assertTrustedSender(event);
-    },
-    async invokeCore(method, params) {
-      if (supervisor === undefined) throw new Error('Aura Core is not ready');
-      return supervisor.requestBuildExtension(method, params);
-    },
-  });
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);
   });

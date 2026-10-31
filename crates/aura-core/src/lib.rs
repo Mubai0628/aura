@@ -11,28 +11,23 @@ use service_composition::{
 mod runtime_lifecycle;
 use runtime_lifecycle::{spawn_p05_maintenance, spawn_p07_maintenance};
 
-/// The default-off S02-E acceptance boundary. Compiled only with `--features acceptance-barrier`;
-/// no product build enables it, and with the feature off this module does not exist at all.
+use aura_core_activity::activity;
 #[cfg(feature = "acceptance-barrier")]
-pub mod acceptance_barrier;
-mod activity;
-/// The projections a real Agent executor publishes into the run-information
-/// index, and the query surface over that index.
-mod agent_activity;
+use aura_core_base::acceptance_barrier;
 mod agent_application;
 mod agent_execution;
-mod agent_store;
-mod agent_supervision;
-mod blocking_pool;
+use aura_core_broker::agent_store;
+#[cfg(test)]
+mod agent_store_tests;
+use aura_agent_application::agent_supervision;
+use aura_core_base::blocking_pool;
+use aura_core_base::outbound_json::{send_json, send_notification, trace_request_id};
+use aura_core_base::release::{CoreReleaseContext, SidecarReleaseIdentity};
 mod broker;
-mod busy;
-mod chrome_control;
+use aura_chrome_service::chrome_control;
+use aura_core_base::busy;
 mod command_claims;
-mod disk_pressure;
-pub(crate) mod git;
-pub mod package_http;
-pub mod package_lifecycle;
-pub mod package_program;
+pub(crate) use aura_git_service::git;
 pub(crate) mod package_services;
 mod secret_commands;
 mod terminal_secret;
@@ -40,20 +35,18 @@ use secret_commands::{
     expire_pending_secret_commands, handle_secret_request, prepare_pending_secret_command,
 };
 mod command_execution;
-mod command_settlement;
-/// What a configuration fault costs Core, and what it does not.
-pub(crate) mod config_degradation;
+use aura_core_base::command_settlement;
+pub(crate) use aura_core_base::config_degradation;
 /// The reachable user entry for recovering a damaged configuration.
 mod config_recovery;
-mod controlled_web;
+use aura_agent_execution::controlled_web;
 mod projection_publish;
 use config_degradation::ConfigDependentCapability;
 mod core_health;
-mod credential_io;
 #[cfg(test)]
 mod ipc_lifecycle_tests;
-mod ipc_session;
-mod outbound_watch;
+use aura_core_base::ipc_session;
+use aura_core_base::outbound_watch;
 #[cfg(test)]
 mod r03_tests;
 mod readiness;
@@ -62,12 +55,12 @@ mod test_mode;
 pub use test_mode::CoreTestMode;
 #[cfg(test)]
 mod test_watchdog;
+use aura_core_base::core_log;
 pub(crate) use core_health::current_core_health_projection;
-pub(crate) use runtime_pulse::spawn_heartbeat;
-mod core_log;
 #[cfg(test)]
-pub(crate) use core_log::{CoreLogRoute, write_core_log_line};
+pub(crate) use core_log::CoreLogRoute;
 pub(crate) use core_log::{append_core_log, append_startup_stage};
+pub(crate) use runtime_pulse::spawn_heartbeat;
 mod routes;
 /// The recovery lifecycle — Models and combined faults, the first
 /// recovery a process never ran, and the health/availability distinction.
@@ -95,60 +88,22 @@ use command_claims::{
     needs_command_claim, reserve_command_invocation, settle_command_claim,
 };
 
-mod external_grants;
-mod hooks;
-mod host_preparation;
 mod mcp;
-mod memory_services;
-pub mod model_channel;
 #[cfg(test)]
-mod model_channel_tests;
-mod native_session_grants;
-mod p03;
-mod p04;
-mod p04_broker;
-mod p05;
-pub mod p05_credential;
-#[allow(
-    dead_code,
-    reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
-)]
-mod p07;
-mod p07_builtin;
-mod p07_commands;
-#[cfg(any(test, feature = "p08-contract-driver"))]
-mod p07_continuation;
-mod p07_control;
-#[allow(
-    dead_code,
-    reason = "the W7 admission coordinator is connected before the gated Runtime dispatch route"
-)]
-mod p07_execution;
-#[allow(
-    dead_code,
-    reason = "the W7 HTTP assembly is connected before the gated production batch route"
-)]
-mod p07_http;
-#[allow(
-    dead_code,
-    reason = "the W7 dynamic output importer is consumed by the production AuraStdio route"
-)]
-mod p07_output;
-#[allow(
-    dead_code,
-    reason = "the exact Registry control service is ready before the P08 Core Tool route"
-)]
-mod p07_registry;
-#[allow(
-    dead_code,
-    reason = "the W7 result reconciler is connected before the final production route"
-)]
-mod p07_result;
-#[cfg(any(test, feature = "p08-contract-driver"))]
+mod p03_tests;
+#[cfg(test)]
+mod p04_tests;
+use aura_model_service::p05;
+#[cfg(test)]
+mod p05_credential_tests;
+use aura_tool_service::p07_commands;
+use aura_tool_service::p07_control;
+use aura_tool_service::p07_registry;
+#[cfg(test)]
+mod p07_registry_tests;
+#[cfg(test)]
 mod p07_test_support;
-#[cfg(feature = "p08-contract-driver")]
-mod p08_contract_driver;
-mod plugins;
+use aura_extension_service::plugins;
 #[cfg(test)]
 mod r04_tests;
 #[cfg(test)]
@@ -159,16 +114,14 @@ mod r05_tests;
 /// production ones `run_core` uses, and the lane state machine it drives is the real `IpcSession`.
 #[cfg(test)]
 mod s045b_pipe_gate_tests;
-pub mod security_control;
 mod session_branch;
 mod session_lifecycle;
 mod sidecars;
-mod skills;
+use aura_extension_service::skills;
 mod slash_commands;
-mod sync_boundary;
+use aura_core_base::sync_boundary;
 #[cfg(test)]
 mod sync_boundary_tests;
-mod workspace_policy;
 use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
@@ -177,7 +130,7 @@ use std::{
     process,
     str::FromStr,
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -192,12 +145,14 @@ use aura_domain_common::{
     CommandInvocationId, ContentHash, ContentHashAlgorithm, ContractVersion, CorrelationId,
     ErrorCategory, ErrorCode, IpcChannelId, Revision, RuntimeInstanceId, SecretNonce, UtcTimestamp,
 };
+#[cfg(test)]
+use aura_ipc::JsonRpcNotification;
 use aura_ipc::{
     AsyncPriorityQueue, AuthenticatedFrameReader, AuthenticatedWireFrame, CancellationSettlement,
-    FrameRead, JSON_RPC_VERSION, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest,
-    JsonRpcResponse, MAX_CONTROL_PAYLOAD_BYTES, OutboundFrame, PendingSecretInput,
-    PendingSecretInputRegistry, QueuePriority, RequestLedger, WireFrame, method,
-    read_authenticated_frame, write_authenticated_frame,
+    FrameRead, JSON_RPC_VERSION, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse,
+    MAX_CONTROL_PAYLOAD_BYTES, OutboundFrame, PendingSecretInput, PendingSecretInputRegistry,
+    QueuePriority, RequestLedger, WireFrame, method, read_authenticated_frame,
+    write_authenticated_frame,
 };
 use aura_model_config::ModelConfigValidator;
 use aura_network_control::AuthenticatedConfigurationChannelIdentity;
@@ -228,18 +183,10 @@ use sha2::{Digest, Sha256};
 use tokio::{net::windows::named_pipe::NamedPipeServer, task::JoinHandle, time};
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::p03::{P03Services, P03ToolsConfigValidator};
-use crate::p04::{P04SecurityConfigValidator, P04Services};
-use crate::p04_broker::ElevatedBrokerOptions;
-use crate::p05::P05Services;
-
-/// Narrow P05 boundary used by the Session owner while atomically creating a
-/// Session, its initial model binding and the N-A channel authorization.
-pub trait InitialSessionModelBindingResolver {
-    fn resolve_initial_session_model_binding(
-        &self,
-    ) -> Result<aura_model_domain::InitialSessionModelBinding>;
-}
+use aura_model_service::p05::P05Services;
+use aura_security_service::p04::{P04SecurityConfigValidator, P04Services};
+use aura_security_service::p04_broker::ElevatedBrokerOptions;
+use aura_workspace_service::p03::{P03Services, P03ToolsConfigValidator};
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
@@ -263,8 +210,6 @@ pub struct CoreOptions {
     /// Set by Main when a Core it had serving ended while Aura stayed open: why, so this Core
     /// continues the turns that cut off (`agent_application::continuation`).
     pub continue_after: Option<aura_agent_domain::CoreRestartCause>,
-    #[cfg(feature = "p08-contract-driver")]
-    pub(crate) p08_contract_driver: Option<p08_contract_driver::P08ContractDriverOptionsV1>,
 }
 
 impl CoreOptions {
@@ -278,15 +223,8 @@ impl CoreOptions {
         let mut safe_mode = false;
         let mut test_mode = CoreTestMode::Normal;
         let mut continue_after = None;
-        #[cfg(feature = "p08-contract-driver")]
-        let mut p08_contract_driver =
-            p08_contract_driver::P08ContractDriverOptionsBuilderV1::default();
 
         for argument in arguments.into_iter().skip(1) {
-            #[cfg(feature = "p08-contract-driver")]
-            if p08_contract_driver.try_parse(&argument)? {
-                continue;
-            }
             if let Some(value) = argument.strip_prefix("--pipe-name=") {
                 pipe_name = Some(value.to_owned());
             } else if argument == "--bootstrap-stdin" {
@@ -326,8 +264,6 @@ impl CoreOptions {
             safe_mode,
             test_mode,
             continue_after,
-            #[cfg(feature = "p08-contract-driver")]
-            p08_contract_driver: p08_contract_driver.finish()?,
         };
         options.validate()?;
         Ok(options)
@@ -371,27 +307,6 @@ impl CoreOptions {
 fn is_lower_hex_128(value: &str) -> bool {
     value.len() == 32
         && value.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-}
-
-#[derive(Clone)]
-struct CoreReleaseContext {
-    release_descriptor: ReleaseDescriptor,
-    component_version: String,
-    build_commit: String,
-    manifest_path: PathBuf,
-    elevated_helper_executable: PathBuf,
-    elevated_helper_hash: ContentHash,
-    sandbox_host: SidecarReleaseIdentity,
-    egress_proxy: SidecarReleaseIdentity,
-}
-
-#[derive(Clone)]
-struct SidecarReleaseIdentity {
-    process_kind: RuntimeProcessKind,
-    component_version: String,
-    executable: PathBuf,
-    content_hash: ContentHash,
-    protocol_version: Option<ContractVersion>,
 }
 
 struct AuthenticatedChannelState {
@@ -496,11 +411,11 @@ struct RuntimeState {
     /// The bounded synchronous boundary every blocking Core step runs on. Owned here
     /// because every entry point that needs it already holds the runtime state, and shared
     /// by cloning: one pool, one record, for the whole process.
-    sync: crate::sync_boundary::SyncBoundary,
+    sync: sync_boundary::SyncBoundary,
     /// Who owns the result of a synchronous business operation whose caller stopped waiting.
     /// One owner for the process, bound to this runtime instance, so a late result can only
     /// settle the invocation it belongs to and only inside the Core that produced it.
-    settlements: crate::command_settlement::CommandSettlements,
+    settlements: command_settlement::CommandSettlements,
     /// Who owns the **post-execution** tail of a broker dispatch (the evidence step and the durable
     /// ledger completion) once the caller that started it stops waiting. One record for the
     /// process, and every tail it admits is bounded by the settlement owner above.
@@ -508,8 +423,6 @@ struct RuntimeState {
     disconnect_injected: AtomicBool,
     reconnect_delay_injected: AtomicBool,
     rejected_connection_log_at_ms: AtomicU64,
-    #[cfg(feature = "p08-contract-driver")]
-    p08_contract_driver_consumed: AtomicBool,
 }
 
 #[derive(Default)]
@@ -610,7 +523,7 @@ struct RuntimeServices {
     activity_runtime_instance_id: RuntimeInstanceId,
     /// The bounded synchronous boundary of this process. It is created with the services so the
     /// Agent Store and every route share one pool and one admission capacity.
-    sync: crate::sync_boundary::SyncBoundary,
+    sync: sync_boundary::SyncBoundary,
     /// The services that genuinely depend on the workspace runtime and the
     /// tool/model configuration. `None` means that capability was refused because
     /// its configuration domain is damaged — it is **not** a Core failure, and
@@ -865,7 +778,7 @@ fn new_runtime_state(
     // instead of opening a second pool that would be a second admission capacity.
     let sync = match &startup_mode {
         StartupMode::Ready(services) => services.sync.clone(),
-        StartupMode::RecoveryRequired { .. } => crate::sync_boundary::SyncBoundary::open(),
+        StartupMode::RecoveryRequired { .. } => sync_boundary::SyncBoundary::open(),
     };
     // The one degradation record for this process. A runtime that started
     // ready carries the registry `initialize_services_at` filled in; a runtime in
@@ -901,7 +814,7 @@ fn new_runtime_state(
         startup_complete: AtomicBool::new(false),
         startup_mode,
         sync,
-        settlements: crate::command_settlement::CommandSettlements::new(
+        settlements: command_settlement::CommandSettlements::new(
             runtime_instance_id,
             command_outcomes,
         ),
@@ -909,8 +822,6 @@ fn new_runtime_state(
         disconnect_injected: AtomicBool::new(false),
         reconnect_delay_injected: AtomicBool::new(false),
         rejected_connection_log_at_ms: AtomicU64::new(0),
-        #[cfg(feature = "p08-contract-driver")]
-        p08_contract_driver_consumed: AtomicBool::new(false),
     }
 }
 
@@ -2190,25 +2101,25 @@ fn spawn_projection_updates(
                             match state
                                 .sync
                                 .run(
-                                    crate::sync_boundary::SyncSection::Projection,
-                                    crate::sync_boundary::SyncSubject::new()
+                                    sync_boundary::SyncSection::Projection,
+                                    sync_boundary::SyncSubject::new()
                                         .method("projection.workspace_files"),
                                     move || workspace.workspace_files_projection(),
                                 )
                                 .await
                             {
-                                crate::blocking_pool::BlockingAdmission::Completed(Ok(payload)) => {
+                                blocking_pool::BlockingAdmission::Completed(Ok(payload)) => {
                                     Ok(payload)
                                 }
-                                crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+                                blocking_pool::BlockingAdmission::Completed(Err(error)) => {
                                     Err(error.to_string())
                                 }
-                                crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+                                blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                                     Err(format!(
                                         "the projection did not run: no synchronous worker was free after {waited_ms} ms"
                                     ))
                                 }
-                                crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+                                blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                                     Err(format!(
                                         "the projection did not answer inside its budget after {waited_ms} ms"
                                     ))
@@ -2906,14 +2817,14 @@ async fn handle_request(
             let planned = services
                 .sync
                 .run(
-                    crate::sync_boundary::SyncSection::ConfigRecovery,
-                    crate::sync_boundary::SyncSubject::new().method("config.recovery.plan"),
+                    sync_boundary::SyncSection::ConfigRecovery,
+                    sync_boundary::SyncSubject::new().method("config.recovery.plan"),
                     move || entry.plan_bundle(&domains),
                 )
                 .await;
             let plan = match planned {
-                crate::blocking_pool::BlockingAdmission::Completed(Ok(plan)) => plan,
-                crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+                blocking_pool::BlockingAdmission::Completed(Ok(plan)) => plan,
+                blocking_pool::BlockingAdmission::Completed(Err(error)) => {
                     // A plan that cannot be built is reported as a recovery refusal
                     // with the real reason, so the user learns why the entry cannot
                     // help instead of seeing a generic dispatch failure.
@@ -2929,7 +2840,7 @@ async fn handle_request(
                 // started but did not answer. They are reported as themselves rather
                 // than collapsed into "the plan failed", because the user's next step
                 // differs: one is safe to retry, the other may already have read.
-                crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+                blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -2938,7 +2849,7 @@ async fn handle_request(
                     )
                     .await;
                 }
-                crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+                blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -3035,8 +2946,8 @@ async fn handle_request(
                 let applied = services
                     .sync
                     .run(
-                        crate::sync_boundary::SyncSection::ConfigRecovery,
-                        crate::sync_boundary::SyncSubject::new().method("config.recovery.apply"),
+                        sync_boundary::SyncSection::ConfigRecovery,
+                        sync_boundary::SyncSubject::new().method("config.recovery.apply"),
                         move || {
                             let _apply_guard = apply_guard;
                             let plan = apply_entry.plan_domain_confirmed(module, &preview_id)?;
@@ -3058,8 +2969,8 @@ async fn handle_request(
                     )
                     .await;
                 let report = match applied {
-                    crate::blocking_pool::BlockingAdmission::Completed(Ok(report)) => report,
-                    crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+                    blocking_pool::BlockingAdmission::Completed(Ok(report)) => report,
+                    blocking_pool::BlockingAdmission::Completed(Err(error)) => {
                         // The refusal carries its own stable code, so a stale confirmation and a
                         // failed write are reported as the different facts they are rather than
                         // collapsed into one generic failure.
@@ -3083,7 +2994,7 @@ async fn handle_request(
                         return send_recovery_refusal(queue, request.id, code, &error.to_string())
                             .await;
                     }
-                    crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+                    blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                         // Provably not started, so this is safe for the user to retry.
                         return send_recovery_refusal(
                             queue,
@@ -3093,7 +3004,7 @@ async fn handle_request(
                         )
                         .await;
                     }
-                    crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+                    blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                         // The write may have run. This is reported as unknown rather
                         // than as a failure, because telling the user it did not happen
                         // when it may have is the dangerous direction.
@@ -3144,14 +3055,14 @@ async fn handle_request(
             let planned = services
                 .sync
                 .run(
-                    crate::sync_boundary::SyncSection::ConfigRecovery,
-                    crate::sync_boundary::SyncSubject::new().method("config.recovery.plan"),
+                    sync_boundary::SyncSection::ConfigRecovery,
+                    sync_boundary::SyncSubject::new().method("config.recovery.plan"),
                     move || bundle_entry.plan_bundle_confirmed(&plan_domains, &preview_id),
                 )
                 .await;
             let plan = match planned {
-                crate::blocking_pool::BlockingAdmission::Completed(Ok(plan)) => plan,
-                crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+                blocking_pool::BlockingAdmission::Completed(Ok(plan)) => plan,
+                blocking_pool::BlockingAdmission::Completed(Err(error)) => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -3160,7 +3071,7 @@ async fn handle_request(
                     )
                     .await;
                 }
-                crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+                blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -3169,7 +3080,7 @@ async fn handle_request(
                     )
                     .await;
                 }
-                crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+                blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -3193,8 +3104,8 @@ async fn handle_request(
             let applied = services
                 .sync
                 .run(
-                    crate::sync_boundary::SyncSection::ConfigRecovery,
-                    crate::sync_boundary::SyncSubject::new().method("config.recovery.apply"),
+                    sync_boundary::SyncSection::ConfigRecovery,
+                    sync_boundary::SyncSubject::new().method("config.recovery.apply"),
                     move || {
                         let _apply_guard = apply_guard;
                         bundle_apply_entry.apply_bundle(&plan, action)
@@ -3202,8 +3113,8 @@ async fn handle_request(
                 )
                 .await;
             let report = match applied {
-                crate::blocking_pool::BlockingAdmission::Completed(Ok(report)) => report,
-                crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+                blocking_pool::BlockingAdmission::Completed(Ok(report)) => report,
+                blocking_pool::BlockingAdmission::Completed(Err(error)) => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -3212,7 +3123,7 @@ async fn handle_request(
                     )
                     .await;
                 }
-                crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+                blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -3221,7 +3132,7 @@ async fn handle_request(
                     )
                     .await;
                 }
-                crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+                blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                     return send_recovery_refusal(
                         queue,
                         request.id,
@@ -3259,35 +3170,6 @@ async fn handle_request(
             );
             send_success(queue, request.id, serde_json::to_value(report)?).await?;
             Ok(IpcRequestTerminal::Succeeded)
-        }
-        #[cfg(feature = "p08-contract-driver")]
-        p08_contract_driver::METHOD_V1 => {
-            let StartupMode::Ready(services) = &state.startup_mode else {
-                return send_projection_unavailable(queue, request.id).await;
-            };
-            let channel = authenticated_configuration_channel_identity(state)?;
-            match p08_contract_driver::dispatch_v1(state, services, request, channel).await {
-                Ok(value) => {
-                    send_recorded_response(
-                        state,
-                        queue,
-                        request,
-                        JsonRpcResponse::success(request.id, value),
-                    )
-                    .await?;
-                    Ok(IpcRequestTerminal::Succeeded)
-                }
-                Err(error) => {
-                    send_recorded_response(
-                        state,
-                        queue,
-                        request,
-                        JsonRpcResponse::failure(request.id, error),
-                    )
-                    .await?;
-                    Ok(IpcRequestTerminal::Failed)
-                }
-            }
         }
         method::PROJECTION_SUBSCRIBE => {
             let subscription: ProjectionSubscription =
@@ -3426,7 +3308,7 @@ async fn projection_for_bounded(
     projection_scope: ProjectionScope,
 ) -> Result<ProjectionChange> {
     kind.validate_scope(projection_scope).context("invalid projection kind/scope route")?;
-    let subject = crate::sync_boundary::SyncSubject::new().method("projection.snapshot");
+    let subject = sync_boundary::SyncSubject::new().method("projection.snapshot");
     match kind {
         ProjectionKind::WorkspaceSession => {
             let StartupMode::Ready(services) = &state.startup_mode else {
@@ -3435,16 +3317,16 @@ async fn projection_for_bounded(
             let persistence = Arc::clone(&services.persistence);
             let payload = match state
                 .sync
-                .run(crate::sync_boundary::SyncSection::Projection, subject, move || {
+                .run(sync_boundary::SyncSection::Projection, subject, move || {
                     persistence.workspace_session_projection()
                 })
                 .await
             {
-                crate::blocking_pool::BlockingAdmission::Completed(value) => value,
-                crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+                blocking_pool::BlockingAdmission::Completed(value) => value,
+                blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                     bail!("the Workspace/Session projection did not run: no free worker after {waited_ms} ms")
                 }
-                crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+                blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                     bail!("the Workspace/Session projection did not answer inside its budget after {waited_ms} ms")
                 }
             }
@@ -3463,16 +3345,16 @@ async fn projection_for_bounded(
             let workspace = Arc::clone(&services.p03()?.workspace);
             let payload = match state
                 .sync
-                .run(crate::sync_boundary::SyncSection::Projection, subject, move || {
+                .run(sync_boundary::SyncSection::Projection, subject, move || {
                     workspace.workspace_files_projection()
                 })
                 .await
             {
-                crate::blocking_pool::BlockingAdmission::Completed(value) => value,
-                crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+                blocking_pool::BlockingAdmission::Completed(value) => value,
+                blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                     bail!("the Workspace Files projection did not run: no free worker after {waited_ms} ms")
                 }
-                crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+                blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                     bail!("the Workspace Files projection did not answer inside its budget after {waited_ms} ms")
                 }
             }
@@ -3703,7 +3585,7 @@ fn record_command_outcome(
         // response. That late caller response cannot overwrite the original authoritative value.
         return Ok(());
     }
-    let outcome = if crate::command_settlement::response_is_unconfirmed(response) {
+    let outcome = if command_settlement::response_is_unconfirmed(response) {
         CommandOutcome::Unknown {
             command_invocation_id,
             reason: aura_runtime_contract::CommandOutcomeUnknown::NotRecordedOrIncomplete,
@@ -3750,46 +3632,6 @@ async fn send_response(
 
 fn is_side_effecting_main_method(method_name: &str) -> bool {
     aura_ipc::routes::records_command_outcome(method_name)
-}
-
-async fn send_notification<T: Serialize>(
-    queue: &AsyncPriorityQueue,
-    priority: QueuePriority,
-    method_name: &str,
-    value: &T,
-) -> Result<()> {
-    let notification = JsonRpcNotification {
-        jsonrpc: JSON_RPC_VERSION.to_owned(),
-        method: method_name.to_owned(),
-        params: serde_json::to_value(value)?,
-    };
-    send_json(queue, priority, &notification).await
-}
-
-async fn send_json<T: Serialize>(
-    queue: &AsyncPriorityQueue,
-    priority: QueuePriority,
-    value: &T,
-) -> Result<()> {
-    let payload = serde_json::to_vec(value)?;
-    let bytes = payload.len();
-    let id = trace_request_id(&payload);
-    let kind = if id == "none" { "notification" } else { "response" };
-    aura_ipc::trace(
-        "core.enqueue",
-        &format!("kind={kind} priority={priority:?} bytes={bytes} id={id}"),
-    );
-    queue.send(OutboundFrame { priority, frame: WireFrame::Control(payload) }).await?;
-    aura_ipc::trace("core.enqueued", &format!("kind={kind} id={id}"));
-    Ok(())
-}
-
-/// Best-effort request id for tracing. Reads only the `id` field.
-fn trace_request_id(payload: &[u8]) -> String {
-    let Ok(value) = serde_json::from_slice::<serde_json::Value>(payload) else {
-        return "unknown".to_owned();
-    };
-    value.get("id").and_then(|id| id.as_str()).unwrap_or("none").to_owned()
 }
 
 async fn write_json_direct_authenticated<T: Serialize>(

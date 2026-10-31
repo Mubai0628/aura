@@ -1,0 +1,98 @@
+[package]
+name = "aura-agent-execution"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# The acceptance boundary's hold points in a file call and a dispatch reservation. aura-core's own
+# `acceptance-barrier` feature enables it; no product build does.
+acceptance-barrier = ["aura-core-base/acceptance-barrier", "aura-core-broker/acceptance-barrier"]
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = [
+    "aura-core-base/test-hooks",
+    "aura-network-control/test-fixture-tls",
+    "aura-network-control/test-fixture-dns",
+]
+
+[dependencies]
+anyhow.workspace = true
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-activity-runtime = { path = "../aura-activity-runtime" }
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-backend-api = { path = "../aura-backend-api" }
+aura-backend-core = { path = "../aura-backend-core" }
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-browser-domain = { path = "../aura-browser-domain" }
+aura-chrome-domain = { path = "../aura-chrome-domain" }
+aura-chrome-service = { path = "../aura-chrome-service" }
+aura-commands = { path = "../aura-commands" }
+aura-config = { path = "../aura-config" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-core-activity = { path = "../aura-core-activity" }
+aura-core-base = { path = "../aura-core-base" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-execution-orchestrator = { path = "../aura-execution-orchestrator" }
+aura-extension-service = { path = "../aura-extension-service" }
+aura-fs-tools = { path = "../aura-fs-tools" }
+aura-git-service = { path = "../aura-git-service" }
+aura-ipc = { path = "../aura-ipc" }
+aura-mcp = { path = "../aura-mcp" }
+aura-memory = { path = "../aura-memory" }
+aura-memory-domain = { path = "../aura-memory-domain" }
+aura-model-domain = { path = "../aura-model-domain" }
+aura-model-service = { path = "../aura-model-service" }
+aura-net-tools = { path = "../aura-net-tools" }
+aura-network-control = { path = "../aura-network-control" }
+aura-package-service = { path = "../aura-package-service" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-permission-engine = { path = "../aura-permission-engine" }
+aura-persistence = { path = "../aura-persistence" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-secret-scanner = { path = "../aura-secret-scanner" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-security-service = { path = "../aura-security-service" }
+aura-skills = { path = "../aura-skills" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-tool-package = { path = "../aura-tool-package" }
+aura-tool-registry = { path = "../aura-tool-registry" }
+aura-tool-scheduler = { path = "../aura-tool-scheduler" }
+aura-tool-service = { path = "../aura-tool-service" }
+aura-web-domain = { path = "../aura-web-domain" }
+aura-web-runtime = { path = "../aura-web-runtime" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-workspace = { path = "../aura-workspace" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-workspace-service = { path = "../aura-workspace-service" }
+base64.workspace = true
+blake3.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+url.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+# This crate's own tests see the crates split out of Core with their test-time behaviour, as
+# Core's tests do (memory roots under TEMP, a test's own log route).
+aura-core-activity = { path = "../aura-core-activity", features = ["test-hooks"] }
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
+aura-network-control = { path = "../aura-network-control", features = ["test-fixture-tls", "test-fixture-dns"] }
+junction.workspace = true
+
+[lints]
+workspace = true

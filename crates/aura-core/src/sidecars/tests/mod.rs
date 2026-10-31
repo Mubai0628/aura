@@ -30,6 +30,7 @@ use super::command::{
     accept_command_host_notification, command_candidate_contains_bytes,
     reconcile_command_dispatch_candidate,
 };
+use super::output_scan::CredentialCanaryOutputScannerV1;
 use super::stdio::{
     StdioDispatchStreamErrorV1, reconcile_stdio_dispatch_candidate, stdio_candidate_contains_bytes,
 };

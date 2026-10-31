@@ -16,7 +16,7 @@ pub(crate) struct CommandContext {
     user_root: PathBuf,
     settings: Arc<aura_config::SettingsFacade>,
     workspace: Option<Arc<aura_workspace::WorkspaceRuntime>>,
-    plugins: Option<Arc<crate::plugins::PluginRuntime>>,
+    plugins: Option<Arc<aura_extension_service::plugins::PluginRuntime>>,
 }
 
 impl CommandContext {
@@ -98,7 +98,7 @@ impl CommandContext {
 /// The plugin commands the user switched off stay listed, off.
 fn switch_off_plugin_commands(
     commands: &mut [aura_agent_domain::CommandEntry],
-    plugins: &crate::plugins::PluginRuntime,
+    plugins: &aura_extension_service::plugins::PluginRuntime,
 ) {
     let ready = plugins.ready();
     for entry in commands.iter_mut().filter(|entry| entry.source == CommandSource::Plugin) {
@@ -115,7 +115,7 @@ fn switch_off_plugin_commands(
 /// Each ready plugin's commands, offered only at the revision they had when the plugin
 /// was trusted.
 fn plugin_commands(
-    plugins: &crate::plugins::PluginRuntime,
+    plugins: &aura_extension_service::plugins::PluginRuntime,
 ) -> Vec<(String, Vec<aura_commands::LoadedCommand>)> {
     plugins
         .ready()

@@ -20,6 +20,7 @@
 //! are filtered by the Tool's own `tool_id`, because the discovery Tools (`tools.search`,
 //! `tools.load`) are real tool calls too: a global count would silently mix them in.
 use super::*;
+use aura_core_broker::agent_store;
 use provider_fixture::{Provider, Scenario};
 use std::time::{Duration, Instant};
 
@@ -369,7 +370,7 @@ async fn d1_a_definite_provider_failure_is_routed_as_a_provider_fault_and_dispat
     );
     // The shared dependency was never blamed: this is not a store fault.
     assert!(
-        run.agent().store_health(crate::agent_store::StoreDependency::Journal).available,
+        run.agent().store_health(agent_store::StoreDependency::Journal).available,
         "a Provider fault is not a store fact"
     );
 }
@@ -690,13 +691,9 @@ async fn d7b_the_unknown_fact_is_queryable_and_committed_exactly_once() {
     assert_eq!(first, second);
     assert_eq!(application_error_count(&run.runtime), 1);
     assert!(
-        agent
-            .store()
-            .receipts()
-            .iter()
-            .any(|receipt| receipt.operation == "agent.drive_failure_record"
-                && receipt.state
-                    == crate::agent_store::ReceiptState::Settled { committed: true, code: None }),
+        agent.store().receipts().iter().any(|receipt| receipt.operation
+            == "agent.drive_failure_record"
+            && receipt.state == agent_store::ReceiptState::Settled { committed: true, code: None }),
         "the record's own receipt reports the real terminal fact"
     );
 }
@@ -757,7 +754,7 @@ fn d8_a_result_record_failure_stays_local_and_the_other_session_keeps_working() 
         b_after.turn.state
     );
     assert!(
-        run.agent().store_health(crate::agent_store::StoreDependency::Journal).available,
+        run.agent().store_health(agent_store::StoreDependency::Journal).available,
         "the shared Store is still available"
     );
     // The parked record is the other real path: it commits exactly once, late, with its value.
@@ -874,7 +871,7 @@ async fn d10_recovery_after_a_fault_consumes_only_committed_boundaries() {
     assert_eq!(next_steps, vec!["1:completed".to_owned()]);
     assert_eq!(tool_calls(&run.runtime).len(), 0);
     assert!(
-        run.agent().store_health(crate::agent_store::StoreDependency::Journal).available,
+        run.agent().store_health(agent_store::StoreDependency::Journal).available,
         "no permanent fault marker is left behind"
     );
 }

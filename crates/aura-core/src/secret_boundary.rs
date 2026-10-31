@@ -1,8 +1,11 @@
 //! Secret platform access keeps the original command's bounded settlement owner.
-use crate::blocking_pool::BlockingAdmission;
-use crate::command_settlement::{SettlementTask, SettlementWaiter, TaskEnding};
-use crate::sync_boundary::{SyncSection, SyncSubject};
 use crate::*;
+use aura_core_base::blocking_pool::BlockingAdmission;
+use aura_core_base::command_settlement::{SettlementTask, SettlementWaiter, TaskEnding};
+use aura_core_base::{
+    command_settlement,
+    sync_boundary::{SyncSection, SyncSubject},
+};
 
 pub(crate) async fn run<T, F, V>(
     state: &RuntimeState,
@@ -41,10 +44,7 @@ where
                         Err(error) => TaskEnding::Failed(error.clone()),
                     };
                     settlements.task_finished(&ticket, ending);
-                    if result
-                        .as_ref()
-                        .is_err_and(crate::command_settlement::envelope_is_unconfirmed)
-                    {
+                    if result.as_ref().is_err_and(command_settlement::envelope_is_unconfirmed) {
                         settlements.unresolved(&ticket);
                     }
                 }
@@ -65,13 +65,11 @@ where
             waiter.received();
             Err(busy(request.id))
         }
-        BlockingAdmission::Unknown { .. } => {
-            Err(crate::command_settlement::outcome_unknown_envelope(
-                request.id,
-                request.command_invocation_id,
-                "凭据操作的结果还没有确认，请刷新查看，不要重新输入密钥。".into(),
-            ))
-        }
+        BlockingAdmission::Unknown { .. } => Err(command_settlement::outcome_unknown_envelope(
+            request.id,
+            request.command_invocation_id,
+            "凭据操作的结果还没有确认，请刷新查看，不要重新输入密钥。".into(),
+        )),
     }
 }
 

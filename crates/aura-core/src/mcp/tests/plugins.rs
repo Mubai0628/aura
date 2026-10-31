@@ -3,8 +3,8 @@
 //! plugin goes.
 use super::support::Fixture;
 use crate::mcp::connection::RequestFailure;
-use crate::plugins::{PluginContext, PluginRuntime};
 use aura_domain_common::SessionId;
+use aura_extension_service::plugins::{PluginContext, PluginRuntime};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

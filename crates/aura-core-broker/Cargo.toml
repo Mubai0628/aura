@@ -1,0 +1,46 @@
+[package]
+name = "aura-core-broker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# The Agent store's default-off acceptance hold points (src/agent_store/acceptance_hold.rs).
+# aura-core's own `acceptance-barrier` feature enables it; no product build does.
+acceptance-barrier = []
+# The memory vaults under an injected TEMP root (src/memory_services.rs). aura-core's own
+# `memory-test-profile` feature enables it; no product build does.
+memory-test-profile = []
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = ["aura-core-base/test-hooks"]
+
+[dependencies]
+anyhow.workspace = true
+aura-backend-api = { path = "../aura-backend-api" }
+aura-backend-core = { path = "../aura-backend-core" }
+aura-core-base = { path = "../aura-core-base" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-memory = { path = "../aura-memory" }
+aura-persistence = { path = "../aura-persistence" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+serde_json.workspace = true
+time.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+rusqlite.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

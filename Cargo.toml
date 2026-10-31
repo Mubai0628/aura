@@ -39,6 +39,19 @@ members = [
     "crates/aura-prompt-runtime",
     "crates/aura-contract-schema",
     "crates/aura-core",
+    "crates/aura-core-base",
+    "crates/aura-agent-application",
+    "crates/aura-agent-execution",
+    "crates/aura-tool-service",
+    "crates/aura-extension-service",
+    "crates/aura-package-service",
+    "crates/aura-security-service",
+    "crates/aura-workspace-service",
+    "crates/aura-core-activity",
+    "crates/aura-core-broker",
+    "crates/aura-model-service",
+    "crates/aura-chrome-service",
+    "crates/aura-git-service",
     "crates/aura-domain-common",
     "crates/aura-fs-tools",
     "crates/aura-ipc",
@@ -81,7 +94,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.10"
+version = "0.1.11"
 edition = "2024"
 rust-version = "1.97.1"
 
@@ -156,6 +169,47 @@ debug = false
 # library passed 4 GB, the size rust-lld can read as an archive, and the link failed. Line tables
 # keep files and lines in backtraces; a debugger shows no local variables inside aura-core.
 [profile.dev.package.aura-core]
+debug = "line-tables-only"
+
+# The crates split out of aura-core keep its development debug level: a debugger sees the same as
+# before the split, and the build directory does not grow.
+[profile.dev.package.aura-core-base]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-agent-application]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-agent-execution]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-tool-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-extension-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-package-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-security-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-workspace-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-core-activity]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-core-broker]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-model-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-chrome-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-git-service]
 debug = "line-tables-only"
 
 # Every Core test fixture hashes the ~200 MB test

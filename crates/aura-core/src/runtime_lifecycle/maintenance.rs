@@ -1,4 +1,5 @@
 use crate::*;
+use aura_core_base::{blocking_pool, sync_boundary};
 
 /// What one configuration-maintenance storage section really did.
 ///
@@ -28,31 +29,29 @@ pub(crate) enum ConfigMaintenanceOutcome {
 /// this consumer instead of being abandoned - and a budget expiring can therefore never become
 /// the reason for a second commit.
 pub(crate) async fn run_model_projection_maintenance(
-    sync: &crate::sync_boundary::SyncBoundary,
+    sync: &sync_boundary::SyncBoundary,
     p05: P05Services,
 ) -> ConfigMaintenanceOutcome {
     let admission = sync
         .run_owned(
-            crate::sync_boundary::SyncSection::Projection,
-            crate::sync_boundary::SyncSubject::new().method("config.models.rebuild"),
+            sync_boundary::SyncSection::Projection,
+            sync_boundary::SyncSubject::new().method("config.models.rebuild"),
             move || p05.rebuild_model_projections_if_stale().map(|_| ()),
         )
         .await;
     match admission {
-        crate::blocking_pool::BlockingAdmission::Completed(Ok(())) => {
-            ConfigMaintenanceOutcome::Applied
-        }
-        crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+        blocking_pool::BlockingAdmission::Completed(Ok(())) => ConfigMaintenanceOutcome::Applied,
+        blocking_pool::BlockingAdmission::Completed(Err(error)) => {
             ConfigMaintenanceOutcome::Failed(format!("{error:#}"))
         }
-        crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+        blocking_pool::BlockingAdmission::Refused { waited_ms } => {
             append_core_log(
                 "models_projection_maintenance_not_run",
                 json!({ "reason": "boundary_refused", "waited_ms": waited_ms }),
             );
             ConfigMaintenanceOutcome::NotRun
         }
-        crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+        blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
             append_core_log(
                 "models_projection_maintenance_unknown",
                 json!({ "reason": "section_produced_no_value", "waited_ms": waited_ms }),
@@ -69,33 +68,31 @@ pub(crate) async fn run_model_projection_maintenance(
 /// and the publication error the control service already reports stays a separate field rather
 /// than being folded into "it worked".
 pub(crate) async fn run_tool_settings_maintenance(
-    sync: &crate::sync_boundary::SyncBoundary,
+    sync: &sync_boundary::SyncBoundary,
     settings: Arc<SettingsFacade>,
     persistence: Arc<PersistenceCoordinator>,
     configuration_rejected: bool,
 ) -> ConfigMaintenanceOutcome {
     let admission = sync
         .run_owned(
-            crate::sync_boundary::SyncSection::Projection,
-            crate::sync_boundary::SyncSubject::new().method("config.tools.publish"),
+            sync_boundary::SyncSection::Projection,
+            sync_boundary::SyncSubject::new().method("config.tools.publish"),
             move || publish_current_tool_settings(&settings, &persistence, configuration_rejected),
         )
         .await;
     match admission {
-        crate::blocking_pool::BlockingAdmission::Completed(Ok(())) => {
-            ConfigMaintenanceOutcome::Applied
-        }
-        crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+        blocking_pool::BlockingAdmission::Completed(Ok(())) => ConfigMaintenanceOutcome::Applied,
+        blocking_pool::BlockingAdmission::Completed(Err(error)) => {
             ConfigMaintenanceOutcome::Failed(format!("{error:#}"))
         }
-        crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+        blocking_pool::BlockingAdmission::Refused { waited_ms } => {
             append_core_log(
                 "tool_settings_maintenance_not_run",
                 json!({ "reason": "boundary_refused", "waited_ms": waited_ms }),
             );
             ConfigMaintenanceOutcome::NotRun
         }
-        crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+        blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
             append_core_log(
                 "tool_settings_maintenance_unknown",
                 json!({ "reason": "section_produced_no_value", "waited_ms": waited_ms }),
@@ -108,7 +105,7 @@ pub(crate) async fn run_tool_settings_maintenance(
 pub(crate) fn spawn_p05_maintenance(
     settings: &SettingsFacade,
     p05: P05Services,
-    sync: crate::sync_boundary::SyncBoundary,
+    sync: sync_boundary::SyncBoundary,
 ) -> Result<RuntimeBackgroundTask> {
     let config_events = settings
         .subscribe()
@@ -173,7 +170,7 @@ pub(crate) fn spawn_p05_maintenance(
 pub(crate) fn spawn_p07_maintenance(
     settings: &Arc<SettingsFacade>,
     persistence: Arc<PersistenceCoordinator>,
-    sync: crate::sync_boundary::SyncBoundary,
+    sync: sync_boundary::SyncBoundary,
 ) -> Result<RuntimeBackgroundTask> {
     let config_events = settings
         .subscribe()

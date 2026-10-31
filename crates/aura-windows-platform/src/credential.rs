@@ -151,6 +151,8 @@ impl fmt::Debug for StoredCredential {
     }
 }
 
+/// The user's Windows Credential Manager. Every call waits for the user's Credential Manager
+/// lock first (`credential_lock`), because overlapping calls lose updates.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WindowsCredentialStore;
 
@@ -229,6 +231,7 @@ impl WindowsCredentialStore {
             UserName: ptr::null_mut(),
         };
 
+        let _lock = crate::credential_lock::hold().map_err(CredentialStoreError::Windows)?;
         // SAFETY: every pointer in the structure is either null or points to a
         // live buffer for the duration of the synchronous call.
         if unsafe { CredWriteW(&raw const credential, 0) } == 0 {
@@ -247,6 +250,7 @@ impl WindowsCredentialStore {
     ) -> Result<StoredCredential, CredentialStoreError> {
         let target = wide(&reference.windows_target_name());
         let mut credential = ptr::null_mut::<CREDENTIALW>();
+        let _lock = crate::credential_lock::hold().map_err(CredentialStoreError::Windows)?;
         // SAFETY: target is NUL-terminated and output points to valid storage.
         if unsafe { CredReadW(target.as_ptr(), CRED_TYPE_GENERIC, 0, &raw mut credential) } == 0 {
             let error = io::Error::last_os_error();
@@ -276,6 +280,7 @@ impl WindowsCredentialStore {
 
     pub fn delete(self, reference: &CredentialRef) -> Result<bool, CredentialStoreError> {
         let target = wide(&reference.windows_target_name());
+        let _lock = crate::credential_lock::hold().map_err(CredentialStoreError::Windows)?;
         // SAFETY: target is a live, NUL-terminated UTF-16 buffer.
         if unsafe { CredDeleteW(target.as_ptr(), CRED_TYPE_GENERIC, 0) } != 0 {
             return Ok(true);

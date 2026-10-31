@@ -158,20 +158,21 @@ impl BuildProgress {
 
 #[cfg(test)]
 thread_local! {
-    static PRETEND_MEMORY_LOW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static PRETEND_MEMORY_LOW: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
 }
 
-/// Makes this thread's walks and retry checks see memory as low, or not, for a test.
+/// Makes this thread's walks and retry checks see memory as low, or as plentiful, for a test;
+/// until then they read the machine's memory, which a busy machine may not have free.
 #[cfg(test)]
 pub(crate) fn pretend_memory_low(low: bool) {
-    PRETEND_MEMORY_LOW.with(|pretend| pretend.set(low));
+    PRETEND_MEMORY_LOW.with(|pretend| pretend.set(Some(low)));
 }
 
 /// Whether free memory is below where a walk goes no deeper: a floor, or a tenth of all memory.
 fn memory_low_now() -> bool {
     #[cfg(test)]
-    if PRETEND_MEMORY_LOW.with(std::cell::Cell::get) {
-        return true;
+    if let Some(low) = PRETEND_MEMORY_LOW.with(std::cell::Cell::get) {
+        return low;
     }
     aura_windows_platform::physical_memory()
         .is_ok_and(|memory| memory.available < MIN_FREE_MEMORY.max(memory.total / 10))
@@ -180,8 +181,8 @@ fn memory_low_now() -> bool {
 /// Whether memory has come back well above where a walk stopped: twice that much free.
 fn memory_recovered() -> bool {
     #[cfg(test)]
-    if PRETEND_MEMORY_LOW.with(std::cell::Cell::get) {
-        return false;
+    if let Some(low) = PRETEND_MEMORY_LOW.with(std::cell::Cell::get) {
+        return !low;
     }
     aura_windows_platform::physical_memory()
         .is_ok_and(|memory| memory.available >= 2 * MIN_FREE_MEMORY.max(memory.total / 10))

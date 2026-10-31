@@ -63,7 +63,7 @@ impl Drop for ApplyGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
+    use aura_core_base::{
         blocking_pool::BlockingAdmission,
         sync_boundary::{SyncBoundary, SyncSection, SyncSubject},
     };

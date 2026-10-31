@@ -4,10 +4,6 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const mode = process.argv[2];
 const forbidden = [
-  'internal.e2e.p08_contract_driver.run_vertical_suite',
-  'aura:e2e:p08-contract-driver',
-  'auraP08ContractDriver',
-  '--p08-contract-driver-profile=',
   // The E2E Core reads its loopback DNS and TLS fixture from this variable.
   'AURA_L01_NETWORK_FIXTURE',
   // The E2E Core starts user terminals without the owner's PowerShell profile.
@@ -22,9 +18,7 @@ const assertClean = async (path) => {
   const bytes = await readFile(path);
   for (const needle of forbidden) {
     if (bytes.includes(Buffer.from(needle, 'utf8'))) {
-      throw new Error(
-        `production surface contains the E2E-only P08 Driver marker ${needle}: ${path}`,
-      );
+      throw new Error(`production surface contains the E2E-only marker ${needle}: ${path}`);
     }
   }
 };
@@ -61,7 +55,7 @@ if (mode === 'core') {
     'utf8',
   );
   if (!packageConfiguration.includes("'!dist/e2e/**/*'")) {
-    throw new Error('production packaging does not exclude the E2E-only P08 Driver output');
+    throw new Error('production packaging does not exclude the E2E-only output');
   }
 } else {
   throw new Error('usage: verify-p08-production-surface.mjs <core|desktop>');

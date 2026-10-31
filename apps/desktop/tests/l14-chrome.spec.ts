@@ -182,12 +182,12 @@ test('L14 the extension pairs through the relay in Chrome for Testing and a mode
     const session = setup.sessionId as string;
     const seen = new Set<string>();
     const opening = await answerNext(page, session, seen, 'allow_once');
-    expect(opening.decisions).toEqual(['allow_once', 'deny']);
+    expect(opening.decisions).toEqual(['allow_once', 'allow_session', 'deny']);
     const acting = await answerNext(page, session, seen, 'allow_for_current_turn');
     expect(acting.capabilities).toContain('chrome_interaction');
     expect(acting.decisions).toContain('allow_for_current_turn');
     const leaving = await answerNext(page, session, seen, 'allow_once');
-    expect(leaving.decisions).toEqual(['allow_once', 'deny']);
+    expect(leaving.decisions).toEqual(['allow_once', 'allow_session', 'deny']);
     const erasing = await answerNext(page, session, seen, 'allow_once');
     expect(erasing.capabilities).toContain('chrome_sensitive_action');
     expect(erasing.decisions).toEqual(['allow_once', 'deny']);

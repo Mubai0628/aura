@@ -3,8 +3,8 @@
 use super::super::l01_user_proxy::{CERTIFICATE, read_headers, tls_acceptor};
 use super::support::*;
 use super::*;
-use crate::package_program::tests::support::Kind;
 use aura_network_control::TestFixtureDnsRecord;
+use aura_package_service::package_program::tests::support::Kind;
 use std::{
     net::{IpAddr, Ipv4Addr},
     sync::{Arc, Mutex},

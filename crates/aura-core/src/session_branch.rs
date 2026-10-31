@@ -4,9 +4,9 @@
 //! source's permission mode. The execution store then carries the source's history into it in one
 //! transaction. When that transaction fails, the new conversation is deleted again, so no half
 //! branch is left and the user can simply try again.
-use crate::agent_store::StoreError;
 use crate::*;
 use aura_agent_domain::{AgentSessionBranchRequest, AgentSessionBranchResult};
+use aura_core_broker::agent_store::StoreError;
 use aura_persistence_v2::agent::branch::BranchImport;
 use aura_workspace_domain::SessionCreateRequest;
 

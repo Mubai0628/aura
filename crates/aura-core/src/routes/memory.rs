@@ -1,7 +1,7 @@
 //! Desktop management is authenticated independently of model tool permissions.
 //! All roots come from Core's fixed Memory owner and verified workspace resolver.
-use crate::sync_boundary::{SyncSection, SyncSubject};
 use crate::*;
+use aura_core_base::sync_boundary::{SyncSection, SyncSubject};
 use aura_domain_common::WorkspaceId;
 use aura_memory::*;
 pub(crate) async fn dispatch(
@@ -61,27 +61,27 @@ async fn handle(
         )
         .await
     {
-        crate::blocking_pool::BlockingAdmission::Completed(Ok(value)) => Ok(value),
-        crate::blocking_pool::BlockingAdmission::Completed(Err(cause))
+        aura_core_base::blocking_pool::BlockingAdmission::Completed(Ok(value)) => Ok(value),
+        aura_core_base::blocking_pool::BlockingAdmission::Completed(Err(cause))
             if mutation && write_may_have_committed(&cause) =>
         {
             append_core_log(
                 "memory.management_outcome_unknown",
                 json!({"correlation_id":request.id}),
             );
-            Err(crate::command_settlement::outcome_unknown_envelope(request.id,request.command_invocation_id,
+            Err(aura_core_base::command_settlement::outcome_unknown_envelope(request.id,request.command_invocation_id,
                 "记忆文件或设置可能已经写入，后续记录未完成。请刷新、校验并检查文件；不要重复提交原操作。".into()))
         }
-        crate::blocking_pool::BlockingAdmission::Completed(Err(cause)) => {
+        aura_core_base::blocking_pool::BlockingAdmission::Completed(Err(cause)) => {
             Err(classify(request.id, &cause))
         }
-        crate::blocking_pool::BlockingAdmission::Refused { .. } => Err(error(
+        aura_core_base::blocking_pool::BlockingAdmission::Refused { .. } => Err(error(
             request.id,
             "memory.busy",
             ErrorCategory::Unavailable,
             "记忆操作尚未开始，Aura 正忙，请稍后重试。",
         )),
-        _ if mutation => Err(crate::command_settlement::outcome_unknown_envelope(
+        _ if mutation => Err(aura_core_base::command_settlement::outcome_unknown_envelope(
             request.id,
             request.command_invocation_id,
             "记忆操作的结果尚未确认；请刷新查看，不要重复提交。".into(),

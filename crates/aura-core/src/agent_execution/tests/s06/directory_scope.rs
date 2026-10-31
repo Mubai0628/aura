@@ -1,5 +1,6 @@
 use super::*;
 use aura_permission_domain::{ExternalGrantCapability as C, ExternalGrantTerm};
+use aura_security_service::external_grants;
 use std::path::Path;
 
 fn grant(f: &Fixture, path: &Path, capabilities: Vec<C>) {
@@ -10,7 +11,7 @@ fn grant(f: &Fixture, path: &Path, capabilities: Vec<C>) {
         .agent_execution_required()
         .external_grants
         .issue_approved_directory(
-            crate::external_grants::ApprovedDirectoryGrant {
+            external_grants::ApprovedDirectoryGrant {
                 session_id: f.turn.session_id,
                 workspace_id: f.turn.workspace_id,
                 canonical_root: CanonicalPath { utf16: display.encode_utf16().collect(), display },
@@ -46,7 +47,7 @@ async fn s06_live_directory_revoke_preserves_an_independent_approval_of_the_same
         .agent_execution_required()
         .external_grants
         .issue_approved_directory(
-            crate::external_grants::ApprovedDirectoryGrant {
+            external_grants::ApprovedDirectoryGrant {
                 session_id: f.turn.session_id,
                 workspace_id: f.turn.workspace_id,
                 canonical_root: CanonicalPath { utf16: display.encode_utf16().collect(), display },
@@ -214,7 +215,7 @@ async fn s06_live_directory_file_revocation_withdraws_its_companion_authority() 
         .agent_execution_required()
         .external_grants
         .issue_approved_directory(
-            crate::external_grants::ApprovedDirectoryGrant {
+            external_grants::ApprovedDirectoryGrant {
                 session_id: f.turn.session_id,
                 workspace_id: f.turn.workspace_id,
                 canonical_root: CanonicalPath { utf16: display.encode_utf16().collect(), display },

@@ -1,0 +1,64 @@
+[package]
+name = "aura-security-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# The acceptance boundary's hold at a P04 publication. aura-core's own `acceptance-barrier`
+# feature enables it; no product build does.
+acceptance-barrier = ["aura-fs-tools/acceptance-barrier"]
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = ["aura-core-base/test-hooks"]
+
+[dependencies]
+anyhow.workspace = true
+aura-activity-domain = { path = "../aura-activity-domain" }
+aura-activity-runtime = { path = "../aura-activity-runtime" }
+aura-artifact-contract = { path = "../aura-artifact-contract" }
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-config = { path = "../aura-config" }
+aura-core-activity = { path = "../aura-core-activity" }
+aura-core-base = { path = "../aura-core-base" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-fs-tools = { path = "../aura-fs-tools" }
+aura-ipc = { path = "../aura-ipc" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-permission-engine = { path = "../aura-permission-engine" }
+aura-persistence = { path = "../aura-persistence" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-sandbox = { path = "../aura-sandbox" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-tool-domain = { path = "../aura-tool-domain" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-workspace = { path = "../aura-workspace" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+aura-workspace-service = { path = "../aura-workspace-service" }
+blake3.workspace = true
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+# This crate's own tests see the crates split out of Core with their test-time behaviour, as
+# Core's tests do (memory roots under TEMP, a test's own log route).
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
+rusqlite.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

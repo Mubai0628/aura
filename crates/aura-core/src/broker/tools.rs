@@ -166,7 +166,7 @@ pub(crate) async fn dispatch_tools(
             } else {
                 None
             };
-            let result = crate::p07_builtin::invoke_broker_service(
+            let result = aura_tool_service::p07_builtin::invoke_broker_service(
                 &handler_persistence,
                 handler,
                 &arguments,

@@ -1,4 +1,6 @@
 use super::*;
+use aura_core_base::sync_boundary;
+use aura_core_broker::agent_store;
 use aura_domain_common::{SessionId, UtcTimestamp, WorkspaceId};
 use aura_persistence::ToolCredentialScopeSource;
 use aura_tool_domain::{ToolCredentialCreateRequestV1, ToolCredentialScopeV1};
@@ -40,9 +42,9 @@ fn s05_tool_credential_scope_uses_the_real_agent_store_without_a_second_session_
             )
         })
         .expect("obtain the actual tool-credential scope fact");
-    let store = Arc::new(crate::agent_store::AgentStore::new(
+    let store = Arc::new(agent_store::AgentStore::new(
         journal.clone(),
-        crate::sync_boundary::SyncBoundary::open(),
+        sync_boundary::SyncBoundary::open(),
     ));
     fixture
         .persistence

@@ -6,6 +6,7 @@ use aura_security_contract::{
     PermissionGrantLifetime, PermissionMode, ResolvedCapability,
 };
 use aura_tool_contract::ToolRegistryScopeV1;
+use aura_tool_service::p07_registry;
 
 fn network_grant(
     state: &RuntimeState,
@@ -232,7 +233,7 @@ async fn a_normal_session_pin_lands_in_that_sessions_effective_registry_only() {
         ToolRegistryScopeV1::Session { workspace_id, session_id, turn_task_id, agent_run_id }
     });
     for scope in &scopes {
-        let published = crate::p07_registry::ToolRegistryControlServiceV1
+        let published = p07_registry::ToolRegistryControlServiceV1
             .build_scope(
                 &services.persistence,
                 crate::p07_test_support::registry_request(scope.clone()),

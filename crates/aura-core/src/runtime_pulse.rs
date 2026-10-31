@@ -3,6 +3,7 @@
 //! Core's stores starts, changes or ends — so the status can say Core is busy, and why, while the
 //! store is still held. Nothing here waits for the store.
 use super::*;
+use aura_core_base::{busy, outbound_watch};
 
 pub(crate) fn spawn_heartbeat(
     state: Arc<RuntimeState>,
@@ -28,13 +29,13 @@ pub(crate) fn spawn_heartbeat(
             {
                 break;
             }
-            note_late_heartbeat(late, queueing.elapsed(), crate::outbound_watch::current());
+            note_late_heartbeat(late, queueing.elapsed(), outbound_watch::current());
             // Until startup completes, its own projection says where Core is.
             if !state.startup_complete.load(Ordering::Acquire) {
                 continue;
             }
             // And when the background store check finds damage.
-            let now = (crate::busy::current(), core_health::store_damaged(&state));
+            let now = (busy::current(), core_health::store_damaged(&state));
             if now == shown {
                 continue;
             }
@@ -103,7 +104,7 @@ mod tests {
         state.startup_complete.store(true, Ordering::Release);
         let queue = AsyncPriorityQueue::new();
         let pulse = spawn_heartbeat(Arc::clone(&state), queue.clone());
-        let busy = crate::busy::begin(CoreBusyActivityV1::DeletingSession);
+        let busy = aura_core_base::busy::begin(CoreBusyActivityV1::DeletingSession);
         let shown = next_health(&queue, Duration::from_secs(15)).await;
         assert_eq!(shown["payload"]["busy"]["activity"], "deleting_session", "{shown}");
         drop(busy);

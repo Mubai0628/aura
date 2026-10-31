@@ -2,6 +2,8 @@
 //! appears while Core runs. Finding the next stream used to read every event of every step that
 //! never streamed text, inside a write section on the one store owner, on every pass.
 use super::*;
+use aura_core_base::sync_boundary;
+use aura_core_broker::agent_store;
 use std::time::Duration;
 
 fn agent(runtime: &crate::RuntimeState) -> Arc<crate::agent_application::AgentApplication> {
@@ -9,7 +11,7 @@ fn agent(runtime: &crate::RuntimeState) -> Arc<crate::agent_application::AgentAp
     services.agent_required()
 }
 
-fn backfill_spans(runtime: &crate::RuntimeState) -> Vec<crate::sync_boundary::SyncSpan> {
+fn backfill_spans(runtime: &crate::RuntimeState) -> Vec<sync_boundary::SyncSpan> {
     runtime
         .sync
         .spans()
@@ -47,7 +49,7 @@ async fn an_idle_backfill_takes_no_write_section() {
     assert!(until(Duration::from_secs(15), || passes() >= 2).await, "two passes ran");
     let writes: Vec<_> = backfill_spans(&runtime)
         .into_iter()
-        .filter(|span| span.section == crate::sync_boundary::SyncSection::AgentStore.as_str())
+        .filter(|span| span.section == sync_boundary::SyncSection::AgentStore.as_str())
         .map(|span| (span.method, span.elapsed_ms))
         .collect();
     assert!(writes.is_empty(), "an idle pass took the store's write section: {writes:?}");
@@ -111,8 +113,7 @@ async fn a_stream_that_appears_while_core_runs_is_still_copied() {
     assert!(until(Duration::from_secs(20), covered).await, "the stream was copied and indexed");
     let copied = agent.store().receipts().into_iter().any(|receipt| {
         receipt.operation == "agent.backfill.visible_stream"
-            && receipt.state
-                == crate::agent_store::ReceiptState::Settled { committed: true, code: None }
+            && receipt.state == agent_store::ReceiptState::Settled { committed: true, code: None }
     });
     assert!(copied, "the copy ran in the backfill's own write section");
     let journal = services.broker.lock().expect("journal");

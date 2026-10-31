@@ -1,9 +1,9 @@
 //! Session writes keep a bounded completion owner across caller timeouts and connection loss.
 use super::workspace::{session_envelope, session_unknown_envelope, session_write_failure};
-use crate::blocking_pool::BlockingAdmission;
-use crate::command_settlement::{SettlementTask, SettlementWaiter, TaskEnding};
-use crate::sync_boundary::{SyncSection, SyncSubject};
 use crate::*;
+use aura_core_base::blocking_pool::BlockingAdmission;
+use aura_core_base::command_settlement::{SettlementTask, SettlementWaiter, TaskEnding};
+use aura_core_base::sync_boundary::{SyncSection, SyncSubject};
 
 pub(super) async fn execute(
     state: &RuntimeState,
@@ -118,7 +118,7 @@ pub(super) async fn execute(
         }
         let ending = TaskEnding::from_result(&result);
         settlements.task_finished(&ticket, ending);
-        if result.as_ref().is_err_and(crate::command_settlement::envelope_is_unconfirmed) {
+        if result.as_ref().is_err_and(aura_core_base::command_settlement::envelope_is_unconfirmed) {
             // This owner has received an actual teardown/error, not an expired receipt timer.
             settlements.unresolved(&ticket);
         }
@@ -151,7 +151,7 @@ fn publication_failure(
     command: CommandInvocationId,
     error: &anyhow::Error,
 ) -> IpcErrorEnvelope {
-    crate::command_settlement::outcome_unknown_envelope(
+    aura_core_base::command_settlement::outcome_unknown_envelope(
         correlation,
         Some(command),
         format!(

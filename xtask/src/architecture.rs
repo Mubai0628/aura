@@ -11,6 +11,7 @@ pub(crate) fn check(root: &Path) -> Result<()> {
             "--test",
             "--test-isolation=none",
             "scripts/architecture/graph.test.mjs",
+            "scripts/architecture/features.test.mjs",
             "scripts/architecture/file-size.test.mjs",
             "scripts/architecture/renderer.test.mjs",
             "scripts/architecture/contract-baseline.test.mjs",

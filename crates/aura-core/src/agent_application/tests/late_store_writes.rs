@@ -5,7 +5,8 @@
 //! later change to the run is stamped when it really runs, so it is not refused as going back in
 //! time; refused, it left the run standing at its tools with nothing running them.
 use super::*;
-use crate::agent_store::ReceiptState;
+use aura_core_base::busy;
+use aura_core_broker::agent_store::ReceiptState;
 use std::time::Duration;
 
 const LATE_RECORD_WRITE: Scenario = Scenario::Batch {
@@ -166,8 +167,7 @@ async fn any_step_write_that_outlives_its_wait_is_followed_and_the_turn_goes_on(
         "its caller's wait ended before it committed"
     );
     assert!(
-        until(Duration::from_secs(10), || crate::busy::store_waiting_after(Duration::from_secs(2)))
-            .await,
+        until(Duration::from_secs(10), || busy::store_waiting_after(Duration::from_secs(2))).await,
         "the status says a turn waits for the store"
     );
     hold.release_all();

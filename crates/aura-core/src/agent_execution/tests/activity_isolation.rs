@@ -17,6 +17,7 @@
 //! In every case the real tool must still execute and really write its file - verified against
 //! the filesystem, not against a returned flag - and A's common admission must still hold.
 use crate::agent_execution::tests::fixture::Fixture;
+use aura_agent_execution::agent_activity;
 use aura_security_contract::PermissionMode;
 use serde_json::json;
 
@@ -67,7 +68,7 @@ async fn a_saturated_index_does_not_stop_a_real_tool_from_writing() {
     // Fill the index past its capacity with real publications, so every further publish is
     // dropped rather than recorded.
     for _ in 0..(index.capacity() + 8) {
-        let _ = index.publish(crate::agent_activity::tests_support::synthetic_record());
+        let _ = index.publish(agent_activity::tests_support::synthetic_record());
     }
     assert!(
         index.len() >= index.capacity(),
@@ -422,7 +423,7 @@ async fn a_held_real_index_owner_does_not_stop_a_real_tool_and_a_still_protects_
     // observable form of "the observer recovered". It is read through the index's own counters, so
     // this is a measurement rather than an assumption that releasing the lock was enough.
     let before = index.revision();
-    let recorded = index.publish(crate::agent_activity::tests_support::synthetic_record());
+    let recorded = index.publish(agent_activity::tests_support::synthetic_record());
     assert!(
         recorded.was_recorded(),
         "a real publication is recorded again once the observer's owner is released: {recorded:?}"

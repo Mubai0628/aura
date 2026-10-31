@@ -9,50 +9,64 @@ default = []
 # The S02-E acceptance boundary: a controlled hold at a real dispatch/reply boundary, used only to
 # produce isolation evidence. No product build enables it - the execution image build passes it
 # only when it is asked for explicitly, and `pnpm dev` never does - so a default build compiles no
-# boundary code at all. See src/acceptance_barrier.rs.
-acceptance-barrier = ["aura-fs-tools/acceptance-barrier"]
+# boundary code at all. See aura-core-base/src/acceptance_barrier.rs.
+acceptance-barrier = [
+    "aura-fs-tools/acceptance-barrier",
+    "aura-core-base/acceptance-barrier",
+    "aura-core-broker/acceptance-barrier",
+    "aura-security-service/acceptance-barrier",
+    "aura-agent-execution/acceptance-barrier",
+    "aura-agent-application/acceptance-barrier",
+]
 # Only for offline Git fixtures, including optimized Shell performance checks.
 # Ordinary builds have neither this environment override nor its marker.
 git-test-profile = ["aura-backend-windows-user/git-test-profile"]
-memory-test-profile = []
+memory-test-profile = [
+    "aura-core-broker/memory-test-profile",
+    "aura-extension-service/memory-test-profile",
+    "aura-agent-application/memory-test-profile",
+]
 p08-contract-driver = [
     "memory-test-profile",
     "git-test-profile",
     "aura-backend-windows-user/terminal-test-profile",
-    "aura-ipc/p08-contract-driver",
-    "dep:aura-context-fixtures",
     "dep:aura-sandbox-host",
     "dep:flate2",
-    "dep:rusqlite",
     "dep:tokio-rustls",
     "aura-network-control/test-fixture-tls",
     "aura-network-control/test-fixture-dns",
+    "aura-git-service/p08-contract-driver",
 ]
 
 [dependencies]
+aura-core-base = { path = "../aura-core-base" }
+aura-agent-application = { path = "../aura-agent-application" }
+aura-agent-execution = { path = "../aura-agent-execution" }
+aura-tool-service = { path = "../aura-tool-service" }
+aura-extension-service = { path = "../aura-extension-service" }
+aura-package-service = { path = "../aura-package-service" }
+aura-security-service = { path = "../aura-security-service" }
+aura-workspace-service = { path = "../aura-workspace-service" }
+aura-core-activity = { path = "../aura-core-activity" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-model-service = { path = "../aura-model-service" }
+aura-chrome-service = { path = "../aura-chrome-service" }
+aura-git-service = { path = "../aura-git-service" }
 aura-memory = { path = "../aura-memory" }
-aura-memory-domain = { path = "../aura-memory-domain" }
-aura-net-tools = { path = "../aura-net-tools" }
 aura-execution-orchestrator = { path = "../aura-execution-orchestrator" }
 aura-activity-domain = { path = "../aura-activity-domain" }
 aura-activity-runtime = { path = "../aura-activity-runtime" }
 aura-agent-domain = { path = "../aura-agent-domain" }
-aura-web-domain = { path = "../aura-web-domain" }
 aura-browser-domain = { path = "../aura-browser-domain" }
-aura-web-runtime = { path = "../aura-web-runtime" }
 aura-backend-api = { path = "../aura-backend-api" }
 aura-backend-core = { path = "../aura-backend-core" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }
 aura-chrome-domain = { path = "../aura-chrome-domain" }
-aura-chrome-host = { path = "../aura-chrome-host" }
 aura-windows-user-contract = { path = "../aura-windows-user-contract" }
 aura-execution-contract = { path = "../aura-execution-contract" }
 aura-commands = { path = "../aura-commands" }
-aura-hooks = { path = "../aura-hooks" }
 aura-mcp = { path = "../aura-mcp" }
 aura-plugins = { path = "../aura-plugins" }
-aura-skills = { path = "../aura-skills" }
-aura-secret-scanner = { path = "../aura-secret-scanner" }
 aura-workspace-domain = { path = "../aura-workspace-domain" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }
 aura-security-contract = { path = "../aura-security-contract" }
@@ -61,20 +75,13 @@ aura-artifact-contract = { path = "../aura-artifact-contract" }
 aura-config = { path = "../aura-config" }
 aura-context-domain = { path = "../aura-context-domain" }
 aura-context-tools = { path = "../aura-context-tools" }
-aura-context-fixtures = { path = "../aura-context-fixtures", optional = true }
 aura-context-runtime = { path = "../aura-context-runtime" }
-aura-prompt-runtime = { path = "../aura-prompt-runtime" }
-aura-approval = { path = "../aura-approval" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-fs-tools = { path = "../aura-fs-tools" }
 aura-ipc = { path = "../aura-ipc" }
- aura-model-adapter-anthropic = { path = "../aura-model-adapter-anthropic" }
- aura-model-adapter-openai-chat = { path = "../aura-model-adapter-openai-chat" }
- aura-model-adapter-openai-responses = { path = "../aura-model-adapter-openai-responses" }
  aura-model-catalog = { path = "../aura-model-catalog" }
 aura-model-config = { path = "../aura-model-config" }
 aura-model-domain = { path = "../aura-model-domain" }
-aura-model-transport = { path = "../aura-model-transport" }
 aura-network-control = { path = "../aura-network-control" }
 aura-permission-domain = { path = "../aura-permission-domain" }
 aura-permission-engine = { path = "../aura-permission-engine" }
@@ -86,10 +93,8 @@ aura-sandbox = { path = "../aura-sandbox" }
 aura-sandbox-host = { path = "../aura-sandbox-host", optional = true }
 aura-tool-contract = { path = "../aura-tool-contract" }
 aura-tool-domain = { path = "../aura-tool-domain" }
-aura-tool-package = { path = "../aura-tool-package" }
 aura-tool-projection = { path = "../aura-tool-projection" }
 aura-tool-registry = { path = "../aura-tool-registry" }
-aura-tool-scheduler = { path = "../aura-tool-scheduler" }
 aura-tool-runtime = { path = "../aura-tool-runtime" }
 aura-windows-platform = { path = "../aura-windows-platform" }
 aura-workspace = { path = "../aura-workspace" }
@@ -97,13 +102,9 @@ blake3.workspace = true
 base64.workspace = true
 getrandom.workspace = true
 flate2 = { workspace = true, optional = true }
-regex.workspace = true
-resvg.workspace = true
-schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-rusqlite = { workspace = true, optional = true }
 tempfile.workspace = true
 tokio.workspace = true
 tokio-rustls = { version = "0.26.4", optional = true }
@@ -114,6 +115,20 @@ zeroize.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+# Core's tests see the split-out crates as they saw these modules inside Core: with the hooks
+# their test builds had (`test-hooks`; see the crate's Cargo.toml).
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+aura-agent-application = { path = "../aura-agent-application", features = ["test-hooks"] }
+aura-agent-execution = { path = "../aura-agent-execution", features = ["test-hooks"] }
+aura-extension-service = { path = "../aura-extension-service", features = ["test-hooks"] }
+aura-package-service = { path = "../aura-package-service", features = ["test-hooks"] }
+aura-security-service = { path = "../aura-security-service", features = ["test-hooks"] }
+aura-workspace-service = { path = "../aura-workspace-service", features = ["test-hooks"] }
+aura-core-activity = { path = "../aura-core-activity", features = ["test-hooks"] }
+aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
+aura-model-service = { path = "../aura-model-service", features = ["test-hooks"] }
+aura-chrome-service = { path = "../aura-chrome-service", features = ["test-hooks"] }
+aura-git-service = { path = "../aura-git-service", features = ["test-hooks"] }
 junction.workspace = true
 # Test-only: hold one file's real scan open, so the IPC lifecycle tests drive the
 # real search worker through a real disconnect instead of a stand-in. The feature

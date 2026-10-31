@@ -118,7 +118,7 @@ pub(crate) async fn dispatch(
                         "tools.credential.list" | "tools.credential.outcome"
                     )
                 {
-                    crate::command_settlement::outcome_unknown_envelope(
+                    aura_core_base::command_settlement::outcome_unknown_envelope(
                         work_request.id,
                         work_request.command_invocation_id,
                         "工具凭据操作的结果还没有确认，请刷新查看，不要重复提交。".into(),

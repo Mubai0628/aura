@@ -80,7 +80,6 @@ import type {
   AgentMainResult,
 } from '../shared/agent-validation.js';
 import {
-  type BuildExtensionInvocationIdentityV1,
   CORE_RESPONSIVENESS,
   CORE_STARTUP_PROGRESS_INTERVAL_MS,
   type CoreHealthProjectionChange,
@@ -131,10 +130,7 @@ import {
   withCoreWaiting,
 } from './core-supervisor/projections.js';
 export { STARTUP_CONNECT_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS } from './core-supervisor/config.js';
-export type {
-  CoreSupervisorOptions,
-  BuildExtensionInvocationIdentityV1,
-} from './core-supervisor/config.js';
+export type { CoreSupervisorOptions } from './core-supervisor/config.js';
 import { CORE_UNREACHABLE_MESSAGE } from './core-unavailable.js';
 import { RevisionedProjection } from './core-supervisor/revisioned-projection.js';
 import { ConfirmedCommands } from './core-supervisor/confirmed-commands.js';
@@ -648,26 +644,6 @@ export class CoreSupervisor {
     transport.close();
   }
 
-  async requestBuildExtension(
-    method: string,
-    params: (identity: BuildExtensionInvocationIdentityV1) => unknown,
-    timeoutMilliseconds = 180_000,
-  ): Promise<unknown> {
-    if (this.#options.additionalCoreArguments === undefined) {
-      throw new Error('No compile-time Main build extension is active');
-    }
-    const transport = this.#activeTransport();
-    return transport.request(
-      method,
-      params({
-        coreRuntimeInstanceId: this.#coreRuntimeInstanceId,
-        mainRuntimeInstanceId: this.#mainRuntimeInstanceId,
-      }),
-      1,
-      timeoutMilliseconds,
-    );
-  }
-
   async subscribeModelProjection(route: ModelProjectionRouteRequest): Promise<void> {
     this.#require(this.#modelSupported, 'P05 Model Control Plane');
     if (route.projection_scope.type === 'global') return;
@@ -962,9 +938,6 @@ export class CoreSupervisor {
       coreArguments.push(`--test-mode=${testMode}`);
     }
     coreArguments.push(...this.#exitRecovery.spawning());
-    if (this.#options.additionalCoreArguments !== undefined) {
-      coreArguments.push(...this.#options.additionalCoreArguments);
-    }
 
     this.#childExit = undefined;
     // Monotonic: the startup budgets are measured on a clock that cannot step.

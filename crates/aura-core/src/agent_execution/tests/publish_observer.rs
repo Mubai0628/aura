@@ -15,6 +15,7 @@
 //! control document, so nothing about the product's environment or behaviour changes.
 #![cfg(feature = "acceptance-barrier")]
 use super::*;
+use aura_core_broker::agent_store;
 use serde_json::Value;
 
 /// The observer's own journal file, beside where a control document would live.
@@ -32,7 +33,7 @@ fn entries(directory: &std::path::Path) -> Vec<Value> {
 #[tokio::test]
 async fn s04_r7_observer_counts_two_independent_identical_writes() {
     let directory = tempfile::tempdir().expect("observer directory");
-    crate::agent_store::acceptance_hold::bind_control_directory_for_test(directory.path());
+    agent_store::acceptance_hold::bind_control_directory_for_test(directory.path());
     let fixture = Fixture::new(PermissionMode::WorkspaceReadWrite).await;
     let text = "the same bytes, twice";
     // Two admitted calls in one real batch, both publishing the identical content.

@@ -1,6 +1,7 @@
 //! The Credential Manager entries one Aura installation owns: those whose target starts with
 //! `Aura/<namespace hash>/`. Entries outside that prefix (tool credentials such as `Aura/mcp/...`)
-//! are shared by every Aura on the machine and are never touched here.
+//! are shared by every Aura on the machine and are never touched here. Like every Credential
+//! Manager call in this crate, these wait for the user's Credential Manager lock.
 use std::{io, ptr, slice};
 
 use windows_sys::Win32::{
@@ -40,6 +41,7 @@ impl Drop for Enumerated {
 
 fn enumerate(prefix: &str) -> io::Result<Vec<(String, u32)>> {
     let filter = wide_null(&format!("{}*", checked(prefix)?));
+    let _lock = crate::credential_lock::hold()?;
     let mut found = Enumerated { list: ptr::null_mut(), count: 0 };
     // SAFETY: the filter is NUL-terminated and the output pointers are live.
     if unsafe { CredEnumerateW(filter.as_ptr(), 0, &mut found.count, &mut found.list) } == 0 {
@@ -82,6 +84,8 @@ pub fn installation_credentials(prefix: &str) -> io::Result<Vec<String>> {
 
 /// Deletes the installation's credentials and returns how many went.
 pub fn delete_installation_credentials(prefix: &str) -> io::Result<usize> {
+    // One hold for the whole pass, so no other Aura call lands between the listing and the deletes.
+    let _lock = crate::credential_lock::hold()?;
     let mut deleted = 0;
     for (name, kind) in enumerate(prefix)? {
         let target = wide_null(&name);

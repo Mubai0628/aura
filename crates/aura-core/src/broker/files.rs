@@ -1,12 +1,13 @@
-use crate::{JsonRpcRequest, P04Services, RuntimeServices, RuntimeState, p04};
+use crate::{JsonRpcRequest, RuntimeServices, RuntimeState};
+use aura_agent_execution::{agent_activity, broker::files::facts};
 use aura_domain_common::{SessionId, WorkspaceId, WorkspacePath};
 use aura_execution_contract::{BrokerEvidence, SideEffectStateV1};
 use aura_runtime_contract::IpcErrorEnvelope;
 #[cfg(feature = "acceptance-barrier")]
 use aura_runtime_contract::IpcRequestTerminal;
 use aura_security_contract::{ResolvedCapability, ResourceDescriptor};
-use aura_workspace_domain::{FsStatRequest, WorkspaceFileTarget};
-use serde_json::{Value, json};
+use aura_security_service::p04::{self, P04Services};
+use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -60,7 +61,7 @@ pub(crate) async fn dispatch_files(
             Ok(value)
         })
     };
-    let activity_subject = crate::agent_activity::MainFsActivitySubject {
+    let activity_subject = agent_activity::MainFsActivitySubject {
         session_id: session,
         workspace_id: workspace,
         runtime_instance_id: services.activity_runtime_instance_id,
@@ -75,14 +76,14 @@ pub(crate) async fn dispatch_files(
     let activity_publisher: aura_fs_tools::FileExecutionObserver = Arc::new(move |requests| {
         let mut subject = activity_subject.clone();
         subject.targets = verified_targets_of(&activity_paths, prepared.get());
-        let mut record = crate::agent_activity::main_record(&subject, &activity_method);
+        let mut record = agent_activity::main_record(&subject, &activity_method);
         if !requests.is_empty() {
-            record.resources = crate::agent_activity::resources::project(requests);
+            record.resources = agent_activity::resources::project(requests);
         }
         let id = record.id;
         let generation = record.generation;
         observer.observe(index.publish(record));
-        Box::new(crate::agent_activity::AgentActivityGuard::new(index.clone(), id, generation))
+        Box::new(agent_activity::AgentActivityGuard::new(index.clone(), id, generation))
     });
     let evidence_inspect = Arc::clone(&inspect);
     let evidence_persistence = Arc::clone(&services.persistence);
@@ -178,7 +179,7 @@ pub(crate) async fn dispatch_files(
             // the real handler below still runs and still produces the real result. Only this
             // request's entry can be delayed. With the feature off none of this exists.
             #[cfg(feature = "acceptance-barrier")]
-            crate::acceptance_barrier::hold_processing(
+            aura_core_base::acceptance_barrier::hold_processing(
                 &handler_request.method,
                 &handler_request.params,
                 handler_request.id,
@@ -230,7 +231,7 @@ pub(crate) async fn dispatch_files(
     // terminal of the real error envelope. No value is invented here, and nothing about the result
     // itself changes.
     #[cfg(feature = "acceptance-barrier")]
-    crate::acceptance_barrier::record_effect(
+    aura_core_base::acceptance_barrier::record_effect(
         &request.method,
         request.id,
         request.command_invocation_id,
@@ -258,69 +259,6 @@ fn read_scope(params: &Value) -> anyhow::Result<ReadScope> {
     Ok((workspace, session, vec![path], vec![ResolvedCapability::WorkspaceFileRead]))
 }
 
-pub(crate) fn facts(
-    fs: &aura_fs_tools::FsToolService,
-    runtime: &aura_workspace::WorkspaceRuntime,
-    workspace: WorkspaceId,
-    session: SessionId,
-    paths: &[WorkspacePath],
-) -> anyhow::Result<Value> {
-    let resolver = runtime.resolver(workspace)?;
-    resolver.verify_root_identity()?;
-    let mut values = Vec::new();
-    for path in paths {
-        match resolver.resolve_existing(path) {
-            Ok(resolved) => {
-                let stat = fs.stat(FsStatRequest {
-                    workspace_id: workspace,
-                    session_id: session,
-                    target: WorkspaceFileTarget { path: path.clone() },
-                })?;
-                let disk_hash = if stat.kind == aura_workspace_domain::FsNodeKind::File {
-                    use std::io::Read;
-                    let mut file = resolver
-                        .open_existing(path, aura_windows_platform::NativeFileAccess::Read)?;
-                    let mut hasher = blake3::Hasher::new();
-                    let mut block = [0u8; 65536];
-                    loop {
-                        let count = file.file.file_mut().read(&mut block)?;
-                        if count == 0 {
-                            break;
-                        }
-                        hasher.update(&block[..count]);
-                    }
-                    Some(aura_domain_common::ContentHash::new(
-                        aura_domain_common::ContentHashAlgorithm::Blake3,
-                        hasher.finalize().to_hex().to_string(),
-                    )?)
-                } else {
-                    None
-                };
-                values.push(json!({"path":path,"identity":aura_workspace::domain_identity(&resolved.info.identity),"kind":stat.kind,"hash":stat.content_hash,"disk_hash":disk_hash,"editor":stat.active_editor_session}));
-            }
-            Err(aura_workspace::WorkspaceError::NotFound { .. }) => {
-                // New nested directories may have absent intermediate parents;
-                // bind the nearest existing ancestor without following escapes.
-                let mut ancestor = path.clone();
-                let parent = loop {
-                    let text =
-                        ancestor.as_str().rsplit_once('/').map_or(WorkspacePath::ROOT, |(p, _)| p);
-                    ancestor = WorkspacePath::parse(text)?;
-                    match resolver.resolve_existing(&ancestor) {
-                        Ok(parent) => break parent,
-                        Err(aura_workspace::WorkspaceError::NotFound { .. })
-                            if !ancestor.is_root() => {}
-                        Err(e) => return Err(e.into()),
-                    }
-                };
-                values.push(json!({"path":path,"absent":true,"parent":ancestor,"parent_identity":aura_workspace::domain_identity(&parent.info.identity)}));
-            }
-            Err(e) => return Err(e.into()),
-        }
-    }
-    Ok(json!({"root_identity":resolver.root_identity(),"paths":values}))
-}
-
 /// Copies the identities `facts()` already verified into the activity contract's target shape (R1/R3).
 ///
 /// WHY THIS IS A COPY AND NOT A SECOND READ
@@ -342,7 +280,7 @@ pub(crate) fn facts(
 fn verified_targets_of(
     paths: &[WorkspacePath],
     pre_state: Option<&Value>,
-) -> Vec<crate::agent_activity::MainFsTarget> {
+) -> Vec<agent_activity::MainFsTarget> {
     let entries = pre_state
         .and_then(|value| value.get("paths"))
         .and_then(Value::as_array)
@@ -362,7 +300,7 @@ fn verified_targets_of(
                     serde_json::from_value::<aura_workspace_domain::FsNodeKind>(value.clone()).ok()
                 })
                 .is_some_and(|kind| kind == aura_workspace_domain::FsNodeKind::Directory);
-            crate::agent_activity::MainFsTarget {
+            agent_activity::MainFsTarget {
                 path: path.as_str().to_owned(),
                 target: identity.as_ref().map(|identity| {
                     aura_activity_domain::ActivityResourceTarget::VerifiedObject {

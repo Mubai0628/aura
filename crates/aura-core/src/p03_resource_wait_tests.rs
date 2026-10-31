@@ -3,6 +3,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::*;
+use aura_core_base::{blocking_pool, ipc_session};
 use aura_domain_common::{ContentHash, SessionId, WorkspaceId, WorkspacePath};
 use aura_workspace_domain::{
     CommitRequest, ExecutionId, FsExpectedState, LineEnding, ResourceAccess, TextEncoding,
@@ -39,7 +40,7 @@ impl Case {
                 fs,
                 workspace,
                 journal,
-                blocking: crate::blocking_pool::BlockingPool::default(),
+                blocking: blocking_pool::BlockingPool::default(),
             }),
             persistence,
             workspace: id,
@@ -425,7 +426,7 @@ async fn a_resource_wait_releases_the_worker_and_the_session_authority() {
 /// This is a component boundary; it does not claim bootstrap authentication or OS restart.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn eight_real_file_waits_keep_terminals_and_let_an_unrelated_file_finish() {
-    use crate::ipc_session::{
+    use aura_core_base::ipc_session::{
         Admission, HandlerTerminal, IpcSession, RESOURCE_WAIT_HANDLER, ResourceWaitSignals,
     };
     let case = Case::new();
@@ -500,7 +501,7 @@ async fn eight_real_file_waits_keep_terminals_and_let_an_unrelated_file_finish()
     .await
     .expect("all eight file services refused the real held object");
     assert_eq!(session.running_count(), 0);
-    assert_eq!(session.lane_counts_with_waiting(crate::ipc_session::Lane::Session), (0, 0, 8));
+    assert_eq!(session.lane_counts_with_waiting(ipc_session::Lane::Session), (0, 0, 8));
     assert!(case.services.blocking.available() > 0, "waits left blocking workers available");
     let unrelated_id = CorrelationId::new();
     assert_eq!(

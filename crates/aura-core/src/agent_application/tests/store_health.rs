@@ -19,9 +19,9 @@
 //! 5. The fault clears: new legitimate work is served without restarting anything, and no
 //!    unknown work is replayed.
 use super::*;
-use crate::agent_store::{ReceiptState, StoreDependency, StoreError, StoreStep};
-use crate::sync_boundary::SyncSection;
 use crate::{AsyncPriorityQueue, WireFrame};
+use aura_core_base::sync_boundary::{self, SyncSection};
+use aura_core_broker::agent_store::{self, ReceiptState, StoreDependency, StoreError, StoreStep};
 use provider_fixture::{Provider, Scenario};
 use rusqlite::{Connection, OpenFlags};
 use std::sync::atomic::Ordering;
@@ -29,6 +29,11 @@ use std::time::{Duration, Instant};
 
 /// How long a Store hold parks the real work.
 const HOLD_MS: u64 = 4_000;
+/// How long B3's held writes may stay parked: long enough for a held write the boundary refused
+/// to be submitted again while the first ones are still inside the hold.
+const FULL_BOUNDARY_HOLD_MS: u64 = 15_000;
+/// How long B3 keeps submitting held writes until four of them are inside the hold.
+const FILL_DEADLINE: Duration = Duration::from_secs(10);
 /// The boundary budget these cases run with: short so a bounded answer is observable without
 /// waiting the production 30 s. The budget is the only thing that shrinks.
 const BUDGET_MS: u64 = 400;
@@ -394,13 +399,10 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
     assert_eq!(health.code, Some("sqlite.busy"), "{health:?}");
     // Nothing was claimed to have succeeded: B's run for the refused start does not exist.
     let runs_before = runtime
-        .block_on(agent.store().read(
-            crate::agent_store::StoreStep::operation("b2.count_runs"),
-            |db| {
-                let mut q = db.prepare("SELECT COUNT(*) FROM agent_runs")?;
-                q.query_row([], |row| row.get::<_, i64>(0)).map_err(Into::into)
-            },
-        ))
+        .block_on(agent.store().read(agent_store::StoreStep::operation("b2.count_runs"), |db| {
+            let mut q = db.prepare("SELECT COUNT(*) FROM agent_runs")?;
+            q.query_row([], |row| row.get::<_, i64>(0)).map_err(Into::into)
+        }))
         .expect("a read is still served by the read-only connection");
     // The fault clears: release the lock and do new legitimate work in a session with no
     // active turn, which is the work that must really commit.
@@ -453,7 +455,7 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
     };
     let runs_after = runtime
         .block_on(agent.store().read(
-            crate::agent_store::StoreStep::operation("b2.count_runs_after"),
+            agent_store::StoreStep::operation("b2.count_runs_after"),
             |db| {
                 let mut q = db.prepare("SELECT COUNT(*) FROM agent_runs")?;
                 q.query_row([], |row| row.get::<_, i64>(0)).map_err(Into::into)
@@ -485,6 +487,88 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
     let _ = request_b;
 }
 
+/// Submits held writes until every boundary worker is inside one of them, and returns the tasks
+/// still running.
+///
+/// Held writes are admitted under the same short budget as everything else. A section another
+/// part of the Core is running when one is submitted can keep its permit past that budget; the
+/// held write is then refused before it runs, which is the boundary working as designed. A refused
+/// write provably did nothing, so it is submitted again. The boundary counts as full only when
+/// four held writes are inside the hold at once and no permit is free.
+fn fill_with_held_writes(
+    runtime: &tokio::runtime::Runtime,
+    state: &crate::RuntimeState,
+    store: &Arc<agent_store::AgentStore>,
+    hold: &aura_persistence::barrier::Barrier,
+) -> Vec<tokio::task::JoinHandle<Result<(), StoreError>>> {
+    let workers = sync_boundary::SYNC_WORKERS;
+    let submit = || {
+        let store = Arc::clone(store);
+        runtime.spawn(async move {
+            store.write(StoreStep::operation("test.held_write"), |_store| Ok(())).await
+        })
+    };
+    let mut running = (0..workers).map(|_| submit()).collect::<Vec<_>>();
+    let mut refused = 0_u32;
+    let deadline = Instant::now() + FILL_DEADLINE;
+    loop {
+        if parked(hold) == workers && state.sync.available() == 0 {
+            break;
+        }
+        let mut index = 0;
+        while index < running.len() {
+            if !running[index].is_finished() {
+                index += 1;
+                continue;
+            }
+            match runtime.block_on(running.swap_remove(index)).expect("a held write's task") {
+                Err(StoreError::Refused { .. }) => {
+                    refused += 1;
+                    running.push(submit());
+                }
+                // Its caller stopped waiting; the write itself is inside the hold.
+                Err(StoreError::Unknown { .. }) => {}
+                other => panic!(
+                    "a held write ended while the hold was armed: {other:?}; {}",
+                    boundary_report(state)
+                ),
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "every boundary worker must really be occupied: {} of {workers} held writes are \
+             inside the hold after {refused} refusals; {}",
+            parked(hold),
+            boundary_report(state)
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    if refused > 0 {
+        println!("B3 resubmitted {refused} refused held write(s); {}", boundary_report(state));
+    }
+    running
+}
+
+/// Held writes inside the hold right now: arrived and not yet let through.
+fn parked(hold: &aura_persistence::barrier::Barrier) -> usize {
+    hold.arrivals().iter().filter(|arrival| arrival.held && arrival.hold_nanos == 0).count()
+}
+
+/// What the boundary was doing: every section's counters and the sections slower than the budget.
+fn boundary_report(state: &crate::RuntimeState) -> String {
+    let slow = state
+        .sync
+        .spans()
+        .into_iter()
+        .filter(|span| span.elapsed_ms >= BUDGET_MS)
+        .collect::<Vec<_>>();
+    format!(
+        "available={} counters={:?} slower_than_budget={slow:?}",
+        state.sync.available(),
+        state.sync.all_counters()
+    )
+}
+
 /// B3 - the boundary is full.
 ///
 /// The next item is refused **before the business runs**, the sections that hold the permits keep
@@ -506,25 +590,13 @@ fn b3_a_full_boundary_refuses_before_the_business_and_recovers_with_the_real_com
     };
     state.sync.set_budget(Duration::from_millis(BUDGET_MS));
     // Every held write keeps a worker, so the four workers are really occupied.
-    let hold = agent.store().arm_hold("test.held_write", HOLD_MS);
-    let mut holders = Vec::new();
-    for _ in 0..crate::sync_boundary::SYNC_WORKERS {
-        let store = Arc::clone(agent.store());
-        holders.push(runtime.spawn(async move {
-            store.write(StoreStep::operation("test.held_write"), |_store| Ok(())).await
-        }));
-    }
-    // Occupied means inside the held section too, not only holding a permit — under load
-    // a worker can hold its permit before it arrives, and the count below read that as a refusal.
-    let full = wait_until(Duration::from_secs(3), || {
-        state.sync.available() == 0
-            && hold.held_count() == crate::sync_boundary::SYNC_WORKERS as u64
-    });
-    assert!(full, "every boundary worker must really be occupied");
-    assert_eq!(
-        state.sync.counters(SyncSection::AgentStore).in_flight,
-        crate::sync_boundary::SYNC_WORKERS as u64,
-        "the running work owns its permits"
+    let hold = agent.store().arm_hold("test.held_write", FULL_BOUNDARY_HOLD_MS);
+    let holders = fill_with_held_writes(&runtime, &state, agent.store(), &hold);
+    // Another section that starts now waits for a permit and counts as in flight too.
+    let in_flight = state.sync.counters(SyncSection::AgentStore).in_flight;
+    assert!(
+        in_flight >= sync_boundary::SYNC_WORKERS as u64,
+        "the running work owns its permits: in_flight={in_flight}"
     );
     // The next item: a real write entry, refused before its business ran.
     let refused = runtime.block_on(agent.cancel(&request_b));
@@ -551,7 +623,7 @@ fn b3_a_full_boundary_refuses_before_the_business_and_recovers_with_the_real_com
     );
     assert_eq!(
         arrivals_after_refusal,
-        crate::sync_boundary::SYNC_WORKERS as u64,
+        sync_boundary::SYNC_WORKERS as u64,
         "a refused item never reaches the production call"
     );
     // No side effect: the cancellation request was never written. This read goes to a separate
@@ -580,7 +652,7 @@ fn b3_a_full_boundary_refuses_before_the_business_and_recovers_with_the_real_com
         let _ = runtime.block_on(holder);
     }
     let recovered = wait_until(Duration::from_secs(5), || {
-        state.sync.available() == crate::sync_boundary::SYNC_WORKERS
+        state.sync.available() == sync_boundary::SYNC_WORKERS
     });
     assert!(recovered, "the permits come back with the work, not with the caller");
     let now_served = runtime.block_on(agent.status(&request_b));
@@ -659,7 +731,7 @@ fn b4_a_late_commit_is_retained_once_and_queryable_after_the_caller_left() {
     });
     let final_receipt = agent.store().receipt(receipt.id);
     let errors = runtime.block_on(agent.store().read(
-        crate::agent_store::StoreStep::run(run, "b4.error_events"),
+        agent_store::StoreStep::run(run, "b4.error_events"),
         |db| {
             let mut q =
                 db.prepare("SELECT COUNT(*) FROM events WHERE kind='agent.application_error'")?;

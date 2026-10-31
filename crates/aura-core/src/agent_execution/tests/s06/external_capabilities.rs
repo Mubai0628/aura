@@ -1,5 +1,6 @@
 use super::*;
 use aura_permission_domain::{ExternalGrantCapability, ExternalGrantTerm};
+use aura_security_service::external_grants;
 
 #[tokio::test]
 async fn s06_b6_a_read_directory_grant_asks_before_writing_without_an_attempt() {
@@ -13,7 +14,7 @@ async fn s06_b6_a_read_directory_grant_asks_before_writing_without_an_attempt() 
         .agent_execution_required()
         .external_grants
         .issue_approved_directory(
-            crate::external_grants::ApprovedDirectoryGrant {
+            external_grants::ApprovedDirectoryGrant {
                 session_id: f.turn.session_id,
                 workspace_id: f.turn.workspace_id,
                 canonical_root: CanonicalPath { utf16: display.encode_utf16().collect(), display },
@@ -60,7 +61,7 @@ async fn s06_b6_create_only_grant_asks_only_for_the_missing_write_capability() {
         .agent_execution_required()
         .external_grants
         .issue_approved_directory(
-            crate::external_grants::ApprovedDirectoryGrant {
+            external_grants::ApprovedDirectoryGrant {
                 session_id: f.turn.session_id,
                 workspace_id: f.turn.workspace_id,
                 canonical_root: CanonicalPath { utf16: display.encode_utf16().collect(), display },

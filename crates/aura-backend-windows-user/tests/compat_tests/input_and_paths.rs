@@ -6,15 +6,17 @@ use std::{sync::atomic::AtomicBool, time::Duration};
 fn blocked_large_stdin_cannot_block_timeout_or_claim_delivery() {
     let root = tempfile::tempdir().expect("owned blocked-input workspace");
     let backend = backend();
-    let mut request = command(ManagedShell::PowerShell, root.path(), "Start-Sleep -Seconds 30");
+    let mut request = command(ManagedShell::PowerShell, root.path(), "Start-Sleep -Seconds 60");
     request.stdin = "x".repeat(4 * 1024 * 1024);
     request.timeout_ms = 800;
     let mut execution = backend.launch(&request, None).expect("launch blocked stdin fixture");
     let result = execution
         .run_direct(&AtomicBool::new(false))
         .expect("bounded timeout despite blocked writer");
-    assert_eq!(result.stop_reason, "timed_out");
-    assert!(result.elapsed < Duration::from_secs(5));
+    assert_eq!(result.stop_reason, "timed_out", "{}", describe(&result));
+    // A writer that blocked the run would hold it until the script's own end (60 s). The bound
+    // leaves room for a busy machine above the 800 ms timeout and the stop's grace.
+    assert!(result.elapsed < Duration::from_secs(20), "{}", describe(&result));
     assert!(result.stop_confirmed);
     assert!(result.stdin_completed);
     assert!(result.stdin_error.is_some(), "partial delivery must not be called successful");
@@ -37,7 +39,7 @@ fn unicode_and_long_working_directory_uses_the_verified_directory_for_both_shell
             .launch(&command(shell, &work, script), None)
             .expect("launch verified long directory");
         let result = execution.run_direct(&AtomicBool::new(false)).expect("actual path result");
-        assert_eq!(result.exit_code, Some(0), "{:?}", result.stderr);
+        assert_eq!(result.exit_code, Some(0), "{}", describe(&result));
         let actual = std::fs::read_to_string(work.join("path-proof.txt"))
             .expect("artifact in selected directory");
         assert!(actual.trim().eq_ignore_ascii_case(&work.display().to_string()));

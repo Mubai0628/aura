@@ -19,11 +19,11 @@ use aura_runtime_contract::{
     CancelDisposition, CommandOutcome, CommandOutcomeUnknown, IpcRequestTerminal,
 };
 
-use crate::ipc_session::{Admission, HandlerTerminal, Lane};
 use crate::r03_tests::Fixture;
 use crate::{
     CommandSettlement, RequestLedger, finish_handled_requests, settle_command_claim, try_send_json,
 };
+use aura_core_base::ipc_session::{self, Admission, HandlerTerminal, Lane};
 
 /// The search flight registry is process-global, so tests that create and
 /// release registrations must not run beside each other: one test's orphan is
@@ -223,8 +223,8 @@ async fn a_side_effecting_command_is_not_refused_by_the_claim_its_own_connection
     command_flights.insert(request.id, claimed);
 
     // Reader step 2: admit and start the handler on its lane.
-    let mut session = crate::ipc_session::IpcSession::new();
-    assert_eq!(session.admit(request.clone()), crate::ipc_session::Admission::Accepted);
+    let mut session = ipc_session::IpcSession::new();
+    assert_eq!(session.admit(request.clone()), ipc_session::Admission::Accepted);
     crate::spawn_ready_handlers(
         &state,
         &queue,
@@ -760,7 +760,7 @@ async fn one_connections_cleanup_leaves_another_connections_claim_alone() {
 struct SearchConnection {
     queue: AsyncPriorityQueue,
     ledger: Arc<std::sync::Mutex<RequestLedger>>,
-    session: crate::ipc_session::IpcSession,
+    session: ipc_session::IpcSession,
     search_ids: BTreeSet<CorrelationId>,
     command_flights: crate::CommandFlights,
 }
@@ -770,7 +770,7 @@ impl SearchConnection {
         Self {
             queue: AsyncPriorityQueue::new(),
             ledger: Arc::new(std::sync::Mutex::new(RequestLedger::new())),
-            session: crate::ipc_session::IpcSession::new(),
+            session: ipc_session::IpcSession::new(),
             search_ids: BTreeSet::new(),
             command_flights: crate::CommandFlights::new(),
         }
@@ -789,7 +789,7 @@ impl SearchConnection {
         self.search_ids.insert(request_id);
         assert_eq!(
             self.session.admit(request),
-            crate::ipc_session::Admission::Accepted,
+            ipc_session::Admission::Accepted,
             "the read-only lane has room for one search"
         );
         crate::spawn_ready_handlers(
@@ -1073,7 +1073,7 @@ async fn handler_in_synchronous_work() {
     connection.ledger.lock().expect("ledger").begin(request_id).expect("begin");
     assert_eq!(
         connection.session.admit(read_only_request_named_value(request_id)),
-        crate::ipc_session::Admission::Accepted
+        ipc_session::Admission::Accepted
     );
     let handler_gate = Arc::clone(&gate);
     crate::spawn_ready_handlers_with(&mut connection.session, move || {
@@ -1135,7 +1135,7 @@ async fn handler_in_synchronous_work() {
     replacement.ledger.lock().expect("ledger").begin(replacement_id).expect("begin");
     assert_eq!(
         replacement.session.admit(read_only_request_named_value(replacement_id)),
-        crate::ipc_session::Admission::Accepted,
+        ipc_session::Admission::Accepted,
         "the new connection must be admitted while the old work still runs"
     );
     let replacement_queue = replacement.queue.clone();
@@ -1195,7 +1195,7 @@ fn terminal_succeeded() -> HandlerTerminal {
 }
 
 async fn drain_completions(
-    session: &mut crate::ipc_session::IpcSession,
+    session: &mut ipc_session::IpcSession,
     expected: usize,
 ) -> Vec<(CorrelationId, HandlerTerminal)> {
     let mut completed = Vec::new();
@@ -1298,7 +1298,7 @@ async fn pump_until(
     let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
     // The same wait channel the real read loop builds, so a handler that enters the common
     // admission reports its wait exactly as production does.
-    let (wait_handlers, mut wait_signals) = crate::ipc_session::ResourceWaitSignals::channel();
+    let (wait_handlers, mut wait_signals) = ipc_session::ResourceWaitSignals::channel();
     while tokio::time::Instant::now() < deadline {
         crate::spawn_ready_handlers_reporting(
             state,
@@ -1531,7 +1531,7 @@ async fn same_resource_ordering_is_preserved_and_unknown_methods_stay_ordered() 
     for method in ["projection.subscribe", "projection.unsubscribe"] {
         let request = projection_request(method, CorrelationId::new());
         assert_eq!(
-            crate::ipc_session::lane_for(&request),
+            ipc_session::lane_for(&request),
             Lane::Serial,
             "{method} must keep arrival order"
         );
@@ -1543,7 +1543,7 @@ async fn same_resource_ordering_is_preserved_and_unknown_methods_stay_ordered() 
         aura_ipc::routes::core_route("mystery.method").is_none(),
         "this method really is unrecognised"
     );
-    assert_eq!(crate::ipc_session::lane_for(&unknown), Lane::Serial);
+    assert_eq!(ipc_session::lane_for(&unknown), Lane::Serial);
 
     // Both arrival orders, on one connection: whichever ran last decides the state,
     // so a reversed result would prove the order was not preserved.
@@ -1631,7 +1631,7 @@ async fn an_overloaded_lane_answers_locally_and_still_serves_a_cancellation() {
     assert_eq!(connection.session.admit(target.clone()), Admission::Accepted);
 
     // Fill the ordered queue to its bound, then overflow it.
-    for _ in 1..crate::ipc_session::MAX_QUEUED_SERIAL {
+    for _ in 1..ipc_session::MAX_QUEUED_SERIAL {
         let waiting = queued_business_request();
         connection.ledger.lock().expect("ledger").begin(waiting.id).expect("begin");
         assert_eq!(

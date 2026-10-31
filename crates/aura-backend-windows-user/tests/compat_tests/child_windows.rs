@@ -14,7 +14,7 @@ fn a_console_program_started_with_start_process_opens_no_window() {
         ManagedShell::PowerShell,
         "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', 'echo shared-console' -PassThru -Wait\nexit $p.ExitCode",
     );
-    assert_eq!(result.exit_code, Some(0));
+    assert_eq!(result.exit_code, Some(0), "{}", describe(&result));
     assert!(stdout(&result).contains("shared-console"), "{}", stdout(&result));
     let alias = run(
         ManagedShell::PowerShell,
@@ -48,7 +48,7 @@ fn a_long_running_program_it_starts_does_not_hold_the_command_open() {
         "the command waited {:?} for the background program",
         started.elapsed()
     );
-    assert_eq!(direct.exit_code, Some(0));
+    assert_eq!(direct.exit_code, Some(0), "{}", describe(&direct));
     assert!(stdout(&direct).contains("script-returned"), "{}", stdout(&direct));
     assert!(direct.active_processes > 0, "the background program keeps running");
     assert!(execution.stop(std::time::Duration::from_secs(3)).confirmed);
@@ -56,17 +56,14 @@ fn a_long_running_program_it_starts_does_not_hold_the_command_open() {
 
 #[test]
 fn a_call_that_names_its_own_window_runs_as_written() {
-    let code = |script: &str| run(ManagedShell::PowerShell, script).exit_code;
-    assert_eq!(
-        code(
-            "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c exit 4' -WindowStyle Hidden -PassThru -Wait\nexit $p.ExitCode"
-        ),
-        Some(4)
+    let hidden = run(
+        ManagedShell::PowerShell,
+        "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c exit 4' -WindowStyle Hidden -PassThru -Wait\nexit $p.ExitCode",
     );
-    assert_eq!(
-        code(
-            "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c exit 5' -NoNewWindow -PassThru -Wait\nexit $p.ExitCode"
-        ),
-        Some(5)
+    assert_eq!(hidden.exit_code, Some(4), "{}", describe(&hidden));
+    let shared = run(
+        ManagedShell::PowerShell,
+        "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c exit 5' -NoNewWindow -PassThru -Wait\nexit $p.ExitCode",
     );
+    assert_eq!(shared.exit_code, Some(5), "{}", describe(&shared));
 }

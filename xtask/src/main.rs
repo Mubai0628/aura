@@ -145,7 +145,11 @@ fn test_tool(root: &Path, target: &str) -> Result<()> {
                 ],
             )?;
             build_tool_runtime_fixtures(root)?;
-            run(root, "cargo", &["test", "-p", "aura-core", "--lib", "package_program::tests"])?;
+            run(
+                root,
+                "cargo",
+                &["test", "-p", "aura-package-service", "--lib", "package_program::tests"],
+            )?;
         }
         // Retired the P07 Draft path; packages are imported, verified and installed
         // through `packages.*` and tested below.
@@ -156,12 +160,13 @@ fn test_tool(root: &Path, target: &str) -> Result<()> {
             for store in stores {
                 run(root, "cargo", &["test", "-p", "aura-persistence-v2", "--test", store])?;
             }
-            let core = ["package_program::", "package_services::", "l04_packages::"];
+            let packages = ["package_program::", "package_services::"];
             run(
                 root,
                 "cargo",
-                &["test", "-p", "aura-core", "--lib", "--", core[0], core[1], core[2]],
+                &["test", "-p", "aura-package-service", "--lib", "--", packages[0], packages[1]],
             )?;
+            run(root, "cargo", &["test", "-p", "aura-core", "--lib", "l04_packages::"])?;
         }
         "registry" => {
             run(
@@ -210,7 +215,11 @@ fn test_tool(root: &Path, target: &str) -> Result<()> {
             )?;
             run(root, "cargo", &["test", "-p", "aura-core", "w7_host_adapter", "--lib"])?;
             // The source-built fixtures run as installed package programs.
-            run(root, "cargo", &["test", "-p", "aura-core", "--lib", "package_program::tests"])?;
+            run(
+                root,
+                "cargo",
+                &["test", "-p", "aura-package-service", "--lib", "package_program::tests"],
+            )?;
         }
         test_filter => {
             run(
@@ -291,7 +300,7 @@ fn test_permission(root: &Path) -> Result<()> {
         ],
     )?;
     run(root, "cargo", &["test", "-p", "aura-persistence", "--test", "p04_security"])?;
-    run(root, "cargo", &["test", "-p", "aura-core", "p04"])?;
+    run(root, "cargo", &["test", "-p", "aura-core", "-p", "aura-security-service", "p04"])?;
     println!("P04 permission and approval tests passed.");
     Ok(())
 }
@@ -794,7 +803,7 @@ fn p05_report(root: &Path) -> Result<()> {
         ReportCheck {
             id: "core_p05_vertical_paths",
             program: "cargo",
-            args: &["test", "-p", "aura-core", "p05", "--all-features"],
+            args: &["test", "-p", "aura-core", "-p", "aura-model-service", "p05", "--all-features"],
         },
         ReportCheck {
             id: "desktop_typecheck",

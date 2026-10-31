@@ -1,0 +1,41 @@
+[package]
+name = "aura-core-base"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# The default-off acceptance boundary module (src/acceptance_barrier.rs). aura-core's own
+# `acceptance-barrier` feature enables it; no product build does.
+acceptance-barrier = []
+# Hooks aura-core's tests rely on: a test's own log route, injected faults and inline modes, a
+# recycle bin beside the deleted item. Only the dev-dependencies of the crates built on this one
+# enable it, and check-architecture fails a product build of aura-core that carries it.
+test-hooks = []
+
+[dependencies]
+anyhow.workspace = true
+aura-backend-api = { path = "../aura-backend-api" }
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-config = { path = "../aura-config" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-ipc = { path = "../aura-ipc" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

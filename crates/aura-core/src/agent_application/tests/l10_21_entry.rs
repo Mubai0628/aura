@@ -3,6 +3,7 @@
 //! step's registry runs through `tools.call` with that tool's own checks, and a load applies from
 //! the next turn.
 use super::*;
+use aura_core_broker::agent_store;
 use aura_model_domain::provider_wire_tool_name;
 
 fn listed(request: &Value) -> Vec<String> {
@@ -79,7 +80,7 @@ async fn a_tool_outside_the_list_runs_through_the_entry_and_a_load_waits_for_the
     let items = services(&runtime)
         .agent_required()
         .store()
-        .read(crate::agent_store::StoreStep::run(run, "l10_21.entry_history"), move |db| {
+        .read(agent_store::StoreStep::run(run, "l10_21.entry_history"), move |db| {
             Ok(aura_persistence_v2::agent::model_context::history_for_model(db, run, false)?.items)
         })
         .await

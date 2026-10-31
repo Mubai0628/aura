@@ -1,8 +1,8 @@
 //! `packages.*` route adapter. Main is authenticated; every request is decoded into
 //! its exact contract here, and the package service owns every check and write.
 use crate::package_services::{ImportSource, PackageServices, RunEnvironment};
-use crate::sync_boundary::{SyncSection, SyncSubject};
 use crate::*;
+use aura_core_base::sync_boundary::{SyncSection, SyncSubject};
 use aura_tool_domain::*;
 
 pub(crate) async fn dispatch(
@@ -84,21 +84,21 @@ async fn handle(
         .run(SyncSection::PackageLifecycle, SyncSubject::new().request(id).method(method), work)
         .await
     {
-        crate::blocking_pool::BlockingAdmission::Completed(Ok(value)) => Ok(value),
-        crate::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
+        aura_core_base::blocking_pool::BlockingAdmission::Completed(Ok(value)) => Ok(value),
+        aura_core_base::blocking_pool::BlockingAdmission::Completed(Err(error)) => {
             append_core_log(
                 "package.request_failed",
                 json!({"method": method, "reason": format!("{error:#}")}),
             );
             Err(package_error(id, &error))
         }
-        crate::blocking_pool::BlockingAdmission::Refused { .. } => Err(envelope(
+        aura_core_base::blocking_pool::BlockingAdmission::Refused { .. } => Err(envelope(
             id,
             "package.busy",
             ErrorCategory::Unavailable,
             "Aura 正忙，工具包操作没有开始，请稍后重试。",
         )),
-        _ if mutation => Err(crate::command_settlement::outcome_unknown_envelope(
+        _ if mutation => Err(aura_core_base::command_settlement::outcome_unknown_envelope(
             id,
             invocation,
             "工具包操作仍在进行，结果尚未确认。请刷新工具包列表查看，不要重复提交。".into(),

@@ -1,0 +1,58 @@
+[package]
+name = "aura-extension-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Skills read the user profile from `AURA_USER_PROFILE_TEST_ROOT` inside TEMP
+# (src/skills/runtime.rs). aura-core's own `memory-test-profile` feature enables it; no product
+# build does.
+memory-test-profile = []
+# Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
+# test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
+# build that carries it.
+test-hooks = ["aura-core-base/test-hooks"]
+
+[dependencies]
+anyhow.workspace = true
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-config = { path = "../aura-config" }
+aura-core-base = { path = "../aura-core-base" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-hooks = { path = "../aura-hooks" }
+aura-mcp = { path = "../aura-mcp" }
+aura-network-control = { path = "../aura-network-control" }
+aura-permission-domain = { path = "../aura-permission-domain" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-plugins = { path = "../aura-plugins" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-skills = { path = "../aura-skills" }
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
+aura-workspace = { path = "../aura-workspace" }
+base64.workspace = true
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+time.workspace = true
+tokio.workspace = true
+url.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+# This crate's own tests see the crates split out of Core with their test-time behaviour, as
+# Core's tests do (memory roots under TEMP, a test's own log route).
+aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
+aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
+junction.workspace = true
+zip.workspace = true
+
+[lints]
+workspace = true

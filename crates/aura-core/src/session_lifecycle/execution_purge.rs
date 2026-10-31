@@ -5,8 +5,8 @@
 //! between steps; a request waits for one step at most. Rows written after the plan was read, or
 //! that something else still pointed at, are found by planning again.
 use super::purger::Purger;
-use crate::agent_store::{StoreAccess, StoreStep};
 use crate::*;
+use aura_core_broker::agent_store::{StoreAccess, StoreStep};
 use aura_domain_common::{SessionId, WorkspaceId};
 use aura_persistence_v2::session_purge::{self, PurgePlan};
 use std::time::Duration;

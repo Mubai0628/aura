@@ -4,6 +4,10 @@ use authentication::authenticate_sidecar;
 mod channel;
 use channel::{SidecarClient, SidecarRequest, start_sidecar};
 
+#[allow(
+    dead_code,
+    reason = "only tests use the Sandbox Host Tool reconciliation helpers; no production path dispatches Tools to the Sandbox Host"
+)]
 mod command;
 
 mod execution;
@@ -11,8 +15,16 @@ mod external_process;
 pub(crate) use external_process::ExternalProcessExecutionService;
 use external_process::{ExternalProcessService, run_external_process_service};
 
+#[allow(
+    dead_code,
+    reason = "only tests use the Sandbox Host Tool reconciliation helpers; no production path dispatches Tools to the Sandbox Host"
+)]
 mod output_scan;
-use output_scan::{CredentialCanaryOutputScannerV1, contains_bytes};
+use output_scan::contains_bytes;
+#[allow(
+    dead_code,
+    reason = "only tests use the Sandbox Host Tool reconciliation helpers; no production path dispatches Tools to the Sandbox Host"
+)]
 mod stdio;
 
 mod lifecycle;
@@ -24,13 +36,10 @@ use aura_domain_common::{
 };
 use aura_ipc::{
     JSON_RPC_VERSION, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse,
-    ToolConformanceRuntimeSecretFrameV1, ToolRuntimeSecretFrameV1, WireFrame, method, read_frame,
-    write_frame,
+    WireFrame, method, read_frame, write_frame,
 };
 use aura_permission_domain::{
-    AuthorizedToolConformanceSandboxExecutionV1, AuthorizedToolSandboxExecutionV1,
-    CancelSandboxExecutionInput, ExternalProcessLaunchPlan, NetworkEnforcementKind,
-    SandboxExecutionState, SandboxHostEvent,
+    ExternalProcessLaunchPlan, NetworkEnforcementKind, SandboxExecutionState, SandboxHostEvent,
 };
 use aura_runtime_contract::{
     IpcErrorEnvelope, RuntimeProcessKind, SidecarHandshakeChallenge, SidecarHandshakeHello,
@@ -38,9 +47,8 @@ use aura_runtime_contract::{
 };
 use aura_tool_runtime::{
     CommandHostEventErrorV1, CommandHostTerminalEventV1, CommandSandboxHostTrackerV1,
-    StdioHostEventErrorV1, StdioHostTerminalEventV1, StdioObservedArtifactReadyV1,
-    StdioObservedProgressV1, StdioProtocolErrorV1, StdioSandboxHostTrackerV1,
-    ToolRuntimeCandidateV1, ToolStdioHostInputV1,
+    StdioHostEventErrorV1, StdioHostTerminalEventV1, StdioProtocolErrorV1,
+    StdioSandboxHostTrackerV1, ToolRuntimeCandidateV1,
 };
 use aura_windows_platform::{
     ComponentJob, ManagedProcess, ProcessIdentity, create_secure_byte_pipe_server,
@@ -50,13 +58,13 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use tokio::{
     net::windows::named_pipe::NamedPipeServer,
-    sync::{OwnedSemaphorePermit, Semaphore, broadcast, mpsc, oneshot},
+    sync::{Semaphore, broadcast, mpsc, oneshot},
     time,
 };
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
-use crate::p07_output::VerifiedToolOutputArtifactV1;
-use crate::{CoreOptions, CoreReleaseContext, SidecarReleaseIdentity, append_core_log};
+use crate::{CoreOptions, append_core_log};
+use aura_core_base::release::{CoreReleaseContext, SidecarReleaseIdentity};
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(10);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
@@ -71,7 +79,7 @@ pub struct SecuritySidecars {
     _external_process_service: ExternalProcessExecutionService,
     #[allow(
         dead_code,
-        reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
+        reason = "only the Sandbox Host lifecycle tests probe availability through this service"
     )]
     pub(crate) tool_sandbox_service: ToolSandboxExecutionService,
 }
@@ -100,70 +108,15 @@ pub(crate) enum ExternalProcessExecutionError {
     Unavailable(#[from] anyhow::Error),
 }
 
-#[allow(
-    dead_code,
-    reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
-)]
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ToolSandboxExecutionError {
-    #[error("Sandbox Host rejected authorized Tool execution: {code}", code = .0.code)]
-    Rejected(IpcErrorEnvelope),
     #[error(transparent)]
     Unavailable(#[from] anyhow::Error),
 }
 
-#[allow(
-    dead_code,
-    reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
-)]
-pub(crate) struct ToolSandboxHostPermit {
-    _permit: OwnedSemaphorePermit,
-}
-
-#[allow(
-    dead_code,
-    reason = "the W7 Stdio evidence is consumed by the gated ordinary Tool dispatch orchestrator"
-)]
-pub(crate) struct ToolStdioDispatchEvidenceV1 {
-    pub(crate) candidate: ToolRuntimeCandidateV1,
-    pub(crate) stderr: Vec<u8>,
-    pub(crate) internal_protocol_error: Option<String>,
-    pub(crate) credential_canary_detected: bool,
-    /// Runtime declarations accepted by the protocol tracker. Core must still
-    /// perform no-follow file verification before any declaration becomes an
-    /// Artifact.
-    pub(crate) artifact_declarations: Vec<StdioObservedArtifactReadyV1>,
-    /// Handle-verified Attempt-owned Artifacts in first-accepted protocol
-    /// sequence order. Access remains unavailable until Result finalization.
-    pub(crate) verified_artifacts: Vec<VerifiedToolOutputArtifactV1>,
-}
-
-pub(crate) enum ToolRuntimeDispatchLifecycleUpdateV1 {
-    RuntimeStarted,
-    Progress(StdioObservedProgressV1),
-}
-
-#[allow(
-    dead_code,
-    reason = "the W7 command evidence is consumed by the gated ordinary Tool dispatch orchestrator"
-)]
-pub(crate) struct ToolCommandDispatchEvidenceV1 {
-    pub(crate) candidate: ToolRuntimeCandidateV1,
-    pub(crate) stderr: Vec<u8>,
-    pub(crate) internal_event_error: Option<String>,
-    pub(crate) credential_canary_detected: bool,
-}
-
-#[allow(
-    dead_code,
-    reason = "the W7 authorization-bound adapter is committed before its gated fixture-runtime wiring"
-)]
 #[derive(Clone)]
 pub(crate) struct ToolSandboxExecutionService {
     sandbox: SidecarClient,
-    host_capacity: std::sync::Arc<Semaphore>,
-    #[cfg(test)]
-    backend_entries: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
 
 impl SecuritySidecars {
@@ -193,10 +146,7 @@ impl SecuritySidecars {
         let host_capacity = std::sync::Arc::new(Semaphore::new(1));
         let (requests, receiver) = mpsc::channel(16);
         let external_task = tokio::spawn(run_external_process_service(
-            ExternalProcessService {
-                sandbox: sandbox.clone(),
-                host_capacity: host_capacity.clone(),
-            },
+            ExternalProcessService { sandbox: sandbox.clone(), host_capacity },
             receiver,
         ));
         Self {
@@ -209,12 +159,7 @@ impl SecuritySidecars {
             _sandbox: sandbox.clone(),
             _egress: egress,
             _external_process_service: ExternalProcessExecutionService { requests },
-            tool_sandbox_service: ToolSandboxExecutionService {
-                sandbox,
-                host_capacity,
-                #[cfg(test)]
-                backend_entries: None,
-            },
+            tool_sandbox_service: ToolSandboxExecutionService { sandbox },
         }
     }
 

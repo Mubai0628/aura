@@ -19,7 +19,9 @@ pub(super) fn command(
         script: script.into(),
         working_directory: directory.display().to_string(),
         stdin: String::new(),
-        timeout_ms: 5_000,
+        // Far above a PowerShell start on a busy machine, so a stalled start is not taken for the
+        // script's own result. A test about timeouts sets its own.
+        timeout_ms: 60_000,
         max_output_bytes: 4096,
         secret_environment: Vec::new(),
     }
@@ -34,6 +36,18 @@ pub(super) fn run(
     let mut execution =
         backend.launch(&command(shell, root.path(), script), None).expect("launch in Job");
     execution.run_direct(&AtomicBool::new(false)).expect("actual direct terminal")
+}
+
+/// What a failed assertion needs to tell a stopped run from the script's own result.
+pub(super) fn describe(result: &aura_backend_windows_user::compat::DirectResult) -> String {
+    format!(
+        "stop={} confirmed={} exit={:?} elapsed={:?} stderr={}",
+        result.stop_reason,
+        result.stop_confirmed,
+        result.exit_code,
+        result.elapsed,
+        String::from_utf8_lossy(&result.stderr)
+    )
 }
 
 pub(super) fn fixture() -> &'static str {

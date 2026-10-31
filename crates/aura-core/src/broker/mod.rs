@@ -2,48 +2,34 @@
 //! Policy/Grant guard; this closed adapter never invents a Session or grant for
 //! a global settings action. The live IPC channel is its explicit authority.
 mod artifact;
-pub(crate) mod completion;
+pub(crate) use aura_core_broker::broker::completion;
 mod context;
 pub(crate) mod files;
 mod git;
 mod http;
-mod journal;
-mod store_check;
+use aura_core_broker::broker::journal;
 
-pub(crate) use journal::CompletionVerdict;
 #[cfg(test)]
 mod completion_owner_tests;
 mod model;
-mod port;
+use aura_core_broker::broker::port;
 #[cfg(test)]
 mod tests;
 pub(crate) mod tool_configuration;
 mod tools;
 pub(crate) use artifact::dispatch_artifact;
+pub(crate) use aura_agent_execution::broker::git_descriptor;
 pub(crate) use context::dispatch_context;
 pub(crate) use files::dispatch_files;
-pub(crate) use git::descriptor as git_descriptor;
 pub(crate) use git::dispatch_git;
 pub(crate) use http::dispatch_http;
 pub(crate) use journal::BrokerJournal;
+#[cfg(test)]
+pub(crate) use journal::CompletionVerdict;
 pub(crate) use model::dispatch_model;
 pub(crate) use tools::dispatch_tools;
 
-/// The owned pre-state reader a route hands the port.
-///
-/// Owned rather than borrowed because the call runs on the bounded synchronous boundary: the
-/// inputs a step needs are built by the route that knows them, so nothing has to be
-/// reconstructed on the blocking thread. It is a named type so every route declares the same
-/// contract instead of repeating it.
-pub(super) type OwnedInspect =
-    std::sync::Arc<dyn Fn() -> anyhow::Result<serde_json::Value> + Send + Sync>;
-
-/// The owned post-state and evidence reader a route hands the port.
-pub(super) type OwnedEvidence<T> = std::sync::Arc<
-    dyn Fn(&DispatchRequest, &Result<T, IpcErrorEnvelope>) -> anyhow::Result<BrokerEvidence>
-        + Send
-        + Sync,
->;
+pub(super) use aura_core_broker::broker::{OwnedEvidence, OwnedInspect};
 
 use crate::{RuntimeState, authenticated_configuration_channel_identity};
 use aura_backend_api::ExecutionBackend;
@@ -92,7 +78,7 @@ where
 {
     let correlation = operation.content.identity.correlation_id;
     let operation_id = operation.operation_id;
-    let subject = crate::sync_boundary::SyncSubject::new()
+    let subject = aura_core_base::sync_boundary::SyncSubject::new()
         .request(correlation)
         .method(&operation.content.action_kind)
         .workspace(
@@ -125,7 +111,7 @@ where
         let responsibility_slot: std::sync::Arc<Mutex<Option<completion::Responsibility>>> =
             std::sync::Arc::new(Mutex::new(None));
         let git_read = operation.content.action_kind == "git.workspace.read";
-        let descriptor = if git_read { git::descriptor(state.options.runtime_instance_id) } else { descriptor(state.options.runtime_instance_id) };
+        let descriptor = if git_read { git_descriptor(state.options.runtime_instance_id) } else { descriptor(state.options.runtime_instance_id) };
         let requirement = BackendRequirement {
             allowed_classes: [BackendClass::CoreBroker].into(),
             guarantees: [
@@ -213,7 +199,7 @@ where
         let key_for_reserve = key.clone();
         let reserved = boundary
             .run(
-                crate::sync_boundary::SyncSection::Ledger,
+                aura_core_base::sync_boundary::SyncSection::Ledger,
                 subject.clone(),
                 move || {
                     let outcome = reserving.reserve(&dispatch, &authority, &key_for_reserve);
@@ -222,11 +208,11 @@ where
             )
             .await;
         let dispatch = match reserved {
-            crate::blocking_pool::BlockingAdmission::Completed((result, dispatch)) => {
+            aura_core_base::blocking_pool::BlockingAdmission::Completed((result, dispatch)) => {
                 result?;
                 dispatch
             }
-            crate::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
+            aura_core_base::blocking_pool::BlockingAdmission::Refused { waited_ms } => {
                 let mut envelope = error_envelope(
                     correlation,
                     format!(
@@ -237,14 +223,14 @@ where
                     aura_domain_common::ErrorCode::new("persistence.busy").expect("static code");
                 return Ok(Err(envelope));
             }
-            crate::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
+            aura_core_base::blocking_pool::BlockingAdmission::Unknown { waited_ms } => {
                 // The ledger reservation started and did not answer. The answer carries the
                 // contract's recovery field, so it reads as "query this command's outcome, do
                 // not resend" instead of a definite failure. This layer holds the Core
                 // Operation, not the connection's CommandInvocationId, so the identity it can
                 // honestly publish is the correlation id (already on the envelope) and the
                 // operation id; inventing an invocation link here would be a fabricated one.
-                let mut envelope = crate::command_settlement::outcome_unknown_envelope(
+                let mut envelope = aura_core_base::command_settlement::outcome_unknown_envelope(
                     correlation,
                     None,
                     format!(
@@ -293,7 +279,7 @@ where
                 // The dispatch really started and its end is not known. Same rule as above: the
                 // recovery instruction is a contract value, and the identity this layer owns is
                 // the correlation id plus the attempt's operation.
-                let mut envelope = crate::command_settlement::outcome_unknown_envelope(
+                let mut envelope = aura_core_base::command_settlement::outcome_unknown_envelope(
                     correlation,
                     None,
                     "这次操作的结果未知，Aura 不会自动重试；请刷新查看当前状态。".to_owned(),
@@ -325,52 +311,7 @@ where
     perform.unwrap_or_else(|error| Err(error_envelope(correlation, error)))
 }
 
-pub(super) fn descriptor(
-    runtime_instance_id: aura_domain_common::RuntimeInstanceId,
-) -> BackendDescriptor {
-    use ResolvedCapability::*;
-    BackendDescriptor {
-        known_limitations: Default::default(),
-        id: BackendId("core-broker".into()),
-        revision: Revision::INITIAL,
-        runtime_instance_id,
-        class: BackendClass::CoreBroker,
-        readiness: BackendReadiness::Ready,
-        capabilities: [
-            WorkspaceFileRead,
-            // A path the existing policy allowed directly is an external ordinary file,
-            // so the backend that performs the operation has to declare that it can
-            // serve it — otherwise the operation is classified, authorized, and then
-            // finds no backend at all.
-            ExternalFileRead,
-            WorkspaceFileWrite,
-            WorkspaceFileCreate,
-            WorkspaceFileDelete,
-            WorkspaceFileMove,
-            ExternalFileWrite,
-            ExternalFileCreate,
-            ConfigurationRead,
-            ConfigurationWrite,
-            ToolRegistryRead,
-            ToolEphemeralExposureWrite,
-            GitRead,
-            PublicNetworkRead,
-            OrdinaryNetwork,
-            AgentTaskRead,
-        ]
-        .into(),
-        guarantees: [
-            EnforcementGuarantee::AuthorizedReadsOnly,
-            EnforcementGuarantee::AuthorizedWritesOnly,
-            EnforcementGuarantee::CredentialIsolation,
-            EnforcementGuarantee::ExactNetworkOrigins,
-        ]
-        .into(),
-        compatibility: Default::default(),
-        protocol_fingerprint: canonical_sha256(&"aura.core-broker.v1")
-            .expect("literal protocol hash"),
-    }
-}
+pub(super) use aura_core_broker::broker::descriptor;
 
 pub(super) fn operation(
     method: &str,
@@ -417,18 +358,4 @@ pub(super) fn operation(
     )?)
 }
 
-pub(super) fn error_envelope(
-    correlation_id: aura_domain_common::CorrelationId,
-    error: impl std::fmt::Display,
-) -> IpcErrorEnvelope {
-    IpcErrorEnvelope {
-        code: aura_domain_common::ErrorCode::new("broker.dispatch_unavailable")
-            .expect("static code"),
-        category: aura_domain_common::ErrorCategory::Unavailable,
-        message: error.to_string(),
-        retryable: false,
-        correlation_id,
-        terminal: aura_runtime_contract::IpcRequestTerminal::Failed,
-        details: Default::default(),
-    }
-}
+pub(super) use aura_core_base::envelope::error_envelope;

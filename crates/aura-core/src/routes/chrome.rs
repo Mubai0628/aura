@@ -1,6 +1,6 @@
 //! 设置 → 网络与浏览器 → Chrome: the switch, a pairing code and forgetting the paired extension.
-use crate::chrome_control::ChromeControl;
 use aura_chrome_domain::ChromeSetEnabledRequest;
+use aura_chrome_service::chrome_control::ChromeControl;
 use aura_domain_common::CommandInvocationId;
 use serde_json::Value;
 

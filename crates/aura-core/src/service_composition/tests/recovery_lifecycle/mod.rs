@@ -24,9 +24,9 @@
 //! so the facade believes there is a file, and the real `File::open` fails with a genuine Windows
 //! I/O error. Nothing is simulated and no in-memory snapshot stands in for a real read.
 use super::*;
-use crate::config_degradation::{ConfigDegradationRegistry, ConfigDependentCapability};
 use crate::r03_tests::{Fixture, success};
 use aura_config::{ConfigModule, SettingsFacade};
+use aura_core_base::config_degradation::{ConfigDegradationRegistry, ConfigDependentCapability};
 use serde_json::json;
 
 // Behavior tests are real child modules; shared fixtures are imported explicitly.

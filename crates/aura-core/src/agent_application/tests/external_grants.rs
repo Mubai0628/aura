@@ -1,4 +1,5 @@
 use super::*;
+use aura_security_service::external_grants;
 
 /// The approval path mints one reusable directory grant. A second approval of the same
 /// directory reuses it, another session in the workspace can use a workspace-term grant,
@@ -26,7 +27,7 @@ async fn an_approved_directory_grant_is_reused_until_revoked_or_expired() {
     let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
     let identity = aura_windows_platform::inspect_existing_path(&external, true)
         .expect("external directory identity");
-    let spec = crate::external_grants::ApprovedDirectoryGrant {
+    let spec = external_grants::ApprovedDirectoryGrant {
         session_id: session,
         workspace_id: workspace.workspace_id,
         canonical_root: aura_security_contract::CanonicalPath {
@@ -176,16 +177,14 @@ async fn an_approved_directory_grant_is_reused_until_revoked_or_expired() {
         .expect("expired classification");
     assert!(stale.is_none(), "an expired grant is not a covering grant");
     assert!(
-        crate::external_grants::directory_grant_term(
+        external_grants::directory_grant_term(
             aura_security_contract::ApprovalDecisionKind::AllowOnce
         )
         .is_none()
     );
     assert!(
-        crate::external_grants::directory_grant_term(
-            aura_security_contract::ApprovalDecisionKind::Deny
-        )
-        .is_none()
+        external_grants::directory_grant_term(aura_security_contract::ApprovalDecisionKind::Deny)
+            .is_none()
     );
 }
 

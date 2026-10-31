@@ -28,9 +28,9 @@
 //! install or publish anything, which is exactly the boundary the brief sets for
 //! R3/R4 evidence.
 use super::*;
-use crate::config_degradation::{ConfigDegradationRegistry, ConfigDependentCapability};
 use crate::r03_tests::{Fixture, success};
 use aura_config::{ConfigModule, SettingsFacade};
+use aura_core_base::config_degradation::{ConfigDegradationRegistry, ConfigDependentCapability};
 use serde_json::json;
 
 /// A bounded, path-free label for the startup mode.

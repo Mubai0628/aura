@@ -2,6 +2,7 @@
 use super::consent_fixture::approve_file;
 use super::*;
 use aura_permission_domain::{ExternalGrantCapability, ExternalGrantTerm};
+use aura_security_service::external_grants;
 
 #[tokio::test]
 async fn s06_r1_list_find_and_search_ask_for_child_contents_before_any_attempt() {
@@ -20,7 +21,7 @@ async fn s06_r1_list_find_and_search_ask_for_child_contents_before_any_attempt()
             .agent_execution_required()
             .external_grants
             .issue_approved_directory(
-                crate::external_grants::ApprovedDirectoryGrant {
+                external_grants::ApprovedDirectoryGrant {
                     session_id: f.turn.session_id,
                     workspace_id: f.turn.workspace_id,
                     canonical_root: CanonicalPath {
