@@ -19,6 +19,7 @@ import { recoveryProjectionPlan } from './recovery-projection-plan.js';
 import { CoreExitRecovery, type CoreRestartCause } from './core-exit-recovery.js';
 import { HeartbeatWatch, processActivityReader } from './core-supervisor/heartbeat-watch.js';
 import { appendMainLog } from './core-supervisor/main-log.js';
+import { ScopedSubscriptions } from './core-supervisor/scoped-subscriptions.js';
 import { ProjectionCompatibility } from './projection-compatibility.js';
 import type { ProjectionCompatibilitySnapshotV1 } from '@aura/contracts/generated';
 import type {
@@ -28,7 +29,6 @@ import type {
   CorrelationId,
   ProjectionSnapshotRequest,
   ProjectionSubscription,
-  ProjectionUnsubscribeRequest,
   RuntimeHandshake,
   RuntimeHandshakeFinish,
   RuntimeHandshakeKind,
@@ -166,9 +166,9 @@ export class CoreSupervisor {
   });
   readonly #securityListeners = new Set<(change: SecurityProjectionChange) => void>();
   readonly #modelListeners = new Set<(change: ModelProjectionChange) => void>();
-  readonly #modelScopedSubscriptions = new Map<string, ModelProjectionRouteRequest>();
+  readonly #modelScoped = new ScopedSubscriptions(modelProjectionRouteKey);
   readonly #toolListeners = new Set<(change: ToolProjectionChange) => void>();
-  readonly #toolScopedSubscriptions = new Map<string, ToolProjectionRouteRequest>();
+  readonly #toolScoped = new ScopedSubscriptions(toolProjectionRouteKey);
   readonly #mainRuntimeInstanceId = createAuraId('run');
   readonly #options: CoreSupervisorOptions;
   #child: ChildProcess | undefined;
@@ -647,54 +647,23 @@ export class CoreSupervisor {
   async subscribeModelProjection(route: ModelProjectionRouteRequest): Promise<void> {
     this.#require(this.#modelSupported, 'P05 Model Control Plane');
     if (route.projection_scope.type === 'global') return;
-    const key = modelProjectionRouteKey(route);
-    if (this.#modelScopedSubscriptions.has(key)) return;
-    const transport = this.#activeTransport();
-    const subscription: ProjectionSubscription = {
-      ...route,
-      after_revision: null,
-      known_runtime_instance_id: this.#coreRuntimeInstanceId,
-    } as ProjectionSubscription;
-    await transport.request('projection.subscribe', subscription);
-    this.#modelScopedSubscriptions.set(key, structuredClone(route));
+    const runtime = this.#coreRuntimeInstanceId;
+    await this.#modelScoped.subscribe(route, () => this.#activeTransport(), runtime);
   }
 
   async unsubscribeModelProjection(route: ModelProjectionRouteRequest): Promise<void> {
-    if (route.projection_scope.type === 'global') return;
-    const key = modelProjectionRouteKey(route);
-    if (!this.#modelScopedSubscriptions.has(key)) return;
-    this.#modelScopedSubscriptions.delete(key);
-    const transport = this.#transport;
-    if (transport === undefined) return;
-    await transport.request('projection.unsubscribe', route as ProjectionUnsubscribeRequest);
+    if (route.projection_scope.type !== 'global')
+      await this.#modelScoped.unsubscribe(route, this.#transport);
   }
 
   async subscribeToolProjection(route: ToolProjectionRouteRequest): Promise<void> {
     this.#require(this.#toolSupported, 'P07 Tool Control Plane');
-    const key = toolProjectionRouteKey(route);
-    if (this.#toolScopedSubscriptions.has(key)) return;
-    const transport = this.#activeTransport();
-    const subscription: ProjectionSubscription = {
-      ...route,
-      after_revision: null,
-      known_runtime_instance_id: this.#coreRuntimeInstanceId,
-    } as ProjectionSubscription;
-    this.#toolScopedSubscriptions.set(key, structuredClone(route));
-    try {
-      await transport.request('projection.subscribe', subscription);
-    } catch (error) {
-      this.#toolScopedSubscriptions.delete(key);
-      throw error;
-    }
+    const runtime = this.#coreRuntimeInstanceId;
+    await this.#toolScoped.subscribe(route, () => this.#activeTransport(), runtime);
   }
 
   async unsubscribeToolProjection(route: ToolProjectionRouteRequest): Promise<void> {
-    const key = toolProjectionRouteKey(route);
-    if (!this.#toolScopedSubscriptions.has(key)) return;
-    this.#toolScopedSubscriptions.delete(key);
-    const transport = this.#transport;
-    if (transport === undefined) return;
-    await transport.request('projection.unsubscribe', route as ProjectionUnsubscribeRequest);
+    await this.#toolScoped.unsubscribe(route, this.#transport);
   }
 
   async refreshToolProjection(route: ToolProjectionRouteRequest): Promise<ToolProjectionChange> {
@@ -1395,12 +1364,7 @@ export class CoreSupervisor {
     ) {
       await this.#subscribeModelGlobals(transport, owns, deadline);
       if (!owns()) return;
-      await this.#subscribeScoped(
-        transport,
-        this.#modelScopedSubscriptions.values(),
-        owns,
-        deadline,
-      );
+      await this.#subscribeScoped(transport, this.#modelScoped.routes(), owns, deadline);
       if (!owns()) return;
     }
     if (
@@ -1408,12 +1372,7 @@ export class CoreSupervisor {
       this.#toolSupported &&
       this.#coreProjection.current.payload.state !== 'recovery_required'
     ) {
-      await this.#subscribeScoped(
-        transport,
-        this.#toolScopedSubscriptions.values(),
-        owns,
-        deadline,
-      );
+      await this.#subscribeScoped(transport, this.#toolScoped.routes(), owns, deadline);
     }
   }
 

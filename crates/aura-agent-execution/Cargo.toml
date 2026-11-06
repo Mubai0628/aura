@@ -29,6 +29,8 @@ aura-backend-windows-user = { path = "../aura-backend-windows-user" }
 aura-browser-domain = { path = "../aura-browser-domain" }
 aura-chrome-domain = { path = "../aura-chrome-domain" }
 aura-chrome-service = { path = "../aura-chrome-service" }
+aura-desktop-domain = { path = "../aura-desktop-domain" }
+aura-desktop-service = { path = "../aura-desktop-service" }
 aura-commands = { path = "../aura-commands" }
 aura-config = { path = "../aura-config" }
 aura-context-domain = { path = "../aura-context-domain" }
@@ -55,6 +57,7 @@ aura-permission-engine = { path = "../aura-permission-engine" }
 aura-persistence = { path = "../aura-persistence" }
 aura-persistence-core = { path = "../aura-persistence-core" }
 aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-plugins = { path = "../aura-plugins" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }
 aura-secret-scanner = { path = "../aura-secret-scanner" }
 aura-security-contract = { path = "../aura-security-contract" }

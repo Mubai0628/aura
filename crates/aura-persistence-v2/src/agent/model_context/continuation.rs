@@ -25,8 +25,15 @@ pub(super) fn read(
     };
     let data = match snapshot.api_format {
         ModelApiFormat::OpenAiChatCompletions => {
-            let reasoning =
-                output.reasoning_blocks.iter().map(|b| b.text.as_str()).collect::<String>();
+            // Only thinking that came as `reasoning_content` goes back in that field: the decoder
+            // names any other field it read in the block's reference, and a service that sent
+            // thinking under another name may refuse `reasoning_content` in its history.
+            let reasoning = output
+                .reasoning_blocks
+                .iter()
+                .filter(|b| b.provider_reference.as_ref().is_none_or(|r| r.block_id.is_none()))
+                .map(|b| b.text.as_str())
+                .collect::<String>();
             let signatures: BTreeMap<String, String> = payload
                 .as_ref()
                 .filter(|p| p["format"] == "openai_chat_continuation_v1")

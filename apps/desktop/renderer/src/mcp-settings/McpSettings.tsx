@@ -1,20 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { McpRegistryView, McpServerView } from '@aura/contracts/generated';
 import type { ResultEnvelope } from '../../../shared/aura-api';
-import { McpPluginSecrets } from './McpPluginSecrets';
+import { McpAlerts, McpDetails, McpHeading, type McpChange } from './McpDetails';
 import { McpServerForm } from './McpServerForm';
-import { McpServerPanel } from './McpServerPanel';
-import { McpSignInRow } from './McpSignInRow';
-import type { CSSProperties } from 'react';
 import { AppIcon } from '../app-icons';
-import {
-  authSummary,
-  mcpError,
-  mcpStateLabel,
-  mcpStateTone,
-  transportSummary,
-  trustSummary,
-} from './mcp-labels';
+import { mcpError, mcpNeedsTrust, mcpStateTone, mcpSwitchable, mcpTransport } from './mcp-labels';
+import { SettingsItemDialog, SettingsRow, SettingsRowOpen } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './mcp-settings.css';
@@ -30,10 +21,12 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
   const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState<string>();
   const [notice, setNotice] = useState<Notice>();
-  const [editing, setEditing] = useState<McpServerView | 'new'>();
+  const [adding, setAdding] = useState(false);
+  const [opened, setOpened] = useState<string>();
+  const [editing, setEditing] = useState<string>();
   const [trusting, setTrusting] = useState<string>();
   const [removing, setRemoving] = useState<string>();
-  const [open, setOpen] = useState<string>();
+  const [tools, setTools] = useState<string>();
   const [refreshed, setRefreshed] = useState(0);
   const [signInLink, setSignInLink] = useState<{ id: string; url: string }>();
   useEffect(() => {
@@ -90,6 +83,27 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
   const revision = registry?.revision ?? 0;
   const servers = registry?.servers ?? NONE;
   const pages = useIncrementalList(servers);
+  // A server that leaves the list, removed here or no longer found, takes its dialog with it.
+  const shown =
+    opened === undefined ? undefined : servers.find((server) => server.config.id === opened);
+  // A dialog shows what is done in it, never the outcome of an earlier action on another item.
+  const openItem = (id: string) => {
+    setNotice(undefined);
+    setOpened(id);
+  };
+  const close = () => {
+    setOpened(undefined);
+    setEditing(undefined);
+    setTrusting(undefined);
+    setRemoving(undefined);
+    setTools(undefined);
+  };
+  const saved = (next: McpRegistryView, id: string) => {
+    setRegistry(next);
+    const state = next.servers.find((server) => server.config.id === id)?.state;
+    const waits = state === 'not_trusted' || state === 'config_changed';
+    setNotice({ alert: false, text: waits ? `已保存 ${id}；信任后才会启动` : `已保存 ${id}` });
+  };
 
   const trust = (server: McpServerView) =>
     run(`trust:${server.config.id}`, async () => {
@@ -103,10 +117,7 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
         `已信任并启用 ${server.config.display_name}，正在列出工具`,
       );
     });
-  const change = (
-    server: McpServerView,
-    action: 'enable' | 'disable' | 'untrust' | 'remove' | 'restore',
-  ) =>
+  const change = (server: McpServerView, action: McpChange) =>
     run(`${action}:${server.config.id}`, async () => {
       const request = { id: server.config.id, expected_revision: revision };
       const api = window.aura.v1;
@@ -120,9 +131,13 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
           );
         case 'untrust':
           return applied(await api.untrustMcpServer(request), `已撤销对 ${name} 的信任`);
-        case 'remove':
+        case 'remove': {
           setRemoving(undefined);
-          return applied(await api.removeMcpServer(request), `已移除 ${name}`);
+          const done = applied(await api.removeMcpServer(request), `已移除 ${name}`);
+          // A server added again later under the same ID does not reopen this dialog.
+          if (!done.alert) close();
+          return done;
+        }
         case 'restore':
           return applied(await api.restoreMcpPluginDefault(request), `已恢复 ${name} 的插件配置`);
       }
@@ -150,7 +165,7 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
       const result = await window.aura.v1.refreshMcpServer({ id: server.config.id });
       setReload((value) => value + 1);
       setRefreshed((value) => value + 1);
-      setOpen(server.config.id);
+      setTools(server.config.id);
       if (!result.ok) return { alert: true, text: mcpError(result.error.message) };
       return result.value.server.state === 'ready'
         ? {
@@ -165,211 +180,46 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
 
   const row = (server: McpServerView, index: number) => {
     const { config } = server;
-    const locked = busy !== undefined;
-    const needsTrust = server.state === 'not_trusted' || server.state === 'config_changed';
-    // A plugin's server is trusted and removed with its plugin.
-    const plugin = server.plugin ?? undefined;
     const tone = mcpStateTone(server.state);
     return (
-      <li
+      <SettingsRow
         key={config.id}
-        className="settings-card"
-        data-state={server.state}
-        data-tone={tone === 'success' || tone === 'active' ? undefined : tone}
-        style={{ '--item': index } as CSSProperties}
-      >
-        <div className="settings-card-heading mcp-row-heading">
-          <strong>{config.display_name}</strong>
-          <code>{config.id}</code>
-          {plugin ? <span className="settings-tag mcp-row-source">插件 {plugin}</span> : null}
-          {server.plugin_changed ? <span className="settings-tag">已修改</span> : null}
-          <span className="status-pill mcp-row-state" data-tone={tone}>
-            {mcpStateLabel(server)}
-          </span>
-        </div>
-        <p className="mcp-row-transport">
-          {config.transport.type === 'stdio' ? '本机程序：' : 'HTTP：'}
-          <code>{transportSummary(config)}</code>
-        </p>
-        {server.problems.length ? (
-          <p className="settings-inline-alert" role="alert">
-            {server.problems.join('；')}
-          </p>
-        ) : null}
-        {server.last_error && server.state === 'failed' ? (
-          <p className="settings-inline-alert" role="alert">
-            {server.last_error}
-          </p>
-        ) : null}
-        <McpSignInRow
-          server={server}
-          link={signInLink?.id === config.id ? signInLink.url : undefined}
-          locked={locked}
-          onSignIn={() => void signIn(server)}
-          onSignOut={() => void signOut(server)}
-        />
-        <div className="settings-card-actions">
-          {needsTrust && server.fingerprint ? (
-            <button
-              type="button"
-              className="button is-primary is-small"
-              disabled={locked}
-              onClick={() => setTrusting(config.id)}
-            >
-              {server.state === 'config_changed' ? '查看并重新信任' : '查看并信任'}
-            </button>
-          ) : null}
-          {server.state === 'disabled' ||
-          (config.enabled && !needsTrust && server.state !== 'invalid') ? (
-            <button
-              type="button"
-              className="button is-small"
-              disabled={locked}
-              onClick={() => void change(server, config.enabled ? 'disable' : 'enable')}
-            >
-              {config.enabled ? '停用' : '启用'}
-            </button>
-          ) : null}
-          {server.state === 'ready' || server.state === 'failed' ? (
-            <button
-              type="button"
-              className="button is-small"
-              disabled={locked}
-              aria-busy={busy === `refresh:${config.id}` ? true : undefined}
-              onClick={() => void test(server)}
-            >
-              测试连接
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="button is-ghost is-small"
-            aria-expanded={open === config.id}
-            onClick={() => setOpen(open === config.id ? undefined : config.id)}
-          >
-            {open === config.id ? '收起' : '工具与日志'}
-          </button>
-          <button
-            type="button"
-            className="button is-small"
-            disabled={locked}
-            onClick={() => setEditing(server)}
-          >
-            编辑
-          </button>
-          {plugin && server.plugin_changed ? (
-            <button
-              type="button"
-              className="button is-small"
-              disabled={locked}
-              onClick={() => void change(server, 'restore')}
-            >
-              恢复插件默认
-            </button>
-          ) : null}
-          {plugin ? null : (
-            <>
-              {config.trusted_fingerprint ? (
-                <button
-                  type="button"
-                  className="button is-small"
-                  disabled={locked}
-                  onClick={() => void change(server, 'untrust')}
-                >
-                  撤销信任
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="button is-danger is-small mcp-remove"
-                disabled={locked}
-                onClick={() => setRemoving(config.id)}
-              >
-                移除
-              </button>
-            </>
-          )}
-        </div>
-        {plugin ? (
-          <McpPluginSecrets
-            server={server}
-            locked={locked}
-            onSaved={(text, alert) => {
-              setNotice({ alert, text });
-              setReload((value) => value + 1);
-            }}
-          />
-        ) : null}
-        {trusting === config.id ? (
-          <div
-            role="alertdialog"
-            aria-label={`信任 ${config.display_name}`}
-            className="mcp-trust settings-panel is-accent"
-          >
-            <p>信任后 Aura 会{config.transport.type === 'stdio' ? '以你的身份运行' : '连接'}：</p>
-            <pre>
-              {server.resolved_command
-                ? `${server.resolved_command.path}\nSHA-256 ${server.resolved_command.sha256}\n参数：${
-                    config.transport.type === 'stdio'
-                      ? (config.transport.arguments ?? []).join(' ')
-                      : ''
-                  }${authSummary(config) ? `\n${authSummary(config)}` : ''}`
-                : trustSummary(config)}
-            </pre>
-            {/* One sentence, here and nowhere else on the page. */}
-            <p>
-              {config.transport.type === 'stdio'
-                ? '它能做你能做的事；只信任你了解的服务器。'
-                : config.transport.auth?.type === 'oauth'
-                  ? '工具调用的参数会发到这个地址，信任后还要在浏览器中登录；只信任你了解的服务器。'
-                  : '工具调用的参数会发到这个地址；只信任你了解的服务器。'}
-            </p>
-            <div className="settings-card-actions">
+        state={server.state}
+        tone={tone === 'success' || tone === 'active' ? undefined : tone}
+        index={index}
+        headingClassName="mcp-row-heading"
+        heading={<McpHeading server={server} />}
+        summary={mcpTransport(server)}
+        alerts={<McpAlerts server={server} />}
+        actions={
+          <>
+            {mcpNeedsTrust(server) && server.fingerprint ? (
               <button
                 type="button"
                 className="button is-primary is-small"
-                aria-busy={busy === `trust:${config.id}` ? true : undefined}
-                onClick={() => void trust(server)}
+                disabled={busy !== undefined}
+                onClick={() => {
+                  openItem(config.id);
+                  setTrusting(config.id);
+                }}
               >
-                信任并启用
+                {server.state === 'config_changed' ? '查看并重新信任' : '查看并信任'}
               </button>
+            ) : null}
+            {mcpSwitchable(server) ? (
               <button
                 type="button"
                 className="button is-small"
-                onClick={() => setTrusting(undefined)}
+                disabled={busy !== undefined}
+                onClick={() => void change(server, config.enabled ? 'disable' : 'enable')}
               >
-                取消
+                {config.enabled ? '停用' : '启用'}
               </button>
-            </div>
-          </div>
-        ) : null}
-        {removing === config.id ? (
-          <div
-            role="alertdialog"
-            aria-label={`移除 ${config.display_name}`}
-            className="settings-panel is-danger"
-          >
-            <p>移除后它的工具不再可用；程序文件不会被删除。</p>
-            <div className="settings-card-actions">
-              <button
-                type="button"
-                className="button is-danger is-solid is-small"
-                onClick={() => void change(server, 'remove')}
-              >
-                移除
-              </button>
-              <button
-                type="button"
-                className="button is-small"
-                onClick={() => setRemoving(undefined)}
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        ) : null}
-        {open === config.id ? <McpServerPanel server={server} refresh={refreshed} /> : null}
-      </li>
+            ) : null}
+            <SettingsRowOpen name={config.display_name} onOpen={() => openItem(config.id)} />
+          </>
+        }
+      />
     );
   };
 
@@ -384,7 +234,7 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
             type="button"
             className="button is-primary"
             disabled={!coreReady || busy !== undefined}
-            onClick={() => setEditing('new')}
+            onClick={() => setAdding(true)}
           >
             <AppIcon name="plus" size={15} />
             添加服务器
@@ -408,20 +258,13 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
           {notice.text}
         </p>
       ) : null}
-      {editing ? (
+      {adding ? (
         <McpServerForm
-          initial={editing === 'new' ? undefined : editing.config}
           revision={revision}
-          onCancel={() => setEditing(undefined)}
-          onSaved={(saved, id) => {
-            setRegistry(saved);
-            setEditing(undefined);
-            const state = saved.servers.find((server) => server.config.id === id)?.state;
-            const waits = state === 'not_trusted' || state === 'config_changed';
-            setNotice({
-              alert: false,
-              text: waits ? `已保存 ${id}；信任后才会启动` : `已保存 ${id}`,
-            });
+          onCancel={() => setAdding(false)}
+          onSaved={(next, id) => {
+            setAdding(false);
+            saved(next, id);
           }}
         />
       ) : null}
@@ -456,6 +299,57 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
           <p>点“添加服务器”填写命令或地址。</p>
         </div>
       )}
+      {shown ? (
+        <SettingsItemDialog
+          title={shown.config.display_name}
+          heading={<McpHeading server={shown} named={false} />}
+          headingClassName="mcp-row-heading"
+          notice={notice}
+          onClose={close}
+        >
+          {editing === shown.config.id ? (
+            <McpServerForm
+              initial={shown.config}
+              revision={revision}
+              onCancel={() => setEditing(undefined)}
+              onSaved={(next, id) => {
+                setEditing(undefined);
+                saved(next, id);
+              }}
+            />
+          ) : (
+            <McpDetails
+              server={shown}
+              busy={busy}
+              link={signInLink?.id === shown.config.id ? signInLink.url : undefined}
+              trusting={trusting === shown.config.id}
+              removing={removing === shown.config.id}
+              toolsOpen={tools === shown.config.id}
+              refreshed={refreshed}
+              onAskTrust={() => setTrusting(shown.config.id)}
+              onCancelTrust={() => setTrusting(undefined)}
+              onTrust={() => void trust(shown)}
+              onChange={(action) => void change(shown, action)}
+              onTest={() => void test(shown)}
+              onToggleTools={() =>
+                setTools(tools === shown.config.id ? undefined : shown.config.id)
+              }
+              onEdit={() => {
+                setNotice(undefined);
+                setEditing(shown.config.id);
+              }}
+              onAskRemove={() => setRemoving(shown.config.id)}
+              onCancelRemove={() => setRemoving(undefined)}
+              onSignIn={() => void signIn(shown)}
+              onSignOut={() => void signOut(shown)}
+              onSecretSaved={(text, alert) => {
+                setNotice({ alert, text });
+                setReload((value) => value + 1);
+              }}
+            />
+          )}
+        </SettingsItemDialog>
+      ) : null}
     </section>
   );
 }

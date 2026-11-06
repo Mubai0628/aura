@@ -61,6 +61,18 @@ fn challenge_downloads_and_bad_urls_never_become_successful_documents() {
         Err(WebError::SearchSurfaceChanged)
     ));
 }
+
+/// The line the model reads for a failed status (the store shows it as it is).
+#[test]
+fn a_failed_status_says_the_number_and_what_it_means() {
+    assert_eq!(
+        WebError::Http(404).to_string(),
+        "web.http_failed: the server answered HTTP 404; there is no page at this address; check \
+         the address, or search for the page"
+    );
+    assert!(WebError::Http(503).to_string().contains("HTTP 503; the site failed to answer"));
+    assert!(WebError::Http(429).to_string().contains("limiting requests"));
+}
 #[test]
 fn read_offsets_are_characters_and_out_of_range_is_rejected() {
     assert_eq!(excerpt("a中文🦀end", 1, 2).expect("read"), ("中文".into(), Some(3)));

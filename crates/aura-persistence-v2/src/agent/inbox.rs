@@ -123,6 +123,54 @@ pub fn submit_message(
     prepared: &[super::attachments::PreparedAttachment],
     at: UtcTimestamp,
 ) -> StoreResult<AgentInboxProjection> {
+    submit_chosen(tx, command, input, skills, &[], prepared, at)
+}
+
+/// Queues one message as [`submit_message`] does, with each chosen Skill written out as it
+/// will follow what the user typed when the message becomes part of the conversation.
+pub fn submit_chosen(
+    tx: &Transaction<'_>,
+    command: CommandInvocationId,
+    input: &AgentSubmitRequest,
+    skills: &[LoadedSkillEntry],
+    skill_texts: &[String],
+    prepared: &[super::attachments::PreparedAttachment],
+    at: UtcTimestamp,
+) -> StoreResult<AgentInboxProjection> {
+    submit_prepared(
+        tx,
+        command,
+        input,
+        &PreparedMessage { skills, skill_texts, attachments: prepared, ..Default::default() },
+        at,
+    )
+}
+
+/// What Core checked and prepared for a message as it was sent.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PreparedMessage<'a> {
+    /// The Skills chosen with it, and each written out as it follows the message.
+    pub skills: &'a [LoadedSkillEntry],
+    pub skill_texts: &'a [String],
+    /// Its pictures and files, read and checked.
+    pub attachments: &'a [super::attachments::PreparedAttachment],
+    /// What it refers to, resolved.
+    pub references: &'a [ResolvedMessageReference],
+    /// Who sent it, when the user did not type it.
+    pub sender: Option<&'a MessageSender>,
+}
+
+/// Queues one message with what Core prepared for it: its chosen Skills written out, its
+/// attachments and what it refers to.
+pub fn submit_prepared(
+    tx: &Transaction<'_>,
+    command: CommandInvocationId,
+    input: &AgentSubmitRequest,
+    message: &PreparedMessage<'_>,
+    at: UtcTimestamp,
+) -> StoreResult<AgentInboxProjection> {
+    let PreparedMessage { skills, skill_texts, attachments: prepared, references, sender } =
+        *message;
     let input = &input.receipt();
     if replay(tx, command, input)? {
         return load(tx, input.session_id);
@@ -130,7 +178,7 @@ pub fn submit_message(
     if prepared.len() != input.attachments.len() {
         return Err(Error::Invalid("agent.attachments_unprepared"));
     }
-    validate_agent_message(&input.text, !prepared.is_empty())
+    validate_agent_message(&input.text, !prepared.is_empty() || !references.is_empty())
         .map_err(|_| Error::Invalid("agent.input_invalid"))?;
     let previous = load(tx, input.session_id)?;
     // A bounded queue is explicit failure, never implicit loss or consumption.
@@ -161,15 +209,26 @@ pub fn submit_message(
         next.paused = false;
         next.pause_reason = None;
     }
+    let message_id = EventId::new();
+    if !skill_texts.is_empty() {
+        super::skills::set_chosen_texts(tx, message_id, input.session_id, skill_texts, at)?;
+    }
+    super::references::set(tx, message_id, input.session_id, references, at)?;
+    if let Some(sender) = sender {
+        super::sender::set(tx, message_id, input.session_id, sender, at)?;
+    }
     next.messages.push(AgentPendingMessage {
-        message_id: EventId::new(),
+        message_id,
         revision: Revision::INITIAL,
         text: input.text.clone(),
         destination,
         created_at: at,
         skills: skills.to_vec(),
         reasoning_effort: input.reasoning_effort,
+        speed_mode: input.speed_mode.clone(),
+        computer_mode: input.computer_mode,
         attachments: super::attachments::keep(tx, input.session_id, prepared, at)?,
+        references: references.iter().map(ResolvedMessageReference::view).collect(),
     });
     let next = save(tx, &previous, next, at)?;
     receipt(tx, command, input, at)?;
@@ -231,8 +290,11 @@ pub fn mutate(
                 Revision::new(message.revision.value().checked_add(1).ok_or(Error::Conflict)?);
             match action {
                 AgentInboxAction::Edit { text, .. } => {
-                    validate_agent_message(text, !message.attachments.is_empty())
-                        .map_err(|_| Error::Invalid("agent.input_invalid"))?;
+                    validate_agent_message(
+                        text,
+                        !message.attachments.is_empty() || !message.references.is_empty(),
+                    )
+                    .map_err(|_| Error::Invalid("agent.input_invalid"))?;
                     message.text = text.clone();
                 }
                 AgentInboxAction::Append { turn_task_id, .. } => {

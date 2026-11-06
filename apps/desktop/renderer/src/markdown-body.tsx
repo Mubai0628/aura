@@ -1,10 +1,15 @@
 import { useContext, type ComponentPropsWithoutRef } from 'react';
 import { Streamdown, defaultRehypePlugins, defaultRemarkPlugins } from 'streamdown';
 import type { Components, ExtraProps, StreamdownProps } from 'streamdown';
+import { MessageProgram } from './composer-references/MessagePrograms';
+import { rehypeProgramMentions } from './composer-references/program-mentions';
 import { FileLinkContext, useFileLink } from './files/file-links';
 import type { FileReference } from './files/file-paths';
 import { remarkLocalFileLinks } from './files/local-links';
 import { remarkAddresses, sameAddress, textAddress } from './markdown-addresses';
+import { remarkWindowsPaths } from './markdown-paths';
+import { remarkTypedBackslashes } from './typed-backslashes';
+import { remarkTypedLineBreaks } from './typed-line-breaks';
 import { openPlaced, placedEntries } from './files/carried-menu';
 import { fileMenuEntries } from './files/file-menu';
 import { outsidePath } from './files/file-paths';
@@ -61,27 +66,38 @@ export function MarkdownBody({
  * The same renderer for a caller that owns the surrounding element and its own
  * loading state. It exists so the shared body loader can stay responsible for
  * fetching text while this module stays responsible for rendering it.
+ *
+ * `programs` is for a person's own words: a program chosen with "@" shows as a block, every
+ * backslash shows as typed ([`remarkTypedBackslashes`]) and every line break as a new line
+ * ([`remarkTypedLineBreaks`]). Elsewhere the Windows paths keep their backslashes
+ * ([`remarkWindowsPaths`]).
  */
 export function MarkdownBlocks({
   text,
   className,
   streaming = false,
+  programs = false,
 }: {
   text: string;
   className?: string;
   streaming?: boolean;
+  programs?: boolean;
 }) {
-  return <StreamdownHost text={text} className={className} streaming={streaming} />;
+  return (
+    <StreamdownHost text={text} className={className} streaming={streaming} programs={programs} />
+  );
 }
 
 function StreamdownHost({
   text,
   className,
   streaming,
+  programs = false,
 }: {
   text: string;
   className?: string | undefined;
   streaming: boolean;
+  programs?: boolean;
 }) {
   const classes = className ? `markdown-body ${className}` : 'markdown-body';
   return (
@@ -97,12 +113,12 @@ function StreamdownHost({
         lineNumbers={false}
         // Sanitize and harden only. The raw pass is left out so that HTML in the
         // source stays text, which `skipHtml` then also covers.
-        rehypePlugins={REHYPE_PLUGINS}
-        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={programs ? WORDS_REHYPE_PLUGINS : REHYPE_PLUGINS}
+        remarkPlugins={programs ? WORDS_REMARK_PLUGINS : REMARK_PLUGINS}
         // `a` is the one element whose rendering is ours: a link shows its text
         // and its full address, and stays a plain span rather than a control this
         // desktop cannot honour.
-        components={COMPONENTS}
+        components={programs ? WORDS_COMPONENTS : COMPONENTS}
         skipHtml
       >
         {text}
@@ -118,11 +134,13 @@ const REHYPE_PLUGINS = [defaultRehypePlugins.sanitize, hardenTextOnly()].filter(
   (plugin) => plugin !== undefined,
 ) as NonNullable<StreamdownProps['rehypePlugins']>;
 
-/** The renderer's own Markdown passes, then links to local files become file paths
+/** The renderer's own Markdown passes; then paths keep their backslashes
+ *  ([`remarkWindowsPaths`]), and links to local files become file paths
  *  ([`remarkLocalFileLinks`]) before the link guard sees their addresses. Then web
  *  addresses end where Chinese punctuation begins, and emails stay text ([`remarkAddresses`]). */
 const REMARK_PLUGINS = [
   ...Object.values(defaultRemarkPlugins),
+  remarkWindowsPaths,
   remarkLocalFileLinks,
   remarkAddresses,
 ] as NonNullable<StreamdownProps['remarkPlugins']>;
@@ -139,6 +157,28 @@ function hardenTextOnly() {
 /** Only `a` and inline code are replaced; every other element keeps the renderer's own
  *  component. One module-level object, for the same reason as the plugin list. */
 const COMPONENTS: Components = { a: VisibleLink, inlineCode: InlineCode };
+
+/** A person's own words also mark each program chosen with "@". The marks are made after the
+ *  sanitizer, which would remove their attribute. */
+const WORDS_REHYPE_PLUGINS = [...REHYPE_PLUGINS, rehypeProgramMentions] as NonNullable<
+  StreamdownProps['rehypePlugins']
+>;
+/** A person's own words are read without escapes, so their paths need no pass of their own. */
+const WORDS_REMARK_PLUGINS = [
+  ...Object.values(defaultRemarkPlugins),
+  remarkTypedLineBreaks,
+  remarkLocalFileLinks,
+  remarkAddresses,
+  remarkTypedBackslashes,
+] as NonNullable<StreamdownProps['remarkPlugins']>;
+const WORDS_COMPONENTS: Components = { ...COMPONENTS, span: MarkedSpan };
+
+/** A mark of [`rehypeProgramMentions`] is the program's block; any other span is as it was. */
+function MarkedSpan({ children, node, ...rest }: ComponentPropsWithoutRef<'span'> & ExtraProps) {
+  const name = node?.properties['dataProgram'];
+  if (typeof name === 'string') return <MessageProgram name={name}>{children}</MessageProgram>;
+  return <span {...rest}>{children}</span>;
+}
 
 /**
  * Inline code that names a file of the conversation's workspace opens it in

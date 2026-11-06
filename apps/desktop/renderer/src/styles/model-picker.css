@@ -69,6 +69,28 @@
   flex: none;
 }
 
+/* The turn's speed mode beside the thinking level; a mode other than the standard one shows in
+   the accent colour, since it is charged more. */
+.speed-menu-anchor .composer-popover {
+  right: 0;
+  left: auto;
+  width: 130px;
+}
+
+.composer-select.speed-select > svg:first-child {
+  color: var(--quiet);
+}
+
+.composer-select.speed-select[data-on='true'],
+.composer-select.speed-select[data-on='true'] > svg:first-child {
+  color: var(--accent);
+}
+
+[data-compact='true'] .speed-menu-anchor,
+[data-compact='first'] .speed-menu-anchor {
+  flex: none;
+}
+
 /* The levels a model offers, in its settings. Pills that tick on and off, and the level it uses by default as one choice on a
    segmented track. The real boxes stay, unseen, over each pill and segment for the keyboard and
    screen readers. */
@@ -100,8 +122,8 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  height: 28px;
-  padding: 0 12px;
+  height: 26px;
+  padding: 0 10px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
@@ -115,7 +137,7 @@
 
 .profile-fields .level-pill {
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
 }
 
@@ -125,14 +147,14 @@
 }
 
 .profile-fields .level-pill:hover {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line-strong));
+  border-color: var(--ink);
 }
 
 .profile-fields .level-pill[data-on='true'] {
-  padding-left: 9px;
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent-strong);
-  background: var(--accent-soft);
+  padding-left: 6px;
+  border-color: var(--accent);
+  color: var(--on-accent);
+  background: var(--accent);
 }
 
 .level-pill > svg {
@@ -152,7 +174,7 @@
 
 .level-pill:has(> input:focus-visible),
 .level-segment:has(> input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -168,29 +190,31 @@
   font-weight: 550;
 }
 
+.level-choice-price {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .level-segments {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 2px;
   max-width: 100%;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
   background: var(--surface-muted);
 }
 
 .profile-fields .level-segment {
   min-width: 52px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .profile-fields .level-segment:has(> input:checked) {
   color: var(--ink);
   background: var(--surface);
-  box-shadow:
-    0 1px 2px rgb(36 39 36 / 10%),
-    0 0 0 1px var(--line);
-  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 @media (prefers-reduced-motion: reduce) {

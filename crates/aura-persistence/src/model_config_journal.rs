@@ -1151,7 +1151,7 @@ fn first_forbidden_secret_path(value: &serde_json::Value, path: String) -> Optio
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use aura_domain_common::{
         CommandInvocationId, ContentHash, CorrelationId, CredentialId, CredentialRevision,
         EndpointId, ExpectedRevision, MutationJournalId, Revision, RuntimeInstanceId,
@@ -1180,7 +1180,7 @@ mod tests {
         migrate_model_config_mutation_journal_payload, valid_model_config_journal_transition,
     };
 
-    fn start() -> (tempfile::TempDir, PersistenceCoordinator) {
+    pub(crate) fn start() -> (tempfile::TempDir, PersistenceCoordinator) {
         let directory = tempfile::tempdir().expect("temporary directory");
         let persistence = match PersistenceCoordinator::start(PersistenceOptions::new(
             directory.path().join("data/aura.db"),
@@ -1351,7 +1351,7 @@ mod tests {
         }
     }
 
-    fn credential_slot(
+    pub(crate) fn credential_slot(
         credential_id: CredentialId,
         endpoint_id: EndpointId,
     ) -> CreateModelCredentialSlot {
@@ -1383,7 +1383,7 @@ mod tests {
         }
     }
 
-    fn commit_credential_slots(
+    pub(crate) fn commit_credential_slots(
         persistence: &PersistenceCoordinator,
         slots: Vec<CreateModelCredentialSlot>,
     ) {
@@ -1422,7 +1422,7 @@ mod tests {
             .expect("slot allocation completed");
     }
 
-    fn delete_payload(
+    pub(crate) fn delete_payload(
         parent_journal_id: MutationJournalId,
         credentials: &[(CredentialId, MutationJournalId)],
     ) -> ModelConfigMutationJournalPayload {

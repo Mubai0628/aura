@@ -3,8 +3,8 @@
   width: 7px;
   height: 7px;
   margin-left: auto;
-  border-radius: 50%;
-  background: #e5484d;
+  border-radius: var(--radius-round);
+  background: var(--danger-dot);
 }
 
 @media (max-width: 860px) {

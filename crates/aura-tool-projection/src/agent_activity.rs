@@ -20,6 +20,18 @@ pub struct AgentToolActivityEntry {
     pub shell_query_available: bool,
     pub permission_mode: Option<aura_security_contract::PermissionMode>,
     pub permission_revision: Option<u64>,
+    /// Who decided the call's approval in a chat; none when it was decided in Aura's window or
+    /// the call asked none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_decision: Option<AgentToolRemoteDecision>,
+}
+
+/// Who decided a call's approval on a chat platform, through one of a plugin's channels, and how.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AgentToolRemoteDecision {
+    pub sender: aura_agent_domain::MessageSender,
+    pub decision: aura_security_contract::ApprovalDecisionKind,
 }
 
 /// Bounded, deterministic display derived from execution facts, never model prose.

@@ -50,17 +50,17 @@
   align-items: start;
   gap: 10px;
   padding: 11px 14px;
-  border: 1px solid #d8e2dd;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
-  color: #3f5d53;
-  background: #f1f6f3;
+  color: var(--accent);
+  background: var(--surface-muted);
   font-size: 12.5px;
   line-height: 1.6;
 }
 
 .settings-callout.is-warning {
   border-color: var(--warning-line);
-  color: #6b5121;
+  color: var(--warning);
   background: var(--warning-soft);
 }
 
@@ -107,7 +107,7 @@
 }
 
 .settings-card[data-tone='muted'] {
-  background: #fcfcfb;
+  background: var(--surface);
 }
 
 .settings-card > p {
@@ -149,7 +149,7 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--accent-strong);
   background: var(--accent-soft);
   font-size: 11.5px;
@@ -161,7 +161,7 @@
   align-items: center;
   gap: 6px;
   padding: 2px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   background: var(--surface-muted);
   font-size: 11.5px;
@@ -172,7 +172,7 @@
 .status-pill::before {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: currentColor;
   content: '';
 }
@@ -218,7 +218,7 @@
   width: 44px;
   height: 44px;
   margin-bottom: 6px;
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   place-items: center;
   color: var(--accent-strong);
   background: var(--accent-soft);
@@ -265,7 +265,7 @@
 
 .settings-status-line.is-done {
   padding: 9px 12px;
-  border: 1px solid #cfe0d6;
+  border: 1px solid var(--success-line);
   border-radius: var(--radius-md);
   color: var(--success);
   background: var(--success-soft);
@@ -316,7 +316,7 @@
 
 :where(.settings-page) code {
   padding: 1px 5px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--surface-muted);
 }
 
@@ -324,18 +324,18 @@
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-  background: #fcfcfb;
+  background: var(--surface);
   animation: settings-panel-in var(--dur-base) var(--ease-out) both;
 }
 
 .settings-panel.is-accent {
-  border-color: #c9dbd3;
-  background: #f6faf8;
+  border-color: var(--line-strong);
+  background: var(--surface-muted);
 }
 
 .settings-panel.is-danger {
   border-color: var(--danger-line);
-  background: #fdf8f8;
+  background: var(--surface);
 }
 
 /* Form controls a page did not style itself get one look; :where keeps them easy to override. */
@@ -358,7 +358,7 @@
 }
 
 :where(.settings-page) :where(input, select, textarea):hover:not(:disabled) {
-  border-color: #c4c9c3;
+  border-color: var(--line-strong);
 }
 
 :where(.settings-page) :where(input, select, textarea):focus {

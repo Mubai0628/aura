@@ -159,7 +159,7 @@ test('L10.12 copying works, actions sit where asked, the card sums the changes, 
     // In parts, the lines added green.
     await expect(
       card.getByRole('region', { name: '未提交改动' }).locator('.activity-added'),
-    ).toHaveCSS('color', 'rgb(59, 118, 87)');
+    ).toHaveCSS('color', 'rgb(59, 110, 76)');
     await expect(card.getByRole('list', { name: '最近操作' })).toContainText('写入文件');
     await page.screenshot({ path: info.outputPath('l10-12-activity.png') });
     await card.getByRole('button', { name: '查看审查' }).click();
@@ -193,8 +193,9 @@ test('L10.12 copying works, actions sit where asked, the card sums the changes, 
         shadow: inner.boxShadow,
       };
     });
-    expect(focused).toMatchObject({ border: 'rgb(46, 105, 115)', outline: 'none', shadow: 'none' });
-    expect(focused.ring).toContain('rgba(46, 105, 115, 0.15)');
+    expect(focused).toMatchObject({ border: 'rgb(28, 28, 27)', outline: 'none', shadow: 'none' });
+    // The pixel theme's focus: a hard shadow two pixels down and right, no blur.
+    expect(focused.ring).toBe('rgb(218, 218, 214) 2px 2px 0px 0px');
     await page.screenshot({ path: info.outputPath('l10-12-search-focus.png') });
 
     // The context card shows its pixel rows inside its edge.

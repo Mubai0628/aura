@@ -146,9 +146,11 @@ test('L10 a plugin is imported, reviewed, trusted, used, switched off and uninst
     await plugins.getByRole('button', { name: '导入文件夹…' }).click();
     const list = plugins.getByRole('list', { name: '插件' });
     await expect(list).toContainText('未信任，内容都不提供');
-    await expect(list).toContainText('Skill 1 · 命令 1 · MCP 1');
+    // The row's review opens the plugin's dialog, with what it brings and the review.
     await list.getByRole('button', { name: '查看并信任' }).click();
-    const review = list.getByRole('region', { name: /的内容$/u });
+    const kit = page.getByRole('dialog', { name: 'kit' });
+    await expect(kit).toContainText('Skill 1 · 命令 1 · MCP 1');
+    const review = kit.getByRole('region', { name: /的内容$/u });
     await expect(review).toContainText('/summarize');
     await expect(review).toContainText('notes');
     await expect(review).toContainText('插件文件');
@@ -157,6 +159,7 @@ test('L10 a plugin is imported, reviewed, trusted, used, switched off and uninst
     await expect(review).toContainText('插件里的程序以你的身份运行');
     await review.getByRole('button', { name: '信任并启用' }).click();
     await expect(list).toContainText('可用');
+    await kit.getByRole('button', { name: '关闭' }).click();
     const path = await page.evaluate(async () => {
       const listed = await window.aura.v1.listPlugins({});
       return listed.ok ? listed.value.plugins[0]?.path : undefined;
@@ -170,9 +173,12 @@ test('L10 a plugin is imported, reviewed, trusted, used, switched off and uninst
     const servers = mcp.getByRole('list', { name: 'MCP 服务器' });
     await expect(servers).toContainText('插件 kit');
     await expect(servers).toContainText('可用 · 5 个工具', { timeout: 60_000 });
-    await expect(servers.getByRole('button', { name: '编辑' })).toHaveCount(1);
-    await expect(servers.getByRole('button', { name: '移除' })).toHaveCount(0);
-    await expect(servers.getByRole('button', { name: '撤销信任' })).toHaveCount(0);
+    await servers.getByRole('button', { name: '配置 插件文件' }).click();
+    const server = page.getByRole('dialog', { name: '插件文件' });
+    await expect(server.getByRole('button', { name: '编辑' })).toHaveCount(1);
+    await expect(server.getByRole('button', { name: '移除' })).toHaveCount(0);
+    await expect(server.getByRole('button', { name: '撤销信任' })).toHaveCount(0);
+    await server.getByRole('button', { name: '关闭' }).click();
     await servers.getByRole('button', { name: '停用' }).click();
     await expect(servers).toContainText('已停用');
     await servers.getByRole('button', { name: '启用' }).click();
@@ -219,8 +225,13 @@ test('L10 a plugin is imported, reviewed, trusted, used, switched off and uninst
     await expect(off).toContainText('还没有 MCP 服务器');
     await expect(off).not.toContainText('插件 kit');
     const last = await settingsPage(page, '插件', '插件设置');
-    await last.getByRole('list', { name: '插件' }).getByRole('button', { name: '卸载' }).click();
     await last
+      .getByRole('list', { name: '插件' })
+      .getByRole('button', { name: '配置 kit' })
+      .click();
+    const uninstall = page.getByRole('dialog', { name: 'kit' });
+    await uninstall.getByRole('button', { name: '卸载' }).click();
+    await uninstall
       .getByRole('alertdialog', { name: '卸载 kit' })
       .getByRole('button', { name: '卸载' })
       .click();

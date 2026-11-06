@@ -25,7 +25,7 @@
 
 .skeleton-block {
   display: block;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: linear-gradient(
     90deg,
     var(--surface-muted) 25%,

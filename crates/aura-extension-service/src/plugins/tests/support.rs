@@ -9,6 +9,8 @@ pub(super) struct Fixture {
     pub settings: Arc<SettingsFacade>,
     pub runtime: Arc<PluginRuntime>,
     pub context: PluginContext,
+    /// With secrets: the MCP runtime whose secret store, in memory, keeps them.
+    secrets: Option<(Arc<crate::mcp::McpRuntime>, Arc<crate::mcp::credentials::MemorySecretStore>)>,
 }
 
 pub(super) fn write(path: &Path, text: &str) {
@@ -49,7 +51,35 @@ impl Fixture {
         let settings = SettingsFacade::open(paths).expect("temporary settings");
         let runtime = PluginRuntime::new(Arc::clone(&settings), None);
         let context = PluginContext::new(Arc::clone(&runtime));
-        Self { root, settings, runtime, context }
+        Self { root, settings, runtime, context, secrets: None }
+    }
+
+    /// With an MCP runtime and a secret store in memory, as Core has them.
+    pub fn with_secrets() -> Self {
+        let mut fixture = Self::new();
+        let journal = Arc::new(
+            aura_core_broker::broker::BrokerJournal::open(&fixture.root.path().join("journal"))
+                .expect("journal"),
+        );
+        let store = Arc::new(crate::mcp::credentials::MemorySecretStore::default());
+        let mcp = crate::mcp::McpRuntime::new(
+            Arc::clone(&fixture.settings),
+            journal,
+            None,
+            Arc::clone(&store) as Arc<dyn crate::mcp::credentials::SecretStore>,
+        );
+        fixture.runtime = PluginRuntime::new(Arc::clone(&fixture.settings), Some(Arc::clone(&mcp)));
+        fixture.context = PluginContext::new(Arc::clone(&fixture.runtime));
+        fixture.secrets = Some((mcp, store));
+        fixture
+    }
+
+    pub fn secrets(&self) -> Arc<crate::mcp::credentials::MemorySecretStore> {
+        Arc::clone(&self.secrets.as_ref().expect("a fixture with secrets").1)
+    }
+
+    pub fn mcp(&self) -> Arc<crate::mcp::McpRuntime> {
+        Arc::clone(&self.secrets.as_ref().expect("a fixture with secrets").0)
     }
 
     /// A new runtime on the same folders, as when Core starts again.

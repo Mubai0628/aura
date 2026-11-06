@@ -50,7 +50,7 @@
 .composer {
   position: relative;
   padding: 10px 11px 9px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
 }
 
 /* The composer is the frame; its typing area draws no focus ring of its own. */
@@ -88,9 +88,9 @@
   left: 50%;
   width: 38px;
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   content: '';
-  background: #c9cdc9;
+  background: var(--line-strong);
   transform: translateX(-50%);
   transition: background 140ms ease-out;
 }
@@ -103,7 +103,7 @@
 .composer textarea::placeholder,
 .settings-search input::placeholder,
 .settings-form-grid input::placeholder {
-  color: #858c87;
+  color: var(--quiet);
   opacity: 1;
 }
 
@@ -142,7 +142,7 @@
 .send-button {
   min-height: 28px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: transparent;
 }
 
@@ -158,7 +158,7 @@
   flex: 0 0 auto;
   gap: 5px;
   padding: 0 7px;
-  color: #4b524c;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -200,7 +200,7 @@
   width: 255px;
   padding: 10px 11px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   color: var(--muted);
   background: var(--surface);
   box-shadow: var(--shadow-popover);
@@ -218,7 +218,7 @@
   display: grid;
   width: 28px;
   place-items: center;
-  color: #a2a8a4;
+  color: var(--faint);
 }
 
 .composer-popover {
@@ -229,7 +229,7 @@
   width: 250px;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-popover);
 }
@@ -255,14 +255,14 @@
   min-height: 32px;
   gap: 10px;
   padding: 6px 8px;
-  border-radius: 7px;
-  color: #454c46;
+  border-radius: var(--radius-md);
+  color: var(--muted);
   text-align: left;
   background: transparent;
 }
 
 .composer-popover button:hover {
-  background: #f0f2ef;
+  background: var(--surface-hover);
 }
 
 .model-menu-group + .model-menu-group {
@@ -283,7 +283,7 @@
   margin-top: 5px;
   padding-top: 8px;
   border-top: 1px solid var(--line);
-  border-radius: 0 0 7px 7px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
   color: var(--accent-strong);
 }
 

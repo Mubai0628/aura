@@ -19,7 +19,14 @@ pub fn start_batch(
     }) {
         let user = attachments::freeze(tx, message, turn.session_id, at)?;
         session::add_user_message(tx, &user)?;
-        attachments::record(tx, user.event_id, &message.text, &message.attachments, at)?;
+        attachments::record(
+            tx,
+            user.event_id,
+            &message.text,
+            &user.text,
+            &message.attachments,
+            at,
+        )?;
         attach(tx, turn, &user, at)?;
     }
     inbox::consume(tx, pending, turn.turn_task_id, AgentInputLane::NextTurn, at)
@@ -72,7 +79,14 @@ pub fn additions(tx: &Transaction<'_>, run: AgentRunId, at: UtcTimestamp) -> Sto
     for message in messages {
         let user = attachments::freeze(tx, message, turn.session_id, at)?;
         session::add_user_message(tx, &user)?;
-        attachments::record(tx, user.event_id, &message.text, &message.attachments, at)?;
+        attachments::record(
+            tx,
+            user.event_id,
+            &message.text,
+            &user.text,
+            &message.attachments,
+            at,
+        )?;
         attach(tx, &turn, &user, at)?;
     }
     inbox::consume(tx, &previous, turn.turn_task_id, lane, at)?;

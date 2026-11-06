@@ -5,10 +5,11 @@ import { join } from 'node:path';
 import { launch } from './s06/harness';
 
 /** The font set: Inter with 思源黑体 for the interface and the conversation,
- * 思源宋体 for large titles and thinking, JetBrains Mono for code. */
+ * 思源宋体 for thinking, JetBrains Mono for code, Fusion Pixel 12 for titles and labels. */
 const UI = /^"Inter Variable", "Noto Sans SC Variable"/;
 const SERIF = /^"Noto Serif SC Variable"/;
 const MONO = /^"JetBrains Mono Variable"/;
+const PIXEL = /^"Fusion Pixel 12"/;
 
 /** The font family the page's own stylesheets give an element built from `html`. */
 async function familyOf(page: Page, html: string, selector: string) {
@@ -50,6 +51,7 @@ test('L10.7 the chosen fonts ship with Aura and load under its security policy',
       'Noto Sans SC Variable',
       'Noto Serif SC Variable',
       'JetBrains Mono Variable',
+      'Fusion Pixel 12',
     ]) {
       expect(families, family).toContain(family);
     }
@@ -62,6 +64,7 @@ test('L10.7 the chosen fonts ship with Aura and load under its security policy',
         ['Noto Sans SC Variable', '新建会话 查看详情'],
         ['Noto Serif SC Variable', '从一个想法开始'],
         ['JetBrains Mono Variable', 'fn main() {}'],
+        ['Fusion Pixel 12', '新建会话 设置'],
       ];
       const result: Record<string, string> = {};
       for (const [family, text] of samples) {
@@ -80,16 +83,17 @@ test('L10.7 the chosen fonts ship with Aura and load under its security policy',
       'Noto Sans SC Variable': 'loaded',
       'Noto Serif SC Variable': 'loaded',
       'JetBrains Mono Variable': 'loaded',
+      'Fusion Pixel 12': 'loaded',
     });
 
-    // Who uses which: the interface and the conversation, large titles, thinking, code.
+    // Who uses which: the interface and the conversation, titles, thinking, code.
     expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(UI);
     expect(
       await familyOf(page, '<div class="agent-message-text">回答</div>', '.agent-message-text'),
     ).toMatch(UI);
     expect(
       await familyOf(page, '<div class="new-session-welcome"><h1>从一个想法开始</h1></div>', 'h1'),
-    ).toMatch(SERIF);
+    ).toMatch(PIXEL);
     expect(
       await familyOf(page, '<div class="agent-reasoning">先读 README</div>', '.agent-reasoning'),
     ).toMatch(SERIF);
@@ -104,7 +108,7 @@ test('L10.7 the chosen fonts ship with Aura and load under its security policy',
     const heading = page.locator('.settings-content-heading h2').first();
     await expect(heading).toBeVisible();
     expect(await heading.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(
-      SERIF,
+      PIXEL,
     );
   } finally {
     await app.close();

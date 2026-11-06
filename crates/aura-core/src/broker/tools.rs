@@ -116,9 +116,10 @@ pub(crate) async fn dispatch_tools(
         operation,
         request.command_invocation_id.map_or_else(|| request.id.to_string(), |id| id.to_string()),
         request.command_invocation_id,
+        if mutation { super::OnChangedFacts::Refuse } else { super::OnChangedFacts::Retry },
         inspect,
         evidence,
-        move || async move {
+        move |_| async move {
             let (handler, arguments) = match input.action {
                 ToolBrokerAction::Search(v) => {
                     (BuiltinCoreHandlerV1::ToolsSearch, serde_json::to_value(v))

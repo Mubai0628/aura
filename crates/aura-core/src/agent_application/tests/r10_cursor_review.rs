@@ -74,6 +74,7 @@ async fn retrying_an_old_terminate_command_must_not_cancel_a_new_normal_run() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: request.session_id,
             model_profile_id,
             text: "A new ordinary request".into(),
@@ -82,7 +83,9 @@ async fn retrying_an_old_terminate_command_must_not_cancel_a_new_normal_run() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

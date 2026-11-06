@@ -36,10 +36,21 @@
   margin-top: 16px;
 }
 
+/* A bar of blocks filling a square frame. */
 .update-progress progress {
   width: 100%;
-  height: 8px;
-  accent-color: var(--accent);
+  height: 10px;
+  padding: 1px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  appearance: none;
+}
+.update-progress progress::-webkit-progress-bar {
+  background: var(--surface);
+}
+.update-progress progress::-webkit-progress-value {
+  background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 8px);
 }
 
 .update-error {

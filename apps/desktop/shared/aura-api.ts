@@ -136,6 +136,9 @@ export interface AuraApiV1 extends SessionConsentsApi {
   notifications?: import('./notifications.js').NotificationsApiV1;
   browser?: import('./browser-api.js').BrowserApiV1;
   chrome?: import('./chrome-control-api.js').ChromeControlApiV1;
+  computer?: import('./computer-control-api.js').ComputerControlApiV1;
+  pluginPanels?: import('./plugin-panel-api.js').PluginPanelsApiV1;
+  pluginUi?: import('./plugin-ui-api.js').PluginUiApiV1;
   updateToolCredentialOrigins(
     request: ToolCredentialMainParams['tools.credential.origins'],
   ): Promise<ResultEnvelope<ToolCredentialMainResult['tools.credential.origins']>>;
@@ -343,6 +346,10 @@ export interface AuraApiV1 extends SessionConsentsApi {
   listMcpServers(
     request: AgentMainParams['agent.mcp.list'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.mcp.list']>>;
+  /** The resources of a conversation's ready servers, for the composer's "@" list. */
+  listMcpResources(
+    request: AgentMainParams['agent.mcp.resources'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.mcp.resources']>>;
   /** What a configuration would run and the fingerprint trust would record. */
   previewMcpServer(
     request: AgentMainParams['agent.mcp.preview'],
@@ -419,10 +426,22 @@ export interface AuraApiV1 extends SessionConsentsApi {
   untrustSkill(
     request: AgentMainParams['agent.skills.untrust'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.skills.untrust']>>;
+  /** Trusts every Skill in one workspace's `.agents\skills` and `.claude\skills`. */
+  trustWorkspaceSkills(
+    request: AgentMainParams['agent.skills.trust_workspace'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.skills.trust_workspace']>>;
+  /** Withdraws that trust, with any trust given to one of the workspace's Skills alone. */
+  untrustWorkspaceSkills(
+    request: AgentMainParams['agent.skills.untrust_workspace'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.skills.untrust_workspace']>>;
   /** Switches a Skill on or off at the revision shown. */
   setSkillEnabled(
     request: AgentMainParams['agent.skills.set_enabled'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.skills.set_enabled']>>;
+  /** Pins a usable Skill into every request within the shared limit, or unpins it. */
+  setSkillPinned(
+    request: AgentMainParams['agent.skills.set_pinned'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.skills.set_pinned']>>;
   /** Copies a Skill folder into Aura's own; the original is not changed. */
   importSkill(
     request: AgentMainParams['agent.skills.import'],
@@ -455,6 +474,10 @@ export interface AuraApiV1 extends SessionConsentsApi {
   importPlugin(
     request: AgentMainParams['agent.plugins.import'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.plugins.import']>>;
+  /** Installs a folder a plugin is being written in, where it is and without trust. */
+  addDevelopmentPlugin(
+    request: AgentMainParams['agent.plugins.add_development'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.plugins.add_development']>>;
   /** Trusts exactly the shown fingerprint and switches the plugin on; for an update, it replaces the installed copy. */
   trustPlugin(
     request: AgentMainParams['agent.plugins.trust'],
@@ -487,6 +510,29 @@ export interface AuraApiV1 extends SessionConsentsApi {
   openPluginDirectory(
     request: AgentMainParams['agent.plugins.open_directory'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.plugins.open_directory']>>;
+  /** Exports an installed plugin as a ZIP file; Main asks where to save it. */
+  exportPlugin(
+    request: AgentMainParams['agent.plugins.export'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.plugins.export']>>;
+  /** A ready plugin's checked theme, for the window to apply. */
+  getPluginTheme(
+    request: AgentMainParams['agent.plugins.theme'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.plugins.theme']>>;
+  /**
+   * What only the plugin page changes: the background service's switch, the plugin's own text
+   * settings and which secret ones to clear, its scope, allowlist and remote approval switch.
+   */
+  configurePlugin(
+    request: AgentMainParams['agent.plugins.configure'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.plugins.configure']>>;
+  /**
+   * One of a plugin's secret settings, sent only as SecretInput bytes (zeroed after sending).
+   * The value is never returned.
+   */
+  setPluginSecret(
+    request: AgentMainParams['agent.plugins.secret.set'],
+    secret: Uint8Array,
+  ): Promise<ResultEnvelope<AgentMainResult['agent.plugins.secret.set']>>;
   readAgentContextRemediation(
     request: AgentMainParams['agent.context.remediation'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.context.remediation']>>;
@@ -629,6 +675,9 @@ export interface AuraApiV1 extends SessionConsentsApi {
   applyModelProfileCatalogUpdate(
     request: P05MainParams['models.profile.apply_catalog_update'],
   ): Promise<ResultEnvelope<P05MainResult['models.profile.apply_catalog_update']>>;
+  getModelProfileCatalogEntries(
+    request: P05MainParams['models.profile.catalog_entries'],
+  ): Promise<ResultEnvelope<P05MainResult['models.profile.catalog_entries']>>;
   getApprovalDetails(
     request: P04MainParams['approval.get_details'],
   ): Promise<ResultEnvelope<ApprovalRequest>>;
@@ -742,6 +791,9 @@ export interface AuraApiV1 extends SessionConsentsApi {
   resetModelRuntimeContextWindow(
     request: P05MainParams['models.context_window.reset_runtime_correction'],
   ): Promise<ResultEnvelope<P05MainResult['models.context_window.reset_runtime_correction']>>;
+  retryModelCredentialCleanup(
+    request: P05MainParams['models.credential_cleanup.retry'],
+  ): Promise<ResultEnvelope<P05MainResult['models.credential_cleanup.retry']>>;
   prepareHostPreparation(
     request: P04MainParams['security.host_preparation.prepare'],
   ): Promise<ResultEnvelope<HostPreparationStatus>>;

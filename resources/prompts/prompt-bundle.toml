@@ -1,5 +1,5 @@
 schema_version = 1
-bundle_version = "1.19.0"
+bundle_version = "1.23.0"
 serializer_version = 1
 
 [[modules]]
@@ -58,7 +58,7 @@ order = 50
 
 [[modules]]
 id = "core.capability-selection"
-version = "1.0.0"
+version = "1.1.0"
 path = "core/capability-selection.md"
 required = true
 section = "core"
@@ -193,7 +193,7 @@ order = 200
 
 [[modules]]
 id = "capabilities.skills"
-version = "1.0.0"
+version = "1.1.1"
 path = "capabilities/skills.md"
 required = false
 section = "core"
@@ -212,7 +212,7 @@ order = 220
 
 [[modules]]
 id = "capabilities.command-authoring"
-version = "1.1.0"
+version = "1.2.0"
 path = "capabilities/command-authoring.md"
 required = false
 section = "core"
@@ -316,7 +316,7 @@ order = 50
 
 [[modules]]
 id = "compaction.system"
-version = "2.0.0"
+version = "2.2.0"
 path = "compaction/system.md"
 required = true
 section = "compaction"

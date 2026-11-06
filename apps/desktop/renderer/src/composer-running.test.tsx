@@ -86,6 +86,26 @@ function renderComposer(running: boolean) {
   return screen.getByRole('textbox', { name: '输入消息' }) as HTMLTextAreaElement;
 }
 
+// Where a turn operates programs is chosen on Settings → 电脑操控, never in the composer.
+test('with computer control on, the composer offers no desktop and its message names none', async () => {
+  Object.assign(window.aura.v1, {
+    computer: {
+      settings: vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: { revision: 1, settings: { enabled: true } } }),
+    },
+  });
+  const user = userEvent.setup();
+  const editor = renderComposer(true);
+  await user.type(editor, '读取记事本');
+  await user.click(screen.getByRole('button', { name: '加入下一轮队列' }));
+  expect(submit).toHaveBeenCalledWith(
+    expect.objectContaining({ destination: { lane: 'next_turn' } }),
+  );
+  expect(submit.mock.calls.at(-1)?.[0]).not.toHaveProperty('computer_mode');
+  expect(screen.queryByRole('button', { name: /^电脑：/u })).toBeNull();
+});
+
 test('with a task running and nothing typed, the send button stops the task', async () => {
   const user = userEvent.setup();
   renderComposer(true);

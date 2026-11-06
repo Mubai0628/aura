@@ -16,6 +16,7 @@ import { ModelQuickSelector, PermissionQuickSelector } from './ComposerQuickMenu
 import { ContextUsageRing } from './ContextUsageRing';
 import { ModelPicker, type ModelPickerState } from './ModelPicker';
 import { SessionReasoningPicker } from './ReasoningPicker';
+import { SessionSpeedPicker } from './SpeedPicker';
 import type { InspectionSource } from './agent-session/useLatestInspection';
 import type { SubmissionPreparation } from './agent-session/useComposerSubmission';
 import { useDismissablePopover } from './useDismissablePopover';
@@ -25,12 +26,19 @@ import { SkillChips, SkillPicker } from './composer-skills/SkillChoice';
 import { useSkillChoice } from './composer-skills/useSkillChoice';
 import { useCommandCatalog } from './composer-commands/useCommandCatalog';
 import { useSlashCommands } from './composer-commands/useSlashCommands';
+import { ReferenceMenu } from './composer-references/ReferenceMenu';
+import { ReferenceChips } from './composer-references/ReferenceChips';
+import { ProgramBlocks } from './composer-references/ProgramBlocks';
+import { useProgramBlocks } from './composer-references/program-tokens';
+import { useReferenceMenu, type ConversationOption } from './composer-references/useReferenceMenu';
 import { userMessage } from './agent-session/user-message';
 import { ComposerAttachments } from './composer-attachments/ComposerAttachments';
 import type { FileActionScope } from './files/file-menu';
 import { attachmentDrafts } from './composer-attachments/attachment-files';
 import { ConversationAttachmentState } from './composer-attachments/ConversationAttachments';
 import { ConversationAttachmentContext } from './composer-attachments/conversation-attachment-context';
+import { QuoteBlocks } from './agent-session/quote-reply/QuoteBlocks';
+import { useQuotes } from './agent-session/quote-reply/quote-store';
 
 const MIN_EDITOR_HEIGHT = 54;
 const MAX_EDITOR_HEIGHT = 260;
@@ -45,6 +53,8 @@ interface ResizableComposerProps {
   queuePending: boolean;
   onChanged: () => void;
   onStop: () => Promise<void>;
+  /** A 停止 was asked for and Core has not answered yet. */
+  stopping?: boolean;
   demoMode: boolean;
   modelSelector: SessionModelSelectorProjection | undefined;
   modelSelectorError?: string | undefined;
@@ -66,6 +76,8 @@ interface ResizableComposerProps {
   onOpenPanel?: ((panel: 'files' | 'review' | 'terminal' | 'process') => void) | undefined;
   /** The conversation's workspace files, for the menu of a file added to the message. */
   fileScope?: FileActionScope | undefined;
+  /** The workspace's other conversations, which a message may refer to with "@". */
+  conversations?: readonly ConversationOption[] | undefined;
 }
 
 const PANELS = {
@@ -80,7 +92,7 @@ export function ResizableComposer(props: ResizableComposerProps) {
   return shared ? (
     <Composer {...props} />
   ) : (
-    <ConversationAttachmentState>
+    <ConversationAttachmentState draftKey={props.sessionId}>
       <Composer {...props} />
     </ConversationAttachmentState>
   );
@@ -94,6 +106,7 @@ function Composer({
   queuePending,
   onChanged,
   onStop,
+  stopping = false,
   demoMode,
   modelSelector,
   modelSelectorError,
@@ -113,6 +126,7 @@ function Composer({
   onOpenSettings,
   onOpenPanel,
   fileScope,
+  conversations,
 }: ResizableComposerProps) {
   // Too narrow for the permission and model words, those buttons show their icons.
   const controls = useCompactRow<HTMLDivElement>();
@@ -138,7 +152,7 @@ function Composer({
   const [permissionOpenSignal, setPermissionOpenSignal] = useState(0);
   const [commandNotice, setCommandNotice] = useState<{ alert: boolean; text: string }>();
   const catalog = useCommandCatalog(workspaceId);
-  const skills = useSkillChoice(workspaceId);
+  const skills = useSkillChoice(workspaceId, sessionId);
   // Pictures and files from the + menu, a paste or a drop.
   const attached = useContext(ConversationAttachmentContext)!;
   const filePicker = useRef<HTMLInputElement>(null);
@@ -193,6 +207,25 @@ function Composer({
     onImmediate: runImmediate,
     onOpen: catalog.reload,
   });
+  // A typed "@" lists the workspace's files and folders, the usable Skills, its other
+  // conversations and this conversation's terminals and pages; a path picked is written as
+  // "@path" in the words, a Skill is chosen as with "+ → Skill", the rest become chips.
+  const references = useReferenceMenu({
+    textarea: textareaRef,
+    draft,
+    setDraft,
+    conversations,
+    draftKey: sessionId,
+    skills: { load: skills.usable, chosen: skills.chosen, add: skills.add },
+    // A new conversation has its workspace before it has a session.
+    scope: fileScope
+      ? { workspace: fileScope.workspace, session: fileScope.session }
+      : workspaceId
+        ? { workspace: workspaceId }
+        : undefined,
+  });
+  // A program picked from "@" shows as a block with its icon, and goes as one piece.
+  const programBlocks = useProgramBlocks({ textarea: textareaRef, draft, setDraft });
   /** A command block runs its own action; it is never queued or appended as a message. */
   const runBlock = async (block: CommandEntry) => {
     setCommandNotice(undefined);
@@ -223,22 +256,33 @@ function Composer({
       setCommandNotice({ alert: false, text: '已登记压缩，任务到安全点时执行。' });
     }
   };
-  // While a task runs, a message waits in the queue; the queue appends it at once.
+  // While a task runs, a message waits in the queue; the queue appends it at once. Terminals and
+  // pages chosen with "@" are read now, as they are when it is sent.
   const send = () => {
     if (slash.block) void runBlock(slash.block);
     else
-      void submission
-        .send(
+      void (async () => {
+        const captured = await references.captured();
+        if (!captured) return;
+        const sent = await submission.send(
           skills.chosen.map((skill) => skill.id),
-          attachmentDrafts(attached.attachments),
-        )
-        .then((sent) => {
-          if (!sent) return;
-          skills.clear();
-          attached.clear();
-        });
+          [...attachmentDrafts(attached.attachments), ...captured],
+          references.chosenReferences(),
+        );
+        if (!sent) return;
+        skills.clear();
+        attached.clear();
+        references.clearChosen();
+      })();
   };
-  const empty = !draft.trim() && !slash.block && attached.attachments.length === 0;
+  // Passages replied to with 回复; the send puts them before the words.
+  const quotes = useQuotes(sessionId);
+  const empty =
+    !draft.trim() &&
+    quotes.length === 0 &&
+    !slash.block &&
+    attached.attachments.length === 0 &&
+    references.chosen.length === 0;
   const [editorHeight, setEditorHeight] = useState(68);
   const drag = useRef<{ pointerId: number; startHeight: number; startY: number } | undefined>(
     undefined,
@@ -319,44 +363,69 @@ function Composer({
         </div>
       ) : null}
       <SkillChips chosen={skills.chosen} onRemove={skills.remove} />
+      <ReferenceChips
+        chosen={references.chosen}
+        error={references.captureError}
+        onRemove={references.unchoose}
+      />
       <ComposerAttachments
         attachments={attached.attachments}
         error={attached.error}
         onRemove={attached.remove}
         scope={fileScope}
       />
-      <textarea
-        id="aura-composer"
-        ref={textareaRef}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          slash.sync(event.target.value, event.target.selectionStart);
-        }}
-        onSelect={(event) =>
-          slash.sync(event.currentTarget.value, event.currentTarget.selectionStart)
-        }
-        disabled={submission.busy}
-        onPaste={(event) => {
-          if (!event.clipboardData.files.length) return;
-          event.preventDefault();
-          void attached.add([...event.clipboardData.files]);
-        }}
-        onKeyDown={(event) => {
-          if (slash.keyDown(event)) return;
-          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      <QuoteBlocks quotes={quotes} sessionId={sessionId} />
+      <div className="composer-editor">
+        <ProgramBlocks textarea={textareaRef} value={draft} tokens={programBlocks.tokens} />
+        <textarea
+          id="aura-composer"
+          ref={textareaRef}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            slash.sync(event.target.value, event.target.selectionStart);
+            references.sync(event.target.value, event.target.selectionStart);
+          }}
+          onSelect={(event) => {
+            slash.sync(event.currentTarget.value, event.currentTarget.selectionStart);
+            references.sync(event.currentTarget.value, event.currentTarget.selectionStart);
+          }}
+          disabled={submission.busy}
+          onPaste={(event) => {
+            if (!event.clipboardData.files.length) return;
             event.preventDefault();
-            send();
-          }
-        }}
-        placeholder={slash.block?.argument_hint ?? '向 Aura 提问，输入 / 使用命令…'}
-        value={draft}
-      />
+            void attached.add([...event.clipboardData.files]);
+          }}
+          onKeyDown={(event) => {
+            if (references.keyDown(event) || slash.keyDown(event)) return;
+            if (programBlocks.keyDown(event)) return;
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              send();
+            }
+          }}
+          placeholder={slash.block?.argument_hint ?? '向 Aura 提问，输入 / 使用命令…'}
+          value={draft}
+        />
+      </div>
       {skills.picker ? (
         <SkillPicker
           picker={skills.picker}
           chosen={skills.chosen}
           onChoose={skills.add}
           onClose={skills.close}
+        />
+      ) : null}
+      {references.menu ? (
+        <ReferenceMenu
+          options={references.options}
+          highlight={references.menu.highlight}
+          searching={references.searching}
+          available={references.available}
+          error={references.error}
+          resourceProblems={references.resourceProblems}
+          onPick={references.pick}
+          onHover={references.hover}
+          onDismiss={references.close}
         />
       ) : null}
       {slash.menu ? (
@@ -491,11 +560,18 @@ function Composer({
                 onManageSettings={onOpenModelSettings}
               />
               {draftChoice ? (
-                <SessionReasoningPicker
-                  levels={draftChoice.reasoning?.levels ?? []}
-                  modelProfileId={draftChoice.id}
-                  sessionId={sessionId}
-                />
+                <>
+                  <SessionReasoningPicker
+                    levels={draftChoice.reasoning?.levels ?? []}
+                    modelProfileId={draftChoice.id}
+                    sessionId={sessionId}
+                  />
+                  <SessionSpeedPicker
+                    modelProfileId={draftChoice.id}
+                    modes={draftChoice.speedModes ?? []}
+                    sessionId={sessionId}
+                  />
+                </>
               ) : null}
             </>
           ) : (
@@ -510,13 +586,17 @@ function Composer({
 
           {activeTurn && empty ? (
             <button
-              aria-label="停止当前任务"
-              className="send-button is-stop"
-              title="停止当前任务"
+              aria-label={stopping ? '正在停止' : '停止当前任务'}
+              className={stopping ? 'send-button is-stop is-stopping' : 'send-button is-stop'}
+              disabled={stopping}
+              title={stopping ? '正在停止' : '停止当前任务'}
               onClick={() => void onStop()}
               type="button"
             >
-              <span aria-hidden="true" className="send-stop-square" />
+              <span
+                aria-hidden="true"
+                className={stopping ? 'send-stop-spinner' : 'send-stop-square'}
+              />
             </button>
           ) : (
             <button

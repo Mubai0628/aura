@@ -16,6 +16,8 @@ pub(crate) struct Candidate {
     pub definition: HookDefinition,
     /// A plugin's Hook runs under the plugin's limits.
     pub limits: Option<aura_windows_platform::JobLimits>,
+    /// The plugin that brings it; its failures go into the plugin's log.
+    pub plugin: Option<String>,
 }
 
 /// Every entry with its live state, in execution order.
@@ -78,6 +80,7 @@ pub(crate) fn candidates(
                 trusted_fingerprint: trusted,
                 definition,
                 limits: None,
+                plugin: None,
             })
         })
         .collect()
@@ -109,6 +112,7 @@ pub(crate) fn plugin_candidates(
                     trusted_fingerprint: trusted.clone(),
                     definition: definition.clone(),
                     limits: Some(plugin.job_limits()),
+                    plugin: Some(plugin.package.manifest.name.clone()),
                 });
             }
         }

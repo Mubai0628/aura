@@ -1,11 +1,11 @@
-import type { LucideIconName } from './tool-icon-paths';
+import type { ToolIconName } from './pixel-icons/tool-art';
 
 /** Tool-type icon chosen from the stable canonical Tool name, never from a
  *  Chinese label or model prose. Unmapped Tools keep the neutral wrench. */
-export function toolTypeIcon(canonicalName: string | undefined): LucideIconName {
+export function toolTypeIcon(canonicalName: string | undefined): ToolIconName {
   const name = canonicalName ?? '';
   const prefix = name.includes('.') ? name.slice(0, name.indexOf('.')) : name;
-  const exact: Record<string, LucideIconName> = {
+  const exact: Record<string, ToolIconName> = {
     'fs.list': 'folder-tree',
     'fs.glob': 'folder-tree',
     'fs.read': 'file-text',
@@ -68,7 +68,7 @@ export function toolTypeIcon(canonicalName: string | undefined): LucideIconName 
 export type ToolIconTone = 'success' | 'failed' | 'waiting' | 'running' | 'unknown';
 
 /** Real state as an icon next to real state text; colour is never the only cue. */
-export function toolStateIcon(tone: ToolIconTone): LucideIconName {
+export function toolStateIcon(tone: ToolIconTone): ToolIconName {
   switch (tone) {
     case 'success':
       return 'check';

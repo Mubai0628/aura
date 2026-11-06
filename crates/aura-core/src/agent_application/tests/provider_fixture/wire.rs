@@ -27,6 +27,37 @@ pub(super) fn named_external_path(body: &Value) -> String {
     text.split_whitespace().next().expect("a named path").to_owned()
 }
 
+/// The path of the file outside the workspace attached to a user message, as its line names it.
+pub(super) fn attached_external_file(body: &Value) -> Option<String> {
+    const LINE: &str = "- external file `";
+    body["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|message| message["role"] == "user")
+        .filter_map(|message| message["content"].as_str())
+        .find_map(|text| {
+            let rest = &text[text.find(LINE)? + LINE.len()..];
+            Some(rest[..rest.find('`')?].to_owned())
+        })
+}
+
+/// The handle of the other conversation a user message refers to, as its reference line gives
+/// it.
+pub(super) fn referred_conversation(body: &Value) -> Option<String> {
+    body["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|message| message["role"] == "user")
+        .filter_map(|message| message["content"].as_str())
+        .find_map(|text| {
+            let at = text.find("(`conv_")? + 2;
+            let handle = text.get(at..at + 21)?;
+            aura_domain_common::ConversationHandle::parse(handle).map(|_| handle.to_owned())
+        })
+}
+
 pub(in crate::agent_application::tests) fn recovery_response(
     state: &Value,
     call: &impl Fn(&str, Value, usize) -> Value,

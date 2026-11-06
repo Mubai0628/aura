@@ -40,8 +40,8 @@
   gap: 7px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  color: #4d544e;
+  border-radius: var(--radius-md);
+  color: var(--muted);
   background: var(--surface);
 }
 
@@ -52,18 +52,16 @@
 .settings-core-status {
   gap: 7px;
   padding: 5px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-muted);
   font-size: 11px;
   white-space: nowrap;
 }
 
+/* Set in the pixel face (pixel-type.css). */
 .settings-header h1,
 .settings-content-heading h2 {
   margin: 0;
-  font-family: var(--font-serif);
-  font-size: 18px;
-  font-weight: 700;
 }
 
 .settings-header p,
@@ -97,7 +95,7 @@
   overflow-y: auto;
   padding: 18px 10px;
   border-right: 1px solid var(--line);
-  background: #f7f8f5;
+  background: var(--pane);
 }
 
 .settings-navigation > p:first-child {
@@ -114,8 +112,8 @@
   width: 100%;
   gap: 9px;
   padding: 8px 9px;
-  border-radius: 7px;
-  color: #4e554f;
+  border-radius: var(--radius-md);
+  color: var(--muted);
   text-align: left;
   background: transparent;
   transition:
@@ -123,10 +121,17 @@
     color 140ms ease-out;
 }
 
-.settings-navigation button:hover,
+.settings-navigation button:hover {
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+
 .settings-navigation button.is-active {
   color: var(--ink);
-  background: #e9ece9;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    2px 2px 0 var(--pixel-shadow);
 }
 
 .settings-no-results {
@@ -170,15 +175,15 @@
   min-height: 32px;
   padding: 0 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
 .projection-revision-badge {
   padding: 4px 7px;
-  border-radius: 6px;
-  color: #506158;
-  background: #edf1ee;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--surface-hover);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -196,23 +201,23 @@
   gap: 9px;
   padding: 11px 12px;
   margin-top: 18px;
-  border: 1px solid #d8e2dd;
-  border-radius: 9px;
-  color: #3f5d53;
-  background: #f1f6f3;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: var(--surface-muted);
 }
 
 .truth-notice svg {
   margin-top: 1px;
 }
 .truth-notice strong {
-  color: #2d4c43;
+  color: var(--accent);
   font-size: 12px;
 }
 
 .truth-notice p {
   max-width: 80ch;
   margin: 2px 0 0;
-  color: #52675f;
+  color: var(--success);
   font-size: 11px;
 }

@@ -16,6 +16,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "agent.mcp.resources",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "McpResourceListRequest",
+        "McpResourceList",
+        ReadOnly,
+        None
+    ),
+    route!(
         "agent.mcp.preview",
         Agent,
         Main,
@@ -142,6 +152,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         AuthenticatedMain,
         "McpListRequest",
         "McpRegistryView",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "agent.mcp.resources",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "McpResourceListRequest",
+        "McpResourceList",
         ReadOnly,
         None
     ),

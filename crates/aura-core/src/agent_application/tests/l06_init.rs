@@ -15,6 +15,7 @@ async fn start_init(
         runtime,
         "agent.init.start",
         json!(AgentInitStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: note.into()
@@ -127,12 +128,15 @@ async fn init_runs_as_normal_and_an_active_plan_continues_afterwards() {
         &runtime,
         "agent.submit",
         json!(AgentSubmitRequest {
+            computer_mode: None,
             session_id: session,
             text: "Continue the plan".into(),
             destination: AgentInputLane::NextTurn,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -173,6 +177,7 @@ async fn init_waits_for_an_idle_session() {
         &runtime,
         "agent.init.start",
         json!(AgentInitStartRequest {
+            computer_mode: None,
             session_id: start.turn.session_id,
             model_profile_id: model,
             text: String::new()

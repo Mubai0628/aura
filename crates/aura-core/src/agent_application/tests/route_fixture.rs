@@ -20,7 +20,7 @@ pub(super) async fn run(mode: PermissionMode, write: bool) {
         panic!("Core unavailable");
     };
     let session = create_session(&runtime, workspace.workspace_id, mode).await;
-    let started=crate::r03_tests::success(&runtime,"agent.start",json!(AgentStartRequest{ session_id:session,model_profile_id:model,text:"Verify mode enforcement, including the expected file-write refusal in read-only mode, and finish. Synthetic code and build errors are permitted model input.".into(),mode:AgentTaskMode::Normal,goal_budget:None,explicit_backend_id:None, skill_ids: Vec::new(), reasoning_effort: None, attachments: Vec::new() })).await;
+    let started=crate::r03_tests::success(&runtime,"agent.start",json!(AgentStartRequest{ computer_mode: None, session_id:session,model_profile_id:model,text:"Verify mode enforcement, including the expected file-write refusal in read-only mode, and finish. Synthetic code and build errors are permitted model input.".into(),mode:AgentTaskMode::Normal,goal_budget:None,explicit_backend_id:None, skill_ids: Vec::new(), reasoning_effort: None, speed_mode: None, attachments: Vec::new(), references: Vec::new() })).await;
     let start: AgentRunProjection =
         serde_json::from_value(started).expect("Agent test setup and persisted assertion");
     let request = AgentRunRequest { session_id: session, agent_run_id: start.run.agent_run_id };
@@ -173,6 +173,7 @@ pub(super) async fn greeting(scenario: provider_fixture::Scenario) -> Greeting {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: "你好".into(),
@@ -181,7 +182,9 @@ pub(super) async fn greeting(scenario: provider_fixture::Scenario) -> Greeting {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -300,12 +303,15 @@ pub(super) async fn submit_input(
             runtime,
             "agent.submit",
             json!(AgentSubmitRequest {
+                computer_mode: None,
                 session_id: session,
                 text: text.into(),
                 destination,
                 skill_ids: Vec::new(),
                 reasoning_effort: None,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             }),
         )
         .await,

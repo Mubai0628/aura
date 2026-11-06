@@ -111,9 +111,10 @@ pub(crate) async fn dispatch_http(
         operation,
         request.id.to_string(),
         request.command_invocation_id,
+        super::OnChangedFacts::Refuse,
         inspect,
         evidence,
-        move || async move {
+        move |_| async move {
             let current =
                 call_inspect().map_err(|e| super::error_envelope(handler_request.id, e))?;
             let grant: NetworkGrant = serde_json::from_value(current["grant"].clone())

@@ -20,6 +20,12 @@ impl AgentExecution {
         {
             return chrome::backend(Arc::clone(self), call);
         }
+        // `computer.apps` reads the listing taken before admission and runs as task state.
+        if call.operation.content.action_kind.starts_with("computer.")
+            && call.operation.content.action_kind != "computer.apps"
+        {
+            return computer::backend(Arc::clone(self), call);
+        }
         let content = &call.operation.content;
         if mcp_tools::is_mcp(content) {
             return Ok(Arc::new(

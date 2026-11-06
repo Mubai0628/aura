@@ -49,6 +49,7 @@ async fn l04_installed_package_tools_join_the_turn_registry_and_leave_it_when_di
                 &turn,
                 &permission,
                 UtcTimestamp::now(),
+                false,
             )
             .expect("registry")
     };

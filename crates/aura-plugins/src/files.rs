@@ -15,6 +15,11 @@ pub const MAX_PLUGIN_BYTES: u64 = 256 * 1024 * 1024;
 /// Folders that are never part of a plugin: not read, not copied, not fingerprinted.
 pub const SKIPPED_FOLDERS: [&str; 1] = [".git"];
 const MAX_DEPTH: usize = 16;
+/// The folders a plugin in development reloads without being trusted again.
+const RELOADED_IN_DEVELOPMENT: [&str; 3] =
+    ["skills", "commands", crate::declarations::PANEL_FOLDER];
+/// The plugin's theme: colors, fonts and spacing only, each value checked.
+pub const THEME_FILE: &str = "theme.toml";
 pub(crate) const MAX_TEXT_BYTES: u64 = 1024 * 1024;
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -48,9 +53,25 @@ impl Walked {
     }
 
     pub fn fingerprint(&self) -> String {
+        self.fingerprint_of(b"aura.plugin.package.v1\n", &|_| true)
+    }
+
+    /// What a plugin in development is trusted at: every file but the Skills, commands, panel
+    /// and theme, which are text and pages that reload by themselves. A panel's page can only
+    /// use what the manifest declares, and the manifest is covered.
+    pub fn development_fingerprint(&self) -> String {
+        self.fingerprint_of(b"aura.plugin.development.v1\n", &|path| {
+            !RELOADED_IN_DEVELOPMENT
+                .iter()
+                .any(|folder| path.strip_prefix(folder).is_some_and(|rest| rest.starts_with('/')))
+                && path != THEME_FILE
+        })
+    }
+
+    fn fingerprint_of(&self, domain: &[u8], covered: &dyn Fn(&str) -> bool) -> String {
         let mut hasher = blake3::Hasher::new();
-        hasher.update(b"aura.plugin.package.v1\n");
-        for (path, bytes, hash) in &self.files {
+        hasher.update(domain);
+        for (path, bytes, hash) in self.files.iter().filter(|(path, _, _)| covered(path)) {
             hasher.update(path.as_bytes());
             hasher.update(b"\0");
             hasher.update(bytes.to_string().as_bytes());

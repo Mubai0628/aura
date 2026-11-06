@@ -1,6 +1,9 @@
 //! Skills in Core: where Skill folders are, Settings → Skill, and what the model may load.
 //! A Skill is the user's content; trusting it never grants a tool or a permission.
+mod builtin;
 mod import;
+pub mod instructions;
+pub mod loading;
 mod manage;
 mod runtime;
 

@@ -78,6 +78,36 @@ fn not_a_shell_call(error: Error) -> Error {
     }
 }
 
+/// What follows [`NOT_A_SHELL_CALL`] for the model: the ids it may have meant, so a wrong id is
+/// corrected without searching the conversation for them.
+pub fn wrong_id_hint(db: &Connection, session: SessionId) -> StoreResult<String> {
+    let calls = latest_calls(db, session, 5)?;
+    if calls.is_empty() {
+        return Ok(" This session has run no shell.powershell or shell.cmd call yet.".into());
+    }
+    let ids = calls.iter().map(ToString::to_string).collect::<Vec<_>>();
+    Ok(format!(
+        " The latest shell.powershell and shell.cmd calls of this session, newest first: {}.",
+        ids.join(", ")
+    ))
+}
+
+/// Newest first. A session's batches follow one another, so their ids give the order, and a
+/// batch's calls are in ordinal order; call ids alone do not, as ids made in the same millisecond
+/// are in no particular order.
+fn latest_calls(db: &Connection, session: SessionId, limit: u32) -> StoreResult<Vec<ToolCallId>> {
+    let mut statement = db.prepare(
+        "SELECT c.id FROM tool_batches b JOIN tool_calls c ON c.batch_id=b.id \
+         JOIN operations o ON o.id=c.operation_id WHERE b.session_id=?1 \
+         AND json_extract(o.payload,'$.content.action_kind') IN ('shell.powershell','shell.cmd') \
+         ORDER BY b.id DESC, c.ordinal DESC LIMIT ?2",
+    )?;
+    let ids = statement
+        .query_map(rusqlite::params![session.to_string(), limit], |row| row.get::<_, String>(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    ids.into_iter().map(|id| id.parse().map_err(|_| Error::Conflict)).collect()
+}
+
 pub fn query(
     db: &Connection,
     session: SessionId,

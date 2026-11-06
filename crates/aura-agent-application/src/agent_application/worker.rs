@@ -105,6 +105,9 @@ impl AgentApplication {
             {
                 chrome.turn_ended(turn.session_id);
             }
+            if let Ok(turn) = &turn {
+                give_desktop_back(&app.execution, turn);
+            }
             if let Ok(turn) = turn
                 && matches!(turn.state, TurnTaskState::Completed { .. })
                 && let Err(error) = app.schedule_inbox(turn.session_id).await
@@ -185,6 +188,10 @@ impl AgentApplication {
             }
             let turn = self.turn(run_id).await?;
             let turn_task_id = turn.turn_task_id;
+            // This turn may act on the desktop: an earlier turn's takeover is no longer listed.
+            if let Some(desktop) = self.execution.desktop.get() {
+                desktop.turn_runs(turn.session_id, turn_task_id);
+            }
             let stop = self
                 .store
                 .read(StoreStep::run(run_id, "agent.drive.turn_guard"), move |db| {
@@ -313,8 +320,9 @@ impl AgentApplication {
                         None => anyhow::bail!("agent.model_binding_required"),
                     };
                     let chosen = config.request.reasoning_effort;
+                    let speed_mode = config.request.speed_mode.clone();
                     let Some(prepared) =
-                        self.prepare(run_id, profile, chosen, next, &cancel).await?
+                        self.prepare(run_id, profile, chosen, speed_mode, next, &cancel).await?
                     else {
                         return Ok(());
                     };
@@ -436,6 +444,10 @@ impl AgentApplication {
                     // Store owner instead of on this reactive task.
                     self.decide_tool_calls(run_id, model_step_id).await?;
                     self.inspect_chrome_calls(run_id, model_step_id).await?;
+                    tokio::select! {
+                        result = self.prepare_computer_calls(run_id, model_step_id) => result?,
+                        () = cancel.cancelled() => anyhow::bail!("agent.cancelled"),
+                    }
                     let batch =
                         Arc::clone(&self.execution).admit_output(model_step_id, tools).await?;
                     anyhow::ensure!(batch.batch.tool_batch_id == batch_id, "agent.batch_changed");
@@ -527,6 +539,25 @@ impl AgentApplication {
     }
 }
 
+/// Gives back the desktop the turn kept, without holding up what comes next: when the turn ends,
+/// and while it waits for the user to approve or answer, which the user does with the mouse and
+/// the keyboard.
+fn give_desktop_back(execution: &agent_execution::AgentExecution, turn: &TurnTask) {
+    let Some(desktop) = execution.desktop.get() else {
+        return;
+    };
+    let desktop = Arc::clone(desktop);
+    let (session, id) = (turn.session_id, turn.turn_task_id);
+    if turn.state.terminal() {
+        tokio::spawn(async move { desktop.turn_ended(session, id).await });
+    } else if matches!(
+        turn.state,
+        TurnTaskState::AwaitingApproval | TurnTaskState::AwaitingQuery { .. }
+    ) {
+        tokio::spawn(async move { desktop.turn_waits(id).await });
+    }
+}
+
 /// The kind of a panic payload, without its content: a persisted diagnostic must never carry
 /// whatever text the panicking code happened to hold.
 fn payload_kind(payload: &(dyn std::any::Any + Send)) -> &'static str {
@@ -536,5 +567,35 @@ fn payload_kind(payload: &(dyn std::any::Any + Send)) -> &'static str {
         "String"
     } else {
         "opaque"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The Renderer explains a failure by this text's code and kind; neither may drift.
+    #[test]
+    fn a_failed_step_names_its_code_kind_and_status_but_never_the_providers_words() {
+        let failure = PersistedModelFailure {
+            id: ModelFailureId::new(),
+            fingerprint: FailureFingerprint(ContentHash::blake3(b"fixture")),
+            failure: NormalizedModelFailure {
+                category: ModelFailureCategory::QuotaOrBalance,
+                code: "insufficient_quota".into(),
+                message: "Provider text sk-fixture".into(),
+                retry_class: ModelRetryClass::NotRetryable,
+                provider_status: Some(429),
+                provider_request_id: None,
+                provider_error_ref: None,
+                partial_output_ref: None,
+                transport_attempt_id: None,
+            },
+            created_at: UtcTimestamp::now(),
+        };
+        assert_eq!(
+            ModelStepFailure::new(&failure, None).to_string(),
+            "agent.provider_failed: insufficient_quota (QuotaOrBalance, HTTP Some(429))"
+        );
     }
 }

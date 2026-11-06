@@ -110,9 +110,14 @@ export function MessageText({
         {plain ? (
           <p className={className ?? 'agent-message-text'}>{text}</p>
         ) : body === undefined ? (
-          <MarkdownBlocks streaming={streaming} text={text} />
+          <MarkdownBlocks programs={role === 'user'} streaming={streaming} text={text} />
         ) : (
-          <MarkdownBlocks className={body} streaming={streaming} text={text} />
+          <MarkdownBlocks
+            className={body}
+            programs={role === 'user'}
+            streaming={streaming}
+            text={text}
+          />
         )}
       </div>
       {error ? (

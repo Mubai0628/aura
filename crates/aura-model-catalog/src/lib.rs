@@ -3,6 +3,7 @@
 mod client;
 mod discovery;
 mod match_model;
+mod model_details;
 mod parser;
 mod persistence;
 mod projection;
@@ -19,7 +20,7 @@ pub use discovery::{
     parse_model_discovery_page,
 };
 pub use match_model::{match_catalog_model, official_catalog_provider};
-pub use parser::parse_models_dev_catalog;
+pub use parser::{CATALOG_PARSER_REVISION, parse_models_dev_catalog};
 pub use persistence::PersistenceCatalogCache;
 pub use projection::{
     ProviderConfigurationPolicy, project_provider_cards, project_provider_model_page,

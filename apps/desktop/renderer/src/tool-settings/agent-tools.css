@@ -52,7 +52,7 @@
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   background: var(--surface);
   font-size: 12px;
@@ -74,7 +74,7 @@
 
 .agent-tool-family[aria-pressed='true'] {
   border-color: var(--accent-strong);
-  color: #ffffff;
+  color: var(--on-accent);
   background: var(--accent);
 }
 
@@ -97,8 +97,6 @@
 
 .agent-tool-group h4 span {
   color: var(--quiet);
-  font-size: 12px;
-  font-weight: 500;
 }
 
 .agent-tool-list {
@@ -132,8 +130,8 @@
 }
 
 .agent-tool-list > li[data-loaded='true'] {
-  border-color: #cfe0d6;
-  background: #f7fbf8;
+  border-color: var(--line-strong);
+  background: var(--surface);
 }
 
 .agent-tool-list > li[data-wide='true'] {

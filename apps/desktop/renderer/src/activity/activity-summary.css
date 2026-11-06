@@ -52,7 +52,7 @@
   width: 6px;
   height: 6px;
   margin-right: 6px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--success);
   vertical-align: 1px;
   content: '';

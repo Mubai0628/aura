@@ -34,6 +34,7 @@ fn mark_init(f: &Fixture) {
                 f.turn.agent_run_id,
                 &RunConfiguration {
                     request: AgentStartRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         model_profile_id: ModelProfileId::new(),
                         text: "/init".into(),
@@ -42,7 +43,9 @@ fn mark_init(f: &Fixture) {
                         explicit_backend_id: None,
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     tool_settings: f.settings.clone(),
                     purpose: AgentTaskPurpose::WorkspaceInit,

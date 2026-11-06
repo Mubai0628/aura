@@ -169,5 +169,8 @@ test('many of my commands are drawn a page at a time', async () => {
   render(<CommandSettings coreReady />);
   await screen.findByText('/mine-0');
   expect(screen.getAllByText(/^\/mine-\d+$/u)).toHaveLength(40);
+  // Unmounted first: a render after the stand-in is gone would build a real observer, and the
+  // test environment has none.
+  cleanup();
   vi.unstubAllGlobals();
 });

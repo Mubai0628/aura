@@ -104,9 +104,10 @@ pub(crate) async fn dispatch_artifact(
         operation,
         request.command_invocation_id.map_or_else(|| request.id.to_string(), |id| id.to_string()),
         request.command_invocation_id,
+        super::OnChangedFacts::Refuse,
         inspect,
         evidence,
-        move || async move {
+        move |_| async move {
             handler_p04
                 .dispatch_main_command(
                     &handler_request.method,

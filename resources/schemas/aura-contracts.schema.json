@@ -1241,6 +1241,54 @@
             "path"
           ],
           "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "What a terminal printed or a page of the built-in browser showed when the message was\nsent. Core keeps it as a file of the conversation under `name` and attaches it as it\nattaches a file from outside the workspace, read only.",
+          "properties": {
+            "kind": {
+              "const": "capture",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A resource of an MCP server, by its address. Core reads it through the conversation's\ninstance of the server and keeps its text as a capture under `name`.",
+          "properties": {
+            "kind": {
+              "const": "mcp_resource",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "server_id": {
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "server_id",
+            "uri",
+            "name"
+          ],
+          "type": "object"
         }
       ]
     },
@@ -1346,6 +1394,16 @@
       "additionalProperties": false,
       "description": "`/compact` in an idle session. `focus` is the user's optional note after the command:\nwhat the summary should keep. Core compacts before the turn's first step.",
       "properties": {
+        "computer_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "focus": {
           "default": null,
           "type": [
@@ -2432,6 +2490,16 @@
       "additionalProperties": false,
       "description": "`/init`: start a workspace initialization task in an idle session. `text` is the\nuser's optional note after the command; the task uses the session's permission mode.",
       "properties": {
+        "computer_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "model_profile_id": {
           "$ref": "#/$defs/ModelProfileId"
         },
@@ -2638,6 +2706,65 @@
             "path",
             "byte_length",
             "external_grant_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AgentMessageReference": {
+      "description": "One thing a message refers to, as the composer sends it.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "A file or folder of the session's workspace, by its path relative to the workspace root.",
+          "properties": {
+            "kind": {
+              "const": "workspace_path",
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Another conversation of the same workspace that is not archived, as the composer names it.",
+          "properties": {
+            "kind": {
+              "const": "session",
+              "type": "string"
+            },
+            "session_id": {
+              "$ref": "#/$defs/SessionId"
+            }
+          },
+          "required": [
+            "kind",
+            "session_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The same by its handle, as a command's receipt keeps it.",
+          "properties": {
+            "conversation": {
+              "$ref": "#/$defs/ConversationHandle"
+            },
+            "kind": {
+              "const": "conversation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "conversation"
           ],
           "type": "object"
         }
@@ -3024,6 +3151,16 @@
           },
           "type": "array"
         },
+        "computer_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "created_at": {
           "$ref": "#/$defs/UtcTimestamp"
         },
@@ -3044,6 +3181,13 @@
           ],
           "description": "The thinking level chosen with this message for the turn it starts."
         },
+        "references": {
+          "description": "What the message refers to, as it was when the message was sent.",
+          "items": {
+            "$ref": "#/$defs/MessageReferenceView"
+          },
+          "type": "array"
+        },
         "revision": {
           "$ref": "#/$defs/Revision",
           "default": "1"
@@ -3054,6 +3198,17 @@
             "$ref": "#/$defs/LoadedSkillEntry"
           },
           "type": "array"
+        },
+        "speed_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnSpeedMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The speed mode chosen with this message for the turn it starts; none is the standard mode."
         },
         "text": {
           "type": "string"
@@ -3394,6 +3549,17 @@
       "properties": {
         "cancellation_requested": {
           "type": "boolean"
+        },
+        "computer_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The desktop frozen with this turn, also used by a user-requested continuation."
         },
         "model_steps": {
           "items": {
@@ -3857,6 +4023,17 @@
           },
           "type": "array"
         },
+        "computer_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Frozen with this turn, including recovery after a Core restart."
+        },
         "explicit_backend_id": {
           "description": "User preview of NativeApproved. This is never an approval or a silent\nfallback; policy still Asks AllowOnce/AllowSession before dispatch.",
           "type": [
@@ -3891,6 +4068,13 @@
           ],
           "description": "The thinking level the conversation uses for this turn; none is the model's\ndefault. Kept with the run's configuration, so every step of the turn uses it."
         },
+        "references": {
+          "description": "What the message refers to with \"@\", resolved when it is sent.",
+          "items": {
+            "$ref": "#/$defs/AgentMessageReference"
+          },
+          "type": "array"
+        },
         "session_id": {
           "$ref": "#/$defs/SessionId"
         },
@@ -3900,6 +4084,17 @@
             "$ref": "#/$defs/SkillInstanceId"
           },
           "type": "array"
+        },
+        "speed_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnSpeedMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The speed mode the conversation uses for this turn; none is the standard mode. Kept with\nthe run's configuration, so every step of the turn uses it."
         },
         "text": {
           "type": "string"
@@ -3923,6 +4118,16 @@
           },
           "type": "array"
         },
+        "computer_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "destination": {
           "$ref": "#/$defs/AgentInputLane"
         },
@@ -3937,6 +4142,13 @@
           ],
           "description": "The thinking level the conversation uses with its model, for the turn this message\nstarts; none is the model's default."
         },
+        "references": {
+          "description": "What the message refers to with \"@\", resolved when it is sent.",
+          "items": {
+            "$ref": "#/$defs/AgentMessageReference"
+          },
+          "type": "array"
+        },
         "session_id": {
           "$ref": "#/$defs/SessionId"
         },
@@ -3946,6 +4158,17 @@
             "$ref": "#/$defs/SkillInstanceId"
           },
           "type": "array"
+        },
+        "speed_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnSpeedMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The speed mode the conversation uses with its model, for the turn this message starts;\nnone is the standard mode."
         },
         "text": {
           "type": "string"
@@ -4176,6 +4399,17 @@
             "null"
           ]
         },
+        "remote_decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentToolRemoteDecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who decided the call's approval in a chat; none when it was decided in Aura's window or\nthe call asked none."
+        },
         "shell_query_available": {
           "type": "boolean"
         },
@@ -4393,6 +4627,23 @@
           "type": "string"
         }
       ]
+    },
+    "AgentToolRemoteDecision": {
+      "additionalProperties": false,
+      "description": "Who decided a call's approval on a chat platform, through one of a plugin's channels, and how.",
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/ApprovalDecisionKind"
+        },
+        "sender": {
+          "$ref": "#/$defs/MessageSender"
+        }
+      },
+      "required": [
+        "sender",
+        "decision"
+      ],
+      "type": "object"
     },
     "AgentToolSettingsRequest": {
       "additionalProperties": false,
@@ -4678,6 +4929,17 @@
           ],
           "description": "Bounded facts of a completion report. The authoritative report stays in the\nturn record; this is only what a history poll needs before the body is paged."
         },
+        "computer_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The desktop recorded for this turn; changing the composer does not change history."
+        },
         "diagnostic": {
           "type": [
             "string",
@@ -4781,12 +5043,30 @@
         "origin": {
           "$ref": "#/$defs/UserMessageOrigin"
         },
+        "references": {
+          "description": "What the message referred to when it was sent; the model read it after the message's\ntext ([`message_with_references`]).",
+          "items": {
+            "$ref": "#/$defs/MessageReferenceView"
+          },
+          "type": "array"
+        },
         "sealed_revision": {
           "description": "Identity of the complete immutable text, not of the bounded preview.",
           "type": [
             "string",
             "null"
           ]
+        },
+        "sender": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MessageSender"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Who sent it, when the user did not type it."
         },
         "skills": {
           "description": "The Skills the user chose with this message.",
@@ -4816,6 +5096,26 @@
     "AgentWorkspacePath": {
       "description": "A path relative to the workspace root (\".\" is the root). An absolute path inside the workspace names the same file.",
       "type": "string"
+    },
+    "AppKind": {
+      "description": "Where a program in the catalog comes from.",
+      "oneOf": [
+        {
+          "const": "packaged",
+          "description": "A packaged (Store) app of the Start menu's All apps; its ID is an AUMID such as\n`Microsoft.WindowsNotepad_8wekyb3d8bbwe!App`.",
+          "type": "string"
+        },
+        {
+          "const": "desktop",
+          "description": "Any other program of All apps; its ID is an AUMID the program declares or a path that\nstarts with a known folder's GUID.",
+          "type": "string"
+        },
+        {
+          "const": "manual",
+          "description": "A program the user added by its path; its ID is that path.",
+          "type": "string"
+        }
+      ]
     },
     "ApprovalDecisionId": {
       "type": "string"
@@ -6312,6 +6612,17 @@
             }
           ]
         },
+        "desktop_app_consent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DesktopAppConsentRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A program the user authorized for one session."
+        },
         "file_consent": {
           "anyOf": [
             {
@@ -6785,6 +7096,23 @@
         "readiness"
       ],
       "type": "object"
+    },
+    "BackgroundMotion": {
+      "description": "Whether the sea behind an empty conversation moves.",
+      "oneOf": [
+        {
+          "enum": [
+            "on",
+            "off"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "system",
+          "description": "Still while Windows asks for less motion (animation effects off).",
+          "type": "string"
+        }
+      ]
     },
     "BackgroundState": {
       "enum": [
@@ -12253,6 +12581,1405 @@
     "CompletionReviewId": {
       "type": "string"
     },
+    "ComputerActInput": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "description": "The program's id from computer.apps.",
+          "type": "string"
+        },
+        "screenshot": {
+          "default": false,
+          "description": "Take a screenshot of the program afterwards.",
+          "type": "boolean"
+        },
+        "steps": {
+          "description": "The steps, in order; they stop at the first that fails. Their refs are elements of one\nwindow.",
+          "items": {
+            "$ref": "#/$defs/ComputerActStepV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "app",
+        "steps"
+      ],
+      "type": "object"
+    },
+    "ComputerActResult": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "description": "Each step's element as it is afterwards, one line a step, or that it is gone.",
+          "type": "string"
+        },
+        "app": {
+          "type": "string"
+        },
+        "screenshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerScreenshotResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "screenshot_error": {
+          "description": "Why the screenshot asked for was not taken.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "steps_done": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app",
+        "window",
+        "steps_done",
+        "after"
+      ],
+      "type": "object"
+    },
+    "ComputerActStepV1": {
+      "description": "One step of computer.act, on an element of an earlier read.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Invokes it (a button, a link, a menu item); one that cannot be invoked is toggled,\nselected, or expanded or collapsed, whichever it can.",
+          "properties": {
+            "action": {
+              "const": "click",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Replaces its text, as an edit holds it.",
+          "properties": {
+            "action": {
+              "const": "set_value",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "check",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "uncheck",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "expand",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "collapse",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "select",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Gives it the keyboard focus, which brings its window to the front.",
+          "properties": {
+            "action": {
+              "const": "focus",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "scroll_into_view",
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Scrolls what it holds: positive down scrolls down, positive right to the right, one unit\na small step such as a line.",
+          "properties": {
+            "action": {
+              "const": "scroll",
+              "type": "string"
+            },
+            "down": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "right": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "action",
+            "ref"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ComputerAddedApp": {
+      "additionalProperties": false,
+      "description": "A program the user added: its full path, and a name of its own if the user gave one.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "ComputerAlwaysAllowRequest": {
+      "additionalProperties": false,
+      "description": "The approval card's 总是允许: the program goes on the always-allowed list.",
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app_id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "ComputerApp": {
+      "additionalProperties": false,
+      "description": "A program by its catalog ID, with the name the user saw.",
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app_id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "ComputerAppV1": {
+      "additionalProperties": false,
+      "description": "One program the tools can operate.",
+      "properties": {
+        "allowed": {
+          "description": "This conversation may read and operate it without asking the user again.",
+          "type": "boolean"
+        },
+        "app": {
+          "description": "The program's id for the other tools.",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/AppKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "running": {
+          "description": "It has a window on the desktop now.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "app",
+        "name",
+        "kind",
+        "running",
+        "allowed"
+      ],
+      "type": "object"
+    },
+    "ComputerAppsInput": {
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "default": null,
+          "description": "Only the programs whose name or id contains this text, ignoring case.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ComputerAppsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "apps": {
+          "items": {
+            "$ref": "#/$defs/ComputerAppV1"
+          },
+          "type": "array"
+        },
+        "more": {
+          "description": "How many more programs matched than are listed.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "notice": {
+          "description": "Why the list could not be read, or is not complete.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "apps",
+        "more"
+      ],
+      "type": "object"
+    },
+    "ComputerCatalogEntryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app_id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "ComputerCatalogRequest": {
+      "additionalProperties": false,
+      "description": "The programs for the composer's 「@」 list.",
+      "properties": {
+        "query": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ComputerCatalogResult": {
+      "additionalProperties": false,
+      "properties": {
+        "apps": {
+          "items": {
+            "$ref": "#/$defs/ComputerCatalogEntryV1"
+          },
+          "type": "array"
+        },
+        "enabled": {
+          "description": "Off, or the settings cannot be read: the list is empty.",
+          "type": "boolean"
+        },
+        "notice": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "apps"
+      ],
+      "type": "object"
+    },
+    "ComputerControlSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "added": {
+          "description": "Programs the user added by hand, besides those of the Start menu.",
+          "items": {
+            "$ref": "#/$defs/ComputerAddedApp"
+          },
+          "type": "array"
+        },
+        "always_allowed": {
+          "description": "Programs every session reads and acts on without asking, until a session stops one.",
+          "items": {
+            "$ref": "#/$defs/ComputerApp"
+          },
+          "type": "array"
+        },
+        "clipboard": {
+          "description": "Whether input may use the clipboard, as pasting a long text does (default off).",
+          "type": "boolean"
+        },
+        "enabled": {
+          "description": "Whether the `computer.*` tools are offered (default off).",
+          "type": "boolean"
+        },
+        "mode": {
+          "$ref": "#/$defs/ComputerMode",
+          "default": "foreground",
+          "description": "Which desktop a turn uses when its request names none: the user's own, in front, or the\nchild session in its small window."
+        },
+        "models": {
+          "description": "The models that may use the tools, by model ID; empty: every model that takes images.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paint_others": {
+          "description": "Whether a screenshot paints over what is not an authorized program (default on).",
+          "type": "boolean"
+        },
+        "pip_stop_keys": {
+          "default": "Ctrl+Alt+Q",
+          "description": "The keys that take the desktop over from Aura, besides Escape, in either mode.",
+          "type": "string"
+        },
+        "screenshot_long_edge": {
+          "description": "The longest edge of a screenshot the model receives, in pixels.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "system_keys": {
+          "description": "Whether input may press system chords such as Alt+Tab or the Windows key (default off).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "always_allowed",
+        "added",
+        "paint_others",
+        "clipboard",
+        "system_keys",
+        "screenshot_long_edge",
+        "models"
+      ],
+      "type": "object"
+    },
+    "ComputerControlSettingsSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "issue": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "settings": {
+          "$ref": "#/$defs/ComputerControlSettings"
+        }
+      },
+      "required": [
+        "settings"
+      ],
+      "type": "object"
+    },
+    "ComputerControlSettingsUpdate": {
+      "additionalProperties": false,
+      "description": "The settings page's save, on the revision it read.",
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "settings": {
+          "$ref": "#/$defs/ComputerControlSettings"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "settings"
+      ],
+      "type": "object"
+    },
+    "ComputerControlledV1": {
+      "additionalProperties": false,
+      "description": "A program a conversation is controlling now.",
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "foreground": {
+          "description": "It moves the pointer or types now.",
+          "type": "boolean"
+        },
+        "mode": {
+          "$ref": "#/$defs/ComputerMode",
+          "default": "foreground"
+        },
+        "name": {
+          "type": "string"
+        },
+        "taken_over": {
+          "default": false,
+          "description": "The user took the desktop over from it: the turn's actions are refused until the user\ngives the desktop back. A turn that ended so stays listed until then, or until the\nconversation's next turn runs.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "app_id",
+        "name",
+        "foreground"
+      ],
+      "type": "object"
+    },
+    "ComputerControllingResult": {
+      "additionalProperties": false,
+      "properties": {
+        "apps": {
+          "items": {
+            "$ref": "#/$defs/ComputerControlledV1"
+          },
+          "type": "array"
+        },
+        "pip": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerPipStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "apps"
+      ],
+      "type": "object"
+    },
+    "ComputerIconV1": {
+      "additionalProperties": false,
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "png": {
+          "description": "A PNG, base64.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "app_id",
+        "png"
+      ],
+      "type": "object"
+    },
+    "ComputerIconsRequest": {
+      "additionalProperties": false,
+      "description": "The icons of programs of the catalog, for the composer's 「@」 list, its program blocks and\nthe approval card.",
+      "properties": {
+        "app_ids": {
+          "description": "The programs' IDs, as the catalog gives them.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "app_ids"
+      ],
+      "type": "object"
+    },
+    "ComputerIconsResult": {
+      "additionalProperties": false,
+      "properties": {
+        "icons": {
+          "description": "One for each program asked that is in the catalog and has an icon; none while control is\noff.",
+          "items": {
+            "$ref": "#/$defs/ComputerIconV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "icons"
+      ],
+      "type": "object"
+    },
+    "ComputerInputInput": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "description": "The program's id from computer.apps.",
+          "type": "string"
+        },
+        "image": {
+          "default": null,
+          "description": "The screenshot (a ref such as p3) whose pixels the steps' x and y are; needed when a step\ngives a point.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "screenshot": {
+          "default": false,
+          "description": "Take a screenshot of the program afterwards.",
+          "type": "boolean"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/ComputerInputStepV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "app",
+        "steps"
+      ],
+      "type": "object"
+    },
+    "ComputerInputResult": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "screenshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerScreenshotResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "screenshot_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "steps_done": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "app",
+        "steps_done"
+      ],
+      "type": "object"
+    },
+    "ComputerInputStepV1": {
+      "description": "One step of computer.input.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "click",
+              "type": "string"
+            },
+            "button": {
+              "$ref": "#/$defs/MouseButton",
+              "default": "left"
+            },
+            "count": {
+              "default": null,
+              "description": "2 is a double click.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "ref": {
+              "default": null,
+              "description": "Or the middle of an element of an earlier read, such as e12.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "default": null,
+              "description": "A point of the screenshot the call names (image).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "y": {
+              "default": null,
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "move",
+              "type": "string"
+            },
+            "ref": {
+              "default": null,
+              "description": "Or the middle of an element of an earlier read, such as e12.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "x": {
+              "default": null,
+              "description": "A point of the screenshot the call names (image).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "y": {
+              "default": null,
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Presses at the first point, moves through the others and lets go at the last.",
+          "properties": {
+            "action": {
+              "const": "drag",
+              "type": "string"
+            },
+            "button": {
+              "$ref": "#/$defs/MouseButton",
+              "default": "left"
+            },
+            "path": {
+              "items": {
+                "$ref": "#/$defs/ComputerPointV1"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "action",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Turns the wheel over a point: positive down scrolls down, positive right to the right,\none unit a notch.",
+          "properties": {
+            "action": {
+              "const": "scroll",
+              "type": "string"
+            },
+            "down": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            },
+            "ref": {
+              "default": null,
+              "description": "Or the middle of an element of an earlier read, such as e12.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "right": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            },
+            "x": {
+              "default": null,
+              "description": "A point of the screenshot the call names (image).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "y": {
+              "default": null,
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "type",
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "text"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A key or a chord: Enter, Escape, Tab, Control+s, Alt+F4.",
+          "properties": {
+            "action": {
+              "const": "press",
+              "type": "string"
+            },
+            "keys": {
+              "type": "string"
+            },
+            "repeat": {
+              "default": null,
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "keys"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "wait",
+              "type": "string"
+            },
+            "ms": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "action",
+            "ms"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ComputerMode": {
+      "description": "The desktop selected by the user for one durable turn. It is never a fallback policy.",
+      "enum": [
+        "foreground",
+        "child_session"
+      ],
+      "type": "string"
+    },
+    "ComputerOpenInput": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "description": "The program's id from computer.apps.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "app"
+      ],
+      "type": "object"
+    },
+    "ComputerOpenResult": {
+      "additionalProperties": false,
+      "properties": {
+        "already_running": {
+          "description": "It had a window already, so it was not opened again.",
+          "type": "boolean"
+        },
+        "app": {
+          "type": "string"
+        },
+        "windows": {
+          "description": "The program's windows, front to back, with refs (w1312) for the other tools.",
+          "items": {
+            "$ref": "#/$defs/WindowInfo"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "app",
+        "windows",
+        "already_running"
+      ],
+      "type": "object"
+    },
+    "ComputerPipStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "notice": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "$ref": "#/$defs/PipPhase"
+        }
+      },
+      "required": [
+        "phase"
+      ],
+      "type": "object"
+    },
+    "ComputerPointV1": {
+      "additionalProperties": false,
+      "description": "A point of the screenshot named by the call.",
+      "properties": {
+        "x": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "ComputerRegionInput": {
+      "additionalProperties": false,
+      "description": "The part of an earlier screenshot to take again, in that screenshot's pixels.",
+      "properties": {
+        "height": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "screenshot": {
+          "description": "The earlier screenshot's ref, such as p3.",
+          "type": "string"
+        },
+        "width": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "screenshot",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "ComputerScreenshotInput": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "description": "The program's id from computer.apps.",
+          "type": "string"
+        },
+        "marks": {
+          "default": false,
+          "description": "Number the elements of the program's latest computer.snapshot on the image: a box's\nnumber n is the element en.",
+          "type": "boolean"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerRegionInput"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only this part of an earlier screenshot, taken again at full detail."
+        }
+      },
+      "required": [
+        "app"
+      ],
+      "type": "object"
+    },
+    "ComputerScreenshotResult": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "height": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "image_artifact_id": {
+          "$ref": "#/$defs/ArtifactId",
+          "description": "The image, kept with this call for the user to see."
+        },
+        "marks": {
+          "description": "How many elements are numbered on the image, when marks were asked for.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "screenshot": {
+          "description": "The screenshot's ref, for computer.input's points and for a region of it.",
+          "type": "string"
+        },
+        "shown_to_model": {
+          "description": "Whether the image was attached for the model to look at.",
+          "type": "boolean"
+        },
+        "width": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "windows": {
+          "description": "The program's windows the screenshot shows, front to back.",
+          "items": {
+            "$ref": "#/$defs/ComputerShotWindowV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "app",
+        "screenshot",
+        "width",
+        "height",
+        "windows",
+        "image_artifact_id",
+        "shown_to_model",
+        "note"
+      ],
+      "type": "object"
+    },
+    "ComputerSessionRequest": {
+      "additionalProperties": false,
+      "description": "A conversation, for the routes of the activity list.",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "ComputerShotWindowV1": {
+      "additionalProperties": false,
+      "description": "A window of the program as a screenshot shows it, in the screenshot's pixels.",
+      "properties": {
+        "foreground": {
+          "type": "boolean"
+        },
+        "height": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "width": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "window": {
+          "type": "string"
+        },
+        "x": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "y": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "window",
+        "title",
+        "x",
+        "y",
+        "width",
+        "height",
+        "foreground"
+      ],
+      "type": "object"
+    },
+    "ComputerSnapshotInput": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "description": "The program's id from computer.apps.",
+          "type": "string"
+        },
+        "max_elements": {
+          "default": null,
+          "description": "The most elements to list (default 400, at most 2000).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "root": {
+          "default": null,
+          "description": "Read only what is inside this element (a ref of an earlier read, such as e12), for one\nmarked more.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "window": {
+          "default": null,
+          "description": "One of its windows (a ref such as w1312); the one in front when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "app"
+      ],
+      "type": "object"
+    },
+    "ComputerSnapshotResult": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "type": "string"
+        },
+        "complete": {
+          "description": "Everything the window shows was read. When not, read again from an element marked more.",
+          "type": "boolean"
+        },
+        "elements": {
+          "description": "One element a line, indented under the element it is in: its ref, role, name, value,\nstates and what can be done to it, such as `e12 button \"保存\" [click]`.",
+          "type": "string"
+        },
+        "listed": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "app",
+        "window",
+        "title",
+        "elements",
+        "listed",
+        "complete"
+      ],
+      "type": "object"
+    },
+    "ComputerStopRequest": {
+      "additionalProperties": false,
+      "description": "The user's Stop for one program of a conversation, or for all of them.",
+      "properties": {
+        "app_id": {
+          "default": null,
+          "description": "The program; every program of the conversation when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "ComputerWindowInput": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/WindowAction"
+        },
+        "app": {
+          "description": "The program's id from computer.apps.",
+          "type": "string"
+        },
+        "window": {
+          "default": null,
+          "description": "One of its windows (a ref such as w1312); the one in front when omitted.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "app",
+        "action"
+      ],
+      "type": "object"
+    },
+    "ComputerWindowResult": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/WindowAction"
+        },
+        "app": {
+          "type": "string"
+        },
+        "changed": {
+          "description": "False when the window already was as asked.",
+          "type": "boolean"
+        },
+        "note": {
+          "description": "Said when a window asked to close is still open.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "window": {
+          "type": "string"
+        },
+        "windows": {
+          "description": "The program's windows afterwards, front to back.",
+          "items": {
+            "$ref": "#/$defs/WindowInfo"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "app",
+        "window",
+        "action",
+        "changed",
+        "windows"
+      ],
+      "type": "object"
+    },
     "ConfigModule": {
       "enum": [
         "aura",
@@ -12270,7 +13997,8 @@
         "memory",
         "diagnostics",
         "update",
-        "chrome"
+        "chrome",
+        "computer"
       ],
       "type": "string"
     },
@@ -14258,6 +15986,12 @@
       ],
       "type": "object"
     },
+    "ConversationHandle": {
+      "maxLength": 21,
+      "minLength": 21,
+      "pattern": "^conv_[0-9a-f]{16}$",
+      "type": "string"
+    },
     "CoreBusyActivityV1": {
       "oneOf": [
         {
@@ -15100,6 +16834,39 @@
         "workspace_id",
         "session_id",
         "permission_grant_id"
+      ],
+      "type": "object"
+    },
+    "DesktopAppConsentRef": {
+      "additionalProperties": false,
+      "description": "A program the user authorized for one session: the session reads and acts on it without\nasking again, also after Aura restarts, until the user stops it. The Grant itself only stands\nfor the call that was answered; later calls count the program as authorized when Core\nresolves them.",
+      "properties": {
+        "app_id": {
+          "type": "string"
+        },
+        "approval_id": {
+          "$ref": "#/$defs/ApprovalRequestId"
+        },
+        "approved_operation_fingerprint": {
+          "$ref": "#/$defs/CanonicalSha256HashV1"
+        },
+        "grant_revision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "principal_id": {
+          "$ref": "#/$defs/PrincipalId"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "approval_id",
+        "session_id",
+        "principal_id",
+        "app_id",
+        "approved_operation_fingerprint",
+        "grant_revision"
       ],
       "type": "object"
     },
@@ -17967,7 +19734,15 @@
           "type": "string"
         },
         "session_id": {
-          "$ref": "#/$defs/SessionId"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The conversation searching; none from a new conversation's composer, which has none yet.\nThe search does not depend on it."
         },
         "workspace_id": {
           "$ref": "#/$defs/WorkspaceId"
@@ -17975,7 +19750,6 @@
       },
       "required": [
         "workspace_id",
-        "session_id",
         "query",
         "limit"
       ],
@@ -22477,10 +24251,10 @@
     },
     "LoadedSkillEntry": {
       "additionalProperties": false,
-      "description": "A Skill loaded for this turn, at the content it was loaded with.",
+      "description": "A Skill the user chose in the composer, at the content it was chosen with.",
       "properties": {
         "fingerprint": {
-          "description": "The content fingerprint the user trusted and this load used.",
+          "description": "The content fingerprint of the Skill when it was chosen.",
           "type": "string"
         },
         "name": {
@@ -23529,6 +25303,98 @@
       "required": [
         "revision",
         "servers"
+      ],
+      "type": "object"
+    },
+    "McpResourceList": {
+      "properties": {
+        "problems": {
+          "items": {
+            "$ref": "#/$defs/McpResourceProblem"
+          },
+          "type": "array"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/McpResourceView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "resources",
+        "problems"
+      ],
+      "type": "object"
+    },
+    "McpResourceListRequest": {
+      "additionalProperties": false,
+      "description": "The resources a conversation's message may refer to with \"@\".",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId",
+          "description": "The conversation whose own instances of the servers list them."
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "McpResourceProblem": {
+      "description": "A server that offers resources but could not list them now.",
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "server_id": {
+          "type": "string"
+        },
+        "server_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id",
+        "server_name",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "McpResourceView": {
+      "description": "One resource of a ready server that offers resources.",
+      "properties": {
+        "mime_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "server_id": {
+          "type": "string"
+        },
+        "server_name": {
+          "description": "The server as Settings → MCP names it.",
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "server_id",
+        "server_name",
+        "uri",
+        "name"
       ],
       "type": "object"
     },
@@ -26516,10 +28382,10 @@
     },
     "MentionedFileRequest": {
       "additionalProperties": false,
-      "description": "A file outside the workspace that a message of this conversation names by its full path.\nCore reads that message and finds the path in it before saying where the file is, so only a\npath the conversation shows can be opened; Aura's own data and the user's credential stores are\nnot. For Main only.",
+      "description": "A file outside the workspace that this conversation names by its full path, in one of its\nmessages or in the row of one of its calls. Core reads that message or that row and finds the\npath in it before saying where the file is, so only a path the conversation shows can be\nopened; Aura's own data and the user's credential stores are not. For Main only.",
       "properties": {
         "mentioned_in": {
-          "$ref": "#/$defs/AgentMessageTextSource"
+          "$ref": "#/$defs/MentionedFileSource"
         },
         "path": {
           "type": "string"
@@ -26532,6 +28398,177 @@
         "session_id",
         "path",
         "mentioned_in"
+      ],
+      "type": "object"
+    },
+    "MentionedFileSource": {
+      "description": "Where the conversation names a file: a message, or a call whose row shows the file (what it\nread, wrote, downloaded or opened).",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "event_id": {
+              "$ref": "#/$defs/EventId"
+            },
+            "kind": {
+              "const": "user",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "event_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "assistant",
+              "type": "string"
+            },
+            "model_step_id": {
+              "$ref": "#/$defs/ModelStepId"
+            }
+          },
+          "required": [
+            "kind",
+            "model_step_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "reasoning",
+              "type": "string"
+            },
+            "model_step_id": {
+              "$ref": "#/$defs/ModelStepId"
+            }
+          },
+          "required": [
+            "kind",
+            "model_step_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "completion",
+              "type": "string"
+            },
+            "turn_task_id": {
+              "$ref": "#/$defs/TurnTaskId"
+            }
+          },
+          "required": [
+            "kind",
+            "turn_task_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "tool_call",
+              "type": "string"
+            },
+            "tool_call_id": {
+              "$ref": "#/$defs/ToolCallId"
+            }
+          },
+          "required": [
+            "kind",
+            "tool_call_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MessageFrom": {
+      "additionalProperties": false,
+      "description": "Who on a chat platform sent a message one of a plugin's channels received.",
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "chat": {
+          "$ref": "#/$defs/PluginChatKind"
+        },
+        "platform": {
+          "description": "The channel's platform, as the plugin declares it (`qq`, `telegram`, …).",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "The platform's own id of the person.",
+          "type": "string"
+        },
+        "user_name": {
+          "description": "The name the platform gave them; may be empty.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "platform",
+        "chat",
+        "user_id"
+      ],
+      "type": "object"
+    },
+    "MessageReferenceKind": {
+      "description": "What kind of thing a message referred to.",
+      "enum": [
+        "file",
+        "folder",
+        "session"
+      ],
+      "type": "string"
+    },
+    "MessageReferenceView": {
+      "additionalProperties": false,
+      "description": "A message's reference as the conversation and the queue show it.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/MessageReferenceKind"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "label"
+      ],
+      "type": "object"
+    },
+    "MessageSender": {
+      "additionalProperties": false,
+      "description": "Who sent a message that the user did not type.",
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MessageFrom"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The person on a chat platform, for a message one of the plugin's channels received."
+        },
+        "plugin": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin"
       ],
       "type": "object"
     },
@@ -26992,6 +29029,31 @@
     },
     "ModelCatalogEnsureFreshRequest": {
       "additionalProperties": false,
+      "type": "object"
+    },
+    "ModelCatalogEntryView": {
+      "additionalProperties": false,
+      "description": "One chat entry of the catalog that a model's name matches, with its Provider's own name and\nthe hash of the entry as listed, which choosing it must still find.",
+      "properties": {
+        "catalog_model_id": {
+          "type": "string"
+        },
+        "catalog_object_hash": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "catalog_provider_id": {
+          "type": "string"
+        },
+        "provider_display_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalog_provider_id",
+        "catalog_model_id",
+        "provider_display_name",
+        "catalog_object_hash"
+      ],
       "type": "object"
     },
     "ModelCatalogGetRequest": {
@@ -27915,6 +29977,31 @@
       "required": [
         "tool_versions",
         "credential_revision"
+      ],
+      "type": "object"
+    },
+    "ModelCredentialCleanupRetryRequest": {
+      "additionalProperties": false,
+      "description": "Tries the credentials of deleted model settings that Windows Credential Manager still holds.",
+      "type": "object"
+    },
+    "ModelCredentialCleanupRetryResult": {
+      "additionalProperties": false,
+      "properties": {
+        "changed": {
+          "description": "Whether this retry deleted any of them.",
+          "type": "boolean"
+        },
+        "pending_credentials": {
+          "description": "How many Windows Credential Manager still holds.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "changed",
+        "pending_credentials"
       ],
       "type": "object"
     },
@@ -29370,6 +31457,17 @@
     "ModelProfileApplyCatalogUpdateRequest": {
       "additionalProperties": false,
       "properties": {
+        "catalog_entry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderCatalogMatchCandidate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Links the profile to this entry, one its model name matches; none updates the entry the\nprofile is linked to."
+        },
         "expected_catalog_object_hash": {
           "$ref": "#/$defs/ContentHash"
         },
@@ -29392,6 +31490,53 @@
         "expected_model_profile_revision",
         "expected_catalog_revision",
         "expected_catalog_object_hash"
+      ],
+      "type": "object"
+    },
+    "ModelProfileCatalogEntriesRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "model_profile_id": {
+          "$ref": "#/$defs/ModelProfileId"
+        }
+      },
+      "required": [
+        "model_profile_id"
+      ],
+      "type": "object"
+    },
+    "ModelProfileCatalogEntriesView": {
+      "additionalProperties": false,
+      "description": "The entries a profile's model name matches, in the catalog's order.",
+      "properties": {
+        "catalog_revision": {
+          "$ref": "#/$defs/Revision"
+        },
+        "chosen": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderCatalogMatchCandidate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The entry the profile is linked to, when it is one of them."
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/ModelCatalogEntryView"
+          },
+          "type": "array"
+        },
+        "model_profile_id": {
+          "$ref": "#/$defs/ModelProfileId"
+        }
+      },
+      "required": [
+        "model_profile_id",
+        "catalog_revision",
+        "entries"
       ],
       "type": "object"
     },
@@ -29977,6 +32122,10 @@
     "ModelRequestDefaults": {
       "additionalProperties": false,
       "properties": {
+        "allow_speed_modes": {
+          "description": "Whether a conversation may choose, for its turns, a speed mode the model's catalog entry\noffers. Not allowed, every request goes in the standard mode.",
+          "type": "boolean"
+        },
         "chat_instruction_role": {
           "anyOf": [
             {
@@ -30030,6 +32179,13 @@
           },
           "type": [
             "array",
+            "null"
+          ]
+        },
+        "speed_mode": {
+          "description": "The speed mode a profile named before each turn chose its own; read, never sent.",
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -30205,6 +32361,13 @@
         },
         "registry": {
           "$ref": "#/$defs/ModelRegistryConfig"
+        },
+        "speed_modes": {
+          "description": "The speed modes each model offers; a model offering none is absent.",
+          "items": {
+            "$ref": "#/$defs/ModelSpeedModesView"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -30213,6 +32376,84 @@
         "registry",
         "active_credentials",
         "dormant_credentials"
+      ],
+      "type": "object"
+    },
+    "ModelSpeedMode": {
+      "additionalProperties": false,
+      "description": "A mode a request is sent with: its name, and the body fields and headers it sets.",
+      "properties": {
+        "body": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "ModelSpeedModeView": {
+      "additionalProperties": false,
+      "description": "One mode a model offers, and the price it is charged at.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderCatalogPrice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "ModelSpeedModesView": {
+      "additionalProperties": false,
+      "description": "The modes one model offers, by name, and its standard price.",
+      "properties": {
+        "model_profile_id": {
+          "$ref": "#/$defs/ModelProfileId"
+        },
+        "modes": {
+          "items": {
+            "$ref": "#/$defs/ModelSpeedModeView"
+          },
+          "type": "array"
+        },
+        "standard_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderCatalogPrice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "model_profile_id",
+        "modes"
       ],
       "type": "object"
     },
@@ -31021,6 +33262,51 @@
           "type": "object"
         }
       ]
+    },
+    "ModelsDevProtocolSuggestion": {
+      "additionalProperties": false,
+      "description": "The protocol a catalog Provider's package speaks, the key that package sends and, for Chat\nCompletions, the defaults it sends with.",
+      "properties": {
+        "api_format": {
+          "$ref": "#/$defs/ModelApiFormat"
+        },
+        "auth_scheme": {
+          "$ref": "#/$defs/EndpointAuthScheme"
+        },
+        "chat_instruction_role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatInstructionRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chat_output_token_field": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChatOutputTokenField"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "api_format",
+        "auth_scheme"
+      ],
+      "type": "object"
+    },
+    "MouseButton": {
+      "enum": [
+        "left",
+        "right",
+        "middle"
+      ],
+      "type": "string"
     },
     "MutationJournalId": {
       "type": "string"
@@ -35438,6 +37724,16 @@
       ],
       "type": "object"
     },
+    "PipPhase": {
+      "enum": [
+        "closed",
+        "waiting_for_login",
+        "ready",
+        "disconnected",
+        "failed"
+      ],
+      "type": "string"
+    },
     "PlanCompleteInput": {
       "additionalProperties": false,
       "properties": {
@@ -35566,6 +37862,75 @@
         }
       ]
     },
+    "PluginAllowedUser": {
+      "additionalProperties": false,
+      "description": "Someone on a chat platform the user lets reach Aura through one of the plugin's channels.",
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "id": {
+          "description": "The platform's own id of the user.",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "description": "The user's own note of who this is; may be empty.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "id"
+      ],
+      "type": "object"
+    },
+    "PluginCapability": {
+      "description": "What a plugin's panel and background service may do with the conversations they are given.",
+      "oneOf": [
+        {
+          "enum": [
+            "notify"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "session.read",
+          "description": "The conversation's title, model, usage, to-do list and context use.",
+          "type": "string"
+        },
+        {
+          "const": "session.events",
+          "description": "Turns starting and ending, the final reply, approvals waiting, errors and compaction.",
+          "type": "string"
+        },
+        {
+          "const": "session.send",
+          "description": "Send a message in the conversation, marked as the plugin's.",
+          "type": "string"
+        },
+        {
+          "const": "session.control",
+          "description": "Stop the current turn, start a conversation, change the permission mode.",
+          "type": "string"
+        },
+        {
+          "const": "status",
+          "description": "One short item in the status line.",
+          "type": "string"
+        },
+        {
+          "const": "commands",
+          "description": "Run the plugin's own commands.",
+          "type": "string"
+        },
+        {
+          "const": "settings",
+          "description": "Read and write the plugin's own settings.",
+          "type": "string"
+        }
+      ]
+    },
     "PluginChangeRequest": {
       "additionalProperties": false,
       "description": "Untrust, uninstall or discard a pending update.",
@@ -35584,6 +37949,57 @@
         "expected_revision"
       ],
       "type": "object"
+    },
+    "PluginChannel": {
+      "additionalProperties": false,
+      "description": "One chat platform account (a bot) the plugin's background service connects.",
+      "properties": {
+        "id": {
+          "description": "Lowercase letters, digits, `-` and `_`; the name the service and the allowlist use.",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/PluginPlatform"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "platform",
+        "title"
+      ],
+      "type": "object"
+    },
+    "PluginChat": {
+      "additionalProperties": false,
+      "description": "One chat a plugin's channel is in: the channel, and the platform's own id of the chat.",
+      "properties": {
+        "channel": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/PluginChatKind"
+        }
+      },
+      "required": [
+        "channel",
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "PluginChatKind": {
+      "description": "A chat on a platform: with one person, or a group.",
+      "enum": [
+        "private",
+        "group"
+      ],
+      "type": "string"
     },
     "PluginCommandItem": {
       "additionalProperties": false,
@@ -35629,9 +38045,131 @@
       ],
       "type": "object"
     },
+    "PluginCommandRunRequest": {
+      "additionalProperties": false,
+      "description": "One of the plugin's own prompt commands run in the conversation as the plugin's message; needs\n`commands`. `arguments` go where its template says, as the text after a typed command does.\nThe same `dedupe_key` again is the same message and never a second turn.",
+      "properties": {
+        "arguments": {
+          "type": "string"
+        },
+        "dedupe_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "The command's name, without the `/`.",
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "plugin",
+        "session_id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "PluginCompactionOutcome": {
+      "description": "How a compaction of the conversation's history ended.",
+      "oneOf": [
+        {
+          "enum": [
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "interrupted",
+          "description": "Its turn was stopped or lost while it ran.",
+          "type": "string"
+        }
+      ]
+    },
+    "PluginConfigureRequest": {
+      "additionalProperties": false,
+      "description": "Saves what the plugin page changed for a plugin. Each part given replaces that part; the\nothers stay as they are.",
+      "properties": {
+        "allowed": {
+          "items": {
+            "$ref": "#/$defs/PluginAllowedUser"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "forget_secrets": {
+          "description": "Secret settings whose values go.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "remote_approval": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginScope"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service": {
+          "description": "The background service's switch.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "text": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Text settings, key → text; an empty text removes the value.",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "expected_revision"
+      ],
+      "type": "object"
+    },
     "PluginCounts": {
       "additionalProperties": false,
       "properties": {
+        "channels": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "commands": {
           "format": "uint32",
           "minimum": 0,
@@ -35642,12 +38180,27 @@
           "minimum": 0,
           "type": "integer"
         },
+        "panels": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "servers": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
         },
+        "services": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
         "skills": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "themes": {
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
@@ -35661,9 +38214,75 @@
       ],
       "type": "object"
     },
+    "PluginDevelopmentRequest": {
+      "additionalProperties": false,
+      "description": "Installs a folder a plugin is being written in as a plugin in development, where it is.\nNothing is trusted or switched on for it.",
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "expected_revision"
+      ],
+      "type": "object"
+    },
     "PluginDirectoryOpened": {
       "additionalProperties": false,
       "description": "Main opened an installed plugin's folder in the file manager, or says why it did not.",
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "completed",
+        "message"
+      ],
+      "type": "object"
+    },
+    "PluginExportRequest": {
+      "additionalProperties": false,
+      "description": "Exports an installed plugin as a ZIP file. The window names the plugin; Main asks where to\nsave it.",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PluginExportToRequest": {
+      "additionalProperties": false,
+      "description": "Main's request to Core once the user chose where to save the ZIP file.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ],
+      "type": "object"
+    },
+    "PluginExported": {
+      "additionalProperties": false,
+      "description": "The plugin was exported, or why it was not (including the user cancelling).",
       "properties": {
         "completed": {
           "type": "boolean"
@@ -35785,6 +38404,190 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "PluginNotice": {
+      "additionalProperties": false,
+      "description": "The notice as it is shown.",
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tone": {
+          "$ref": "#/$defs/PluginUiTone"
+        }
+      },
+      "required": [
+        "plugin",
+        "text",
+        "tone"
+      ],
+      "type": "object"
+    },
+    "PluginNoticeRequest": {
+      "additionalProperties": false,
+      "description": "A notice for the user in Aura's window, marked as the plugin's; needs `notify`.",
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "text": {
+          "description": "One line.",
+          "type": "string"
+        },
+        "tone": {
+          "$ref": "#/$defs/PluginUiTone",
+          "default": "info"
+        }
+      },
+      "required": [
+        "plugin",
+        "text"
+      ],
+      "type": "object"
+    },
+    "PluginOption": {
+      "additionalProperties": false,
+      "description": "One of the plugin's own settings, which the user fills in on the plugin page.",
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "description": "Lowercase letters, digits and `_`, starting with a letter.",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/PluginOptionKind"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "title",
+        "kind",
+        "required"
+      ],
+      "type": "object"
+    },
+    "PluginOptionKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "text"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "secret",
+          "description": "Kept in Windows Credential Manager and given only to the plugin's background service.",
+          "type": "string"
+        }
+      ]
+    },
+    "PluginOptionValue": {
+      "additionalProperties": false,
+      "description": "One of the plugin's own settings with its value.",
+      "properties": {
+        "option": {
+          "$ref": "#/$defs/PluginOption"
+        },
+        "set": {
+          "description": "A secret setting has a value kept in the Credential Manager. The value never leaves Core.",
+          "type": "boolean"
+        },
+        "text": {
+          "description": "A text setting's value.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "option"
+      ],
+      "type": "object"
+    },
+    "PluginPanel": {
+      "additionalProperties": false,
+      "description": "A page in the right sidebar drawn by the plugin's own files.",
+      "properties": {
+        "entry": {
+          "description": "Relative to the plugin folder, inside `panel/`.",
+          "type": "string"
+        },
+        "network": {
+          "description": "The origins (`https://host[:port]`, `wss://…`) the page may connect to, after the user\nagreed; none by default.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "entry",
+        "network"
+      ],
+      "type": "object"
+    },
+    "PluginPanelItem": {
+      "additionalProperties": false,
+      "properties": {
+        "panel": {
+          "$ref": "#/$defs/PluginPanel"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "panel",
+        "problems"
+      ],
+      "type": "object"
+    },
+    "PluginPanelLogRequest": {
+      "additionalProperties": false,
+      "description": "A problem Main saw in a plugin's panel (a page that did not load, a script error, a request\nthe page may not make), kept in the plugin's log.",
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "session_id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "PluginPanelLogged": {
+      "additionalProperties": false,
+      "type": "object"
+    },
     "PluginPendingView": {
       "additionalProperties": false,
       "description": "A newer copy of an installed plugin, imported and waiting to be trusted. The installed copy\nkeeps working until then.",
@@ -35824,10 +38627,53 @@
       ],
       "type": "object"
     },
+    "PluginPlatform": {
+      "description": "The kind of chat platform a channel is on. Only shown to the user and given to the service;\nAura's rules are the same for all.",
+      "oneOf": [
+        {
+          "enum": [
+            "qq",
+            "feishu",
+            "wechat",
+            "wecom",
+            "telegram",
+            "dingtalk",
+            "slack",
+            "discord",
+            "other"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "onebot",
+          "description": "The OneBot v11 protocol, which many QQ frameworks speak.",
+          "type": "string"
+        },
+        {
+          "const": "satori",
+          "description": "The Satori protocol, one interface to several platforms.",
+          "type": "string"
+        }
+      ]
+    },
     "PluginPreview": {
       "additionalProperties": false,
       "description": "Everything a plugin brings, for review before it is trusted.",
       "properties": {
+        "capabilities": {
+          "description": "What the plugin's panel and background service may do with the conversations they are\ngiven.",
+          "items": {
+            "$ref": "#/$defs/PluginCapability"
+          },
+          "type": "array"
+        },
+        "channels": {
+          "description": "The chat platform accounts its background service connects.",
+          "items": {
+            "$ref": "#/$defs/PluginChannel"
+          },
+          "type": "array"
+        },
         "commands": {
           "items": {
             "$ref": "#/$defs/PluginCommandItem"
@@ -35853,6 +38699,22 @@
           },
           "type": "array"
         },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/PluginOption"
+          },
+          "type": "array"
+        },
+        "panel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginPanelItem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "pending": {
           "description": "The update waiting to be trusted, rather than the installed copy.",
           "type": "boolean"
@@ -35866,11 +38728,31 @@
           },
           "type": "array"
         },
+        "service": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginServiceItem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "skills": {
           "items": {
             "$ref": "#/$defs/PluginSkillItem"
           },
           "type": "array"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginThemeItem"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -35917,6 +38799,41 @@
       ],
       "type": "object"
     },
+    "PluginRemoteView": {
+      "additionalProperties": false,
+      "description": "What the plugin page shows and changes for a plugin's background service: its channels, the\nconversations it may act in, who may reach Aura on each channel, whether they may approve\nremotely, and who wrote lately without being on the list (newest first).",
+      "properties": {
+        "allowed": {
+          "items": {
+            "$ref": "#/$defs/PluginAllowedUser"
+          },
+          "type": "array"
+        },
+        "channels": {
+          "items": {
+            "$ref": "#/$defs/PluginChannel"
+          },
+          "type": "array"
+        },
+        "remote_approval": {
+          "type": "boolean"
+        },
+        "scope": {
+          "$ref": "#/$defs/PluginScope"
+        },
+        "unknown": {
+          "items": {
+            "$ref": "#/$defs/PluginUnknownUser"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "scope",
+        "remote_approval"
+      ],
+      "type": "object"
+    },
     "PluginRequest": {
       "additionalProperties": false,
       "properties": {
@@ -35931,6 +38848,57 @@
       },
       "required": [
         "name"
+      ],
+      "type": "object"
+    },
+    "PluginScope": {
+      "additionalProperties": false,
+      "description": "The conversations the plugin's background service may act in: every conversation of these\nworkspaces, and these conversations. Empty: none.",
+      "properties": {
+        "sessions": {
+          "items": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "type": "array"
+        },
+        "workspaces": {
+          "items": {
+            "$ref": "#/$defs/WorkspaceId"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PluginSecretSetRequest": {
+      "additionalProperties": false,
+      "description": "Sets a secret setting's value. The value arrives only on the secret input frame.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "key"
+      ],
+      "type": "object"
+    },
+    "PluginSecretSetResult": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "description": "`plugins.json`'s revision with the secret's credential named.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
       ],
       "type": "object"
     },
@@ -36038,6 +39006,799 @@
       ],
       "type": "string"
     },
+    "PluginService": {
+      "additionalProperties": false,
+      "description": "A program Aura keeps running while the plugin is on, talking to it on its own standard input\nand output.",
+      "properties": {
+        "arguments": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "description": "The program, with the plugin folder filled in, or a program name found on `PATH`.",
+          "type": "string"
+        },
+        "network": {
+          "description": "Where it says it connects. Shown to the user; it runs as the user, so Aura cannot hold\nit to these.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "command",
+        "arguments",
+        "network"
+      ],
+      "type": "object"
+    },
+    "PluginServiceItem": {
+      "additionalProperties": false,
+      "properties": {
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "service": {
+          "$ref": "#/$defs/PluginService"
+        }
+      },
+      "required": [
+        "service",
+        "problems"
+      ],
+      "type": "object"
+    },
+    "PluginServiceStatus": {
+      "description": "What the plugin's background service is doing now.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Its switch on the plugin page is off.",
+          "properties": {
+            "state": {
+              "const": "off",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "On, and it cannot start yet: why.",
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "state": {
+              "const": "waiting",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "state": {
+              "const": "starting",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "since": {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            "state": {
+              "const": "running",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "since"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "It ended; it starts again in `seconds`.",
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "seconds": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "state": {
+              "const": "restarting",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "seconds",
+            "reason"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "It does not start again until the plugin or its settings change: why.",
+          "properties": {
+            "reason": {
+              "type": "string"
+            },
+            "state": {
+              "const": "stopped",
+              "type": "string"
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PluginServiceUi": {
+      "description": "What a plugin's background service changed in Aura's window, once Core checked it; Core\nsends it to Main as the `plugin.ui.v1` notification.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "notice",
+              "type": "string"
+            },
+            "notice": {
+              "$ref": "#/$defs/PluginNotice"
+            }
+          },
+          "required": [
+            "kind",
+            "notice"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Its status entry; without text it is cleared.",
+          "properties": {
+            "kind": {
+              "const": "status",
+              "type": "string"
+            },
+            "status": {
+              "$ref": "#/$defs/PluginStatus"
+            }
+          },
+          "required": [
+            "kind",
+            "status"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The service is gone; its status entry goes with it.",
+          "properties": {
+            "kind": {
+              "const": "ended",
+              "type": "string"
+            },
+            "plugin": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "plugin"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Its state on the plugin page changed.",
+          "properties": {
+            "kind": {
+              "const": "service",
+              "type": "string"
+            },
+            "plugin": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "plugin"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PluginServiceView": {
+      "additionalProperties": false,
+      "description": "The plugin's background service on the plugin page.",
+      "properties": {
+        "on": {
+          "description": "Its switch on the plugin page.",
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/PluginServiceStatus"
+        }
+      },
+      "required": [
+        "on",
+        "status"
+      ],
+      "type": "object"
+    },
+    "PluginSessionActivity": {
+      "description": "What the conversation is doing now.",
+      "enum": [
+        "idle",
+        "running",
+        "waiting"
+      ],
+      "type": "string"
+    },
+    "PluginSessionContextUse": {
+      "additionalProperties": false,
+      "description": "The newest request's context, as the meter beside the composer shows it.",
+      "properties": {
+        "estimated": {
+          "description": "The figure was estimated before the request went out.",
+          "type": "boolean"
+        },
+        "used_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "window_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "window_tokens",
+        "used_tokens",
+        "estimated"
+      ],
+      "type": "object"
+    },
+    "PluginSessionEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/PluginSessionEventKind"
+        },
+        "sequence": {
+          "description": "Its place in the cursor's order.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sequence",
+        "event"
+      ],
+      "type": "object"
+    },
+    "PluginSessionEventKind": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "turn_started",
+              "type": "string"
+            },
+            "turn_task_id": {
+              "$ref": "#/$defs/TurnTaskId"
+            }
+          },
+          "required": [
+            "kind",
+            "turn_task_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The turn left the conversation. Without `outcome` it was taken off for recovery.",
+          "properties": {
+            "final_reply": {
+              "description": "The turn's final reply, when it completed with one.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "turn_ended",
+              "type": "string"
+            },
+            "outcome": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AgentTurnOutcome"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "description": "Why it failed or needs recovery, as Aura records it.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "turn_task_id": {
+              "$ref": "#/$defs/TurnTaskId"
+            }
+          },
+          "required": [
+            "kind",
+            "turn_task_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "approval_id": {
+              "$ref": "#/$defs/ApprovalRequestId"
+            },
+            "kind": {
+              "const": "approval_waiting",
+              "type": "string"
+            },
+            "turn_task_id": {
+              "$ref": "#/$defs/TurnTaskId"
+            }
+          },
+          "required": [
+            "kind",
+            "turn_task_id",
+            "approval_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A request to the model is about to go out.",
+          "properties": {
+            "kind": {
+              "const": "step_started",
+              "type": "string"
+            },
+            "model_step_id": {
+              "$ref": "#/$defs/ModelStepId"
+            },
+            "turn_task_id": {
+              "$ref": "#/$defs/TurnTaskId"
+            }
+          },
+          "required": [
+            "kind",
+            "turn_task_id",
+            "model_step_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The model answered the request.",
+          "properties": {
+            "kind": {
+              "const": "step_ended",
+              "type": "string"
+            },
+            "model_step_id": {
+              "$ref": "#/$defs/ModelStepId"
+            },
+            "turn_task_id": {
+              "$ref": "#/$defs/TurnTaskId"
+            },
+            "usage": {
+              "$ref": "#/$defs/PluginStepUsage"
+            }
+          },
+          "required": [
+            "kind",
+            "turn_task_id",
+            "model_step_id",
+            "usage"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A tool the answer calls, one event for each, in the answer's order.",
+          "properties": {
+            "kind": {
+              "const": "tool_call",
+              "type": "string"
+            },
+            "model_step_id": {
+              "$ref": "#/$defs/ModelStepId"
+            },
+            "tool": {
+              "description": "The tool's name in Aura (`fs.write`, …).",
+              "type": "string"
+            },
+            "tool_call_id": {
+              "$ref": "#/$defs/ToolCallId"
+            },
+            "turn_task_id": {
+              "$ref": "#/$defs/TurnTaskId"
+            }
+          },
+          "required": [
+            "kind",
+            "turn_task_id",
+            "model_step_id",
+            "tool_call_id",
+            "tool"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "compaction_id": {
+              "$ref": "#/$defs/ContextProjectionSnapshotId"
+            },
+            "kind": {
+              "const": "compaction_started",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "compaction_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Once the model's attempts failed, Aura may still finish the compaction with its own\nsummary: then a `completed` end follows the `failed` one.",
+          "properties": {
+            "compaction_id": {
+              "$ref": "#/$defs/ContextProjectionSnapshotId"
+            },
+            "kind": {
+              "const": "compaction_ended",
+              "type": "string"
+            },
+            "outcome": {
+              "$ref": "#/$defs/PluginCompactionOutcome"
+            }
+          },
+          "required": [
+            "kind",
+            "compaction_id",
+            "outcome"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PluginSessionEvents": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "description": "Pass it as `after` to read on.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/PluginSessionEvent"
+          },
+          "type": "array"
+        },
+        "more": {
+          "description": "There is more after `cursor` already: read again at once.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "events",
+        "cursor",
+        "more"
+      ],
+      "type": "object"
+    },
+    "PluginSessionEventsRequest": {
+      "additionalProperties": false,
+      "description": "What happened after the cursor `after`; needs `session.events`. Without `after`, nothing that\nhappened before now: only the cursor to read from.",
+      "properties": {
+        "after": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "plugin",
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "PluginSessionPanel": {
+      "additionalProperties": false,
+      "description": "What Main needs to show a plugin's panel: its tab's name, where its files are, and what its\npage may reach and ask for. Given only while the plugin and its panel can both be used.",
+      "properties": {
+        "capabilities": {
+          "description": "What the plugin's trusted manifest declares, by capability name.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "entry": {
+          "description": "The page that opens first, relative to the folder and inside `panel/`.",
+          "type": "string"
+        },
+        "folder": {
+          "description": "The plugin's folder. The page is served from its `panel/` folder and nowhere else.",
+          "type": "string"
+        },
+        "network": {
+          "description": "The origins (`https://…`, `wss://…`) the page may connect to.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "folder",
+        "entry",
+        "network",
+        "capabilities"
+      ],
+      "type": "object"
+    },
+    "PluginSessionRequest": {
+      "additionalProperties": false,
+      "description": "One plugin and the conversation it acts in: the conversation's public state needs\n`session.read`, stopping its turn needs `session.control`.",
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "plugin",
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "PluginSessionSendRequest": {
+      "additionalProperties": false,
+      "description": "A message for the user, marked as the plugin's; needs `session.send`. The same `dedupe_key`\nagain is the same message and never a second turn.",
+      "properties": {
+        "dedupe_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "session_id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "PluginSessionSent": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The message, unless this was the same message sent again."
+        },
+        "queued": {
+          "description": "It waits behind the turn under way.",
+          "type": "boolean"
+        },
+        "repeated": {
+          "description": "The same message was sent before; nothing new was queued.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "queued",
+        "repeated"
+      ],
+      "type": "object"
+    },
+    "PluginSessionState": {
+      "additionalProperties": false,
+      "description": "The conversation as a plugin may see it: no credentials, no file contents, no tool results.",
+      "properties": {
+        "activity": {
+          "$ref": "#/$defs/PluginSessionActivity"
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginSessionContextUse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "description": "Where an events read started now begins.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "model_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_profile_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelProfileId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "title": {
+          "type": "string"
+        },
+        "todo": {
+          "description": "The newest turn's to-do list.",
+          "items": {
+            "$ref": "#/$defs/TodoItem"
+          },
+          "type": "array"
+        },
+        "usage": {
+          "$ref": "#/$defs/PluginSessionUsage"
+        },
+        "waiting_for": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentSessionWaitingFor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "session_id",
+        "title",
+        "activity",
+        "usage",
+        "cursor"
+      ],
+      "type": "object"
+    },
+    "PluginSessionStopped": {
+      "additionalProperties": false,
+      "properties": {
+        "stopped": {
+          "description": "A turn was under way and was stopped.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "stopped"
+      ],
+      "type": "object"
+    },
+    "PluginSessionUsage": {
+      "additionalProperties": false,
+      "description": "What the conversation's finished requests sent and received, as their Providers reported.",
+      "properties": {
+        "cached_input_tokens": {
+          "description": "Of the input, what the Providers said they read from their cache.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "input_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "output_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requests": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "requests",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens"
+      ],
+      "type": "object"
+    },
     "PluginSetEnabledRequest": {
       "additionalProperties": false,
       "properties": {
@@ -36057,6 +39818,56 @@
         "name",
         "enabled",
         "expected_revision"
+      ],
+      "type": "object"
+    },
+    "PluginSettingSetRequest": {
+      "additionalProperties": false,
+      "description": "One of the plugin's text settings, set as the plugin page sets it; needs `settings`. An empty\nvalue clears it. A secret setting is set only on the plugin page.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "plugin": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin",
+        "key",
+        "value"
+      ],
+      "type": "object"
+    },
+    "PluginSettingValues": {
+      "additionalProperties": false,
+      "description": "The plugin's text settings that have a value, by key.",
+      "properties": {
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "type": "object"
+    },
+    "PluginSettingsRequest": {
+      "additionalProperties": false,
+      "description": "The values of the plugin's text settings; needs `settings`.",
+      "properties": {
+        "plugin": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plugin"
       ],
       "type": "object"
     },
@@ -36140,6 +39951,197 @@
         }
       ]
     },
+    "PluginStatus": {
+      "additionalProperties": false,
+      "description": "The entry as it is shown; without text there is none.",
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tone": {
+          "$ref": "#/$defs/PluginUiTone"
+        }
+      },
+      "required": [
+        "plugin",
+        "tone"
+      ],
+      "type": "object"
+    },
+    "PluginStatusRequest": {
+      "additionalProperties": false,
+      "description": "The plugin's one entry in the status bar; needs `status`. No text, or a blank one, clears it.",
+      "properties": {
+        "plugin": {
+          "type": "string"
+        },
+        "text": {
+          "description": "One line.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tone": {
+          "$ref": "#/$defs/PluginUiTone",
+          "default": "info"
+        }
+      },
+      "required": [
+        "plugin"
+      ],
+      "type": "object"
+    },
+    "PluginStepUsage": {
+      "additionalProperties": false,
+      "description": "What one request to the model used, as its Provider reported.",
+      "properties": {
+        "cached_input_tokens": {
+          "description": "Of the input, what the Provider said it read from its cache.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "input_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "output_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens"
+      ],
+      "type": "object"
+    },
+    "PluginTheme": {
+      "additionalProperties": false,
+      "description": "A checked theme. Colours are `#rgb`, `#rrggbb` or `#rrggbbaa` in lower case, keyed by\n`THEME_COLORS`; radii are keyed by `THEME_RADII`. What it does not set stays Aura's own.",
+      "properties": {
+        "colors": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "fonts": {
+          "$ref": "#/$defs/PluginThemeFonts"
+        },
+        "radius": {
+          "additionalProperties": {
+            "format": "uint8",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "scheme": {
+          "$ref": "#/$defs/PluginThemeScheme"
+        },
+        "title": {
+          "description": "Its name in Settings.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "scheme",
+        "colors",
+        "fonts",
+        "radius"
+      ],
+      "type": "object"
+    },
+    "PluginThemeFonts": {
+      "additionalProperties": false,
+      "properties": {
+        "mono": {
+          "description": "Code, paths and commands.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "serif": {
+          "description": "Large titles and thinking.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ui": {
+          "description": "The interface and the conversation.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PluginThemeItem": {
+      "additionalProperties": false,
+      "description": "The plugin's `theme.toml`: its title when it can be used, or why it cannot.",
+      "properties": {
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "problems"
+      ],
+      "type": "object"
+    },
+    "PluginThemeRequest": {
+      "additionalProperties": false,
+      "description": "The theme of a ready plugin, for the window to show.",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "PluginThemeScheme": {
+      "oneOf": [
+        {
+          "enum": [
+            "dark"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "light",
+          "description": "Light controls and scroll bars.",
+          "type": "string"
+        }
+      ]
+    },
     "PluginToolSourceAuthorityRefV1": {
       "additionalProperties": false,
       "properties": {
@@ -36187,6 +40189,47 @@
       ],
       "type": "object"
     },
+    "PluginUiTone": {
+      "description": "How a plugin's notice or status entry reads.",
+      "enum": [
+        "info",
+        "success",
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    },
+    "PluginUnknownUser": {
+      "additionalProperties": false,
+      "description": "Someone one of the plugin's channels heard from lately who is not on its allowlist. Nothing\nthey sent reached Aura.",
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/UtcTimestamp",
+          "description": "When they last wrote."
+        },
+        "channel": {
+          "type": "string"
+        },
+        "chat": {
+          "$ref": "#/$defs/PluginChatKind"
+        },
+        "id": {
+          "description": "The platform's own id of the person.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name the platform gave them; may be empty.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel",
+        "id",
+        "chat",
+        "at"
+      ],
+      "type": "object"
+    },
     "PluginView": {
       "additionalProperties": false,
       "properties": {
@@ -36205,6 +40248,13 @@
           "$ref": "#/$defs/PluginCounts"
         },
         "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "development": {
+          "description": "A plugin in development: used from this folder where it is written, never copied.",
           "type": [
             "string",
             "null"
@@ -36246,6 +40296,20 @@
         "name": {
           "type": "string"
         },
+        "options": {
+          "description": "Its own settings, with their values.",
+          "items": {
+            "$ref": "#/$defs/PluginOptionValue"
+          },
+          "type": "array"
+        },
+        "panel": {
+          "description": "The title of the panel it shows in the right sidebar, when its panel can be used.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "path": {
           "description": "The installed copy, in Aura's plugin folder.",
           "type": "string"
@@ -36266,8 +40330,37 @@
           },
           "type": "array"
         },
+        "remote": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginRemoteView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What its background service may reach, when it declares one."
+        },
+        "service": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginServiceView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Its background service, when it declares one."
+        },
         "state": {
           "$ref": "#/$defs/PluginState"
+        },
+        "theme": {
+          "description": "The title of its theme, when its theme can be used.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "trusted_fingerprint": {
           "type": [
@@ -43167,11 +47260,16 @@
       "type": "string"
     },
     "ProviderCatalogConnectionDefaultsView": {
-      "description": "Renderer-safe initial values for a catalog Provider connection form.\n\nAura presets are compiled into the signed application and may define the\ncomplete execution contract. A models.dev API suggestion is intentionally\nlimited to an HTTPS Base URL and must never be treated as trusted execution\nconfiguration.",
+      "description": "Renderer-safe initial values for a catalog Provider connection form.\n\nAura presets are compiled into the signed application and may define the\ncomplete execution contract. A models.dev API suggestion is limited to an\nHTTPS Base URL and the protocol the catalog's package speaks: a draft the\nuser saves, never trusted execution configuration.",
       "oneOf": [
         {
           "additionalProperties": false,
           "properties": {
+            "by_model": {
+              "default": false,
+              "description": "Each model goes by its own variant, so the Provider is reached through one\nconnection of each.",
+              "type": "boolean"
+            },
             "source": {
               "const": "aura_preset",
               "type": "string"
@@ -43195,6 +47293,17 @@
             "base_url": {
               "type": "string"
             },
+            "protocol": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModelsDevProtocolSuggestion"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where the catalog's package for the Provider speaks a protocol Aura speaks."
+            },
             "source": {
               "const": "models_dev_api_suggestion",
               "type": "string"
@@ -43207,6 +47316,22 @@
           "type": "object"
         }
       ]
+    },
+    "ProviderCatalogMatchCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog_model_id": {
+          "type": "string"
+        },
+        "catalog_provider_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalog_provider_id",
+        "catalog_model_id"
+      ],
+      "type": "object"
     },
     "ProviderCatalogModelCapabilities": {
       "additionalProperties": false,
@@ -43308,6 +47433,20 @@
             "null"
           ]
         },
+        "model_type": {
+          "description": "models.dev's `type`: `chat`, `image`, `embedding`, `video`, `speech`, `transcription`,\n`reranking`, `realtime`. A model without one is a chat model.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "modes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProviderCatalogModelMode"
+          },
+          "description": "Modes the model can be asked for, such as `fast` or `flex`, by name.",
+          "type": "object"
+        },
         "open_weights": {
           "type": [
             "boolean",
@@ -43339,6 +47478,20 @@
             }
           ]
         },
+        "price_tiers": {
+          "description": "Prices from a context length on, by ascending length; `price` applies below the first.",
+          "items": {
+            "$ref": "#/$defs/ProviderCatalogPriceTier"
+          },
+          "type": "array"
+        },
+        "reasoning_field": {
+          "description": "The message field that carries the model's reasoning in Chat Completions.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "reasoning_options": {
           "items": {
             "type": "string"
@@ -43351,6 +47504,17 @@
             "string",
             "null"
           ]
+        },
+        "route": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderCatalogModelRoute"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where the model is served when it is not where its provider's other models are."
         },
         "status": {
           "type": [
@@ -43368,6 +47532,35 @@
         "capabilities",
         "reasoning_options"
       ],
+      "type": "object"
+    },
+    "ProviderCatalogModelMode": {
+      "additionalProperties": false,
+      "description": "One mode of a model and what asking for it changes. Only request body fields and headers on\nAura's list are kept, each with a string value; a mode that needs anything else is left out.",
+      "properties": {
+        "body": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderCatalogPrice"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
       "type": "object"
     },
     "ProviderCatalogModelPage": {
@@ -43403,6 +47596,83 @@
       ],
       "type": "object"
     },
+    "ProviderCatalogModelRoute": {
+      "additionalProperties": false,
+      "description": "A model's own route, as models.dev gives it: untrusted, a suggestion only.",
+      "properties": {
+        "api_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "npm_package": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shape": {
+          "description": "`responses` or `completions` within an OpenAI-style package.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ProviderCatalogModelRouteView": {
+      "description": "Which of its Provider's preset variants a catalog model goes by.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Any connection of the Provider takes it.",
+          "properties": {
+            "type": {
+              "const": "any",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Only a connection of this variant takes it.",
+          "properties": {
+            "type": {
+              "const": "variant",
+              "type": "string"
+            },
+            "variant_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "variant_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "No variant takes it: the catalog serves it by a protocol Aura does not speak, or at an\naddress the Provider's profile does not have.",
+          "properties": {
+            "type": {
+              "const": "unsupported",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "ProviderCatalogModelView": {
       "additionalProperties": false,
       "description": "Renderer-safe catalog item paired with the immutable object hash required\nby catalog-backed Profile create/update CAS commands.",
@@ -43412,6 +47682,12 @@
         },
         "model": {
           "$ref": "#/$defs/ProviderCatalogModelEntry"
+        },
+        "route": {
+          "$ref": "#/$defs/ProviderCatalogModelRouteView",
+          "default": {
+            "type": "any"
+          }
         }
       },
       "required": [
@@ -43473,6 +47749,25 @@
       "required": [
         "currency",
         "unit"
+      ],
+      "type": "object"
+    },
+    "ProviderCatalogPriceTier": {
+      "additionalProperties": false,
+      "properties": {
+        "from_context_tokens": {
+          "description": "The context length, in tokens, from which the price applies.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "price": {
+          "$ref": "#/$defs/ProviderCatalogPrice"
+        }
+      },
+      "required": [
+        "from_context_tokens",
+        "price"
       ],
       "type": "object"
     },
@@ -43913,6 +48208,47 @@
     "ProviderId": {
       "type": "string"
     },
+    "ProviderPresetParameterKind": {
+      "description": "Where a parameter stands in a base URL, and so what it may hold: never enough to move a\nrequest, or the key it carries, to another host or path.",
+      "oneOf": [
+        {
+          "const": "domain_label",
+          "description": "One whole label of the host: lower-case letters, digits and inner hyphens, at most 63.",
+          "type": "string"
+        },
+        {
+          "const": "path_segment",
+          "description": "One whole segment of the path: letters, digits and `-`, `.`, `_`, `~`, at most 128, and\nneither `.` nor `..`.",
+          "type": "string"
+        }
+      ]
+    },
+    "ProviderPresetParameterView": {
+      "additionalProperties": false,
+      "description": "A non-secret value of the user's own in a preset's base URL.",
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "example": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProviderPresetParameterKind"
+        },
+        "name": {
+          "description": "As it stands in the base URL, between braces.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "display_name",
+        "kind",
+        "example"
+      ],
+      "type": "object"
+    },
     "ProviderPresetVariantView": {
       "additionalProperties": false,
       "properties": {
@@ -43923,7 +48259,16 @@
           "$ref": "#/$defs/EndpointAuthScheme"
         },
         "base_url": {
+          "description": "With a `{name}` in place of each of `base_url_parameters`.",
           "type": "string"
+        },
+        "base_url_parameters": {
+          "default": [],
+          "description": "The values of the user's own the base URL takes, such as an account or a region.",
+          "items": {
+            "$ref": "#/$defs/ProviderPresetParameterView"
+          },
+          "type": "array"
         },
         "chat_instruction_role": {
           "anyOf": [
@@ -45772,6 +50117,35 @@
       ],
       "type": "object"
     },
+    "Rect": {
+      "additionalProperties": false,
+      "description": "A rectangle in physical pixels of the virtual screen (every monitor together).",
+      "properties": {
+        "height": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "width": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "x": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "y": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
     "RedirectPolicy": {
       "oneOf": [
         {
@@ -46081,6 +50455,21 @@
           "const": "external_extension_call",
           "description": "A call to a trusted external extension. Aura does not\ninfer what it does: ReadOnly asks per server per turn, the other modes do not ask.",
           "type": "string"
+        },
+        {
+          "const": "plugin_development_install",
+          "description": "Adds a workspace folder to Aura's plugin list as a plugin in development. Nothing it\nbrings is offered until the user trusts it on the plugin page, so the modes that may\nchange things allow it without asking; ReadOnly refuses it.",
+          "type": "string"
+        },
+        {
+          "const": "desktop_read",
+          "description": "Reading a program's windows on the user's desktop: its elements and screenshots of it.",
+          "type": "string"
+        },
+        {
+          "const": "desktop_input",
+          "description": "Acting on that program: on its elements, with the pointer and keyboard, on its windows,\nand opening it.",
+          "type": "string"
         }
       ]
     },
@@ -46127,6 +50516,17 @@
             }
           ],
           "description": "The thinking level sent with the request, when the profile names one the model\noffers."
+        },
+        "speed_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelSpeedMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The speed mode the request is sent with: the one its turn chose, when the model's settings\nallow speed modes and its catalog entry offers that one."
         },
         "temperature": {
           "format": "double",
@@ -47536,6 +51936,28 @@
             "scope_kind",
             "origin",
             "confirmed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A program on the user's desktop, by its catalog ID. `authorized` is true while the\nsession may use it without asking.",
+          "properties": {
+            "app_id": {
+              "type": "string"
+            },
+            "authorized": {
+              "type": "boolean"
+            },
+            "scope_kind": {
+              "const": "desktop_app",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "app_id",
+            "authorized"
           ],
           "type": "object"
         }
@@ -50331,6 +54753,13 @@
             "$ref": "#/$defs/ReasoningEffort"
           },
           "type": "array"
+        },
+        "speed_modes": {
+          "description": "The speed modes a conversation can choose for the model's turns, by name; empty until its\nsettings allow them, or when its catalog entry offers none.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -51189,6 +55618,19 @@
             "null"
           ]
         },
+        "pinned_limit": {
+          "default": 0,
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pinned_tokens": {
+          "default": 0,
+          "description": "About how many tokens the pinned Skills sent now take together, and the most they may.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "revision": {
           "format": "uint64",
           "minimum": 0,
@@ -51205,6 +55647,11 @@
             "$ref": "#/$defs/SkillView"
           },
           "type": "array"
+        },
+        "workspace_trusted": {
+          "default": false,
+          "description": "Whether the user trusted the listed workspace's Skills; false when no workspace is listed.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -51324,6 +55771,40 @@
       ],
       "type": "object"
     },
+    "SkillSetPinnedRequest": {
+      "additionalProperties": false,
+      "description": "Pin a usable Skill into every request, within the shared limit, or unpin it.",
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "$ref": "#/$defs/SkillInstanceId"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "workspace_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "pinned",
+        "expected_revision"
+      ],
+      "type": "object"
+    },
     "SkillSetting": {
       "additionalProperties": false,
       "description": "The saved choices for one Skill in `skills.json`. Nothing else about a Skill is stored.",
@@ -51381,6 +55862,11 @@
           "type": "string"
         },
         {
+          "const": "aura_builtin",
+          "description": "Comes with Aura: written from Aura's own copy into a folder of Aura's at each start.",
+          "type": "string"
+        },
+        {
           "const": "agent_global",
           "description": "`%USERPROFILE%\\.agents\\skills`, shared with other agents.",
           "type": "string"
@@ -51394,6 +55880,16 @@
           "const": "plugin",
           "description": "In an installed plugin; trusted and switched with the plugin.",
           "type": "string"
+        },
+        {
+          "const": "claude_global",
+          "description": "`%USERPROFILE%\\.claude\\skills`, shared with Claude Code.",
+          "type": "string"
+        },
+        {
+          "const": "claude_workspace",
+          "description": "`<workspace>\\.claude\\skills`.",
+          "type": "string"
         }
       ]
     },
@@ -51402,19 +55898,23 @@
       "oneOf": [
         {
           "enum": [
-            "not_trusted",
             "ready"
           ],
           "type": "string"
         },
         {
           "const": "disabled",
-          "description": "Switched off. A Skill found outside Aura is off until the user switches it on.",
+          "description": "Switched off by the user.",
+          "type": "string"
+        },
+        {
+          "const": "not_trusted",
+          "description": "A workspace's Skill before the user trusts that workspace's Skills.",
           "type": "string"
         },
         {
           "const": "content_changed",
-          "description": "The content changed since the user trusted it; it is not offered until trusted again.",
+          "description": "Trusted alone at a fingerprint, in a workspace not trusted as a whole, and changed since;\nit is not offered until trusted again.",
           "type": "string"
         },
         {
@@ -51530,6 +56030,23 @@
           "description": "The folder on this computer.",
           "type": "string"
         },
+        "pin_tokens": {
+          "default": 0,
+          "description": "About how many tokens it takes pinned; 0 unless it is pinned and usable.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pinned": {
+          "default": false,
+          "description": "Pinned by the user: its instructions go whole into every request where it is usable.",
+          "type": "boolean"
+        },
+        "pinned_left_out": {
+          "default": false,
+          "description": "Pinned and usable, but past the limit beside the pinned Skills before it in name order, so\nit is not sent now.",
+          "type": "boolean"
+        },
         "plugin": {
           "default": null,
           "description": "The plugin that brings it, for a plugin's Skill.",
@@ -51589,6 +56106,25 @@
         "problems",
         "file_count",
         "bytes"
+      ],
+      "type": "object"
+    },
+    "SkillWorkspaceTrustRequest": {
+      "additionalProperties": false,
+      "description": "Trust, or stop trusting, every Skill in one workspace's `.agents\\skills` and `.claude\\skills`.",
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "expected_revision"
       ],
       "type": "object"
     },
@@ -62854,6 +67390,12 @@
       ],
       "type": "string"
     },
+    "TurnSpeedMode": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._-]{1,64}$",
+      "type": "string"
+    },
     "TurnTask": {
       "additionalProperties": false,
       "properties": {
@@ -63040,8 +67582,18 @@
     "UiSettings": {
       "additionalProperties": false,
       "properties": {
+        "background_motion": {
+          "$ref": "#/$defs/BackgroundMotion"
+        },
         "default_terminal": {
           "$ref": "#/$defs/DefaultTerminal"
+        },
+        "plugin_theme": {
+          "description": "The plugin whose theme the window uses; none is Aura's own.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "show_debug_information": {
           "description": "The session's runtime readiness and tool execution record, for debugging (default off).",
@@ -64009,6 +68561,86 @@
           "type": "object"
         }
       ]
+    },
+    "WindowAction": {
+      "description": "What `computer.window` does to a window, as its title bar would.",
+      "oneOf": [
+        {
+          "enum": [
+            "minimize"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "front",
+          "description": "Brings it to the front, restoring it when it is minimized.",
+          "type": "string"
+        },
+        {
+          "const": "maximize",
+          "description": "Fills the screen; it comes to the front.",
+          "type": "string"
+        },
+        {
+          "const": "restore",
+          "description": "Back to its normal size, neither minimized nor maximized, without coming to the front.",
+          "type": "string"
+        },
+        {
+          "const": "close",
+          "description": "Asks it to close, as its close button does: the program may ask whether to save first.",
+          "type": "string"
+        }
+      ]
+    },
+    "WindowInfo": {
+      "additionalProperties": false,
+      "description": "A top-level window on the desktop.",
+      "properties": {
+        "app_id": {
+          "description": "The program in the catalog it belongs to, when one matches.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "foreground": {
+          "description": "The window the user's input goes to now.",
+          "type": "boolean"
+        },
+        "minimized": {
+          "type": "boolean"
+        },
+        "process_id": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "process_name": {
+          "description": "The program file's name, such as notepad.exe.",
+          "type": "string"
+        },
+        "rect": {
+          "$ref": "#/$defs/Rect"
+        },
+        "title": {
+          "type": "string"
+        },
+        "window": {
+          "description": "The window's ref for the other tools, such as w1312; it stays while the window exists.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "window",
+        "title",
+        "process_id",
+        "process_name",
+        "rect",
+        "minimized",
+        "foreground"
+      ],
+      "type": "object"
     },
     "WindowsOsString": {
       "additionalProperties": false,

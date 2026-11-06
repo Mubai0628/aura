@@ -9,7 +9,7 @@
 .agent-reply-action {
   width: 26px;
   height: 26px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
 }
 .agent-reply-action:hover,
@@ -98,10 +98,10 @@
   z-index: 60;
   padding: 4px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 6px 16px rgba(37, 43, 39, 0.12);
+  box-shadow: var(--shadow-sm);
   font-size: 12px;
   white-space: nowrap;
   pointer-events: none;

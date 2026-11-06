@@ -67,6 +67,7 @@ async fn an_authorized_external_directory_is_searched_through_the_model_loop() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("Find the file AURA_EXTERNAL_PATH={} and report it.", external.display()),
@@ -75,7 +76,9 @@ async fn an_authorized_external_directory_is_searched_through_the_model_loop() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -126,6 +129,7 @@ async fn an_ordinary_external_directory_is_searched_without_a_grant() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("Find the file AURA_EXTERNAL_PATH={} and report it.", external.display()),
@@ -134,7 +138,9 @@ async fn an_ordinary_external_directory_is_searched_without_a_grant() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -216,6 +222,7 @@ async fn a_recursive_external_lookup_cannot_widen_a_non_recursive_grant() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("Find the file AURA_EXTERNAL_PATH={} and report it.", external.display()),
@@ -224,7 +231,9 @@ async fn a_recursive_external_lookup_cannot_widen_a_non_recursive_grant() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

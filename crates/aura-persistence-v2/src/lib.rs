@@ -3,6 +3,7 @@
 pub mod agent;
 pub mod chrome_sites;
 pub mod context;
+pub mod desktop_apps;
 pub mod execution;
 pub mod file_consents;
 pub mod hooks;

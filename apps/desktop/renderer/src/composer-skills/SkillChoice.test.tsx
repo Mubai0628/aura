@@ -63,10 +63,10 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-function renderComposer(active = false) {
+function renderComposer(active = false, sessionId = 'session') {
   render(
     <ResizableComposer
-      sessionId="session"
+      sessionId={sessionId}
       activeTurn={active ? 'turn' : undefined}
       activeRunId={active ? 'run' : undefined}
       workspaceId="workspace"
@@ -120,6 +120,30 @@ test('a trusted Skill is chosen from + and sent with the message that starts the
   await vi.waitFor(() =>
     expect(screen.queryByRole('group', { name: '本轮使用的 Skill' })).toBeNull(),
   );
+});
+
+test('a chosen Skill is still chosen after leaving the conversation and coming back, and only there', async () => {
+  const user = userEvent.setup();
+  const chosen = () => screen.queryByRole('group', { name: '本轮使用的 Skill' });
+  renderComposer();
+  await choose(user, 'notes');
+  expect(chosen()?.textContent).toContain('Skill：notes');
+  // The settings page in between unmounts the conversation; another one has its own choice.
+  cleanup();
+  renderComposer(false, 'other');
+  expect(chosen()).toBeNull();
+  cleanup();
+  const box = renderComposer();
+  expect(chosen()?.textContent).toContain('Skill：notes');
+  // Once sent it is gone, also after coming back.
+  await user.type(box, '按笔记格式回答{Enter}');
+  await vi.waitFor(() =>
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ skill_ids: ['skl_notes'] })),
+  );
+  await vi.waitFor(() => expect(chosen()).toBeNull());
+  cleanup();
+  renderComposer();
+  expect(chosen()).toBeNull();
 });
 
 // While a task runs, a message waits in the queue; a chosen Skill goes with it and is used

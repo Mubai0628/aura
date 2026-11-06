@@ -97,9 +97,10 @@ pub(crate) async fn dispatch_model(
         operation,
         request.command_invocation_id.map_or_else(|| request.id.to_string(), |id| id.to_string()),
         request.command_invocation_id,
+        super::OnChangedFacts::Retry,
         inspect,
         evidence,
-        move || async move {
+        move |_| async move {
             handler_p05
                 .dispatch_main_command(
                     &handler_request.method,

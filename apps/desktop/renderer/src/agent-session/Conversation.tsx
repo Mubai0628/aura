@@ -1,4 +1,5 @@
 import { ChosenSkillsLine } from '../composer-skills/SkillChoice';
+import { MessageReferencesLine } from '../composer-references/MessageReferences';
 import { MessageAttachments } from '../composer-attachments/MessageAttachments';
 import { userMessage } from './user-message';
 import { agentDiagnosticIdentity } from './diagnostic-identity';
@@ -17,6 +18,7 @@ import { BranchCopying } from './BranchCopying';
 import { BranchOrigin } from './BranchOrigin';
 import { HistorySentinel } from './HistorySentinel';
 import { HookTurnSummary } from './HookTurnSummary';
+import { MessageSenderLine } from './MessageSenderLine';
 import { MessageText } from './MessageText';
 import { PlanCard } from './PlanCard';
 import { ReplyActions, UserCopy } from './ReplyActions';
@@ -32,6 +34,7 @@ import { AppIcon } from '../app-icons';
 import { AutoContinuedNote, ContinueButton } from './TurnContinuation';
 import { continuable } from './turn-continuation';
 import { terminalTurn } from './turn-state';
+import { QuoteReply } from './quote-reply/QuoteReply';
 
 const uncertainRelated = new Set<string>();
 export function Conversation({
@@ -66,6 +69,7 @@ export function Conversation({
   onOpenSession?: ((sessionId: string) => boolean) | undefined;
 }) {
   const [branchTurn, setBranchTurn] = useState<string>();
+  const messagesRef = useRef<HTMLDivElement>(null);
   // A message just sent shows here until the projection has it.
   const shownSession = sessionId ?? projection?.session_id;
   const sending = useSending(shownSession);
@@ -125,6 +129,7 @@ export function Conversation({
       className="agent-conversation"
       aria-label="会话消息"
       data-session-id={projection?.session_id}
+      ref={messagesRef}
     >
       {loading && !sending ? <p role="status">正在加载会话…</p> : null}
       {error ? <p role="alert">{userMessage(error)}</p> : null}
@@ -178,6 +183,14 @@ export function Conversation({
             onBranched(made);
           }}
           onClose={() => setBranchTurn(undefined)}
+        />
+      ) : null}
+      {shownSession ? (
+        <QuoteReply
+          key={shownSession}
+          rootRef={messagesRef}
+          sessionId={shownSession}
+          viewportRef={viewportRef}
         />
       ) : null}
       {/* No height of its own, and always there: offering the way back never changes how tall
@@ -300,7 +313,8 @@ function Turn({
       {item.auto_continued ? <AutoContinuedNote view={item.auto_continued} /> : null}
       {rootMessage ? (
         <article className="agent-user-message">
-          {rootMessage.total_bytes > 0 || !rootMessage.attachments?.length ? (
+          {rootMessage.total_bytes > 0 ||
+          (!rootMessage.attachments?.length && !rootMessage.references?.length) ? (
             <MessageText
               sessionId={item.turn.session_id}
               source={{ kind: 'user', event_id: rootMessage.event_id }}
@@ -314,9 +328,13 @@ function Turn({
             sessionId={item.turn.session_id}
             attachments={rootMessage.attachments ?? []}
           />
+          <MessageReferencesLine
+            references={item.user_messages.flatMap((message) => message.references ?? [])}
+          />
           <ChosenSkillsLine
             skills={item.user_messages.flatMap((message) => message.skills ?? [])}
           />
+          <MessageSenderLine sender={rootMessage.sender} />
           <UserCopy
             sessionId={item.turn.session_id}
             eventId={rootMessage.event_id}

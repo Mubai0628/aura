@@ -3,7 +3,7 @@
   display: grid;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   place-items: center;
   color: var(--accent-strong);
   background: var(--accent-soft);
@@ -39,6 +39,16 @@
 
 .hook-remove {
   margin-left: auto;
+}
+
+.hook-details {
+  display: grid;
+  gap: 10px;
+}
+
+.hook-details > p,
+.hook-details > .settings-card-actions {
+  margin: 0;
 }
 
 .settings-card > .settings-panel,

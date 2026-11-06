@@ -476,13 +476,15 @@ impl AgentApplication {
     ///
     /// It takes the connection rather than the database handle so its only caller can run
     /// it inside one admitted read (`AgentStore::read` hands out a `&Connection`), instead of the
-    /// caller taking `journal.lock()` itself on an async task.
+    /// caller taking `journal.lock()` itself on an async task. `computer` says whether the computer
+    /// tools are offered to the run's model.
     pub fn prepare_registry(
         &self,
         db: &aura_persistence_core::Connection,
         turn: &TurnTask,
         permission: &aura_security_contract::PermissionSnapshot,
         at: UtcTimestamp,
+        computer: bool,
     ) -> anyhow::Result<(
         ToolRegistrySnapshotV1,
         Vec<ToolEphemeralLoadRecordV1>,
@@ -516,6 +518,21 @@ impl AgentApplication {
             fixed.sort();
             fixed.dedup();
         }
+        // The computer tools stay in every step while computer control is on and the run's model
+        // may use it.
+        let computer_tool = |name: &str| name.starts_with("computer.");
+        if computer {
+            fixed.extend(
+                release
+                    .manifest()
+                    .entries
+                    .iter()
+                    .filter(|entry| computer_tool(entry.handler.name()))
+                    .map(|entry| entry.definition.tool_id),
+            );
+            fixed.sort();
+            fixed.dedup();
+        }
         let mode_hash = agent_execution::registry_mode_hash(permission)?;
         let authority = self.execution.persistence.tool_authority_snapshot(
             Some(turn.workspace_id),
@@ -535,12 +552,13 @@ impl AgentApplication {
         }
         let git_available = git::runtime::available();
         git::runtime::constrain_candidates(&mut candidates, git_available);
-        if !chrome_connected {
-            for candidate in &mut candidates {
-                if candidate.definition.canonical_name.as_str().starts_with("chrome.") {
-                    candidate.instance.runtime_health =
-                        aura_tool_domain::ToolRuntimeHealthV1::Unavailable;
-                }
+        for candidate in &mut candidates {
+            let name = candidate.definition.canonical_name.as_str();
+            if (!chrome_connected && name.starts_with("chrome."))
+                || (!computer && computer_tool(name))
+            {
+                candidate.instance.runtime_health =
+                    aura_tool_domain::ToolRuntimeHealthV1::Unavailable;
             }
         }
         // Installed, trusted, enabled package tools. Like every non-built-in tool

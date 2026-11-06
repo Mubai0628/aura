@@ -18,6 +18,9 @@ vi.mock('../terminal/xterm-runtime', () => ({
   disposeTerminalEngine: vi.fn(),
 }));
 vi.mock('../review/ReviewPanel', () => ({ ReviewPanel: () => <p>审查内容</p> }));
+vi.mock('../plugin-panels/PluginPanel', () => ({
+  PluginPanel: ({ plugin }: { plugin: string }) => <p>面板 {plugin}</p>,
+}));
 vi.mock('../terminal/ProcessPanel', () => ({
   ProcessPanel: ({ onViewTerminal }: { onViewTerminal: (id: string) => void }) => (
     <button type="button" onClick={() => onViewTerminal('trm_model')}>
@@ -42,6 +45,8 @@ const view = (terminal_id: string, owner: 'user' | 'agent', title: string): Term
   }) as TerminalViewV1;
 
 let opened = 0;
+const listPlugins = vi.fn();
+const panelCommand = vi.fn();
 const api = {
   list: vi.fn(),
   beginOpen: vi.fn(),
@@ -80,9 +85,15 @@ beforeEach(() => {
     },
   });
   api.close.mockReset().mockResolvedValue({ ok: true, value: {} });
+  listPlugins
+    .mockReset()
+    .mockResolvedValue({ ok: true, value: { library: '', plugins: [], revision: 1 } });
+  panelCommand.mockReset().mockResolvedValue({ ok: true });
   vi.stubGlobal('aura', {
     v1: {
       terminal: api,
+      listPlugins,
+      pluginPanels: { command: panelCommand, onState: vi.fn(() => () => {}) },
       onCoreHealth: vi.fn(() => () => {}),
       getUiSettings: vi.fn().mockResolvedValue({
         ok: true,
@@ -126,7 +137,7 @@ test('审查 opens once and leaves "+"; each 终端 is a new tab', async () => {
   renderSidebar();
   await user.click(screen.getByRole('button', { name: '打开工具' }));
   // 提示词监测 opens from the context meter, `/context` and a step, not "+".
-  expect(menuItems()).toEqual(['审查', '终端', '进程', '浏览器', '文件', '侧边对话']);
+  expect(menuItems()).toEqual(['审查', '终端', '进程', '浏览器', '文件']);
   await user.click(screen.getByRole('menuitem', { name: /审查/u }));
   expect(await screen.findByText('审查内容')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '打开工具' }));
@@ -198,4 +209,59 @@ test('closing the other tabs, terminals you opened among them, asks first', asyn
   await user.click(within(dialog).getByRole('button', { name: '关闭并结束终端' }));
   await vi.waitFor(() => expect(api.close).toHaveBeenCalledTimes(2));
   expect(tabs()).toEqual(['审查']);
+});
+
+const plugin = (name: string, state: string, panel?: string) => ({ name, state, panel });
+
+// "+" offers the panels of ready plugins after the tools, each by its title; a panel opens once in
+// a conversation and closes with its tab. A plugin not ready, or without a usable panel, is not
+// offered.
+test('"+" offers the panels of ready plugins; each opens once and closes with its tab', async () => {
+  listPlugins.mockResolvedValue({
+    ok: true,
+    value: {
+      library: '',
+      revision: 2,
+      plugins: [
+        plugin('usage-panel', 'ready', '本会话用量'),
+        plugin('no-panel', 'ready'),
+        plugin('untrusted-panel', 'not_trusted', '未信任'),
+      ],
+    },
+  });
+  const user = userEvent.setup();
+  renderSidebar();
+  await user.click(screen.getByRole('button', { name: '打开工具' }));
+  await vi.waitFor(() => expect(menuItems()).toContain('本会话用量'));
+  expect(menuItems()).toEqual(['审查', '终端', '进程', '浏览器', '文件', '本会话用量']);
+  expect(
+    within(screen.getByRole('menu', { name: '选择工具' })).getByRole('separator'),
+  ).toBeTruthy();
+  await user.click(screen.getByRole('menuitem', { name: '本会话用量' }));
+  expect(await screen.findByText('面板 usage-panel')).toBeTruthy();
+  expect(tabs()).toEqual(['本会话用量']);
+
+  await user.click(screen.getByRole('button', { name: '打开工具' }));
+  await vi.waitFor(() => expect(listPlugins).toHaveBeenCalledTimes(2));
+  expect(menuItems()).not.toContain('本会话用量');
+  await user.keyboard('{Escape}');
+
+  await user.click(screen.getByRole('button', { name: '关闭本会话用量' }));
+  expect(panelCommand).toHaveBeenCalledWith({
+    kind: 'close',
+    sessionId: session,
+    plugin: 'usage-panel',
+  });
+  expect(screen.queryByRole('tab', { name: /本会话用量/u })).toBeNull();
+});
+
+test('the empty sidebar offers the ready panels too', async () => {
+  listPlugins.mockResolvedValue({
+    ok: true,
+    value: { library: '', revision: 2, plugins: [plugin('usage-panel', 'ready', '本会话用量')] },
+  });
+  const user = userEvent.setup();
+  renderSidebar();
+  await user.click(await screen.findByRole('button', { name: /本会话用量/u }));
+  expect(await screen.findByText('面板 usage-panel')).toBeTruthy();
 });

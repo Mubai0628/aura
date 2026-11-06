@@ -31,6 +31,21 @@ pub fn create_secure_byte_pipe_server(
     unsafe { options.create_with_security_attributes_raw(pipe_name, security.attributes_ptr()) }
 }
 
+/// One local-only byte-mode pipe for the user's processes in any of their logon sessions, such as
+/// their child session, and LOCAL_SYSTEM. Which process connected is the caller's check.
+pub fn create_user_byte_pipe_server(pipe_name: &str) -> io::Result<NamedPipeServer> {
+    let mut security = ObjectSecurityDescriptor::for_current_user()?;
+    let mut options = ServerOptions::new();
+    options
+        .pipe_mode(PipeMode::Byte)
+        .first_pipe_instance(true)
+        .max_instances(1)
+        .reject_remote_clients(true);
+    // SAFETY: as in `create_secure_byte_pipe_server`: Windows copies the retained descriptor into
+    // the new kernel object before this call returns.
+    unsafe { options.create_with_security_attributes_raw(pipe_name, security.attributes_ptr()) }
+}
+
 /// Dedicated Runner endpoint, separate from Main/Core and Secret channels.
 /// Only the exact launched process is accepted after connection; this ACL is
 /// necessary for cross-account access but is not the authentication decision.
@@ -83,9 +98,41 @@ pub fn open_secure_byte_pipe_client(pipe_name: &str) -> io::Result<NamedPipeClie
 
 #[cfg(test)]
 mod tests {
+    use std::os::windows::io::AsRawHandle as _;
+
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
-    use super::{create_secure_byte_pipe_server, open_secure_byte_pipe_client};
+    use super::{
+        create_secure_byte_pipe_server, create_user_byte_pipe_server, open_secure_byte_pipe_client,
+    };
+    use crate::security::{
+        current_logon_sid_string, current_user_sid_string, kernel_object_dacl_sddl,
+    };
+
+    #[tokio::test]
+    async fn the_user_pipe_admits_the_user_in_any_logon_and_has_one_instance() {
+        let mut random = [0_u8; 8];
+        getrandom::fill(&mut random).expect("random pipe suffix");
+        let suffix = u64::from_le_bytes(random);
+        let pipe_name = format!(r"\\.\pipe\aura-child-dacl-{}-{suffix:016x}", std::process::id());
+        let mut server = create_user_byte_pipe_server(&pipe_name).expect("user pipe server");
+
+        let dacl = kernel_object_dacl_sddl(server.as_raw_handle().cast()).expect("pipe DACL");
+        let user = current_user_sid_string().expect("user SID");
+        let logon = current_logon_sid_string().expect("logon SID");
+        assert!(dacl.contains(&format!(";;;{user})")), "{dacl}");
+        assert!(!dacl.contains(&logon), "{dacl}");
+        assert!(dacl.contains(";;;SY)"), "{dacl}");
+        assert!(!dacl.contains(";;;WD)") && !dacl.contains(";;;AU)"), "{dacl}");
+        assert!(create_user_byte_pipe_server(&pipe_name).is_err(), "a second instance");
+
+        let mut client = open_secure_byte_pipe_client(&pipe_name).expect("client open");
+        server.connect().await.expect("server connect");
+        client.write_all(b"ping").await.expect("client write");
+        let mut request = [0_u8; 4];
+        server.read_exact(&mut request).await.expect("server read");
+        assert_eq!(&request, b"ping");
+    }
 
     #[tokio::test]
     async fn minimal_access_client_roundtrips_through_real_dacl() {

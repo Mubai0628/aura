@@ -1551,6 +1551,17 @@
     "test_only": false
   },
   {
+    "method": "models.credential_cleanup.retry",
+    "owner": "model",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ModelCredentialCleanupRetryRequest",
+    "response_type": "ModelCredentialCleanupRetryResult",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "models.context_window.clear_user_override",
     "owner": "model",
     "surface": "main",
@@ -1723,6 +1734,17 @@
     "request_type": "ModelProfileApplyCatalogUpdateRequest",
     "response_type": "ModelProfileMutationResult",
     "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "models.profile.catalog_entries",
+    "owner": "model",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ModelProfileCatalogEntriesRequest",
+    "response_type": "ModelProfileCatalogEntriesView",
+    "idempotency": "read_only",
     "cancellation": "none",
     "test_only": false
   },
@@ -1936,6 +1958,17 @@
     "test_only": false
   },
   {
+    "method": "models.credential_cleanup.retry",
+    "owner": "model",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ModelCredentialCleanupRetryRequest",
+    "response_type": "ModelCredentialCleanupRetryResult",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "models.context_window.clear_user_override",
     "owner": "model",
     "surface": "core",
@@ -2108,6 +2141,17 @@
     "request_type": "ModelProfileApplyCatalogUpdateRequest",
     "response_type": "ModelProfileMutationResult",
     "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "models.profile.catalog_entries",
+    "owner": "model",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ModelProfileCatalogEntriesRequest",
+    "response_type": "ModelProfileCatalogEntriesView",
+    "idempotency": "read_only",
     "cancellation": "none",
     "test_only": false
   },
@@ -3322,6 +3366,17 @@
     "test_only": false
   },
   {
+    "method": "agent.mcp.resources",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "McpResourceListRequest",
+    "response_type": "McpResourceList",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.mcp.preview",
     "owner": "agent",
     "surface": "main",
@@ -3465,6 +3520,17 @@
     "test_only": false
   },
   {
+    "method": "agent.mcp.resources",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "McpResourceListRequest",
+    "response_type": "McpResourceList",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.mcp.preview",
     "owner": "agent",
     "surface": "core",
@@ -3685,6 +3751,17 @@
     "test_only": false
   },
   {
+    "method": "agent.plugins.add_development",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "PluginDevelopmentRequest",
+    "response_type": "PluginRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.plugins.select_directory",
     "owner": "agent",
     "surface": "main",
@@ -3718,6 +3795,50 @@
     "test_only": false
   },
   {
+    "method": "agent.plugins.theme",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "PluginThemeRequest",
+    "response_type": "PluginTheme",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugins.export",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "PluginExportRequest",
+    "response_type": "PluginExported",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugins.configure",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "PluginConfigureRequest",
+    "response_type": "PluginRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugins.secret.set",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "secret_input",
+    "request_type": "PluginSecretSetRequest",
+    "response_type": "PluginSecretSetResult",
+    "idempotency": "command_invocation",
+    "cancellation": "request_ledger",
+    "test_only": false
+  },
+  {
     "method": "agent.plugins.list",
     "owner": "agent",
     "surface": "core",
@@ -3745,6 +3866,17 @@
     "surface": "core",
     "auth": "authenticated_main",
     "request_type": "PluginImportRequest",
+    "response_type": "PluginRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugins.add_development",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginDevelopmentRequest",
     "response_type": "PluginRegistryView",
     "idempotency": "command_invocation",
     "cancellation": "none",
@@ -3806,6 +3938,171 @@
     "test_only": false
   },
   {
+    "method": "agent.plugins.theme",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginThemeRequest",
+    "response_type": "PluginTheme",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugins.export",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginExportToRequest",
+    "response_type": "PluginExported",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugins.configure",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginConfigureRequest",
+    "response_type": "PluginRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugins.secret.set",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "secret_input",
+    "request_type": "PluginSecretSetRequest",
+    "response_type": "PluginSecretSetResult",
+    "idempotency": "command_invocation",
+    "cancellation": "request_ledger",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.state",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginSessionRequest",
+    "response_type": "PluginSessionState",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.events",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginSessionEventsRequest",
+    "response_type": "PluginSessionEvents",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.send",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginSessionSendRequest",
+    "response_type": "PluginSessionSent",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.run",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginCommandRunRequest",
+    "response_type": "PluginSessionSent",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.stop",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginSessionRequest",
+    "response_type": "PluginSessionStopped",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.settings",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginSettingsRequest",
+    "response_type": "PluginSettingValues",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.set_setting",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginSettingSetRequest",
+    "response_type": "PluginSettingValues",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.panel",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginSessionRequest",
+    "response_type": "PluginSessionPanel",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.log",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginPanelLogRequest",
+    "response_type": "PluginPanelLogged",
+    "idempotency": "transient_input",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.notify",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginNoticeRequest",
+    "response_type": "PluginNotice",
+    "idempotency": "transient_input",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.plugin_session.status",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "PluginStatusRequest",
+    "response_type": "PluginStatus",
+    "idempotency": "transient_input",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.skills.list",
     "owner": "agent",
     "surface": "main",
@@ -3850,11 +4147,44 @@
     "test_only": false
   },
   {
+    "method": "agent.skills.trust_workspace",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "SkillWorkspaceTrustRequest",
+    "response_type": "SkillRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.skills.untrust_workspace",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "SkillWorkspaceTrustRequest",
+    "response_type": "SkillRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.skills.set_enabled",
     "owner": "agent",
     "surface": "main",
     "auth": "trusted_renderer",
     "request_type": "SkillSetEnabledRequest",
+    "response_type": "SkillRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.skills.set_pinned",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "SkillSetPinnedRequest",
     "response_type": "SkillRegistryView",
     "idempotency": "command_invocation",
     "cancellation": "none",
@@ -3960,11 +4290,44 @@
     "test_only": false
   },
   {
+    "method": "agent.skills.trust_workspace",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "SkillWorkspaceTrustRequest",
+    "response_type": "SkillRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.skills.untrust_workspace",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "SkillWorkspaceTrustRequest",
+    "response_type": "SkillRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "agent.skills.set_enabled",
     "owner": "agent",
     "surface": "core",
     "auth": "authenticated_main",
     "request_type": "SkillSetEnabledRequest",
+    "response_type": "SkillRegistryView",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.skills.set_pinned",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "SkillSetPinnedRequest",
     "response_type": "SkillRegistryView",
     "idempotency": "command_invocation",
     "cancellation": "none",
@@ -5748,6 +6111,182 @@
     "auth": "trusted_renderer",
     "request_type": "EmptyToolInput",
     "response_type": "ChromeExtensionFolder",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.settings.get",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "ComputerControlSettingsSnapshot",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.settings.get",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "ComputerControlSettingsSnapshot",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.settings.update",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ComputerControlSettingsUpdate",
+    "response_type": "ComputerControlSettingsSnapshot",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.settings.update",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ComputerControlSettingsUpdate",
+    "response_type": "ComputerControlSettingsSnapshot",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.catalog",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ComputerCatalogRequest",
+    "response_type": "ComputerCatalogResult",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.catalog",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ComputerCatalogRequest",
+    "response_type": "ComputerCatalogResult",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.icons",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ComputerIconsRequest",
+    "response_type": "ComputerIconsResult",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.icons",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ComputerIconsRequest",
+    "response_type": "ComputerIconsResult",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.controlling",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ComputerSessionRequest",
+    "response_type": "ComputerControllingResult",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.controlling",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ComputerSessionRequest",
+    "response_type": "ComputerControllingResult",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.stop",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ComputerStopRequest",
+    "response_type": "ComputerControllingResult",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.stop",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ComputerStopRequest",
+    "response_type": "ComputerControllingResult",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.give_back",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ComputerSessionRequest",
+    "response_type": "ComputerControllingResult",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.give_back",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ComputerSessionRequest",
+    "response_type": "ComputerControllingResult",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.always_allow",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ComputerAlwaysAllowRequest",
+    "response_type": "ComputerControlSettingsSnapshot",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "computer.always_allow",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ComputerAlwaysAllowRequest",
+    "response_type": "ComputerControlSettingsSnapshot",
     "idempotency": "command_invocation",
     "cancellation": "none",
     "test_only": false

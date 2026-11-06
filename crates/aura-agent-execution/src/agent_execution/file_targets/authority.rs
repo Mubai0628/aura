@@ -68,13 +68,12 @@ impl AgentExecution {
                         return false;
                     };
                     let path = std::path::Path::new(&canonical_path.display);
-                    if aura_windows_platform::inspect_existing_path(path, true)
-                        .ok()
-                        .is_some_and(|info| self.control_resources.contains(&info))
-                    {
+                    let info = aura_windows_platform::inspect_existing_path(path, true).ok();
+                    if info.as_ref().is_some_and(|info| self.control_resources.contains(info)) {
                         return false;
                     }
-                    self.external_grants
+                    let granted = self
+                        .external_grants
                         .grant_for_capabilities(
                             session,
                             workspace,
@@ -90,7 +89,14 @@ impl AgentExecution {
                             let root = std::path::Path::new(&grant.root_display);
                             !super::super::protected_paths::escapes_recursive_grant(root, path)
                                 && !self.control_resources.grant_escapes_into_data(root, path)
-                        })
+                        });
+                    // A usable Skill's folder is read without asking. Dispatch checks again, so
+                    // where an outside read asks, a Skill switched off meanwhile asks.
+                    granted
+                        || matches!(resource, ResourceDescriptor::ExternalPath { .. })
+                            && *capability == ResolvedCapability::ExternalFileRead
+                            && info
+                                .is_some_and(|info| self.in_usable_skill_folder(workspace, &info))
                 }
                 _ => false,
             });

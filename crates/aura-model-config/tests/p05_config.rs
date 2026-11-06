@@ -25,11 +25,12 @@ use aura_model_domain::{
     ModelApiFormat, ModelContextWindowConfig, ModelCredentialSlot, ModelDiscoveryMode,
     ModelEndpointConfig, ModelEndpointTimeouts, ModelProfileConfig, ModelProfileOrigin,
     ModelProviderConfig, ModelProviderSource, ModelRegistryConfig, ModelRequestDefaults,
-    ProviderCatalogEntry, ProviderCatalogModelCapabilities, ProviderCatalogModelEntry,
     ProviderCatalogSnapshot, UpdateModelEndpointInput,
 };
 use aura_runtime_contract::BundleNamespace;
 use tempfile::TempDir;
+
+mod support;
 
 struct Fixture {
     provider_id: ProviderId,
@@ -1056,51 +1057,5 @@ fn endpoint_and_profile_revisions_change_once_for_semantic_mutations_and_not_for
 }
 
 fn catalog_snapshot() -> ProviderCatalogSnapshot {
-    let model = ProviderCatalogModelEntry {
-        catalog_model_id: "new-model".to_owned(),
-        display_name: "New Model".to_owned(),
-        family: None,
-        description: None,
-        aliases: std::collections::BTreeSet::new(),
-        context_window_tokens: Some(128_000),
-        input_limit_tokens: None,
-        output_limit_tokens: Some(8_192),
-        input_modalities: BTreeSet::from(["text".to_owned()]),
-        output_modalities: BTreeSet::from(["text".to_owned()]),
-        capabilities: ProviderCatalogModelCapabilities {
-            attachment: false,
-            reasoning: false,
-            tool_call: true,
-            structured_output: false,
-            temperature: true,
-            interleaved: None,
-        },
-        reasoning_options: BTreeSet::new(),
-        knowledge_cutoff: None,
-        release_date: None,
-        last_updated: None,
-        open_weights: None,
-        status: None,
-        price: None,
-    };
-    let provider = ProviderCatalogEntry {
-        catalog_provider_id: "example".to_owned(),
-        display_name: "Example Provider".to_owned(),
-        npm_package: None,
-        api_url: None,
-        documentation_url: None,
-        model_order: vec!["new-model".to_owned()],
-        models: BTreeMap::from([("new-model".to_owned(), model)]),
-    };
-    ProviderCatalogSnapshot {
-        catalog_revision: Revision::INITIAL,
-        catalog_content_hash: aura_domain_common::ContentHash::blake3(b"catalog"),
-        checked_at: UtcTimestamp::now(),
-        last_successful_refresh_at: UtcTimestamp::now(),
-        etag: None,
-        last_modified: None,
-        raw_artifact_id: aura_domain_common::ArtifactId::new(),
-        provider_order: vec!["example".to_owned()],
-        providers: BTreeMap::from([("example".to_owned(), provider)]),
-    }
+    support::catalog("example", None, vec![support::catalog_model("new-model", None)])
 }

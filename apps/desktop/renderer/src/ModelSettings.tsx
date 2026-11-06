@@ -12,6 +12,7 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 import { CustomProviderDialog } from './CustomProviderDialog';
 import { ModelProfileCard } from './ModelProfileCard';
 import { ModelSectionToolbar } from './ModelSectionToolbar';
+import { isProfileReady, profileMatches } from './model-profile-status';
 import { ModelProfileDialog } from './ModelProfileDialog';
 import type { ProviderCatalogItem, ProviderConfigurationView } from './model-settings-types';
 import { providerInitials } from './model-settings-types';
@@ -67,6 +68,24 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
           return profile === undefined ? [] : [profile];
         });
   const writesUnavailable = modelControl.writeUnavailableReason !== undefined;
+  // Each provider keeps its own choice; its connections share it.
+  const [onlyReadyByProvider, setOnlyReadyByProvider] = useState<Readonly<Record<string, boolean>>>(
+    {},
+  );
+  const onlyReady =
+    selectedProvider !== undefined && onlyReadyByProvider[selectedProvider.id] === true;
+  const setOnlyReady = (on: boolean) => {
+    if (selectedProvider === undefined) return;
+    const provider = selectedProvider.id;
+    setOnlyReadyByProvider((current) => ({ ...current, [provider]: on }));
+  };
+  const [catalogRefreshing, setCatalogRefreshing] = useState(false);
+  const [modelQuery, setModelQuery] = useState('');
+  const query = modelQuery.trim().toLowerCase();
+  const filtering = onlyReady || query !== '';
+  const shownModels = targetModels.filter(
+    (model) => (!onlyReady || isProfileReady(model)) && profileMatches(model, query),
+  );
 
   useEffect(() => {
     if (modelControl.error === undefined) {
@@ -83,6 +102,14 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
 
   const selectProvider = (provider: ProviderCatalogItem) => {
     setSelectedProviderId(provider.id);
+  };
+
+  const refreshCatalog = async () => {
+    if (catalogRefreshing) return;
+    setCatalogRefreshing(true);
+    const failure = await modelControl.refreshCatalog();
+    setCatalogRefreshing(false);
+    if (failure !== undefined) notifyFailure(onNotify, 'models.dev 目录未刷新', failure);
   };
 
   const configureProvider = (provider: ProviderCatalogItem) => {
@@ -258,7 +285,11 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
   }
 
   const settings = modelControl.settings;
-  const catalogLabel = catalogStatusLabel(modelControl.catalog, modelControl.catalogError);
+  const catalogState = modelControl.catalog?.state;
+  const catalogBusy =
+    catalogRefreshing ||
+    catalogState === 'refreshing_with_lkg' ||
+    catalogState === 'loading_without_cache';
 
   return (
     <div className="model-settings">
@@ -266,6 +297,16 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
         <div>
           <h2 title={`配置修订 ${modelControl.settings.models_revision}`}>模型配置</h2>
         </div>
+        <button
+          aria-busy={catalogBusy}
+          aria-label="刷新 models.dev 目录"
+          className="button is-small model-catalog-refresh"
+          onClick={() => void refreshCatalog()}
+          title="刷新 models.dev 目录"
+          type="button"
+        >
+          <AppIcon name="refresh" size={14} />
+        </button>
       </div>
 
       {modelControl.writeUnavailableReason === undefined ? null : (
@@ -276,10 +317,12 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
       )}
 
       <ProviderCatalog
-        catalogLabel={catalogLabel}
+        catalogUnavailable={
+          catalogState === 'unavailable' ||
+          (modelControl.catalog === undefined && modelControl.catalogError !== undefined)
+        }
         onAddCustom={() => setAddingCustomProvider(true)}
         onConfigure={configureProvider}
-        onRefresh={() => void modelControl.refreshCatalog()}
         onSelect={selectProvider}
         providers={providers}
         selectedProviderId={selectedProvider?.id}
@@ -292,9 +335,21 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
             <h3 id="provider-models-heading" ref={modelSectionHeadingRef} tabIndex={-1}>
               {selectedProvider === undefined ? '已配置模型' : `${selectedProvider.name} 模型`}
             </h3>
-            <span className="model-section-count">{targetModels.length} 个</span>
+            <span className="model-section-count">
+              {filtering ? `${shownModels.length}/${targetModels.length}` : targetModels.length} 个
+            </span>
           </div>
           <ModelSectionToolbar
+            filter={
+              targetModels.length === 0
+                ? undefined
+                : {
+                    onlyReady,
+                    onOnlyReady: setOnlyReady,
+                    query: modelQuery,
+                    onQuery: setModelQuery,
+                  }
+            }
             canBrowse={
               selectedProvider?.catalogProviderId !== undefined && targetEndpoint !== undefined
             }
@@ -340,9 +395,13 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
             <strong>尚无已配置模型</strong>
             <p>先添加 Provider 和 Endpoint；发现不可用时仍可手工创建 Model Profile。</p>
           </div>
+        ) : shownModels.length === 0 ? (
+          <div className="model-empty-state provider-model-empty">
+            <strong>没有符合的模型</strong>
+          </div>
         ) : (
           <div className="model-card-grid">
-            {targetModels.map((model) => {
+            {shownModels.map((model) => {
               const endpoint = targetEndpoint;
               if (endpoint === undefined) return null;
               const credential = modelControl.settings?.active_credentials.find(
@@ -549,27 +608,6 @@ function buildProviderViews(
     );
   return [...configured, ...views.filter((provider) => provider.localProvider === undefined)];
 }
-
-const catalogStatusLabel = (
-  catalog: ProviderCatalogProjection | undefined,
-  error: string | undefined,
-): string => {
-  if (catalog === undefined) return error === undefined ? '目录读取中' : '目录不可用';
-  switch (catalog.state) {
-    case 'fresh':
-      return 'models.dev 目录 · 最新';
-    case 'stale':
-      return 'models.dev 目录 · 缓存';
-    case 'loading_without_cache':
-      return 'models.dev 目录 · 正在加载';
-    case 'refreshing_with_lkg':
-      return 'models.dev 目录 · 正在刷新';
-    case 'refresh_failed_with_lkg':
-      return 'models.dev 目录 · 刷新失败，使用缓存';
-    case 'unavailable':
-      return 'models.dev 目录 · 不可用';
-  }
-};
 
 const notifyFailure = (
   notify: (notification: NotificationInput) => void,

@@ -33,7 +33,8 @@ impl Provider {
             let mut normal_ordinal = 0;
             let mut compaction_ordinal = 0;
             // A branch and its source both continue, so that scenario answers more; so does a turn of
-            // eleven reads, and a compaction asked twice on the step's request and then in parts.
+            // eleven reads, a compaction asked twice on the step's request and then in parts, and three
+            // turns reading another conversation.
             let connections = if matches!(
                 scenario,
                 Scenario::Branching
@@ -41,6 +42,7 @@ impl Provider {
                     | Scenario::BranchingThenCompact
                     | Scenario::ClearOldResults
                     | Scenario::CompactToolOnPrefix
+                    | Scenario::ReferredHistory
             ) {
                 16
             } else {

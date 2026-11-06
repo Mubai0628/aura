@@ -125,6 +125,14 @@ impl BrokerJournal {
         })?;
         Ok(())
     }
+    /// Records that a reserved attempt was refused before its claim: it ends failed, with no
+    /// effect and the `execution.not_dispatched` warning, instead of staying prepared.
+    pub fn reject_unclaimed(&self, request: &DispatchRequest, reason: &str) -> anyhow::Result<()> {
+        self.lock()?.database.unit_of_work(|tx| {
+            execution::reject_prepared(tx, request, reason, UtcTimestamp::now()).map(|_| ())
+        })?;
+        Ok(())
+    }
     pub fn claim(&self, request: &DispatchRequest) -> anyhow::Result<()> {
         let a = &request.binding.attempt;
         self.lock()?.database.unit_of_work(|tx| {

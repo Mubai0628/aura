@@ -30,7 +30,7 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   color: var(--accent);
   background: var(--accent-soft);
 }
@@ -50,19 +50,19 @@
   font-size: 12px;
   font-weight: 550;
 }
-.profile-fields :is(input:where(:not([type='checkbox'], [type='radio'])), textarea) {
+.profile-fields :is(input:where(:not([type='checkbox'], [type='radio'])), textarea, select) {
   width: 100%;
   min-width: 0;
   min-height: 36px;
   padding: 8px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   color: var(--ink);
   background: var(--surface);
   font-size: 13px;
   font-weight: 400;
 }
-.profile-fields input:disabled {
+.profile-fields :is(input, select):disabled {
   background: var(--surface-muted);
 }
 .profile-fields textarea {
@@ -88,6 +88,11 @@
   color: var(--muted);
   font-size: 11px;
   margin-top: 3px;
+}
+.profile-row-title {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
 }
 .profile-context-tools {
   margin-top: 20px;
@@ -125,7 +130,7 @@
   min-height: 34px;
   padding: 6px 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   font-size: 12px;
 }
@@ -163,7 +168,7 @@
 .provider-setup-lead .dialog-feature-icon {
   width: 38px;
   height: 38px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
 .provider-setup-intro h3 {
   margin: 2px 0 4px;
@@ -205,7 +210,7 @@
   place-items: center;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   color: var(--accent-strong);
   background: var(--accent-soft);
   font-size: 12px;
@@ -244,7 +249,7 @@
   height: 40px;
   background: color-mix(in srgb, var(--danger) 9%, var(--surface));
   color: var(--danger);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
 .confirmation-copy h2 {
   margin: 0;

@@ -91,7 +91,7 @@ fn main() -> Result<()> {
         Some("p04-report") => p04_report(&workspace_root()),
         Some("p05-report") => p05_report(&workspace_root()),
         Some("validate-manifests") => manifests::validate_manifests(&workspace_root()),
-        Some("scan-secrets") => public::scan_secrets(args.next()),
+        Some("scan-secrets") => public::scan_secrets(args.collect()),
         Some("--help" | "-h" | "help") | None => {
             print_help();
             Ok(())

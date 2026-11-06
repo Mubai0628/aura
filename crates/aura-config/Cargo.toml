@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aura-desktop-domain = { path = "../aura-desktop-domain" }
 aura-browser-domain = { path = "../aura-browser-domain" }
 aura-mcp = { path = "../aura-mcp" }
 aura-plugins = { path = "../aura-plugins" }

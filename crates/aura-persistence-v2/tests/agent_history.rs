@@ -158,12 +158,15 @@ fn long_turn_pages_preserve_all_sources_steps_and_exact_utf8_text() {
                     tx,
                     CommandInvocationId::new(),
                     &AgentSubmitRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         text: format!("addition {n}: {long}"),
                         destination: AgentInputLane::Addition { turn_task_id: f.turn.turn_task_id },
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     f.at,
                 )?;

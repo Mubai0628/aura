@@ -130,6 +130,7 @@ async fn a_write_through_the_entry_asks_exactly_as_the_write_itself() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("Create AURA_EXTERNAL_PATH={} now.", target.display()),
@@ -138,7 +139,9 @@ async fn a_write_through_the_entry_asks_exactly_as_the_write_itself() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

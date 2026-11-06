@@ -8,6 +8,7 @@ import { EndpointOperationHistory } from './EndpointOperationHistory';
 import { credentialStatusTitle } from './credential-status';
 import type { EndpointEditorField } from '../provider-connection-validation';
 import type { DiscoveryModeChoice } from './endpoint-draft';
+import { ALL_ROUTES_VARIANT } from './model-routes';
 import type { ProviderConnection } from './useProviderConnection';
 
 /** Fields with defaults or that most connections leave empty; they open by themselves when
@@ -60,8 +61,14 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
     setMaxParallelRequests,
     selectedPresetVariantId,
     setSelectedPresetVariantId,
+    parameterValues,
+    urlParameters,
+    effectiveBaseUrl,
+    setUrlParameterValue,
     baseUrlSuggestionActive,
     setBaseUrlSuggestionActive,
+    protocolSuggestionActive,
+    setProtocolSuggestionActive,
     busy,
     setPendingDeletion,
     hasSecretDraft,
@@ -75,6 +82,11 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
     compatibility,
     writesDisabled,
     presetVariants,
+    provider,
+    routeVariants,
+    unconnectedVariants,
+    allRoutesSelected,
+    selectAllRoutes,
     clearServerFieldError,
     applyPresetVariant,
     resetCompatibility,
@@ -90,6 +102,25 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
   } = connection;
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const advancedIssue = ADVANCED_FIELDS.some((field) => fieldIssue(field) !== undefined);
+  // The values of the user's own the chosen address takes, one field each.
+  const parameterInputs = urlParameters.map((parameter) => {
+    const field = `parameter:${parameter.name}` as const;
+    return (
+      <label key={parameter.name}>
+        <span>{parameter.display_name}</span>
+        <input
+          {...controlValidationProps(field)}
+          aria-label={parameter.display_name}
+          onChange={(event) => setUrlParameterValue(parameter, event.target.value)}
+          placeholder={`例如 ${parameter.example}`}
+          type="text"
+          value={parameterValues[parameter.name] ?? ''}
+        />
+        {renderFieldIssue(field)}
+      </label>
+    );
+  });
+
   return (
     <form
       className="provider-editor"
@@ -108,6 +139,10 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
             <span>Aura 连接预设</span>
             <select
               onChange={(event) => {
+                if (event.target.value === ALL_ROUTES_VARIANT) {
+                  selectAllRoutes();
+                  return;
+                }
                 const preset = presetVariants.find(
                   (variant) => variant.variant_id === event.target.value,
                 );
@@ -121,6 +156,12 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
               value={selectedPresetVariantId}
             >
               <option value="">自定义执行配置</option>
+              {existingEndpoint === undefined && unconnectedVariants.length > 0 ? (
+                <option value={ALL_ROUTES_VARIANT}>
+                  {provider.name}{' '}
+                  {unconnectedVariants.length === routeVariants.length ? '全部连接' : '其余连接'}
+                </option>
+              ) : null}
               {presetVariants.map((variant) => (
                 <option key={variant.variant_id} value={variant.variant_id}>
                   {variant.display_name}
@@ -130,154 +171,178 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
             </select>
           </label>
         )}
-        <label>
-          <span>连接名称</span>
-          <input
-            {...controlValidationProps('display_name')}
-            aria-label="连接名称"
-            onChange={(event) => {
-              clearServerFieldError('display_name');
-              setConnectionName(event.target.value);
-            }}
-            type="text"
-            value={connectionName}
-          />
-          {renderFieldIssue('display_name')}
-        </label>
-        <label>
-          <span>API 类型</span>
-          <select
-            {...controlValidationProps('api_format')}
-            aria-label="API 类型"
-            onChange={(event) => {
-              clearServerFieldError('api_format');
-              setSelectedPresetVariantId('');
-              setApiFormat(event.target.value as ModelApiFormat | '');
-            }}
-            value={apiFormat}
-          >
-            <option value="">请选择</option>
-            {ENDPOINT_API_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-          {renderFieldIssue('api_format')}
-        </label>
-        <label>
-          <span>认证方式</span>
-          <select
-            {...controlValidationProps('auth_scheme')}
-            aria-label="认证方式"
-            onChange={(event) => {
-              clearServerFieldError('auth_scheme');
-              setSelectedPresetVariantId('');
-              const next = event.target.value as EndpointAuthScheme;
-              setAuthScheme(next);
-              if (next === 'none') secretInputRef.current?.clear();
-            }}
-            value={authScheme}
-          >
-            <option value="none">None</option>
-            <option value="open_ai_bearer_api_key">OpenAI Bearer API Key</option>
-            <option value="anthropic_api_key">Anthropic API Key</option>
-          </select>
-          {renderFieldIssue('auth_scheme')}
-        </label>
-        <label className="span-two">
-          <span>Base URL</span>
-          <input
-            {...controlValidationProps('base_url')}
-            aria-label="Base URL"
-            onChange={(event) => {
-              clearServerFieldError('base_url');
-              setSelectedPresetVariantId('');
-              setBaseUrlSuggestionActive(false);
-              setBaseUrl(event.target.value);
-            }}
-            placeholder="例如 https://api.example.com/v1"
-            type="url"
-            value={baseUrl}
-          />
-          {renderFieldIssue('base_url')}
-          {baseUrlSuggestionActive ? (
-            <small className="catalog-field-source">来自 models.dev 的未保存建议</small>
-          ) : null}
-        </label>
-        <label>
-          <span>模型目录请求模式</span>
-          <select
-            onChange={(event) => {
-              setSelectedPresetVariantId('');
-              setDiscoveryMode(event.target.value as DiscoveryModeChoice);
-            }}
-            value={discoveryMode}
-          >
-            <option value="automatic">Automatic</option>
-            <option value="custom">Custom</option>
-            <option value="disabled">Disabled</option>
-          </select>
-        </label>
-        <label>
-          <span>模型目录请求路径</span>
-          <input
-            {...controlValidationProps('models_path')}
-            aria-label="模型目录请求路径"
-            disabled={discoveryMode !== 'custom'}
-            onChange={(event) => {
-              clearServerFieldError('models_path');
-              setSelectedPresetVariantId('');
-              setModelsPath(event.target.value);
-            }}
-            placeholder="例如 /v1/models"
-            type="text"
-            value={modelsPath}
-          />
-          {renderFieldIssue('models_path')}
-        </label>
-        {apiFormat === 'open_ai_chat_completions' ? (
+        {allRoutesSelected ? (
+          <>
+            <label className="span-two">
+              <span>连接</span>
+              <input
+                aria-label="将保存的连接"
+                readOnly
+                type="text"
+                value={unconnectedVariants.map((variant) => variant.display_name).join('、')}
+              />
+            </label>
+            {parameterInputs}
+          </>
+        ) : (
           <>
             <label>
-              <span>Chat Instruction Role</span>
-              <select
-                {...controlValidationProps('chat_instruction_role')}
-                aria-label="Chat Instruction Role"
-                aria-required="true"
+              <span>连接名称</span>
+              <input
+                {...controlValidationProps('display_name')}
+                aria-label="连接名称"
                 onChange={(event) => {
-                  clearServerFieldError('chat_instruction_role');
-                  setSelectedPresetVariantId('');
-                  setChatInstructionRole(event.target.value as typeof chatInstructionRole);
+                  clearServerFieldError('display_name');
+                  setConnectionName(event.target.value);
                 }}
-                value={chatInstructionRole}
-              >
-                <option value="">未配置</option>
-                <option value="developer">Developer</option>
-                <option value="system">System</option>
-              </select>
-              {renderFieldIssue('chat_instruction_role')}
+                type="text"
+                value={connectionName}
+              />
+              {renderFieldIssue('display_name')}
             </label>
             <label>
-              <span>Output Token Field</span>
+              <span>API 类型</span>
               <select
-                {...controlValidationProps('chat_output_token_field')}
-                aria-label="Output Token Field"
-                aria-required="true"
+                {...controlValidationProps('api_format')}
+                aria-label="API 类型"
                 onChange={(event) => {
-                  clearServerFieldError('chat_output_token_field');
+                  clearServerFieldError('api_format');
                   setSelectedPresetVariantId('');
-                  setChatOutputTokenField(event.target.value as typeof chatOutputTokenField);
+                  setProtocolSuggestionActive(false);
+                  setApiFormat(event.target.value as ModelApiFormat | '');
                 }}
-                value={chatOutputTokenField}
+                value={apiFormat}
               >
-                <option value="">未配置</option>
-                <option value="max_completion_tokens">max_completion_tokens</option>
-                <option value="max_tokens">max_tokens</option>
+                <option value="">请选择</option>
+                {ENDPOINT_API_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
               </select>
-              {renderFieldIssue('chat_output_token_field')}
+              {renderFieldIssue('api_format')}
+              {protocolSuggestionActive ? (
+                <small className="catalog-field-source">来自 models.dev 的未保存建议</small>
+              ) : null}
             </label>
+            <label>
+              <span>认证方式</span>
+              <select
+                {...controlValidationProps('auth_scheme')}
+                aria-label="认证方式"
+                onChange={(event) => {
+                  clearServerFieldError('auth_scheme');
+                  setSelectedPresetVariantId('');
+                  setProtocolSuggestionActive(false);
+                  const next = event.target.value as EndpointAuthScheme;
+                  setAuthScheme(next);
+                  if (next === 'none') secretInputRef.current?.clear();
+                }}
+                value={authScheme}
+              >
+                <option value="none">None</option>
+                <option value="open_ai_bearer_api_key">OpenAI Bearer API Key</option>
+                <option value="anthropic_api_key">Anthropic API Key</option>
+              </select>
+              {renderFieldIssue('auth_scheme')}
+            </label>
+            {parameterInputs}
+            <label className="span-two">
+              <span>Base URL</span>
+              <input
+                {...controlValidationProps('base_url')}
+                aria-label="Base URL"
+                onChange={(event) => {
+                  clearServerFieldError('base_url');
+                  setSelectedPresetVariantId('');
+                  setBaseUrlSuggestionActive(false);
+                  setBaseUrl(event.target.value);
+                }}
+                placeholder="例如 https://api.example.com/v1"
+                readOnly={urlParameters.length > 0}
+                type="url"
+                value={urlParameters.length > 0 ? effectiveBaseUrl : baseUrl}
+              />
+              {renderFieldIssue('base_url')}
+              {baseUrlSuggestionActive ? (
+                <small className="catalog-field-source">来自 models.dev 的未保存建议</small>
+              ) : null}
+            </label>
+            <label>
+              <span>模型目录请求模式</span>
+              <select
+                onChange={(event) => {
+                  setSelectedPresetVariantId('');
+                  setDiscoveryMode(event.target.value as DiscoveryModeChoice);
+                }}
+                value={discoveryMode}
+              >
+                <option value="automatic">Automatic</option>
+                <option value="custom">Custom</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            </label>
+            <label>
+              <span>模型目录请求路径</span>
+              <input
+                {...controlValidationProps('models_path')}
+                aria-label="模型目录请求路径"
+                disabled={discoveryMode !== 'custom'}
+                onChange={(event) => {
+                  clearServerFieldError('models_path');
+                  setSelectedPresetVariantId('');
+                  setModelsPath(event.target.value);
+                }}
+                placeholder="例如 /v1/models"
+                type="text"
+                value={modelsPath}
+              />
+              {renderFieldIssue('models_path')}
+            </label>
+            {apiFormat === 'open_ai_chat_completions' ? (
+              <>
+                <label>
+                  <span>Chat Instruction Role</span>
+                  <select
+                    {...controlValidationProps('chat_instruction_role')}
+                    aria-label="Chat Instruction Role"
+                    aria-required="true"
+                    onChange={(event) => {
+                      clearServerFieldError('chat_instruction_role');
+                      setSelectedPresetVariantId('');
+                      setChatInstructionRole(event.target.value as typeof chatInstructionRole);
+                    }}
+                    value={chatInstructionRole}
+                  >
+                    <option value="">未配置</option>
+                    <option value="developer">Developer</option>
+                    <option value="system">System</option>
+                  </select>
+                  {renderFieldIssue('chat_instruction_role')}
+                </label>
+                <label>
+                  <span>Output Token Field</span>
+                  <select
+                    {...controlValidationProps('chat_output_token_field')}
+                    aria-label="Output Token Field"
+                    aria-required="true"
+                    onChange={(event) => {
+                      clearServerFieldError('chat_output_token_field');
+                      setSelectedPresetVariantId('');
+                      setChatOutputTokenField(event.target.value as typeof chatOutputTokenField);
+                    }}
+                    value={chatOutputTokenField}
+                  >
+                    <option value="">未配置</option>
+                    <option value="max_completion_tokens">max_completion_tokens</option>
+                    <option value="max_tokens">max_tokens</option>
+                  </select>
+                  {renderFieldIssue('chat_output_token_field')}
+                </label>
+              </>
+            ) : null}
           </>
-        ) : null}
+        )}
         <Collapsible.Root
           className="profile-context-tools endpoint-advanced span-two"
           onOpenChange={setAdvancedOpen}
@@ -288,7 +353,7 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
             <AppIcon name="chevron-down" size={14} />
           </Collapsible.Trigger>
           <Collapsible.Content className="settings-form-grid provider-form-grid">
-            {apiFormat === 'anthropic_messages' ? (
+            {allRoutesSelected ? null : apiFormat === 'anthropic_messages' ? (
               <label className="span-two">
                 <span>Anthropic Workspace ID（可选）</span>
                 <input

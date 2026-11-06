@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type NotificationTone = 'danger' | 'info' | 'success' | 'warning';
 
+/** A button on a notice: the notice closes and `run` starts. */
+export interface NotificationAction {
+  label: string;
+  run: () => void;
+}
+
 export interface NotificationInput {
+  action?: NotificationAction;
   dedupeKey: string;
   message: string;
   title: string;
@@ -37,9 +44,10 @@ export function useNotificationCenter(autoDismissMs = 4_000) {
       nextId.current += 1;
       const id = `ui_notice_${nextId.current}`;
       setItems((current) => [...current, { ...input, id }]);
-      // A failure says what went wrong and what to do next, so it
-      // stays until it is closed; every other notice leaves by itself.
-      if (input.tone !== 'danger') {
+      // A failure says what went wrong and what to do next, and a notice
+      // with a button waits for it, so both stay until they are closed;
+      // every other notice leaves by itself.
+      if (input.tone !== 'danger' && input.action === undefined) {
         timers.current.set(
           id,
           window.setTimeout(() => dismiss(id), autoDismissMs),

@@ -51,6 +51,7 @@ fn snapshot() -> ModelExecutionSnapshot {
             reasoning_effort: None,
             reasoning_by_effort: false,
             image_input: false,
+            speed_mode: None,
         },
         historical_tool_call_wire_bindings: Vec::new(),
         credential_id: None,
@@ -164,6 +165,7 @@ fn compiles_configured_chat_role_and_output_token_field() {
             operation_context: &operation_context,
             compatibility_removals: &compatibility_removals,
             applied_output_token_field_alias: None,
+            session_id: None,
         })
         .expect("compile Chat request");
     let body: Value = serde_json::from_slice(&plan.body).expect("request JSON");
@@ -452,6 +454,7 @@ fn wire_body(request: &LogicalModelRequest, snapshot: &ModelExecutionSnapshot) -
             operation_context: &operation,
             compatibility_removals: &Default::default(),
             applied_output_token_field_alias: None,
+            session_id: None,
         })
         .expect("compile continuation");
     serde_json::from_slice(&plan.body).expect("wire body")

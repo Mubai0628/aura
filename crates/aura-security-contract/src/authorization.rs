@@ -200,6 +200,9 @@ pub struct AuthorizationScope {
     /// A site the user confirmed for every Chrome tab of one session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chrome_site_consent: Option<crate::ChromeSiteConsentRef>,
+    /// A program the user authorized for one session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop_app_consent: Option<crate::DesktopAppConsentRef>,
     /// The missing capabilities actually shown in a composite approval. Historical exact
     /// approvals omit this field; their exact operation fingerprint remains authoritative.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -207,6 +210,31 @@ pub struct AuthorizationScope {
 }
 
 impl AuthorizationScope {
+    /// A scope for one exact operation, carrying no reusable consent of any kind.
+    #[must_use]
+    pub fn exact(
+        operation_fingerprint: OperationFingerprint,
+        profile: SecurityProfile,
+        backend_requirement: BackendRequirement,
+        lifetime: AuthorizationLifetime,
+    ) -> Self {
+        Self {
+            operation_fingerprint,
+            profile,
+            backend_requirement,
+            lifetime,
+            consent: None,
+            file_consent: None,
+            memory_consent: None,
+            network_consent: None,
+            mcp_consent: None,
+            chrome_consent: None,
+            chrome_site_consent: None,
+            desktop_app_consent: None,
+            capability_limit: None,
+        }
+    }
+
     /// Builds the scope of a decision derived for `operation_fingerprint` from a stored
     /// scope, or `None` when the stored scope cannot authorize that operation.
     ///

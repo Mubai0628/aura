@@ -35,6 +35,10 @@ pub struct HistoryListTurnsInput {
     /// Rounds whose first message was sent before this time (RFC 3339).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub until: Option<UtcTimestamp>,
+    /// Another conversation a user message of this one referred to with "@", by the handle its
+    /// reference gives (conv_…); this conversation when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation: Option<aura_domain_common::ConversationHandle>,
 }
 
 /// One round in a listing.
@@ -86,6 +90,10 @@ pub struct HistorySearchInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = 30))]
     pub limit: Option<u32>,
+    /// Another conversation a user message of this one referred to with "@", by the handle its
+    /// reference gives (conv_…); this conversation when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation: Option<aura_domain_common::ConversationHandle>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -128,6 +136,10 @@ pub struct HistoryReadInput {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1, max = 64000))]
     pub limit: Option<u64>,
+    /// Another conversation a user message of this one referred to with "@", by the handle its
+    /// reference gives (conv_…); this conversation when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversation: Option<aura_domain_common::ConversationHandle>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

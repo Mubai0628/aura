@@ -1,13 +1,16 @@
-//! Skills the user chose in the composer. They are checked when the message is sent,
-//! loaded for the turn it starts before that turn's first step, kept with the message in its
-//! history, and refused for anything that does not start a new turn.
+//! Skills the user chose in the composer. They are checked and written out whole when the message
+//! is sent, follow what the user typed in that message from its turn's first step on, stay with it
+//! as sent in later turns, and are refused for anything that does not start a new turn. The
+//! message's history shows what was typed, with the choice beside it.
 use super::*;
 use provider_fixture::Scenario;
-use waiting::{prepare, wait};
+use waiting::{prepare, start, wait};
 
 const NOTE: &str = "CHOSEN-SKILL-NOTE: answer in one short line.";
+/// The message as the requests carry it (JSON text): what was typed, then the chosen Skill.
+const SENT: &str = r#"Answer with the chosen Skill\n\nChosen Skill \"notes\""#;
 
-/// Imports a Skill folder into Aura through the real Settings route: on, not trusted.
+/// Imports a Skill folder into Aura through the real Settings route: on, and usable at once.
 async fn imported(
     runtime: &crate::RuntimeState,
     parent: &std::path::Path,
@@ -38,13 +41,21 @@ async fn imported(
     (view, listed)
 }
 
-/// Imports a Skill folder and trusts it through the real Settings routes.
-async fn trusted(runtime: &crate::RuntimeState, parent: &std::path::Path, name: &str) -> Value {
+async fn usable(runtime: &crate::RuntimeState, parent: &std::path::Path, name: &str) -> Value {
+    imported(runtime, parent, name).await.0["id"].clone()
+}
+
+/// Imports a Skill folder and switches it off through the real Settings routes.
+async fn switched_off(
+    runtime: &crate::RuntimeState,
+    parent: &std::path::Path,
+    name: &str,
+) -> Value {
     let (view, listed) = imported(runtime, parent, name).await;
     crate::r03_tests::success(
         runtime,
-        "agent.skills.trust",
-        json!({"id": view["id"], "expected_fingerprint": view["fingerprint"], "expected_revision": listed["revision"]}),
+        "agent.skills.set_enabled",
+        json!({"id": view["id"], "enabled": false, "expected_revision": listed["revision"]}),
     )
     .await;
     view["id"].clone()
@@ -71,11 +82,11 @@ async fn history(runtime: &crate::RuntimeState, session: SessionId) -> Value {
 }
 
 #[tokio::test]
-async fn a_chosen_skill_is_in_the_first_step_and_stays_with_its_message() {
+async fn a_chosen_skill_follows_its_message_and_the_history_shows_what_was_typed() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::Text).await;
     let (runtime, session, model) = prepare(&host, &provider).await;
-    let id = trusted(&runtime, host.root.path(), "notes").await;
+    let id = usable(&runtime, host.root.path(), "notes").await;
 
     let run: AgentRunProjection = serde_json::from_value(
         crate::r03_tests::success(
@@ -89,16 +100,25 @@ async fn a_chosen_skill_is_in_the_first_step_and_stays_with_its_message() {
     let request = AgentRunRequest { session_id: session, agent_run_id: run.run.agent_run_id };
     wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
 
-    // The first model request already carries the instructions, labelled as the user's choice.
+    // The first model request already carries the instructions, after what the user typed and
+    // marked as the user's choice; nothing loads them into the task state.
     let first = provider.requests.lock().expect("requests")[0].to_string();
-    assert!(first.contains(NOTE), "{first}");
-    assert!(first.contains("Loaded Skill \\\"notes\\\""), "{first}");
-    assert!(first.contains("The user chose this Skill for this turn"), "{first}");
+    assert!(first.contains(SENT) && first.contains(NOTE), "{first}");
+    assert!(first.contains("The user chose this Skill with this message"), "{first}");
+    assert!(!first.contains("Loaded Skill"), "{first}");
 
-    // The message keeps its choice in history.
+    // The message keeps its choice in history and shows what was typed.
     let shown = history(&runtime, session).await;
     let users = &shown["turns"][0]["user_messages"][0];
     assert_eq!(users["skills"][0]["name"], "notes");
+    assert_eq!(users["text"], "Answer with the chosen Skill");
+
+    // A later turn sends the message as it was sent.
+    let next = start(&runtime, session, model, AgentTaskMode::Normal).await;
+    let request = AgentRunRequest { session_id: session, agent_run_id: next.run.agent_run_id };
+    wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
+    let last = provider.requests.lock().expect("requests").last().expect("a request").to_string();
+    assert!(last.contains(SENT) && last.contains(NOTE), "{last}");
 }
 
 #[tokio::test]
@@ -106,9 +126,9 @@ async fn a_queued_message_takes_its_skills_into_the_turn_it_starts_and_nothing_e
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::Text).await;
     let (runtime, session, model) = prepare(&host, &provider).await;
-    let id = trusted(&runtime, host.root.path(), "notes").await;
+    let id = usable(&runtime, host.root.path(), "notes").await;
 
-    // Appending to a running task cannot carry a Skill, and an untrusted one is refused.
+    // Appending to a running task cannot carry a Skill, and one switched off is refused.
     let addition = crate::r03_tests::attempt(
         &runtime,
         "agent.submit",
@@ -119,19 +139,19 @@ async fn a_queued_message_takes_its_skills_into_the_turn_it_starts_and_nothing_e
     let refused = crate::r03_tests::attempt(
         &runtime,
         "agent.start",
-        // One that is there but not trusted cannot be chosen.
+        // One that is there but switched off cannot be chosen.
         start_request(
             session,
             model,
-            vec![imported(&runtime, host.root.path(), "draft").await.0["id"].clone()],
+            vec![switched_off(&runtime, host.root.path(), "draft").await],
         ),
     )
     .await;
     assert!(format!("{refused:?}").contains("agent.skills_unavailable"), "{refused:?}");
     assert!(provider.requests.lock().expect("requests").is_empty(), "nothing was started");
 
-    // A message sent to the idle session starts a turn with its Skill loaded. The queue starts
-    // it with the session's model, which the composer chooses before it sends.
+    // A message sent to the idle session starts a turn with its Skill after what was typed. The
+    // queue starts it with the session's model, which the composer chooses before it sends.
     crate::r03_tests::success(
         &runtime,
         "models.session.set_binding",
@@ -154,7 +174,11 @@ async fn a_queued_message_takes_its_skills_into_the_turn_it_starts_and_nothing_e
     })
     .await
     .expect("the queued message started a turn");
-    assert!(first.contains(NOTE) && first.contains("The user chose this Skill"), "{first}");
+    assert!(
+        first.contains(r#"Use the chosen Skill\n\nChosen Skill \"notes\""#) && first.contains(NOTE),
+        "{first}"
+    );
+    assert!(first.contains("The user chose this Skill with this message"), "{first}");
     let turn = tokio::time::timeout(std::time::Duration::from_secs(45), async {
         loop {
             let shown = history(&runtime, session).await;
@@ -167,4 +191,5 @@ async fn a_queued_message_takes_its_skills_into_the_turn_it_starts_and_nothing_e
     .await
     .expect("the turn completed");
     assert_eq!(turn["user_messages"][0]["skills"][0]["name"], "notes");
+    assert_eq!(turn["user_messages"][0]["text"], "Use the chosen Skill");
 }

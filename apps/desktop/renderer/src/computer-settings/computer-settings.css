@@ -1,0 +1,141 @@
+/* Settings → 电脑操控; the page and its surfaces come from styles/settings-pages.css. */
+.computer-settings > .settings-surface + .settings-surface {
+  margin-top: 14px;
+}
+
+.computer-settings h4 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.computer-settings-toggle,
+.computer-settings-choice,
+.computer-settings-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.computer-settings-toggle {
+  font-weight: 600;
+}
+
+.computer-settings-group {
+  display: grid;
+  gap: 10px;
+}
+
+.computer-settings-size select {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.computer-stop-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.computer-stop-keys input {
+  min-width: 0;
+  width: 160px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+  font-family: var(--font-mono);
+}
+
+.computer-settings-programs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.computer-program-list ul,
+.computer-settings-models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.computer-program-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 2px 1px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+}
+
+.computer-program-list li .icon-button {
+  width: 22px;
+  height: 22px;
+}
+
+.computer-program-none {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+
+.computer-program-list form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A row's button has the height of the field beside it, small or not. */
+.computer-stop-keys .button.is-small,
+.computer-program-list form .button.is-small {
+  min-height: 32px;
+}
+
+.computer-program-list form label {
+  flex: none;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.computer-program-list input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.computer-settings-models {
+  flex-direction: column;
+  padding-left: 24px;
+}
+
+.computer-settings-models label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.computer-settings-models small {
+  color: var(--muted);
+  font-size: 12px;
+}

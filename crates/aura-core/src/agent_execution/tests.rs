@@ -23,6 +23,7 @@ mod l06_memory_consents;
 mod l08_mcp;
 mod l09_skills;
 mod l13_1_git_feedback;
+mod l17_plugins;
 mod publish_observer;
 mod read_rejection;
 mod registry_context;

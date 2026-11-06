@@ -2,12 +2,12 @@
 //! message carries. Pictures and text files are kept as artifacts of the conversation, so deleting
 //! the conversation deletes them; the conversation reads them back to show them and to send them to
 //! the model. When the message becomes part of the conversation its text is what the user typed
-//! with its attachments as the model reads them, and the attachments are recorded with it, with how
-//! much of that text the user typed.
+//! with its attachments as the model reads them, what it refers to and the Skills chosen with it,
+//! and the attachments are recorded with it, with how much of that text the user typed.
 use super::facts;
 use aura_agent_domain::{
     AgentMessageAttachment, AgentPendingMessage, AttachedPart, OriginalUserMessage,
-    message_with_attachments,
+    message_with_attachments, message_with_references, message_with_skills,
 };
 use aura_domain_common::{
     ArtifactId, ContentHash, EventId, ExternalGrantId, SessionId, UtcTimestamp,
@@ -201,7 +201,9 @@ pub fn message_text(
     Ok(message_with_attachments(typed, &parts))
 }
 
-/// A queued message as it becomes part of the conversation.
+/// A queued message as it becomes part of the conversation: what the user typed with its
+/// attachments, then what it refers to as it was resolved, then the Skills chosen with it as they
+/// were written out, both when it was sent.
 pub fn freeze(
     db: &Connection,
     message: &AgentPendingMessage,
@@ -209,19 +211,25 @@ pub fn freeze(
     at: UtcTimestamp,
 ) -> StoreResult<OriginalUserMessage> {
     let text = message_text(db, session, &message.text, &message.attachments)?;
-    message.freeze_as(session, text, at).map_err(|_| Error::Conflict)
+    let referred = super::references::of_message(db, message.message_id)?;
+    let text = message_with_references(&text, &referred);
+    let chosen = super::skills::chosen_texts(db, message.message_id)?;
+    message.freeze_as(session, message_with_skills(&text, &chosen), at).map_err(|_| Error::Conflict)
 }
 
 /// Records a message's attachments as it becomes part of the conversation, with how much of its
-/// text the user typed.
+/// text the user typed, when the text `sent` carries more than that: attachments, references or
+/// the Skills chosen with it. Blank words ahead of attachments or references are not part of
+/// `sent`, so none of it was typed.
 pub fn record(
     tx: &Transaction<'_>,
     user_event: EventId,
     typed: &str,
+    sent: &str,
     attachments: &[AgentMessageAttachment],
     at: UtcTimestamp,
 ) -> StoreResult<()> {
-    if attachments.is_empty() {
+    if attachments.is_empty() && sent.len() == typed.len() {
         return Ok(());
     }
     facts::append(
@@ -229,13 +237,16 @@ pub fn record(
         EventId::new(),
         &user_event.to_string(),
         KIND,
-        &Attached { typed_bytes: typed.len() as u64, attachments: attachments.to_vec() },
+        &Attached {
+            typed_bytes: if sent.starts_with(typed) { typed.len() as u64 } else { 0 },
+            attachments: attachments.to_vec(),
+        },
         at,
     )
 }
 
 /// A message's attachments and how many bytes of its text the user typed; none for a message
-/// without attachments.
+/// whose text is only what the user typed.
 pub fn of_message(
     db: &Connection,
     user_event: EventId,

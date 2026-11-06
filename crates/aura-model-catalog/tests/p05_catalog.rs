@@ -680,6 +680,7 @@ fn snapshot() -> ProviderCatalogSnapshot {
         raw_artifact_id: ArtifactId::new(),
         provider_order: vec!["provider-a".to_owned()],
         providers,
+        parser_revision: 0,
     }
 }
 

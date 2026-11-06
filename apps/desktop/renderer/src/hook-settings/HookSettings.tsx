@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   HookEntryView,
   HookMoveDirection,
@@ -7,17 +7,17 @@ import type {
 } from '@aura/contracts/generated';
 import type { ResultEnvelope } from '../../../shared/aura-api';
 import { AppIcon } from '../app-icons';
-import { HookInvocations } from './HookInvocations';
+import { HookDetails, HookHeading, type HookChange } from './HookDetails';
 import { HookPreviewPanel } from './HookPreviewPanel';
 import {
   folderName,
   hookError,
-  hookEventLabel,
-  hookKindLabel,
-  hookStateLabel,
+  hookEvents,
+  hookName,
+  hookReview,
   hookStateTone,
-  hookToolsLabel,
 } from './hook-labels';
+import { SettingsItemDialog, SettingsRow, SettingsRowOpen } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './hook-settings.css';
@@ -36,6 +36,7 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
   const [preview, setPreview] = useState<HookPreview>();
   const [removing, setRemoving] = useState<string>();
   const [history, setHistory] = useState<string>();
+  const [opened, setOpened] = useState<string>();
   useEffect(() => {
     if (!coreReady) return;
     let live = true;
@@ -110,12 +111,9 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
       if (result.ok) setPreview(undefined);
       return applied(result, listed ? `已重新信任 ${name}` : `已信任并启用 ${name}`);
     });
-  const change = (
-    entry: HookEntryView,
-    action: 'enable' | 'disable' | 'untrust' | 'remove' | HookMoveDirection,
-  ) =>
+  const change = (entry: HookEntryView, action: HookChange | HookMoveDirection) =>
     run(`${action}:${entry.path}`, async () => {
-      const name = entry.definition?.name ?? folderName(entry.path);
+      const name = hookName(entry);
       const request = { path: entry.path, expected_revision: revision };
       const api = window.aura.v1;
       switch (action) {
@@ -127,9 +125,13 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
           );
         case 'untrust':
           return applied(await api.untrustHook(request), `已撤销对 ${name} 的信任`);
-        case 'remove':
+        case 'remove': {
           setRemoving(undefined);
-          return applied(await api.removeHook(request), `已从列表移除 ${name}，文件夹未删除`);
+          const done = applied(await api.removeHook(request), `已从列表移除 ${name}，文件夹未删除`);
+          // A folder added again later does not reopen this dialog.
+          if (!done.alert) close();
+          return done;
+        }
         default:
           return applied(
             await api.moveHook({ ...request, direction: action }),
@@ -140,160 +142,96 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
 
   const entries = registry?.entries ?? NONE;
   const pages = useIncrementalList(entries);
+  // A Hook that leaves the list, removed here or no longer found, takes its dialog with it.
+  const shown = opened === undefined ? undefined : entries.find((entry) => entry.path === opened);
+  const close = () => {
+    // A folder being added keeps its review on the page.
+    if (preview?.path === opened) setPreview(undefined);
+    setOpened(undefined);
+    setRemoving(undefined);
+    setHistory(undefined);
+  };
+  // A dialog shows what is done in it, never the outcome of an earlier action on another item.
+  const openItem = (path: string) => {
+    setNotice(undefined);
+    setOpened(path);
+  };
   const row = (entry: HookEntryView, index: number) => {
-    const { definition } = entry;
-    const name = definition?.name ?? folderName(entry.path);
-    const tools = definition ? hookToolsLabel(definition) : undefined;
+    const name = hookName(entry);
     const locked = busy !== undefined;
-    // A plugin's Hook is trusted and removed with its plugin, and runs after the user's own.
+    // A plugin's Hook is trusted with its plugin and runs after the user's own.
     const plugin = entry.plugin ?? undefined;
     const tone = hookStateTone(entry.state);
-    const shown = preview?.path === entry.path;
+    const review = plugin ? undefined : hookReview(entry);
     return (
-      <li
+      <SettingsRow
         key={entry.path}
-        className="settings-card"
-        data-state={entry.state}
-        data-tone={tone === 'success' ? undefined : tone}
-        style={{ '--item': index } as CSSProperties}
-      >
-        <div className="settings-card-heading hook-row-heading">
-          <span className="hook-row-order">{index + 1}</span>
-          <strong>{name}</strong>
-          {definition ? <span className="hook-row-version">{definition.version}</span> : null}
-          {definition ? <span className="hook-row-kind">{hookKindLabel(definition)}</span> : null}
-          {plugin ? <span className="settings-tag">插件 {plugin}</span> : null}
-          <span className="status-pill hook-row-state" data-tone={tone}>
-            {hookStateLabel(entry.state)}
-          </span>
-        </div>
-        {definition?.description ? <p>{definition.description}</p> : null}
-        {definition ? (
-          <p className="hook-row-events">
-            事件：{definition.events.map(hookEventLabel).join('、')}
-            {tools ? `；${tools}` : ''}
-          </p>
-        ) : null}
-        <p className="hook-row-location">{entry.path}</p>
-        {entry.problems.length ? (
-          <p className="settings-inline-alert" role="alert">
-            {entry.problems.join('；')}
-          </p>
-        ) : null}
-        <div className="settings-card-actions">
-          {plugin ? null : (
-            // The button that opens the preview also closes it.
-            <button
-              type="button"
-              className={
-                !shown && (entry.state === 'content_changed' || entry.state === 'not_trusted')
-                  ? 'button is-primary is-small'
-                  : 'button is-small'
-              }
-              disabled={locked}
-              aria-expanded={shown}
-              onClick={() => (shown ? setPreview(undefined) : void open(entry.path))}
-            >
-              {shown
-                ? '收起'
-                : entry.state === 'content_changed'
-                  ? '查看变化并重新信任'
-                  : entry.state === 'not_trusted'
-                    ? '预览并信任'
-                    : '预览'}
-            </button>
-          )}
-          {entry.state === 'ready' || entry.state === 'disabled' ? (
-            <button
-              type="button"
-              className="button is-small"
-              disabled={locked}
-              onClick={() => void change(entry, entry.enabled ? 'disable' : 'enable')}
-            >
-              {entry.enabled ? '停用' : '启用'}
-            </button>
-          ) : null}
-          {entry.trusted_fingerprint && !plugin ? (
-            <button
-              type="button"
-              className="button is-small"
-              disabled={locked}
-              onClick={() => void change(entry, 'untrust')}
-            >
-              撤销信任
-            </button>
-          ) : null}
-          {plugin ? null : (
-            <>
-              <button
-                type="button"
-                className="button is-ghost is-small"
-                aria-label={`上移 ${name}`}
-                disabled={locked || index === 0}
-                onClick={() => void change(entry, 'up')}
-              >
-                上移
-              </button>
-              <button
-                type="button"
-                className="button is-ghost is-small"
-                aria-label={`下移 ${name}`}
-                disabled={
-                  locked || index === entries.length - 1 || entries[index + 1]?.plugin != null
-                }
-                onClick={() => void change(entry, 'down')}
-              >
-                下移
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="button is-ghost is-small"
-            aria-expanded={history === entry.path}
-            onClick={() => setHistory(history === entry.path ? undefined : entry.path)}
-          >
-            {history === entry.path ? '收起调用记录' : '最近调用'}
-          </button>
-          {plugin ? null : (
-            <button
-              type="button"
-              className="button is-danger is-small hook-remove"
-              disabled={locked}
-              onClick={() => setRemoving(entry.path)}
-            >
-              移除
-            </button>
-          )}
-        </div>
-        {removing === entry.path ? (
-          <div role="alertdialog" aria-label={`移除 ${name}`} className="settings-panel is-danger">
-            <p>
-              只从列表中移除 {name}，不会删除它的文件夹（{entry.path}）。之后可以重新添加。
+        state={entry.state}
+        tone={tone === 'success' ? undefined : tone}
+        index={index}
+        headingClassName="hook-row-heading"
+        heading={<HookHeading entry={entry} order={index + 1} />}
+        summary={entry.definition?.description || hookEvents(entry)}
+        alerts={
+          entry.problems.length ? (
+            <p className="settings-inline-alert" role="alert">
+              {entry.problems.join('；')}
             </p>
-            <div className="settings-card-actions">
+          ) : null
+        }
+        actions={
+          <>
+            {review ? (
               <button
                 type="button"
-                className="button is-danger is-solid is-small"
-                onClick={() => void change(entry, 'remove')}
+                className="button is-primary is-small"
+                disabled={locked}
+                onClick={() => {
+                  openItem(entry.path);
+                  void open(entry.path);
+                }}
               >
-                移除
+                {review}
               </button>
+            ) : null}
+            {entry.state === 'ready' || entry.state === 'disabled' ? (
               <button
                 type="button"
                 className="button is-small"
-                onClick={() => setRemoving(undefined)}
+                disabled={locked}
+                onClick={() => void change(entry, entry.enabled ? 'disable' : 'enable')}
               >
-                取消
+                {entry.enabled ? '停用' : '启用'}
               </button>
-            </div>
-          </div>
-        ) : null}
-        {shown && preview ? (
-          <HookPreviewPanel preview={preview} busy={locked} onTrust={() => void trust(preview)} />
-        ) : null}
-        {history === entry.path ? <HookInvocations path={entry.path} name={name} /> : null}
-      </li>
+            ) : null}
+            {plugin ? null : (
+              <>
+                <button
+                  type="button"
+                  className="button is-ghost is-small"
+                  aria-label={`上移 ${name}`}
+                  disabled={locked || index === 0}
+                  onClick={() => void change(entry, 'up')}
+                >
+                  上移
+                </button>
+                <button
+                  type="button"
+                  className="button is-ghost is-small"
+                  aria-label={`下移 ${name}`}
+                  disabled={
+                    locked || index === entries.length - 1 || entries[index + 1]?.plugin != null
+                  }
+                  onClick={() => void change(entry, 'down')}
+                >
+                  下移
+                </button>
+              </>
+            )}
+            <SettingsRowOpen name={name} onOpen={() => openItem(entry.path)} />
+          </>
+        }
+      />
     );
   };
 
@@ -385,6 +323,30 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
           continue、transform 或 block（block 时写 reason）。
         </p>
       </details>
+      {shown ? (
+        <SettingsItemDialog
+          title={hookName(shown)}
+          heading={<HookHeading entry={shown} named={false} />}
+          headingClassName="hook-row-heading"
+          notice={notice}
+          onClose={close}
+        >
+          <HookDetails
+            entry={shown}
+            locked={busy !== undefined}
+            preview={preview?.path === shown.path ? preview : undefined}
+            removing={removing === shown.path}
+            history={history === shown.path}
+            onPreview={() => void open(shown.path)}
+            onClosePreview={() => setPreview(undefined)}
+            onTrust={(review) => void trust(review)}
+            onChange={(action) => void change(shown, action)}
+            onToggleHistory={() => setHistory(history === shown.path ? undefined : shown.path)}
+            onAskRemove={() => setRemoving(shown.path)}
+            onCancelRemove={() => setRemoving(undefined)}
+          />
+        </SettingsItemDialog>
+      ) : null}
     </section>
   );
 }

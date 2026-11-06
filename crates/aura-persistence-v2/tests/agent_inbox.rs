@@ -24,12 +24,15 @@ fn batch_consumption_rolls_back_with_turn_and_restarts_without_duplicate_message
                     tx,
                     CommandInvocationId::new(),
                     &AgentSubmitRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         text: text.into(),
                         destination: AgentInputLane::NextTurn,
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     f.at,
                 )
@@ -183,12 +186,15 @@ fn next_turn_never_becomes_query_or_special_mode_input() {
         let f = support::Fixture::new(&mut store, mode);
         let command = CommandInvocationId::new();
         let request = AgentSubmitRequest {
+            computer_mode: None,
             session_id: f.turn.session_id,
             text: "/goal ignored as a mode command".into(),
             destination: AgentInputLane::NextTurn,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         };
         let queued = store
             .database
@@ -236,12 +242,15 @@ fn additions_freeze_independent_sources_only_at_a_safe_point() {
                     tx,
                     CommandInvocationId::new(),
                     &AgentSubmitRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         text: text.into(),
                         destination: AgentInputLane::Addition { turn_task_id: f.turn.turn_task_id },
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     f.at,
                 )
@@ -315,12 +324,15 @@ fn stale_routing_and_restart_preserve_input_and_pause_queue() {
                 tx,
                 CommandInvocationId::new(),
                 &AgentSubmitRequest {
+                    computer_mode: None,
                     session_id: f.turn.session_id,
                     text: "Keep this message".into(),
                     destination: AgentInputLane::Addition { turn_task_id: TurnTaskId::new() },
                     skill_ids: Vec::new(),
                     reasoning_effort: None,
+                    speed_mode: None,
                     attachments: Vec::new(),
+                    references: Vec::new(),
                 },
                 f.at,
             )
@@ -371,12 +383,15 @@ fn a_restart_pause_gates_only_input_that_is_already_queued() {
                 tx,
                 CommandInvocationId::new(),
                 &AgentSubmitRequest {
+                    computer_mode: None,
                     session_id: session,
                     text: "Drain me".into(),
                     destination: AgentInputLane::NextTurn,
                     skill_ids: Vec::new(),
                     reasoning_effort: None,
+                    speed_mode: None,
                     attachments: Vec::new(),
+                    references: Vec::new(),
                 },
                 f.at,
             )
@@ -410,12 +425,15 @@ fn a_restart_pause_gates_only_input_that_is_already_queued() {
                 tx,
                 CommandInvocationId::new(),
                 &AgentSubmitRequest {
+                    computer_mode: None,
                     session_id: session,
                     text: "New explicit send".into(),
                     destination: AgentInputLane::NextTurn,
                     skill_ids: Vec::new(),
                     reasoning_effort: None,
+                    speed_mode: None,
                     attachments: Vec::new(),
+                    references: Vec::new(),
                 },
                 f.at,
             )
@@ -434,12 +452,15 @@ fn a_restart_pause_gates_only_input_that_is_already_queued() {
                 tx,
                 CommandInvocationId::new(),
                 &AgentSubmitRequest {
+                    computer_mode: None,
                     session_id: session,
                     text: "Second queued message".into(),
                     destination: AgentInputLane::NextTurn,
                     skill_ids: Vec::new(),
                     reasoning_effort: None,
+                    speed_mode: None,
                     attachments: Vec::new(),
+                    references: Vec::new(),
                 },
                 f.at,
             )

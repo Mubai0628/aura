@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Conversation } from './Conversation';
 import { openProcesses } from './process-test-helpers';
+import { forgetTurnChoices } from './turn-choices';
 import { forgetToolCallDirectories } from './useToolCallDirectory';
 
 /**
@@ -291,4 +292,35 @@ test('a call the debugging switch stopped keeps its enable button in view after 
   await waitFor(() =>
     expect(screen.getAllByRole('button', { name: '允许模型调试网页' })).toHaveLength(1),
   );
+});
+
+/** The same turn once its first step, read when the reader reached it, is in front of the rest. */
+function withEarlierStep(projection: AgentSessionProjection): AgentSessionProjection {
+  const [only] = projection.turns;
+  const first = step('step-0', '2026-10-18T00:00:00Z', {
+    reasoning: 'Read the task first.',
+    reasoning_total_bytes: 20,
+  });
+  return {
+    ...projection,
+    turns: [{ ...only!, assistant_messages: [first, ...only!.assistant_messages] }],
+  } as unknown as AgentSessionProjection;
+}
+
+// The earlier steps of a long turn are read when the reader reaches them, and the first of them
+// joins the section that was first.
+test('a section opened by hand stays as chosen when the turn’s earlier steps arrive in front of it', async () => {
+  forgetTurnChoices();
+  const view = render(<Conversation {...props} projection={turn('completed')} />);
+  await openProcesses();
+  await screen.findByText(/Retrying now/u);
+  const first = () => document.querySelector('.agent-process-section > button')!;
+  expect(first().getAttribute('aria-expanded')).toBe('false');
+  fireEvent.click(first());
+  view.rerender(<Conversation {...props} projection={withEarlierStep(turn('completed'))} />);
+  expect(first().getAttribute('aria-expanded')).toBe('true');
+  expect(first().closest('.agent-process-section')!.textContent).toContain('Read the task first.');
+  fireEvent.click(first());
+  view.rerender(<Conversation {...props} projection={withEarlierStep(turn('completed'))} />);
+  expect(first().getAttribute('aria-expanded')).toBe('false');
 });

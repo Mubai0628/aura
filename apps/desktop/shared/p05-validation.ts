@@ -3,6 +3,7 @@ import type { P05MainCommand, P05MainParams, P05SecretMainCommand } from './gene
 import { mainRoute } from './generated/routes.js';
 import { validateManualModelProfileInput } from './generated/agent-validator.js';
 import { REASONING_EFFORTS } from './projection-validation/common.js';
+import { isSpeedModeName } from './projection-validation/model-speed-modes.js';
 export type {
   P05MainCommand,
   P05MainParams,
@@ -223,19 +224,30 @@ export const isP05MainParams = <Command extends P05MainCommand>(
       );
     case 'models.profile.apply_catalog_update':
       return (
-        exactRecord(value, [
-          'expected_catalog_object_hash',
-          'expected_catalog_revision',
-          'expected_model_profile_revision',
-          'expected_models_revision',
-          'model_profile_id',
-        ]) &&
+        recordWithOptional(
+          value,
+          [
+            'expected_catalog_object_hash',
+            'expected_catalog_revision',
+            'expected_model_profile_revision',
+            'expected_models_revision',
+            'model_profile_id',
+          ],
+          ['catalog_entry'],
+        ) &&
         isContentHash(value.expected_catalog_object_hash) &&
         isRevision(value.expected_catalog_revision) &&
         isRevision(value.expected_model_profile_revision) &&
         isRevision(value.expected_models_revision) &&
-        isAuraId(value.model_profile_id, 'mdl')
+        isAuraId(value.model_profile_id, 'mdl') &&
+        (value.catalog_entry === undefined ||
+          value.catalog_entry === null ||
+          (exactRecord(value.catalog_entry, ['catalog_model_id', 'catalog_provider_id']) &&
+            typeof value.catalog_entry.catalog_model_id === 'string' &&
+            typeof value.catalog_entry.catalog_provider_id === 'string'))
       );
+    case 'models.profile.catalog_entries':
+      return exactRecord(value, ['model_profile_id']) && isAuraId(value.model_profile_id, 'mdl');
     case 'models.profile.update':
       return isProfileUpdateRequest(value);
     case 'models.profile.delete':
@@ -281,6 +293,8 @@ export const isP05MainParams = <Command extends P05MainCommand>(
       return exactRecord(value, ['endpoint_id']) && isAuraId(value.endpoint_id, 'end');
     case 'models.compatibility.reset':
       return isRevisionIdRequest(value, 'endpoint_id', 'end');
+    case 'models.credential_cleanup.retry':
+      return exactRecord(value, []);
   }
 };
 
@@ -436,16 +450,24 @@ const isRequestDefaults = (value: unknown): boolean =>
     value,
     [],
     [
+      'allow_speed_modes',
       'chat_instruction_role',
       'chat_output_token_field',
       'image_input',
       'max_output_tokens',
       'reasoning_effort',
       'reasoning_efforts',
+      'speed_mode',
       'temperature',
       'top_p',
     ],
   ) &&
+  // Whether a conversation may choose the speed modes the model's catalog entry offers.
+  (value.allow_speed_modes === undefined || typeof value.allow_speed_modes === 'boolean') &&
+  // A mode a profile named before each turn chose its own, by its catalog name.
+  (value.speed_mode === undefined ||
+    value.speed_mode === null ||
+    isSpeedModeName(value.speed_mode)) &&
   // Whether the model is sent images; none takes the catalog's.
   (value.image_input === undefined ||
     value.image_input === null ||

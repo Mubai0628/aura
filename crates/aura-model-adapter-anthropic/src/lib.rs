@@ -6,20 +6,21 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use aura_domain_common::ModelContentBlockId;
 use aura_model_domain::{
-    LogicalConversationItem, ModelApiFormat, ModelExecutionSnapshot, ModelFailureCategory,
-    ModelOutputFormat, ModelRetryClass, ModelRuntimeCapabilityFacts, ModelStreamEvent,
-    NormalizedModelFailure, NormalizedModelOutput, NormalizedStopReason, PartialModelUsage,
-    ProviderProtocolReference, ProviderRequestHeaderClass, ProviderToolCallId,
+    LogicalConversationItem, ModelApiFormat, ModelExecutionSnapshot, ModelOutputFormat,
+    ModelRuntimeCapabilityFacts, ModelStreamEvent, NormalizedModelFailure, NormalizedModelOutput,
+    NormalizedStopReason, PartialModelUsage, ProviderProtocolReference, ProviderRequestHeaderClass,
+    ProviderToolCallId,
 };
 use aura_model_transport::{
     MODEL_GENERATION_PROBE_MAX_OUTPUT_TOKENS, MODEL_GENERATION_PROBE_PROMPT, ModelAdapterError,
     ModelAvailabilityProbeCompilationInput, ModelGenerationProbeProtocol, ModelProtocolCompiler,
     ModelProtocolDecoder, ModelRequestCompilationInput, ModelStreamDecoder,
     NonSecretProviderHeader, NormalizedOutputBuilder, ProviderContinuationArtifact,
-    ProviderContinuationArtifactKind, ProviderErrorResponse, ProviderRequestPlan,
-    ProviderStreamFrame, build_generation_probe_request_plan, build_provider_request_plan,
-    historical_tool_call_wire_bindings, provider_tool_name_bindings, retry_after_milliseconds,
-    validate_generation_probe_input, validate_model_compilation_input,
+    ProviderContinuationArtifactKind, ProviderErrorFields, ProviderErrorResponse,
+    ProviderRequestPlan, ProviderStreamFrame, build_generation_probe_request_plan,
+    build_provider_request_plan, historical_tool_call_wire_bindings, provider_http_failure,
+    provider_stream_failure, provider_tool_name_bindings, validate_generation_probe_input,
+    validate_model_compilation_input,
 };
 use serde_json::{Map, Value, json};
 
@@ -42,10 +43,10 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
             )
         };
         let mut history = compile(&input.request.conversation_items)?;
-        // Compatible Messages endpoints may reject Anthropic's cache extensions.
-        // Only the native endpoint gets explicit, default-TTL cache breakpoints.
-        let native_cache =
-            input.snapshot.resolved_request_url.starts_with("https://api.anthropic.com/");
+        // Explicit, default-TTL cache breakpoints go only where the request's profile asks for
+        // them - Anthropic's own endpoint: compatible Messages endpoints may reject Anthropic's
+        // cache extensions.
+        let native_cache = aura_model_transport::cache_breakpoints(input.snapshot);
         if native_cache {
             history::mark_cacheable_tail(&mut history);
         }
@@ -127,6 +128,7 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
                 body.insert("top_p".to_owned(), Value::from(top_p));
             }
         }
+        body.extend(aura_model_transport::speed_mode_fields(input.snapshot));
         if !input.request.tool_schema_set.tools.is_empty() {
             let provider_tools =
                 aura_model_transport::ordered_tool_bindings(input.request, &tool_name_bindings)
@@ -330,87 +332,19 @@ fn optional_nullable_string<'a>(
     }
 }
 
-fn stream_error(value: &Value) -> ModelAdapterError {
-    let error = value.get("error").unwrap_or(value);
-    ModelAdapterError::protocol(
-        error.get("type").and_then(Value::as_str).unwrap_or("anthropic_stream_error"),
-        error
-            .get("message")
-            .and_then(Value::as_str)
-            .unwrap_or("Anthropic Messages stream reported an error"),
-    )
-}
+/// The fields of a failed reply: Anthropic names an error's code as its `type`.
+const HTTP_ERROR: ProviderErrorFields = ProviderErrorFields {
+    code: &["type"],
+    fallback_code: "anthropic_http_error",
+    fallback_message: "Anthropic Messages request failed",
+};
 
-fn classify_http_error(response: &ProviderErrorResponse) -> NormalizedModelFailure {
-    let value = serde_json::from_slice::<Value>(&response.body).ok();
-    let error = value.as_ref().and_then(|value| value.get("error")).or(value.as_ref());
-    let code = error
-        .and_then(|value| value.get("type"))
-        .and_then(Value::as_str)
-        .unwrap_or("anthropic_http_error")
-        .to_owned();
-    let message = error
-        .and_then(|value| value.get("message"))
-        .and_then(Value::as_str)
-        .unwrap_or("Anthropic Messages request failed")
-        .to_owned();
-    let lower = format!("{} {}", code.to_ascii_lowercase(), message.to_ascii_lowercase());
-    let (category, mut retry_class) = classify_status(response.status, &lower, error);
-    if let ModelRetryClass::TransparentRetry { retry_after_ms } = &mut retry_class {
-        *retry_after_ms = retry_after_milliseconds(&response.headers);
-    }
-    NormalizedModelFailure {
-        category,
-        code,
-        message,
-        retry_class,
-        provider_status: Some(response.status),
-        provider_request_id: response.provider_request_id.clone(),
-        provider_error_ref: response.raw_error_artifact_id,
-        partial_output_ref: None,
-        transport_attempt_id: None,
-    }
-}
-
-fn classify_status(
-    status: u16,
-    lower: &str,
-    error: Option<&Value>,
-) -> (ModelFailureCategory, ModelRetryClass) {
-    if status == 401 {
-        return (ModelFailureCategory::Authentication, ModelRetryClass::NotRetryable);
-    }
-    if status == 403 {
-        return (ModelFailureCategory::Authorization, ModelRetryClass::NotRetryable);
-    }
-    if status == 429 {
-        if contains_any(lower, &["quota", "balance", "billing", "credit"]) {
-            return (ModelFailureCategory::QuotaOrBalance, ModelRetryClass::NotRetryable);
-        }
-        return (
-            ModelFailureCategory::RateLimit,
-            ModelRetryClass::TransparentRetry { retry_after_ms: None },
-        );
-    }
-    if matches!(status, 408 | 500 | 502 | 503 | 504 | 529) {
-        return (
-            ModelFailureCategory::Transport,
-            ModelRetryClass::TransparentRetry { retry_after_ms: None },
-        );
-    }
-    if contains_any(lower, &["context window", "too many tokens", "prompt is too long"]) {
-        return (ModelFailureCategory::ContextWindowExceeded, ModelRetryClass::NotRetryable);
-    }
-    if contains_any(lower, &["not_found_error", "model not found", "unknown model"]) {
-        return (ModelFailureCategory::UnsupportedModel, ModelRetryClass::NotRetryable);
-    }
-    if error.and_then(|value| value.get("param")).and_then(Value::as_str).is_some()
-        && contains_any(lower, &["unsupported", "unknown", "not supported"])
-    {
-        return (ModelFailureCategory::UnsupportedParameter, ModelRetryClass::NotRetryable);
-    }
-    (ModelFailureCategory::InvalidRequest, ModelRetryClass::NotRetryable)
-}
+/// The fields of an `error` event, laid out as a failed reply's body.
+const STREAM_ERROR: ProviderErrorFields = ProviderErrorFields {
+    code: &["type"],
+    fallback_code: "anthropic_stream_error",
+    fallback_message: "Anthropic Messages stream reported an error",
+};
 
 fn has_native_attachments(value: &Value) -> bool {
     match value {
@@ -446,8 +380,4 @@ fn required_delta_string<'a>(value: &'a Value, field: &str) -> Result<&'a str, M
             format!("Anthropic delta has no string {field}"),
         )
     })
-}
-
-fn contains_any(value: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| value.contains(needle))
 }

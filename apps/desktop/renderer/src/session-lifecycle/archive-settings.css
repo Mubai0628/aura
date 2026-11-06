@@ -27,7 +27,7 @@
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
 
 .archive-list > li > div:first-child {

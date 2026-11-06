@@ -61,6 +61,15 @@ fn outcome_summary_text(outcome: &ToolResultOutcomeV1) -> String {
     }
 }
 
+/// The short line a terminal outcome of tool `name` shows: a computer call the user ended says
+/// what the user did.
+fn summary_line(name: &str, outcome: &ToolResultOutcomeV1) -> String {
+    match name.starts_with("computer.").then(|| super::computer::refusal(outcome)).flatten() {
+        Some(line) => line,
+        None => outcome_summary_text(outcome),
+    }
+}
+
 /// The bounded diagnostic lines a reader may expand for a terminal result.
 ///
 /// The short line in `summary` is what the row shows; this is where the stored
@@ -97,9 +106,10 @@ fn error_detail(result: &ToolResultV1) -> Vec<String> {
     details
 }
 
-/// A page-debugging call stopped because 允许模型调试网页 is off offers the switch; the
-/// decision stays the user's, on the row, never the model's.
-fn debugging_offer(name: &str, result: &ToolResultV1) -> Option<AgentToolOffer> {
+/// What the user can do about a call that did not run, offered from its row: a page-debugging
+/// call stopped because 允许模型调试网页 is off offers the switch; the decision stays the
+/// user's, on the row, never the model's.
+fn row_offer(name: &str, result: &ToolResultV1) -> Option<AgentToolOffer> {
     let error = match &result.outcome {
         ToolResultOutcomeV1::Failed { error }
         | ToolResultOutcomeV1::OperationRejected { error }
@@ -124,7 +134,25 @@ fn target(name: &str, arguments: Option<&Value>) -> Option<String> {
     if name.starts_with("chrome.") {
         return super::chrome::target(name, arguments);
     }
+    if name.starts_with("computer.") {
+        return super::computer::target(arguments);
+    }
     let arguments = arguments?;
+    if name == "skills.load" {
+        let skill = arguments.get("name").and_then(Value::as_str)?.trim();
+        let from = arguments.get("from").and_then(Value::as_str).map(str::trim);
+        return Some(match from.filter(|from| !from.is_empty()) {
+            Some(from) => clipped(&format!("{skill} [{from}]"), 256),
+            None => clipped(skill, 256),
+        });
+    }
+    if name == "skills.search" {
+        let query = arguments.get("query").and_then(Value::as_str).map(str::trim);
+        return query.filter(|query| !query.is_empty()).map(|query| clipped(query, 256));
+    }
+    if name == "plugins.logs" {
+        return arguments.get("name").and_then(Value::as_str).map(|plugin| clipped(plugin, 64));
+    }
     let named = arguments
         .get("path")
         .or_else(|| arguments.get("root"))
@@ -223,9 +251,9 @@ fn project_call(
     // reader can expand. The previous projection cut the English correction at 120
     // characters, so the row showed the beginning of a template and the actual field
     // it named fell off the end.
-    view.summary = outcome_summary_text(&result.outcome);
+    view.summary = summary_line(name, &result.outcome);
     view.details.extend(error_detail(result));
-    view.offer = debugging_offer(name, result);
+    view.offer = row_offer(name, result);
     if view.internal || !matches!(result.outcome, ToolResultOutcomeV1::Succeeded) {
         super::network_route::append_proxy_detail(db, call, name, &mut view);
         return Ok(view);
@@ -265,6 +293,7 @@ fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) {
         super::workspace_init::NAME => super::workspace_init::summarize(view, value),
         name if name.starts_with("browser.") => super::browser::summarize(view, name, value),
         name if name.starts_with("chrome.") => super::chrome::summarize(view, name, value),
+        name if name.starts_with("computer.") => super::computer::summarize(view, name, value),
         "terminal.request_sensitive_input" => {
             view.summary = match value["status"].as_str() {
                 Some("completed") => "安全输入已完成",
@@ -279,6 +308,49 @@ fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) {
             if let Some(output) = value["output"].as_str().filter(|value| !value.is_empty()) {
                 view.details.push(clipped(output, 400));
                 view.truncated = output.chars().count() > 400 || value["truncated"] == true;
+            }
+        }
+        "skills.search" => {
+            let count = value["skills"].as_array().map_or(0, Vec::len);
+            view.summary = if value["truncated"] == true {
+                format!("找到 {count} 个 Skill，还有更多")
+            } else {
+                format!("找到 {count} 个 Skill")
+            };
+        }
+        "plugins.validate" => {
+            let problems = value["problems"].as_array().map_or(0, Vec::len);
+            view.summary = match (value["installable"] == true, problems) {
+                (false, _) => format!("不能安装，{problems} 个问题"),
+                (true, 0) => "没有问题".into(),
+                (true, _) => format!("{problems} 个问题"),
+            };
+        }
+        "plugins.dev_install" => {
+            view.summary = match (value["installed"] == true, value["state"].as_str()) {
+                (false, _) => "没有装上".into(),
+                (true, Some("ready")) => "已装着，已信任".into(),
+                (true, Some("content_changed")) => "已装着，有改动待信任".into(),
+                (true, _) => "已装上，待在插件页信任".into(),
+            };
+            if let Some(folder) = value["folder"].as_str() {
+                view.details.push(format!("文件夹：{}", clipped(folder, 256)));
+            }
+        }
+        "plugins.logs" => {
+            let count = value["entries"].as_array().map_or(0, Vec::len);
+            view.summary = if count == 0 { "没有报错".into() } else { format!("{count} 条") };
+        }
+        "skills.load" => {
+            let files = value["files"].as_array().map_or(0, Vec::len) as u64
+                + value["more_files"].as_u64().unwrap_or(0);
+            view.summary = if files == 0 {
+                "已加载".into()
+            } else {
+                format!("已加载，另有 {files} 个文件")
+            };
+            if let Some(folder) = value["folder"].as_str() {
+                view.details.push(format!("文件夹：{}", clipped(folder, 256)));
             }
         }
         // Where a deletion went.
@@ -409,11 +481,17 @@ pub(crate) fn title(name: &str) -> &str {
         "history.list_turns" => "列出会话轮次",
         "history.search" => "搜索会话历史",
         "history.read" => "读取会话历史",
+        "skills.search" => "搜索 Skill",
+        "skills.load" => "加载 Skill",
+        "plugins.validate" => "检查插件",
+        "plugins.dev_install" => "安装开发中的插件",
+        "plugins.logs" => "读取插件日志",
         super::query::NAME => "向你提问",
         // Shown while the model writes the call; once admitted it is the tool it names.
         "tools.call" => "调用工具",
         name if name.starts_with("browser.") => super::browser::title(name).unwrap_or(name),
         name if name.starts_with("chrome.") => super::chrome::title(name).unwrap_or(name),
+        name if name.starts_with("computer.") => super::computer::title(name).unwrap_or(name),
         _ => name,
     }
 }

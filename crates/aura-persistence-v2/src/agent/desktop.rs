@@ -182,6 +182,7 @@ fn turn_view(
         _ => None,
     };
     Ok(AgentTurnView {
+        computer_mode: application::computer_mode(db, turn.agent_run_id)?,
         todo: work::todo(db, id)?,
         plan: facts::latest(db, &id.to_string(), "agent.plan_completed")?,
         goal: (turn.mode == AgentTaskMode::Goal).then(|| work::goal(db, id)).transpose()?,

@@ -1,7 +1,7 @@
 //! What a configured server runs as: the command resolved on the user's PATH, its content
 //! hash, the environment and, for a `.cmd`/`.bat` program, the script CMD runs. The trusted
 //! fingerprint covers exactly these facts.
-use aura_backend_windows_user::program::ProgramEnvironment;
+use aura_backend_windows_user::program::{ProgramEnvironment, program_extension, resolve_program};
 use aura_mcp::{
     McpServerConfig, McpTransport, ResolvedCommand, config_fingerprint, validate_server,
 };
@@ -9,14 +9,11 @@ use aura_windows_user_contract::ExecutionFileBinding;
 use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
-    ffi::OsString,
     io::Read,
     path::{Path, PathBuf},
     sync::Mutex,
     time::SystemTime,
 };
-
-const PROGRAM_EXTENSIONS: [&str; 4] = ["exe", "com", "cmd", "bat"];
 
 /// A configuration checked against the computer now.
 #[derive(Clone, Debug)]
@@ -65,51 +62,6 @@ impl HashCache {
         }
         Ok(hash)
     }
-}
-
-fn user_path() -> Option<OsString> {
-    aura_windows_platform::current_user_environment()
-        .ok()?
-        .into_iter()
-        .find(|(name, _)| name.to_string_lossy().eq_ignore_ascii_case("PATH"))
-        .map(|(_, value)| value)
-}
-
-fn program_extension(path: &Path) -> Option<String> {
-    path.extension()
-        .map(|extension| extension.to_string_lossy().to_ascii_lowercase())
-        .filter(|extension| PROGRAM_EXTENSIONS.contains(&extension.as_str()))
-}
-
-/// The program a command names: an absolute path, or a bare name found on the user's PATH
-/// (PATHEXT order for the four program kinds). The current folder is never searched.
-pub(crate) fn resolve_program(command: &str) -> Result<PathBuf, String> {
-    let named = Path::new(command.trim());
-    let usable = |path: &Path| {
-        path.is_file().then(|| path.to_path_buf()).filter(|path| program_extension(path).is_some())
-    };
-    if named.is_absolute() {
-        return usable(named).ok_or_else(|| {
-            format!("{} 不存在，或不是 .exe、.com、.cmd、.bat 程序", named.display())
-        });
-    }
-    if command.contains(['\\', '/']) {
-        return Err("command 必须是完整路径，或 PATH 里的程序名".into());
-    }
-    let candidates: Vec<String> = if named.extension().is_some() {
-        vec![command.trim().to_owned()]
-    } else {
-        ["exe", "com", "bat", "cmd"].iter().map(|ext| format!("{}.{ext}", command.trim())).collect()
-    };
-    let path = user_path().unwrap_or_default();
-    for directory in std::env::split_paths(&path).filter(|d| d.is_absolute()) {
-        for candidate in &candidates {
-            if let Some(found) = usable(&directory.join(candidate)) {
-                return Ok(found);
-            }
-        }
-    }
-    Err(format!("在 PATH 里找不到 {}（只认 .exe、.com、.cmd、.bat）", command.trim()))
 }
 
 /// Checks a configuration and computes what trusting it would mean. Nothing is started.

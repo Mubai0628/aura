@@ -3,9 +3,11 @@
 mod environment;
 mod input;
 mod process;
+mod resolve;
 mod session;
 pub use environment::ProgramEnvironment;
 pub use process::{ProgramInput, ProgramIo, ProgramOutput, ProgramSpec, ProgramStop, run};
+pub use resolve::{program_extension, resolve_program};
 pub use session::{MAX_SESSION_FRAME_BYTES, ProgramSession, SessionEvent, SessionSpec};
 
 /// No filesystem or network isolation is claimed for author code running as the user.

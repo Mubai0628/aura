@@ -61,6 +61,7 @@ async fn s09_saved_timeout_override_bounds_a_real_http_execution() {
             &runtime,
             "agent.start",
             json!(AgentStartRequest {
+                computer_mode: None,
                 session_id: session,
                 model_profile_id: model,
                 text: "Make the local HTTP request.".into(),
@@ -69,7 +70,9 @@ async fn s09_saved_timeout_override_bounds_a_real_http_execution() {
                 explicit_backend_id: None,
                 skill_ids: Vec::new(),
                 reasoning_effort: None,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             }),
         )
         .await,

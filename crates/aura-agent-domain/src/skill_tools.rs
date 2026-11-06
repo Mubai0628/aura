@@ -1,6 +1,5 @@
-//! `skills.*` model tools: find the user's trusted Skills, read one, and load it for this
-//! turn. A Skill is guidance the user trusted; loading one never allows a tool or widens what
-//! the session may do.
+//! `skills.*` model tools: find the user's usable Skills and load one by its name. A Skill is
+//! guidance the user keeps; loading one never allows a tool or widens what the session may do.
 use aura_domain_common::SkillInstanceId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,101 +24,77 @@ pub struct SkillsSearchInput {
     pub limit: Option<u32>,
 }
 
-/// One usable Skill: enabled and trusted by the user at its current content.
+/// One usable Skill.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct SkillSummary {
-    pub skill_id: SkillInstanceId,
+pub struct SkillFound {
     pub name: String,
+    /// Where it is from, to pass to skills.load with its name; only when another usable Skill
+    /// has the same name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
     pub description: String,
-    pub origin: SkillOrigin,
-    /// What the Skill says it needs. Only a description: no tool is loaded or allowed by it.
-    pub allowed_tools: Vec<String>,
-    /// Loaded in this turn.
-    pub loaded: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct SkillsSearchResult {
-    pub skills: Vec<SkillSummary>,
+pub struct SkillsFoundResult {
+    pub skills: Vec<SkillFound>,
     /// More Skills matched than were returned.
     pub truncated: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct SkillsDescribeInput {
-    pub skill_id: SkillInstanceId,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct SkillFileEntry {
-    /// Relative to the Skill folder, `/`-separated; pass it to `skills.read_resource`.
-    pub path: String,
-    pub bytes: u64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct SkillDescription {
-    pub skill_id: SkillInstanceId,
-    pub name: String,
-    pub description: String,
-    pub origin: SkillOrigin,
-    pub license: Option<String>,
-    pub compatibility: Option<String>,
-    pub allowed_tools: Vec<String>,
-    pub files: Vec<SkillFileEntry>,
-    pub loaded: bool,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
 pub struct SkillsLoadInput {
-    pub skill_ids: Vec<SkillInstanceId>,
+    /// The Skill's name, as the list of Skills or skills.search shows it.
+    pub name: String,
+    /// Where it is from: the place in brackets in the list, or skills.search's from. Needed
+    /// only when two usable Skills have the same name.
+    #[serde(default)]
+    pub from: Option<String>,
 }
 
+/// A loaded Skill: its instructions, and its folder and files to read when they point to them.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct SkillsUnloadInput {
-    pub skill_ids: Vec<SkillInstanceId>,
+pub struct SkillContent {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    pub description: String,
+    /// The Skill's folder on this computer.
+    pub folder: String,
+    /// The folder's other files, relative to it.
+    pub files: Vec<String>,
+    /// Files in the folder that files does not name.
+    #[serde(default)]
+    pub more_files: u32,
+    /// What the Skill says it needs. Only a description: no tool is loaded or allowed by it.
+    pub allowed_tools: Vec<String>,
+    /// The instructions of its SKILL.md.
+    pub instructions: String,
 }
 
-/// A Skill loaded for this turn, at the content it was loaded with.
+/// A Skill the user chose in the composer, at the content it was chosen with.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct LoadedSkillEntry {
     pub skill_id: SkillInstanceId,
     pub name: String,
     pub origin: SkillOrigin,
-    /// The content fingerprint the user trusted and this load used.
+    /// The content fingerprint of the Skill when it was chosen.
     pub fingerprint: String,
 }
 
-/// The Skills loaded for this turn. Their instructions are in the task state from the next
-/// step on; they unload when the turn ends.
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct SkillsLoadedResult {
-    pub loaded: Vec<LoadedSkillEntry>,
-    /// The most Skills one turn may have loaded.
-    pub limit: u32,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct SkillsReadResourceInput {
-    pub skill_id: SkillInstanceId,
-    /// A file inside the Skill folder, as `skills.describe` lists it.
-    pub path: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct SkillsReadResourceResult {
-    pub skill_id: SkillInstanceId,
-    pub path: String,
-    pub text: String,
+/// The message as the model reads it with the Skills the user chose for it: its text (what the
+/// user typed, with its attachments), then each chosen Skill whole. With none it is the text.
+#[must_use]
+pub fn message_with_skills(text: &str, chosen: &[String]) -> String {
+    let mut whole = text.to_owned();
+    for skill in chosen {
+        whole.push_str("\n\n");
+        whole.push_str(skill);
+    }
+    whole
 }

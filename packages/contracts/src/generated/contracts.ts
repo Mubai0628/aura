@@ -874,20 +874,29 @@ export type ProviderCatalogConfigurationClass =
  * Renderer-safe initial values for a catalog Provider connection form.
  *
  * Aura presets are compiled into the signed application and may define the
- * complete execution contract. A models.dev API suggestion is intentionally
- * limited to an HTTPS Base URL and must never be treated as trusted execution
- * configuration.
+ * complete execution contract. A models.dev API suggestion is limited to an
+ * HTTPS Base URL and the protocol the catalog's package speaks: a draft the
+ * user saves, never trusted execution configuration.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ProviderCatalogConnectionDefaultsView".
  */
 export type ProviderCatalogConnectionDefaultsView =
   | {
+      /**
+       * Each model goes by its own variant, so the Provider is reached through one
+       * connection of each.
+       */
+      by_model?: boolean;
       source: 'aura_preset';
       variants: ProviderPresetVariantView[];
     }
   | {
       base_url: string;
+      /**
+       * Where the catalog's package for the Provider speaks a protocol Aura speaks.
+       */
+      protocol?: ModelsDevProtocolSuggestion | null;
       source: 'models_dev_api_suggestion';
     };
 /**
@@ -895,6 +904,14 @@ export type ProviderCatalogConnectionDefaultsView =
  * via the `definition` "EndpointAuthScheme".
  */
 export type EndpointAuthScheme = 'none' | 'open_ai_bearer_api_key' | 'anthropic_api_key';
+/**
+ * Where a parameter stands in a base URL, and so what it may hold: never enough to move a
+ * request, or the key it carries, to another host or path.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ProviderPresetParameterKind".
+ */
+export type ProviderPresetParameterKind = 'domain_label' | 'path_segment';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ChatInstructionRole".
@@ -4595,7 +4612,10 @@ export type ResolvedCapability =
   | 'chrome_interaction'
   | 'chrome_sensitive_action'
   | 'agent_task_read'
-  | 'external_extension_call';
+  | 'external_extension_call'
+  | 'plugin_development_install'
+  | 'desktop_read'
+  | 'desktop_input';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "InvocationActor".
@@ -6928,6 +6948,17 @@ export type AgentAttachmentDraft =
   | {
       kind: 'file';
       path: string;
+    }
+  | {
+      kind: 'capture';
+      name: string;
+      text: string;
+    }
+  | {
+      kind: 'mcp_resource';
+      name: string;
+      server_id: string;
+      uri: string;
     };
 /**
  * Why Main started a new Core while Aura stayed open: the Core exited by itself, Main ended it
@@ -6938,6 +6969,13 @@ export type AgentAttachmentDraft =
  * via the `definition` "CoreRestartCause".
  */
 export type CoreRestartCause = 'crash' | 'unresponsive' | 'transport_lost' | 'user_restart';
+/**
+ * The desktop selected by the user for one durable turn. It is never a fallback policy.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerMode".
+ */
+export type ComputerMode = 'foreground' | 'child_session';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentContextRemediationState".
@@ -7105,6 +7143,13 @@ export type AgentInputLane =
  */
 export type TurnReasoningEffort = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /**
+ * What kind of thing a message referred to.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MessageReferenceKind".
+ */
+export type MessageReferenceKind = 'file' | 'folder' | 'session';
+/**
  * Where a Skill lives: `aura_store` (imported into Aura), `agent_global` (the user's
  * `.agents\skills`) or `workspace` (this workspace's `.agents\skills`).
  *
@@ -7112,6 +7157,35 @@ export type TurnReasoningEffort = 'off' | 'minimal' | 'low' | 'medium' | 'high' 
  * via the `definition` "SkillOrigin".
  */
 export type SkillOrigin = 'aura_store' | 'agent_global' | 'workspace';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "TurnSpeedMode".
+ */
+export type TurnSpeedMode = string;
+/**
+ * One thing a message refers to, as the composer sends it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentMessageReference".
+ */
+export type AgentMessageReference =
+  | {
+      kind: 'workspace_path';
+      path: string;
+    }
+  | {
+      kind: 'session';
+      session_id: SessionId;
+    }
+  | {
+      conversation: ConversationHandle;
+      kind: 'conversation';
+    };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ConversationHandle".
+ */
+export type ConversationHandle = string;
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentMessageTextSource".
@@ -7367,6 +7441,13 @@ export type UserMessageOrigin =
       query_id: UserQueryId;
     };
 /**
+ * A chat on a platform: with one person, or a group.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginChatKind".
+ */
+export type PluginChatKind = 'private' | 'group';
+/**
  * How a turn ended.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -7423,6 +7504,13 @@ export type WebServiceSettingV1 =
       endpoint_id: EndpointId;
       kind: 'deepseek';
     };
+/**
+ * Where a program in the catalog comes from.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AppKind".
+ */
+export type AppKind = 'packaged' | 'desktop' | 'manual';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AttemptState".
@@ -7795,6 +7883,11 @@ export type ResourceDescriptor =
       confirmed: boolean;
       origin: string;
       scope_kind: 'chrome_origin';
+    }
+  | {
+      app_id: string;
+      authorized: boolean;
+      scope_kind: 'desktop_app';
     };
 /**
  * How a package tool reaches the outside: through Core's controlled HTTP, or as a
@@ -7871,6 +7964,13 @@ export type BackendError =
  * via the `definition` "BackendLifecycle".
  */
 export type BackendLifecycle = 'dormant' | 'starting' | 'ready' | 'degraded';
+/**
+ * Whether the sea behind an empty conversation moves.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "BackgroundMotion".
+ */
+export type BackgroundMotion = ('on' | 'off') | 'system';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "BackgroundState".
@@ -8034,7 +8134,8 @@ export type ConfigModule =
   | 'memory'
   | 'diagnostics'
   | 'update'
-  | 'chrome';
+  | 'chrome'
+  | 'computer';
 /**
  * Which recovery action the user is asking for.
  *
@@ -8193,6 +8294,136 @@ export type ReviewedIntentResult =
  * via the `definition` "SourceReadReceiptId".
  */
 export type SourceReadReceiptId = string;
+/**
+ * One step of computer.act, on an element of an earlier read.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerActStepV1".
+ */
+export type ComputerActStepV1 =
+  | {
+      action: 'click';
+      ref: string;
+    }
+  | {
+      action: 'set_value';
+      ref: string;
+      value: string;
+    }
+  | {
+      action: 'check';
+      ref: string;
+    }
+  | {
+      action: 'uncheck';
+      ref: string;
+    }
+  | {
+      action: 'expand';
+      ref: string;
+    }
+  | {
+      action: 'collapse';
+      ref: string;
+    }
+  | {
+      action: 'select';
+      ref: string;
+    }
+  | {
+      action: 'focus';
+      ref: string;
+    }
+  | {
+      action: 'scroll_into_view';
+      ref: string;
+    }
+  | {
+      action: 'scroll';
+      down?: number;
+      ref: string;
+      right?: number;
+    };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PipPhase".
+ */
+export type PipPhase = 'closed' | 'waiting_for_login' | 'ready' | 'disconnected' | 'failed';
+/**
+ * One step of computer.input.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerInputStepV1".
+ */
+export type ComputerInputStepV1 =
+  | {
+      action: 'click';
+      button?: 'left' | 'right' | 'middle';
+      /**
+       * 2 is a double click.
+       */
+      count?: number | null;
+      /**
+       * Or the middle of an element of an earlier read, such as e12.
+       */
+      ref?: string | null;
+      /**
+       * A point of the screenshot the call names (image).
+       */
+      x?: number | null;
+      y?: number | null;
+    }
+  | {
+      action: 'move';
+      /**
+       * Or the middle of an element of an earlier read, such as e12.
+       */
+      ref?: string | null;
+      /**
+       * A point of the screenshot the call names (image).
+       */
+      x?: number | null;
+      y?: number | null;
+    }
+  | {
+      action: 'drag';
+      button?: 'left' | 'right' | 'middle';
+      path: ComputerPointV1[];
+    }
+  | {
+      action: 'scroll';
+      down?: number;
+      /**
+       * Or the middle of an element of an earlier read, such as e12.
+       */
+      ref?: string | null;
+      right?: number;
+      /**
+       * A point of the screenshot the call names (image).
+       */
+      x?: number | null;
+      y?: number | null;
+    }
+  | {
+      action: 'type';
+      text: string;
+    }
+  | {
+      action: 'press';
+      keys: string;
+      repeat?: number | null;
+    }
+  | {
+      action: 'wait';
+      ms: number;
+    };
+/**
+ * What `computer.window` does to a window, as its title bar would.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WindowAction".
+ */
+export type WindowAction = 'minimize' | 'front' | 'maximize' | 'restore' | 'close';
 /**
  * Where a domain's currently-served snapshot came from.
  *
@@ -8883,6 +9114,39 @@ export type MemorySelector =
  */
 export type MemoryRepairPhase = 'preview' | 'apply';
 /**
+ * Where the conversation names a file: a message, or a call whose row shows the file (what it
+ * read, wrote, downloaded or opened).
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MentionedFileSource".
+ */
+export type MentionedFileSource =
+  | {
+      event_id: EventId;
+      kind: 'user';
+    }
+  | {
+      kind: 'assistant';
+      model_step_id: ModelStepId;
+    }
+  | {
+      kind: 'reasoning';
+      model_step_id: ModelStepId;
+    }
+  | {
+      kind: 'completion';
+      turn_task_id: TurnTaskId;
+    }
+  | {
+      kind: 'tool_call';
+      tool_call_id: ToolCallId;
+    };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MouseButton".
+ */
+export type MouseButton = 'left' | 'right' | 'middle';
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "NetworkSessionConsentAvailability".
  */
@@ -8983,10 +9247,85 @@ export type PlanStepExecution =
       group: string;
     };
 /**
+ * What a plugin's panel and background service may do with the conversations they are given.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginCapability".
+ */
+export type PluginCapability =
+  | 'notify'
+  | 'session.read'
+  | 'session.events'
+  | 'session.send'
+  | 'session.control'
+  | 'status'
+  | 'commands'
+  | 'settings';
+/**
+ * The kind of chat platform a channel is on. Only shown to the user and given to the service;
+ * Aura's rules are the same for all.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginPlatform".
+ */
+export type PluginPlatform =
+  | ('qq' | 'feishu' | 'wechat' | 'wecom' | 'telegram' | 'dingtalk' | 'slack' | 'discord' | 'other')
+  | 'onebot'
+  | 'satori';
+/**
+ * How a compaction of the conversation's history ended.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginCompactionOutcome".
+ */
+export type PluginCompactionOutcome = ('completed' | 'failed' | 'cancelled') | 'interrupted';
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "PluginLayout".
  */
 export type PluginLayout = 'aura' | 'claude_code';
+/**
+ * How a plugin's notice or status entry reads.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginUiTone".
+ */
+export type PluginUiTone = 'info' | 'success' | 'warning' | 'error';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginOptionKind".
+ */
+export type PluginOptionKind = 'text' | 'secret';
+/**
+ * What the plugin's background service is doing now.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginServiceStatus".
+ */
+export type PluginServiceStatus =
+  | {
+      state: 'off';
+    }
+  | {
+      reason: string;
+      state: 'waiting';
+    }
+  | {
+      state: 'starting';
+    }
+  | {
+      since: UtcTimestamp;
+      state: 'running';
+    }
+  | {
+      reason: string;
+      seconds: number;
+      state: 'restarting';
+    }
+  | {
+      reason: string;
+      state: 'stopped';
+    };
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "PluginState".
@@ -9003,6 +9342,99 @@ export type PluginServerKind = 'stdio' | 'http';
  * via the `definition` "PluginSignIn".
  */
 export type PluginSignIn = 'secret' | 'oauth';
+/**
+ * What a plugin's background service changed in Aura's window, once Core checked it; Core
+ * sends it to Main as the `plugin.ui.v1` notification.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginServiceUi".
+ */
+export type PluginServiceUi =
+  | {
+      kind: 'notice';
+      notice: PluginNotice;
+    }
+  | {
+      kind: 'status';
+      status: PluginStatus;
+    }
+  | {
+      kind: 'ended';
+      plugin: string;
+    }
+  | {
+      kind: 'service';
+      plugin: string;
+    };
+/**
+ * What the conversation is doing now.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionActivity".
+ */
+export type PluginSessionActivity = 'idle' | 'running' | 'waiting';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionEventKind".
+ */
+export type PluginSessionEventKind =
+  | {
+      kind: 'turn_started';
+      turn_task_id: TurnTaskId;
+    }
+  | {
+      /**
+       * The turn's final reply, when it completed with one.
+       */
+      final_reply?: string | null;
+      kind: 'turn_ended';
+      outcome?: AgentTurnOutcome | null;
+      /**
+       * Why it failed or needs recovery, as Aura records it.
+       */
+      reason?: string | null;
+      turn_task_id: TurnTaskId;
+    }
+  | {
+      approval_id: ApprovalRequestId;
+      kind: 'approval_waiting';
+      turn_task_id: TurnTaskId;
+    }
+  | {
+      kind: 'step_started';
+      model_step_id: ModelStepId;
+      turn_task_id: TurnTaskId;
+    }
+  | {
+      kind: 'step_ended';
+      model_step_id: ModelStepId;
+      turn_task_id: TurnTaskId;
+      usage: PluginStepUsage;
+    }
+  | {
+      kind: 'tool_call';
+      model_step_id: ModelStepId;
+      /**
+       * The tool's name in Aura (`fs.write`, …).
+       */
+      tool: string;
+      tool_call_id: ToolCallId;
+      turn_task_id: TurnTaskId;
+    }
+  | {
+      compaction_id: ContextProjectionSnapshotId;
+      kind: 'compaction_started';
+    }
+  | {
+      compaction_id: ContextProjectionSnapshotId;
+      kind: 'compaction_ended';
+      outcome: PluginCompactionOutcome;
+    };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginThemeScheme".
+ */
+export type PluginThemeScheme = 'dark' | 'light';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "PolicyAuthorization".
@@ -9037,6 +9469,23 @@ export type PolicyDenyReason =
   | 'profile_prohibited'
   | 'backend_unavailable'
   | 'dispatch_already_started';
+/**
+ * Which of its Provider's preset variants a catalog model goes by.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ProviderCatalogModelRouteView".
+ */
+export type ProviderCatalogModelRouteView =
+  | {
+      type: 'any';
+    }
+  | {
+      type: 'variant';
+      variant_id: string;
+    }
+  | {
+      type: 'unsupported';
+    };
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ReconcileResult".
@@ -9106,7 +9555,14 @@ export type ShellConsentLifetime = 'legacy_runtime' | 'session';
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "SkillSource".
  */
-export type SkillSource = 'aura_store' | 'agent_global' | 'workspace' | 'plugin';
+export type SkillSource =
+  | 'aura_store'
+  | 'aura_builtin'
+  | 'agent_global'
+  | 'workspace'
+  | 'plugin'
+  | 'claude_global'
+  | 'claude_workspace';
 /**
  * Whether the model may see and load a Skill now, and why not.
  *
@@ -9114,7 +9570,7 @@ export type SkillSource = 'aura_store' | 'agent_global' | 'workspace' | 'plugin'
  * via the `definition` "SkillState".
  */
 export type SkillState =
-  ('not_trusted' | 'ready') | 'disabled' | 'content_changed' | 'invalid' | 'unavailable';
+  'ready' | 'disabled' | 'not_trusted' | 'content_changed' | 'invalid' | 'unavailable';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "SourceMembership".
@@ -10449,6 +10905,20 @@ export interface ProviderCatalogModelPage {
 export interface ProviderCatalogModelView {
   catalog_object_hash: ContentHash;
   model: ProviderCatalogModelEntry;
+  /**
+   * Which of its Provider's preset variants a catalog model goes by.
+   */
+  route?:
+    | {
+        type: 'any';
+      }
+    | {
+        type: 'variant';
+        variant_id: string;
+      }
+    | {
+        type: 'unsupported';
+      };
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -10466,12 +10936,35 @@ export interface ProviderCatalogModelEntry {
   input_modalities: string[];
   knowledge_cutoff?: string | null;
   last_updated?: string | null;
+  /**
+   * models.dev's `type`: `chat`, `image`, `embedding`, `video`, `speech`, `transcription`,
+   * `reranking`, `realtime`. A model without one is a chat model.
+   */
+  model_type?: string | null;
+  /**
+   * Modes the model can be asked for, such as `fast` or `flex`, by name.
+   */
+  modes?: {
+    [k: string]: ProviderCatalogModelMode | undefined;
+  };
   open_weights?: boolean | null;
   output_limit_tokens?: number | null;
   output_modalities: string[];
   price?: ProviderCatalogPrice | null;
+  /**
+   * Prices from a context length on, by ascending length; `price` applies below the first.
+   */
+  price_tiers?: ProviderCatalogPriceTier[];
+  /**
+   * The message field that carries the model's reasoning in Chat Completions.
+   */
+  reasoning_field?: string | null;
   reasoning_options: string[];
   release_date?: string | null;
+  /**
+   * Where the model is served when it is not where its provider's other models are.
+   */
+  route?: ProviderCatalogModelRoute | null;
   status?: string | null;
 }
 /**
@@ -10487,6 +10980,22 @@ export interface ProviderCatalogModelCapabilities {
   tool_call: boolean;
 }
 /**
+ * One mode of a model and what asking for it changes. Only request body fields and headers on
+ * Aura's list are kept, each with a string value; a mode that needs anything else is left out.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ProviderCatalogModelMode".
+ */
+export interface ProviderCatalogModelMode {
+  body?: {
+    [k: string]: string | undefined;
+  };
+  headers?: {
+    [k: string]: string | undefined;
+  };
+  price?: ProviderCatalogPrice | null;
+}
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ProviderCatalogPrice".
  */
@@ -10497,6 +11006,31 @@ export interface ProviderCatalogPrice {
   input?: CatalogDecimal | null;
   output?: CatalogDecimal | null;
   unit: CatalogPriceUnit;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ProviderCatalogPriceTier".
+ */
+export interface ProviderCatalogPriceTier {
+  /**
+   * The context length, in tokens, from which the price applies.
+   */
+  from_context_tokens: number;
+  price: ProviderCatalogPrice;
+}
+/**
+ * A model's own route, as models.dev gives it: untrusted, a suggestion only.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ProviderCatalogModelRoute".
+ */
+export interface ProviderCatalogModelRoute {
+  api_url?: string | null;
+  npm_package?: string | null;
+  /**
+   * `responses` or `completions` within an OpenAI-style package.
+   */
+  shape?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -10519,13 +11053,48 @@ export interface ProviderCatalogSummaryView {
 export interface ProviderPresetVariantView {
   api_format: ModelApiFormat;
   auth_scheme: EndpointAuthScheme;
+  /**
+   * With a `{name}` in place of each of `base_url_parameters`.
+   */
   base_url: string;
+  /**
+   * The values of the user's own the base URL takes, such as an account or a region.
+   */
+  base_url_parameters?: ProviderPresetParameterView[];
   chat_instruction_role?: ChatInstructionRole | null;
   chat_output_token_field?: ChatOutputTokenField | null;
   discovery_mode: ModelDiscoveryMode;
   display_name: string;
   recommended: boolean;
   variant_id: string;
+}
+/**
+ * A non-secret value of the user's own in a preset's base URL.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ProviderPresetParameterView".
+ */
+export interface ProviderPresetParameterView {
+  display_name: string;
+  example: string;
+  kind: ProviderPresetParameterKind;
+  /**
+   * As it stands in the base URL, between braces.
+   */
+  name: string;
+}
+/**
+ * The protocol a catalog Provider's package speaks, the key that package sends and, for Chat
+ * Completions, the defaults it sends with.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelsDevProtocolSuggestion".
+ */
+export interface ModelsDevProtocolSuggestion {
+  api_format: ModelApiFormat;
+  auth_scheme: EndpointAuthScheme;
+  chat_instruction_role?: ChatInstructionRole | null;
+  chat_output_token_field?: ChatOutputTokenField | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -11054,6 +11623,11 @@ export interface RuntimeWindowCorrectionBasis {
  * via the `definition` "ModelRequestDefaults".
  */
 export interface ModelRequestDefaults {
+  /**
+   * Whether a conversation may choose, for its turns, a speed mode the model's catalog entry
+   * offers. Not allowed, every request goes in the standard mode.
+   */
+  allow_speed_modes?: boolean;
   chat_instruction_role?: ChatInstructionRole | null;
   chat_output_token_field?: ChatOutputTokenField | null;
   /**
@@ -11072,6 +11646,10 @@ export interface ModelRequestDefaults {
    * not know, or knows wrongly); none takes them from the catalog and the API format.
    */
   reasoning_efforts?: ReasoningEffort[] | null;
+  /**
+   * The speed mode a profile named before each turn chose its own; read, never sent.
+   */
+  speed_mode?: string | null;
   temperature?: number | null;
   top_p?: number | null;
 }
@@ -11218,8 +11796,28 @@ export interface ResolvedModelRequestOptions {
    * offers.
    */
   reasoning_effort?: ReasoningEffort | null;
+  /**
+   * The speed mode the request is sent with: the one its turn chose, when the model's settings
+   * allow speed modes and its catalog entry offers that one.
+   */
+  speed_mode?: ModelSpeedMode | null;
   temperature?: number | null;
   top_p?: number | null;
+}
+/**
+ * A mode a request is sent with: its name, and the body fields and headers it sets.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelSpeedMode".
+ */
+export interface ModelSpeedMode {
+  body?: {
+    [k: string]: string | undefined;
+  };
+  headers?: {
+    [k: string]: string | undefined;
+  };
+  name: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -11360,11 +11958,24 @@ export interface PersistedModelFailure {
  * via the `definition` "ModelProfileApplyCatalogUpdateRequest".
  */
 export interface ModelProfileApplyCatalogUpdateRequest {
+  /**
+   * Links the profile to this entry, one its model name matches; none updates the entry the
+   * profile is linked to.
+   */
+  catalog_entry?: ProviderCatalogMatchCandidate | null;
   expected_catalog_object_hash: ContentHash;
   expected_catalog_revision: Revision;
   expected_model_profile_revision: ExpectedRevision;
   expected_models_revision: ExpectedRevision;
   model_profile_id: ModelProfileId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ProviderCatalogMatchCandidate".
+ */
+export interface ProviderCatalogMatchCandidate {
+  catalog_model_id: string;
+  catalog_provider_id: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -11990,6 +12601,10 @@ export interface ModelSettingsProjection {
    */
   reasoning_efforts?: ModelReasoningEffortsView[];
   registry: ModelRegistryConfig;
+  /**
+   * The speed modes each model offers; a model offering none is absent.
+   */
+  speed_modes?: ModelSpeedModesView[];
 }
 /**
  * The thinking levels one model offers, lowest first.
@@ -12000,6 +12615,27 @@ export interface ModelSettingsProjection {
 export interface ModelReasoningEffortsView {
   model_profile_id: ModelProfileId;
   reasoning_efforts: ReasoningEffort[];
+}
+/**
+ * The modes one model offers, by name, and its standard price.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelSpeedModesView".
+ */
+export interface ModelSpeedModesView {
+  model_profile_id: ModelProfileId;
+  modes: ModelSpeedModeView[];
+  standard_price?: ProviderCatalogPrice | null;
+}
+/**
+ * One mode a model offers, and the price it is charged at.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelSpeedModeView".
+ */
+export interface ModelSpeedModeView {
+  name: string;
+  price?: ProviderCatalogPrice | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -12144,6 +12780,11 @@ export interface SessionModelOptionView {
    * The thinking levels the model offers, lowest first; empty when it offers none.
    */
   reasoning_efforts?: ReasoningEffort[];
+  /**
+   * The speed modes a conversation can choose for the model's turns, by name; empty until its
+   * settings allow them, or when its catalog entry offers none.
+   */
+  speed_modes?: string[];
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -16347,7 +16988,11 @@ export interface FsDeleteRequest {
 export interface FsFindPathsRequest {
   limit: number;
   query: string;
-  session_id: SessionId;
+  /**
+   * The conversation searching; none from a new conversation's composer, which has none yet.
+   * The search does not depend on it.
+   */
+  session_id?: SessionId | null;
   workspace_id: WorkspaceId;
 }
 /**
@@ -17435,6 +18080,7 @@ export interface AgentCompactionRequest {
  * via the `definition` "AgentCompactionStartRequest".
  */
 export interface AgentCompactionStartRequest {
+  computer_mode?: ComputerMode | null;
   focus?: string | null;
   model_profile_id: ModelProfileId;
   session_id: SessionId;
@@ -17797,6 +18443,7 @@ export interface AgentPendingMessage {
    * The pictures and files added to this message, kept with it.
    */
   attachments?: AgentMessageAttachment[];
+  computer_mode?: ComputerMode | null;
   created_at: UtcTimestamp;
   destination: AgentInputLane;
   message_id: EventId;
@@ -17804,22 +18451,40 @@ export interface AgentPendingMessage {
    * The thinking level chosen with this message for the turn it starts.
    */
   reasoning_effort?: TurnReasoningEffort | null;
+  /**
+   * What the message refers to, as it was when the message was sent.
+   */
+  references?: MessageReferenceView[];
   revision?: string;
   /**
    * The Skills chosen with this message, as checked when it was sent.
    */
   skills?: LoadedSkillEntry[];
+  /**
+   * The speed mode chosen with this message for the turn it starts; none is the standard mode.
+   */
+  speed_mode?: TurnSpeedMode | null;
   text: string;
 }
 /**
- * A Skill loaded for this turn, at the content it was loaded with.
+ * A message's reference as the conversation and the queue show it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MessageReferenceView".
+ */
+export interface MessageReferenceView {
+  kind: MessageReferenceKind;
+  label: string;
+}
+/**
+ * A Skill the user chose in the composer, at the content it was chosen with.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "LoadedSkillEntry".
  */
 export interface LoadedSkillEntry {
   /**
-   * The content fingerprint the user trusted and this load used.
+   * The content fingerprint of the Skill when it was chosen.
    */
   fingerprint: string;
   name: string;
@@ -17834,6 +18499,7 @@ export interface LoadedSkillEntry {
  * via the `definition` "AgentInitStartRequest".
  */
 export interface AgentInitStartRequest {
+  computer_mode?: ComputerMode | null;
   model_profile_id: ModelProfileId;
   session_id: SessionId;
   text?: string;
@@ -18149,6 +18815,10 @@ export interface AgentRun {
  */
 export interface AgentRunProjection {
   cancellation_requested: boolean;
+  /**
+   * The desktop frozen with this turn, also used by a user-requested continuation.
+   */
+  computer_mode?: ComputerMode | null;
   model_steps: ModelStep[];
   pending_approval_ids: ApprovalRequestId[];
   pending_query?: UserQuery | null;
@@ -18330,6 +19000,10 @@ export interface AgentTurnView {
    * turn record; this is only what a history poll needs before the body is paged.
    */
   completion?: AgentCompletionSummary | null;
+  /**
+   * The desktop recorded for this turn; changing the composer does not change history.
+   */
+  computer_mode?: ComputerMode | null;
   diagnostic?: string | null;
   /**
    * Where this turn's final answer comes from. Absent on historical turns
@@ -18432,15 +19106,59 @@ export interface AgentUserMessageView {
   event_id: EventId;
   origin: UserMessageOrigin;
   /**
+   * What the message referred to when it was sent; the model read it after the message's
+   * text ([`message_with_references`]).
+   */
+  references?: MessageReferenceView[];
+  /**
    * Identity of the complete immutable text, not of the bounded preview.
    */
   sealed_revision?: string | null;
+  /**
+   * Who sent it, when the user did not type it.
+   */
+  sender?: MessageSender | null;
   /**
    * The Skills the user chose with this message.
    */
   skills?: LoadedSkillEntry[];
   text: string;
   total_bytes: number;
+}
+/**
+ * Who sent a message that the user did not type.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MessageSender".
+ */
+export interface MessageSender {
+  /**
+   * The person on a chat platform, for a message one of the plugin's channels received.
+   */
+  from?: MessageFrom | null;
+  plugin: string;
+}
+/**
+ * Who on a chat platform sent a message one of a plugin's channels received.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MessageFrom".
+ */
+export interface MessageFrom {
+  channel: string;
+  chat: PluginChatKind;
+  /**
+   * The channel's platform, as the plugin declares it (`qq`, `telegram`, …).
+   */
+  platform: string;
+  /**
+   * The platform's own id of the person.
+   */
+  user_id: string;
+  /**
+   * The name the platform gave them; may be empty.
+   */
+  user_name?: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -18493,6 +19211,10 @@ export interface AgentStartRequest {
    */
   attachments?: AgentAttachmentDraft[];
   /**
+   * Frozen with this turn, including recovery after a Core restart.
+   */
+  computer_mode?: ComputerMode | null;
+  /**
    * User preview of NativeApproved. This is never an approval or a silent
    * fallback; policy still Asks AllowOnce/AllowSession before dispatch.
    */
@@ -18505,11 +19227,20 @@ export interface AgentStartRequest {
    * default. Kept with the run's configuration, so every step of the turn uses it.
    */
   reasoning_effort?: TurnReasoningEffort | null;
+  /**
+   * What the message refers to with "@", resolved when it is sent.
+   */
+  references?: AgentMessageReference[];
   session_id: SessionId;
   /**
    * Skills the user chose for this turn in the composer.
    */
   skill_ids?: SkillInstanceId[];
+  /**
+   * The speed mode the conversation uses for this turn; none is the standard mode. Kept with
+   * the run's configuration, so every step of the turn uses it.
+   */
+  speed_mode?: TurnSpeedMode | null;
   text: string;
 }
 /**
@@ -18521,18 +19252,28 @@ export interface AgentSubmitRequest {
    * Pictures and files added to the message in the composer.
    */
   attachments?: AgentAttachmentDraft[];
+  computer_mode?: ComputerMode | null;
   destination: AgentInputLane;
   /**
    * The thinking level the conversation uses with its model, for the turn this message
    * starts; none is the model's default.
    */
   reasoning_effort?: TurnReasoningEffort | null;
+  /**
+   * What the message refers to with "@", resolved when it is sent.
+   */
+  references?: AgentMessageReference[];
   session_id: SessionId;
   /**
    * Skills the user chose for the turn this message starts. Only a message that starts
    * a new turn may carry them.
    */
   skill_ids?: SkillInstanceId[];
+  /**
+   * The speed mode the conversation uses with its model, for the turn this message starts;
+   * none is the standard mode.
+   */
+  speed_mode?: TurnSpeedMode | null;
   text: string;
 }
 /**
@@ -18619,6 +19360,11 @@ export interface AgentToolActivityEntry {
   model_step_id: ModelStepId;
   permission_mode?: PermissionMode | null;
   permission_revision?: number | null;
+  /**
+   * Who decided the call's approval in a chat; none when it was decided in Aura's window or
+   * the call asked none.
+   */
+  remote_decision?: AgentToolRemoteDecision | null;
   shell_query_available: boolean;
   summary: ToolCallActivitySummaryView;
 }
@@ -18643,6 +19389,16 @@ export interface AgentToolDisplay {
   target?: string | null;
   title: string;
   truncated: boolean;
+}
+/**
+ * Who decided a call's approval on a chat platform, through one of a plugin's channels, and how.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentToolRemoteDecision".
+ */
+export interface AgentToolRemoteDecision {
+  decision: ApprovalDecisionKind;
+  sender: MessageSender;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -18905,6 +19661,10 @@ export interface AuthorizationScope {
   chrome_site_consent?: ChromeSiteConsentRef | null;
   consent?: NativeSessionConsentRef | null;
   /**
+   * A program the user authorized for one session.
+   */
+  desktop_app_consent?: DesktopAppConsentRef | null;
+  /**
    * The reusable file consent, present only when an ordinary file approval recorded one.
    */
   file_consent?: FileSessionConsentRef | null;
@@ -19040,6 +19800,23 @@ export interface CanonicalSha256HashV13 {
   algorithm: 'sha256';
   canonicalization_version: 'rfc8785_jcs_v1';
   hex: string;
+}
+/**
+ * A program the user authorized for one session: the session reads and acts on it without
+ * asking again, also after Aura restarts, until the user stops it. The Grant itself only stands
+ * for the call that was answered; later calls count the program as authorized when Core
+ * resolves them.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "DesktopAppConsentRef".
+ */
+export interface DesktopAppConsentRef {
+  app_id: string;
+  approval_id: ApprovalRequestId;
+  approved_operation_fingerprint: CanonicalSha256HashV1;
+  grant_revision: Revision;
+  principal_id: PrincipalId;
+  session_id: SessionId;
 }
 /**
  * A ReadOnly answer for one server: the server's later calls in the same turn, made with the
@@ -20745,6 +21522,574 @@ export interface ReviewedUserIntent {
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerActInput".
+ */
+export interface ComputerActInput {
+  /**
+   * The program's id from computer.apps.
+   */
+  app: string;
+  /**
+   * Take a screenshot of the program afterwards.
+   */
+  screenshot?: boolean;
+  /**
+   * The steps, in order; they stop at the first that fails. Their refs are elements of one
+   * window.
+   */
+  steps: ComputerActStepV1[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerActResult".
+ */
+export interface ComputerActResult {
+  /**
+   * Each step's element as it is afterwards, one line a step, or that it is gone.
+   */
+  after: string;
+  app: string;
+  screenshot?: ComputerScreenshotResult | null;
+  /**
+   * Why the screenshot asked for was not taken.
+   */
+  screenshot_error?: string | null;
+  steps_done: number;
+  window: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerScreenshotResult".
+ */
+export interface ComputerScreenshotResult {
+  app: string;
+  height: number;
+  /**
+   * The image, kept with this call for the user to see.
+   */
+  image_artifact_id: string;
+  /**
+   * How many elements are numbered on the image, when marks were asked for.
+   */
+  marks?: number | null;
+  note: string;
+  /**
+   * The screenshot's ref, for computer.input's points and for a region of it.
+   */
+  screenshot: string;
+  /**
+   * Whether the image was attached for the model to look at.
+   */
+  shown_to_model: boolean;
+  width: number;
+  /**
+   * The program's windows the screenshot shows, front to back.
+   */
+  windows: ComputerShotWindowV1[];
+}
+/**
+ * A window of the program as a screenshot shows it, in the screenshot's pixels.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerShotWindowV1".
+ */
+export interface ComputerShotWindowV1 {
+  foreground: boolean;
+  height: number;
+  title: string;
+  width: number;
+  window: string;
+  x: number;
+  y: number;
+}
+/**
+ * A program the user added: its full path, and a name of its own if the user gave one.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerAddedApp".
+ */
+export interface ComputerAddedApp {
+  name?: string;
+  path: string;
+}
+/**
+ * The approval card's 总是允许: the program goes on the always-allowed list.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerAlwaysAllowRequest".
+ */
+export interface ComputerAlwaysAllowRequest {
+  app_id: string;
+  name: string;
+}
+/**
+ * A program by its catalog ID, with the name the user saw.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerApp".
+ */
+export interface ComputerApp {
+  app_id: string;
+  name: string;
+}
+/**
+ * One program the tools can operate.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerAppV1".
+ */
+export interface ComputerAppV1 {
+  /**
+   * This conversation may read and operate it without asking the user again.
+   */
+  allowed: boolean;
+  /**
+   * The program's id for the other tools.
+   */
+  app: string;
+  kind: AppKind;
+  name: string;
+  /**
+   * It has a window on the desktop now.
+   */
+  running: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerAppsInput".
+ */
+export interface ComputerAppsInput {
+  /**
+   * Only the programs whose name or id contains this text, ignoring case.
+   */
+  query?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerAppsResult".
+ */
+export interface ComputerAppsResult {
+  apps: ComputerAppV1[];
+  /**
+   * How many more programs matched than are listed.
+   */
+  more: number;
+  /**
+   * Why the list could not be read, or is not complete.
+   */
+  notice?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerCatalogEntryV1".
+ */
+export interface ComputerCatalogEntryV1 {
+  app_id: string;
+  name: string;
+}
+/**
+ * The programs for the composer's 「@」 list.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerCatalogRequest".
+ */
+export interface ComputerCatalogRequest {
+  query?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerCatalogResult".
+ */
+export interface ComputerCatalogResult {
+  apps: ComputerCatalogEntryV1[];
+  /**
+   * Off, or the settings cannot be read: the list is empty.
+   */
+  enabled: boolean;
+  notice?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerControlSettings".
+ */
+export interface ComputerControlSettings {
+  /**
+   * Programs the user added by hand, besides those of the Start menu.
+   */
+  added: ComputerAddedApp[];
+  /**
+   * Programs every session reads and acts on without asking, until a session stops one.
+   */
+  always_allowed: ComputerApp[];
+  /**
+   * Whether input may use the clipboard, as pasting a long text does (default off).
+   */
+  clipboard: boolean;
+  /**
+   * Whether the `computer.*` tools are offered (default off).
+   */
+  enabled: boolean;
+  /**
+   * The desktop selected by the user for one durable turn. It is never a fallback policy.
+   */
+  mode?: 'foreground' | 'child_session';
+  /**
+   * The models that may use the tools, by model ID; empty: every model that takes images.
+   */
+  models: string[];
+  /**
+   * Whether a screenshot paints over what is not an authorized program (default on).
+   */
+  paint_others: boolean;
+  /**
+   * The keys that take the desktop over from Aura, besides Escape, in either mode.
+   */
+  pip_stop_keys?: string;
+  /**
+   * The longest edge of a screenshot the model receives, in pixels.
+   */
+  screenshot_long_edge: number;
+  /**
+   * Whether input may press system chords such as Alt+Tab or the Windows key (default off).
+   */
+  system_keys: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerControlSettingsSnapshot".
+ */
+export interface ComputerControlSettingsSnapshot {
+  issue?: string | null;
+  revision?: number | null;
+  settings: ComputerControlSettings;
+}
+/**
+ * The settings page's save, on the revision it read.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerControlSettingsUpdate".
+ */
+export interface ComputerControlSettingsUpdate {
+  expected_revision: number;
+  settings: ComputerControlSettings;
+}
+/**
+ * A program a conversation is controlling now.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerControlledV1".
+ */
+export interface ComputerControlledV1 {
+  app_id: string;
+  /**
+   * It moves the pointer or types now.
+   */
+  foreground: boolean;
+  /**
+   * The desktop selected by the user for one durable turn. It is never a fallback policy.
+   */
+  mode?: 'foreground' | 'child_session';
+  name: string;
+  /**
+   * The user took the desktop over from it: the turn's actions are refused until the user
+   * gives the desktop back. A turn that ended so stays listed until then, or until the
+   * conversation's next turn runs.
+   */
+  taken_over?: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerControllingResult".
+ */
+export interface ComputerControllingResult {
+  apps: ComputerControlledV1[];
+  pip?: ComputerPipStatus | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerPipStatus".
+ */
+export interface ComputerPipStatus {
+  notice?: string | null;
+  phase: PipPhase;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerIconV1".
+ */
+export interface ComputerIconV1 {
+  app_id: string;
+  /**
+   * A PNG, base64.
+   */
+  png: string;
+}
+/**
+ * The icons of programs of the catalog, for the composer's 「@」 list, its program blocks and
+ * the approval card.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerIconsRequest".
+ */
+export interface ComputerIconsRequest {
+  /**
+   * The programs' IDs, as the catalog gives them.
+   */
+  app_ids: string[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerIconsResult".
+ */
+export interface ComputerIconsResult {
+  /**
+   * One for each program asked that is in the catalog and has an icon; none while control is
+   * off.
+   */
+  icons: ComputerIconV1[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerInputInput".
+ */
+export interface ComputerInputInput {
+  /**
+   * The program's id from computer.apps.
+   */
+  app: string;
+  /**
+   * The screenshot (a ref such as p3) whose pixels the steps' x and y are; needed when a step
+   * gives a point.
+   */
+  image?: string | null;
+  /**
+   * Take a screenshot of the program afterwards.
+   */
+  screenshot?: boolean;
+  steps: ComputerInputStepV1[];
+}
+/**
+ * A point of the screenshot named by the call.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerPointV1".
+ */
+export interface ComputerPointV1 {
+  x: number;
+  y: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerInputResult".
+ */
+export interface ComputerInputResult {
+  app: string;
+  screenshot?: ComputerScreenshotResult | null;
+  screenshot_error?: string | null;
+  steps_done: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerOpenInput".
+ */
+export interface ComputerOpenInput {
+  /**
+   * The program's id from computer.apps.
+   */
+  app: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerOpenResult".
+ */
+export interface ComputerOpenResult {
+  /**
+   * It had a window already, so it was not opened again.
+   */
+  already_running: boolean;
+  app: string;
+  /**
+   * The program's windows, front to back, with refs (w1312) for the other tools.
+   */
+  windows: WindowInfo[];
+}
+/**
+ * A top-level window on the desktop.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WindowInfo".
+ */
+export interface WindowInfo {
+  /**
+   * The program in the catalog it belongs to, when one matches.
+   */
+  app_id?: string | null;
+  /**
+   * The window the user's input goes to now.
+   */
+  foreground: boolean;
+  minimized: boolean;
+  process_id: number;
+  /**
+   * The program file's name, such as notepad.exe.
+   */
+  process_name: string;
+  rect: Rect;
+  title: string;
+  /**
+   * The window's ref for the other tools, such as w1312; it stays while the window exists.
+   */
+  window: string;
+}
+/**
+ * A rectangle in physical pixels of the virtual screen (every monitor together).
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "Rect".
+ */
+export interface Rect {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+}
+/**
+ * The part of an earlier screenshot to take again, in that screenshot's pixels.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerRegionInput".
+ */
+export interface ComputerRegionInput {
+  height: number;
+  /**
+   * The earlier screenshot's ref, such as p3.
+   */
+  screenshot: string;
+  width: number;
+  x: number;
+  y: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerScreenshotInput".
+ */
+export interface ComputerScreenshotInput {
+  /**
+   * The program's id from computer.apps.
+   */
+  app: string;
+  /**
+   * Number the elements of the program's latest computer.snapshot on the image: a box's
+   * number n is the element en.
+   */
+  marks?: boolean;
+  /**
+   * Only this part of an earlier screenshot, taken again at full detail.
+   */
+  region?: ComputerRegionInput | null;
+}
+/**
+ * A conversation, for the routes of the activity list.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerSessionRequest".
+ */
+export interface ComputerSessionRequest {
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerSnapshotInput".
+ */
+export interface ComputerSnapshotInput {
+  /**
+   * The program's id from computer.apps.
+   */
+  app: string;
+  /**
+   * The most elements to list (default 400, at most 2000).
+   */
+  max_elements?: number | null;
+  /**
+   * Read only what is inside this element (a ref of an earlier read, such as e12), for one
+   * marked more.
+   */
+  root?: string | null;
+  /**
+   * One of its windows (a ref such as w1312); the one in front when omitted.
+   */
+  window?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerSnapshotResult".
+ */
+export interface ComputerSnapshotResult {
+  app: string;
+  /**
+   * Everything the window shows was read. When not, read again from an element marked more.
+   */
+  complete: boolean;
+  /**
+   * One element a line, indented under the element it is in: its ref, role, name, value,
+   * states and what can be done to it, such as `e12 button "保存" [click]`.
+   */
+  elements: string;
+  listed: number;
+  title: string;
+  window: string;
+}
+/**
+ * The user's Stop for one program of a conversation, or for all of them.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerStopRequest".
+ */
+export interface ComputerStopRequest {
+  /**
+   * The program; every program of the conversation when omitted.
+   */
+  app_id?: string | null;
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerWindowInput".
+ */
+export interface ComputerWindowInput {
+  action: WindowAction;
+  /**
+   * The program's id from computer.apps.
+   */
+  app: string;
+  /**
+   * One of its windows (a ref such as w1312); the one in front when omitted.
+   */
+  window?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ComputerWindowResult".
+ */
+export interface ComputerWindowResult {
+  action: WindowAction;
+  app: string;
+  /**
+   * False when the window already was as asked.
+   */
+  changed: boolean;
+  /**
+   * Said when a window asked to close is still open.
+   */
+  note?: string | null;
+  window: string;
+  /**
+   * The program's windows afterwards, front to back.
+   */
+  windows: WindowInfo[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ConfigRecoveryApplyRequest".
  */
 export interface ConfigRecoveryApplyRequest {
@@ -22011,6 +23356,54 @@ export interface McpSignInView {
   signed_in: boolean;
 }
 /**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "McpResourceList".
+ */
+export interface McpResourceList {
+  problems: McpResourceProblem[];
+  resources: McpResourceView[];
+}
+/**
+ * A server that offers resources but could not list them now.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "McpResourceProblem".
+ */
+export interface McpResourceProblem {
+  reason: string;
+  server_id: string;
+  server_name: string;
+}
+/**
+ * One resource of a ready server that offers resources.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "McpResourceView".
+ */
+export interface McpResourceView {
+  mime_type?: string | null;
+  name: string;
+  server_id: string;
+  /**
+   * The server as Settings → MCP names it.
+   */
+  server_name: string;
+  title?: string | null;
+  uri: string;
+}
+/**
+ * The resources a conversation's message may refer to with "@".
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "McpResourceListRequest".
+ */
+export interface McpResourceListRequest {
+  /**
+   * The conversation whose own instances of the servers list them.
+   */
+  session_id: string;
+}
+/**
  * Add a server (`replaces` absent) or change one. Trust and the on/off switch are never
  * taken from this request: a new server starts untrusted and off, and a changed one keeps
  * its old trust, which no longer matches when anything that runs has changed.
@@ -22773,18 +24166,74 @@ export interface MemoryValidation {
   valid: number;
 }
 /**
- * A file outside the workspace that a message of this conversation names by its full path.
- * Core reads that message and finds the path in it before saying where the file is, so only a
- * path the conversation shows can be opened; Aura's own data and the user's credential stores are
- * not. For Main only.
+ * A file outside the workspace that this conversation names by its full path, in one of its
+ * messages or in the row of one of its calls. Core reads that message or that row and finds the
+ * path in it before saying where the file is, so only a path the conversation shows can be
+ * opened; Aura's own data and the user's credential stores are not. For Main only.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "MentionedFileRequest".
  */
 export interface MentionedFileRequest {
-  mentioned_in: AgentMessageTextSource;
+  mentioned_in: MentionedFileSource;
   path: string;
   session_id: SessionId;
+}
+/**
+ * One chat entry of the catalog that a model's name matches, with its Provider's own name and
+ * the hash of the entry as listed, which choosing it must still find.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelCatalogEntryView".
+ */
+export interface ModelCatalogEntryView {
+  catalog_model_id: string;
+  catalog_object_hash: ContentHash;
+  catalog_provider_id: string;
+  provider_display_name: string;
+}
+/**
+ * Tries the credentials of deleted model settings that Windows Credential Manager still holds.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelCredentialCleanupRetryRequest".
+ */
+export interface ModelCredentialCleanupRetryRequest {}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelCredentialCleanupRetryResult".
+ */
+export interface ModelCredentialCleanupRetryResult {
+  /**
+   * Whether this retry deleted any of them.
+   */
+  changed: boolean;
+  /**
+   * How many Windows Credential Manager still holds.
+   */
+  pending_credentials: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelProfileCatalogEntriesRequest".
+ */
+export interface ModelProfileCatalogEntriesRequest {
+  model_profile_id: ModelProfileId;
+}
+/**
+ * The entries a profile's model name matches, in the catalog's order.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ModelProfileCatalogEntriesView".
+ */
+export interface ModelProfileCatalogEntriesView {
+  catalog_revision: Revision;
+  /**
+   * The entry the profile is linked to, when it is one of them.
+   */
+  chosen?: ProviderCatalogMatchCandidate | null;
+  entries: ModelCatalogEntryView[];
+  model_profile_id: ModelProfileId;
 }
 /**
  * Which of a provider's connections its models use, and which stand in when it fails before
@@ -23236,6 +24685,23 @@ export interface PackageVersionSummaryV1 {
   version: PackageVersionBindingV1;
 }
 /**
+ * Someone on a chat platform the user lets reach Aura through one of the plugin's channels.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginAllowedUser".
+ */
+export interface PluginAllowedUser {
+  channel: string;
+  /**
+   * The platform's own id of the user.
+   */
+  id: string;
+  /**
+   * The user's own note of who this is; may be empty.
+   */
+  name?: string;
+}
+/**
  * Untrust, uninstall or discard a pending update.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -23244,6 +24710,31 @@ export interface PackageVersionSummaryV1 {
 export interface PluginChangeRequest {
   expected_revision: number;
   name: string;
+}
+/**
+ * One chat platform account (a bot) the plugin's background service connects.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginChannel".
+ */
+export interface PluginChannel {
+  /**
+   * Lowercase letters, digits, `-` and `_`; the name the service and the allowlist use.
+   */
+  id: string;
+  platform: PluginPlatform;
+  title: string;
+}
+/**
+ * One chat a plugin's channel is in: the channel, and the platform's own id of the chat.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginChat".
+ */
+export interface PluginChat {
+  channel: string;
+  id: string;
+  kind: PluginChatKind;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -23261,14 +24752,86 @@ export interface PluginCommandItem {
   warnings: string[];
 }
 /**
+ * One of the plugin's own prompt commands run in the conversation as the plugin's message; needs
+ * `commands`. `arguments` go where its template says, as the text after a typed command does.
+ * The same `dedupe_key` again is the same message and never a second turn.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginCommandRunRequest".
+ */
+export interface PluginCommandRunRequest {
+  arguments?: string;
+  dedupe_key?: string | null;
+  /**
+   * The command's name, without the `/`.
+   */
+  name: string;
+  plugin: string;
+  session_id: SessionId;
+}
+/**
+ * Saves what the plugin page changed for a plugin. Each part given replaces that part; the
+ * others stay as they are.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginConfigureRequest".
+ */
+export interface PluginConfigureRequest {
+  allowed?: PluginAllowedUser[] | null;
+  expected_revision: number;
+  /**
+   * Secret settings whose values go.
+   */
+  forget_secrets?: string[];
+  name: string;
+  remote_approval?: boolean | null;
+  scope?: PluginScope | null;
+  /**
+   * The background service's switch.
+   */
+  service?: boolean | null;
+  /**
+   * Text settings, key → text; an empty text removes the value.
+   */
+  text?: {
+    [k: string]: string | undefined;
+  } | null;
+}
+/**
+ * The conversations the plugin's background service may act in: every conversation of these
+ * workspaces, and these conversations. Empty: none.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginScope".
+ */
+export interface PluginScope {
+  sessions?: SessionId[];
+  workspaces?: WorkspaceId[];
+}
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "PluginCounts".
  */
 export interface PluginCounts {
+  channels?: number;
   commands: number;
   hooks: number;
+  panels?: number;
   servers: number;
+  services?: number;
   skills: number;
+  themes?: number;
+}
+/**
+ * Installs a folder a plugin is being written in as a plugin in development, where it is.
+ * Nothing is trusted or switched on for it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginDevelopmentRequest".
+ */
+export interface PluginDevelopmentRequest {
+  expected_revision: number;
+  path: string;
 }
 /**
  * Main opened an installed plugin's folder in the file manager, or says why it did not.
@@ -23277,6 +24840,36 @@ export interface PluginCounts {
  * via the `definition` "PluginDirectoryOpened".
  */
 export interface PluginDirectoryOpened {
+  completed: boolean;
+  message: string;
+}
+/**
+ * Exports an installed plugin as a ZIP file. The window names the plugin; Main asks where to
+ * save it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginExportRequest".
+ */
+export interface PluginExportRequest {
+  name: string;
+}
+/**
+ * Main's request to Core once the user chose where to save the ZIP file.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginExportToRequest".
+ */
+export interface PluginExportToRequest {
+  name: string;
+  path: string;
+}
+/**
+ * The plugin was exported, or why it was not (including the user cancelling).
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginExported".
+ */
+export interface PluginExported {
   completed: boolean;
   message: string;
 }
@@ -23333,6 +24926,110 @@ export interface PluginLimits {
  */
 export interface PluginListRequest {}
 /**
+ * The notice as it is shown.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginNotice".
+ */
+export interface PluginNotice {
+  plugin: string;
+  text: string;
+  tone: PluginUiTone;
+}
+/**
+ * A notice for the user in Aura's window, marked as the plugin's; needs `notify`.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginNoticeRequest".
+ */
+export interface PluginNoticeRequest {
+  plugin: string;
+  /**
+   * One line.
+   */
+  text: string;
+  /**
+   * How a plugin's notice or status entry reads.
+   */
+  tone?: 'info' | 'success' | 'warning' | 'error';
+}
+/**
+ * One of the plugin's own settings, which the user fills in on the plugin page.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginOption".
+ */
+export interface PluginOption {
+  description?: string | null;
+  /**
+   * Lowercase letters, digits and `_`, starting with a letter.
+   */
+  key: string;
+  kind: PluginOptionKind;
+  required: boolean;
+  title: string;
+}
+/**
+ * One of the plugin's own settings with its value.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginOptionValue".
+ */
+export interface PluginOptionValue {
+  option: PluginOption;
+  /**
+   * A secret setting has a value kept in the Credential Manager. The value never leaves Core.
+   */
+  set?: boolean;
+  /**
+   * A text setting's value.
+   */
+  text?: string | null;
+}
+/**
+ * A page in the right sidebar drawn by the plugin's own files.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginPanel".
+ */
+export interface PluginPanel {
+  /**
+   * Relative to the plugin folder, inside `panel/`.
+   */
+  entry: string;
+  /**
+   * The origins (`https://host[:port]`, `wss://…`) the page may connect to, after the user
+   * agreed; none by default.
+   */
+  network: string[];
+  title: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginPanelItem".
+ */
+export interface PluginPanelItem {
+  panel: PluginPanel;
+  problems: string[];
+}
+/**
+ * A problem Main saw in a plugin's panel (a page that did not load, a script error, a request
+ * the page may not make), kept in the plugin's log.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginPanelLogRequest".
+ */
+export interface PluginPanelLogRequest {
+  plugin: string;
+  session_id: SessionId;
+  text: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginPanelLogged".
+ */
+export interface PluginPanelLogged {}
+/**
  * A newer copy of an installed plugin, imported and waiting to be trusted. The installed copy
  * keeps working until then.
  *
@@ -23357,6 +25054,15 @@ export interface PluginPendingView {
  * via the `definition` "PluginPreview".
  */
 export interface PluginPreview {
+  /**
+   * What the plugin's panel and background service may do with the conversations they are
+   * given.
+   */
+  capabilities?: PluginCapability[];
+  /**
+   * The chat platform accounts its background service connects.
+   */
+  channels?: PluginChannel[];
   commands: PluginCommandItem[];
   files: PluginFile[];
   /**
@@ -23364,13 +25070,17 @@ export interface PluginPreview {
    */
   fingerprint?: string | null;
   hooks: PluginHookItem[];
+  options?: PluginOption[];
+  panel?: PluginPanelItem | null;
   /**
    * The update waiting to be trusted, rather than the installed copy.
    */
   pending: boolean;
   plugin: PluginView;
   servers: PluginServerItem[];
+  service?: PluginServiceItem | null;
   skills: PluginSkillItem[];
+  theme?: PluginThemeItem | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -23381,6 +25091,10 @@ export interface PluginView {
   bytes: number;
   counts: PluginCounts;
   description?: string | null;
+  /**
+   * A plugin in development: used from this folder where it is written, never copied.
+   */
+  development?: string | null;
   enabled: boolean;
   file_count: number;
   fingerprint?: string | null;
@@ -23389,12 +25103,32 @@ export interface PluginView {
   limits: PluginLimits;
   name: string;
   /**
+   * Its own settings, with their values.
+   */
+  options?: PluginOptionValue[];
+  /**
+   * The title of the panel it shows in the right sidebar, when its panel can be used.
+   */
+  panel?: string | null;
+  /**
    * The installed copy, in Aura's plugin folder.
    */
   path: string;
   pending_update?: PluginPendingView | null;
   problems: string[];
+  /**
+   * What its background service may reach, when it declares one.
+   */
+  remote?: PluginRemoteView | null;
+  /**
+   * Its background service, when it declares one.
+   */
+  service?: PluginServiceView | null;
   state: PluginState;
+  /**
+   * The title of its theme, when its theme can be used.
+   */
+  theme?: string | null;
   trusted_fingerprint?: string | null;
   /**
    * Parts of the plugin Aura does not use, each with the reason.
@@ -23402,6 +25136,57 @@ export interface PluginView {
   unsupported: string[];
   version?: string | null;
   warnings: string[];
+}
+/**
+ * What the plugin page shows and changes for a plugin's background service: its channels, the
+ * conversations it may act in, who may reach Aura on each channel, whether they may approve
+ * remotely, and who wrote lately without being on the list (newest first).
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginRemoteView".
+ */
+export interface PluginRemoteView {
+  allowed?: PluginAllowedUser[];
+  channels?: PluginChannel[];
+  remote_approval: boolean;
+  scope: PluginScope;
+  unknown?: PluginUnknownUser[];
+}
+/**
+ * Someone one of the plugin's channels heard from lately who is not on its allowlist. Nothing
+ * they sent reached Aura.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginUnknownUser".
+ */
+export interface PluginUnknownUser {
+  /**
+   * When they last wrote.
+   */
+  at: string;
+  channel: string;
+  chat: PluginChatKind;
+  /**
+   * The platform's own id of the person.
+   */
+  id: string;
+  /**
+   * The name the platform gave them; may be empty.
+   */
+  name?: string;
+}
+/**
+ * The plugin's background service on the plugin page.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginServiceView".
+ */
+export interface PluginServiceView {
+  /**
+   * Its switch on the plugin page.
+   */
+  on: boolean;
+  status: PluginServiceStatus;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -23432,6 +25217,33 @@ export interface PluginServerItem {
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginServiceItem".
+ */
+export interface PluginServiceItem {
+  problems: string[];
+  service: PluginService;
+}
+/**
+ * A program Aura keeps running while the plugin is on, talking to it on its own standard input
+ * and output.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginService".
+ */
+export interface PluginService {
+  arguments: string[];
+  /**
+   * The program, with the plugin folder filled in, or a program name found on `PATH`.
+   */
+  command: string;
+  /**
+   * Where it says it connects. Shown to the user; it runs as the user, so Aura cannot hold
+   * it to these.
+   */
+  network: string[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "PluginSkillItem".
  */
 export interface PluginSkillItem {
@@ -23442,6 +25254,16 @@ export interface PluginSkillItem {
    * The Skill folder, relative to the plugin's `skills`.
    */
   relative: string;
+}
+/**
+ * The plugin's `theme.toml`: its title when it can be used, or why it cannot.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginThemeItem".
+ */
+export interface PluginThemeItem {
+  problems: string[];
+  title?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -23469,6 +25291,26 @@ export interface PluginRequest {
    * The update waiting to be trusted, rather than the installed copy.
    */
   pending?: boolean;
+}
+/**
+ * Sets a secret setting's value. The value arrives only on the secret input frame.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSecretSetRequest".
+ */
+export interface PluginSecretSetRequest {
+  key: string;
+  name: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSecretSetResult".
+ */
+export interface PluginSecretSetResult {
+  /**
+   * `plugins.json`'s revision with the secret's credential named.
+   */
+  revision: number;
 }
 /**
  * Main's own file dialog for importing a plugin packed as a ZIP file.
@@ -23505,12 +25347,303 @@ export interface PluginSelectedDirectory {
   path?: string | null;
 }
 /**
+ * The entry as it is shown; without text there is none.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginStatus".
+ */
+export interface PluginStatus {
+  plugin: string;
+  text?: string | null;
+  tone: PluginUiTone;
+}
+/**
+ * The newest request's context, as the meter beside the composer shows it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionContextUse".
+ */
+export interface PluginSessionContextUse {
+  /**
+   * The figure was estimated before the request went out.
+   */
+  estimated: boolean;
+  used_tokens: number;
+  window_tokens: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionEvent".
+ */
+export interface PluginSessionEvent {
+  event: PluginSessionEventKind;
+  /**
+   * Its place in the cursor's order.
+   */
+  sequence: number;
+}
+/**
+ * What one request to the model used, as its Provider reported.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginStepUsage".
+ */
+export interface PluginStepUsage {
+  /**
+   * Of the input, what the Provider said it read from its cache.
+   */
+  cached_input_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionEvents".
+ */
+export interface PluginSessionEvents {
+  /**
+   * Pass it as `after` to read on.
+   */
+  cursor: number;
+  events: PluginSessionEvent[];
+  /**
+   * There is more after `cursor` already: read again at once.
+   */
+  more: boolean;
+}
+/**
+ * What happened after the cursor `after`; needs `session.events`. Without `after`, nothing that
+ * happened before now: only the cursor to read from.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionEventsRequest".
+ */
+export interface PluginSessionEventsRequest {
+  after?: number | null;
+  plugin: string;
+  session_id: SessionId;
+}
+/**
+ * What Main needs to show a plugin's panel: its tab's name, where its files are, and what its
+ * page may reach and ask for. Given only while the plugin and its panel can both be used.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionPanel".
+ */
+export interface PluginSessionPanel {
+  /**
+   * What the plugin's trusted manifest declares, by capability name.
+   */
+  capabilities: string[];
+  /**
+   * The page that opens first, relative to the folder and inside `panel/`.
+   */
+  entry: string;
+  /**
+   * The plugin's folder. The page is served from its `panel/` folder and nowhere else.
+   */
+  folder: string;
+  /**
+   * The origins (`https://…`, `wss://…`) the page may connect to.
+   */
+  network: string[];
+  title: string;
+}
+/**
+ * One plugin and the conversation it acts in: the conversation's public state needs
+ * `session.read`, stopping its turn needs `session.control`.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionRequest".
+ */
+export interface PluginSessionRequest {
+  plugin: string;
+  session_id: SessionId;
+}
+/**
+ * A message for the user, marked as the plugin's; needs `session.send`. The same `dedupe_key`
+ * again is the same message and never a second turn.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionSendRequest".
+ */
+export interface PluginSessionSendRequest {
+  dedupe_key?: string | null;
+  plugin: string;
+  session_id: SessionId;
+  text: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionSent".
+ */
+export interface PluginSessionSent {
+  /**
+   * The message, unless this was the same message sent again.
+   */
+  message_id?: EventId | null;
+  /**
+   * It waits behind the turn under way.
+   */
+  queued: boolean;
+  /**
+   * The same message was sent before; nothing new was queued.
+   */
+  repeated: boolean;
+}
+/**
+ * The conversation as a plugin may see it: no credentials, no file contents, no tool results.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionState".
+ */
+export interface PluginSessionState {
+  activity: PluginSessionActivity;
+  context?: PluginSessionContextUse | null;
+  /**
+   * Where an events read started now begins.
+   */
+  cursor: number;
+  model_name?: string | null;
+  model_profile_id?: ModelProfileId | null;
+  session_id: SessionId;
+  title: string;
+  /**
+   * The newest turn's to-do list.
+   */
+  todo?: TodoItem[];
+  usage: PluginSessionUsage;
+  waiting_for?: AgentSessionWaitingFor | null;
+}
+/**
+ * What the conversation's finished requests sent and received, as their Providers reported.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionUsage".
+ */
+export interface PluginSessionUsage {
+  /**
+   * Of the input, what the Providers said they read from their cache.
+   */
+  cached_input_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  requests: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSessionStopped".
+ */
+export interface PluginSessionStopped {
+  /**
+   * A turn was under way and was stopped.
+   */
+  stopped: boolean;
+}
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "PluginSetEnabledRequest".
  */
 export interface PluginSetEnabledRequest {
   enabled: boolean;
   expected_revision: number;
+  name: string;
+}
+/**
+ * One of the plugin's text settings, set as the plugin page sets it; needs `settings`. An empty
+ * value clears it. A secret setting is set only on the plugin page.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSettingSetRequest".
+ */
+export interface PluginSettingSetRequest {
+  key: string;
+  plugin: string;
+  value: string;
+}
+/**
+ * The plugin's text settings that have a value, by key.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSettingValues".
+ */
+export interface PluginSettingValues {
+  values: {
+    [k: string]: string | undefined;
+  };
+}
+/**
+ * The values of the plugin's text settings; needs `settings`.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginSettingsRequest".
+ */
+export interface PluginSettingsRequest {
+  plugin: string;
+}
+/**
+ * The plugin's one entry in the status bar; needs `status`. No text, or a blank one, clears it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginStatusRequest".
+ */
+export interface PluginStatusRequest {
+  plugin: string;
+  /**
+   * One line.
+   */
+  text?: string | null;
+  /**
+   * How a plugin's notice or status entry reads.
+   */
+  tone?: 'info' | 'success' | 'warning' | 'error';
+}
+/**
+ * A checked theme. Colours are `#rgb`, `#rrggbb` or `#rrggbbaa` in lower case, keyed by
+ * `THEME_COLORS`; radii are keyed by `THEME_RADII`. What it does not set stays Aura's own.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginTheme".
+ */
+export interface PluginTheme {
+  colors: {
+    [k: string]: string | undefined;
+  };
+  fonts: PluginThemeFonts;
+  radius: {
+    [k: string]: number | undefined;
+  };
+  scheme: PluginThemeScheme;
+  /**
+   * Its name in Settings.
+   */
+  title: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginThemeFonts".
+ */
+export interface PluginThemeFonts {
+  /**
+   * Code, paths and commands.
+   */
+  mono?: string[];
+  /**
+   * Large titles and thinking.
+   */
+  serif?: string[];
+  /**
+   * The interface and the conversation.
+   */
+  ui?: string[];
+}
+/**
+ * The theme of a ready plugin, for the window to show.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PluginThemeRequest".
+ */
+export interface PluginThemeRequest {
   name: string;
 }
 /**
@@ -23996,6 +26129,19 @@ export interface SkillView {
    */
   path: string;
   /**
+   * About how many tokens it takes pinned; 0 unless it is pinned and usable.
+   */
+  pin_tokens?: number;
+  /**
+   * Pinned by the user: its instructions go whole into every request where it is usable.
+   */
+  pinned?: boolean;
+  /**
+   * Pinned and usable, but past the limit beside the pinned Skills before it in name order, so
+   * it is not sent now.
+   */
+  pinned_left_out?: boolean;
+  /**
    * The plugin that brings it, for a plugin's Skill.
    */
   plugin?: string | null;
@@ -24016,9 +26162,18 @@ export interface SkillRegistryView {
    * Why saved choices cannot be used now (then nothing is offered to the model).
    */
   issue?: string | null;
+  pinned_limit?: number;
+  /**
+   * About how many tokens the pinned Skills sent now take together, and the most they may.
+   */
+  pinned_tokens?: number;
   revision: number;
   roots: SkillRootView[];
   skills: SkillView[];
+  /**
+   * Whether the user trusted the listed workspace's Skills; false when no workspace is listed.
+   */
+  workspace_trusted?: boolean;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -24084,6 +26239,18 @@ export interface SkillSetEnabledRequest {
   workspace_id?: WorkspaceId | null;
 }
 /**
+ * Pin a usable Skill into every request, within the shared limit, or unpin it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "SkillSetPinnedRequest".
+ */
+export interface SkillSetPinnedRequest {
+  expected_revision: number;
+  id: SkillInstanceId;
+  pinned: boolean;
+  workspace_id?: WorkspaceId | null;
+}
+/**
  * The saved choices for one Skill in `skills.json`. Nothing else about a Skill is stored.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -24118,6 +26285,16 @@ export interface SkillTrustRequest {
   expected_revision: number;
   id: SkillInstanceId;
   workspace_id?: WorkspaceId | null;
+}
+/**
+ * Trust, or stop trusting, every Skill in one workspace's `.agents\skills` and `.claude\skills`.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "SkillWorkspaceTrustRequest".
+ */
+export interface SkillWorkspaceTrustRequest {
+  expected_revision: number;
+  workspace_id: WorkspaceId;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -24609,7 +26786,12 @@ export interface ToolCredentialOutcomeV1 {
  * via the `definition` "UiSettings".
  */
 export interface UiSettings {
+  background_motion?: BackgroundMotion;
   default_terminal: DefaultTerminal;
+  /**
+   * The plugin whose theme the window uses; none is Aura's own.
+   */
+  plugin_theme?: string | null;
   /**
    * The session's runtime readiness and tool execution record, for debugging (default off).
    */

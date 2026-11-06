@@ -17,6 +17,12 @@ pub struct RunConfiguration {
 pub fn configuration(db: &Connection, run: AgentRunId) -> StoreResult<RunConfiguration> {
     facts::latest(db, &run.to_string(), "agent.run_configuration")?.ok_or(Error::Conflict)
 }
+
+/// Historical turns without a recorded desktop choice keep the foreground default.
+pub fn computer_mode(db: &Connection, run: AgentRunId) -> StoreResult<Option<ComputerMode>> {
+    Ok(facts::latest::<RunConfiguration>(db, &run.to_string(), "agent.run_configuration")?
+        .and_then(|config| config.request.computer_mode))
+}
 /// What the run's turn is for; a run without a recorded configuration is a conversation.
 pub fn purpose(db: &Connection, run: AgentRunId) -> StoreResult<AgentTaskPurpose> {
     Ok(facts::latest::<RunConfiguration>(db, &run.to_string(), "agent.run_configuration")?
@@ -106,6 +112,7 @@ pub fn projection(db: &Connection, request: &AgentRunRequest) -> StoreResult<Age
     }
     let pending_query = work::query(db, turn.turn_task_id)?;
     Ok(AgentRunProjection {
+        computer_mode: computer_mode(db, run.agent_run_id)?,
         recovery_episodes: super::recovery::episodes(db, run.agent_run_id)?,
         pending_approval_ids: super::approval::pending(db, run.agent_run_id)?,
         pending_query_deadline_at: match &pending_query {

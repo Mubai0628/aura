@@ -46,22 +46,36 @@ pub fn skill_id(
     SkillInstanceId::from_bytes(bytes)
 }
 
-/// Whether a Skill is switched on when the user has not chosen: one imported into Aura is, one
-/// found elsewhere is not.
-#[must_use]
-pub const fn enabled_by_default(source: SkillSource) -> bool {
-    matches!(source, SkillSource::AuraStore)
+/// What trust a found Skill has: one in the user's own folders needs none; a workspace's is
+/// usable once the user trusts that workspace's Skills, or alone at the fingerprint the user
+/// trusted it at; a plugin's carries its plugin's trust as that fingerprint.
+fn trusted_state(
+    source: SkillSource,
+    workspace_trusted: bool,
+    trusted_fingerprint: Option<&String>,
+    fingerprint: &str,
+) -> SkillState {
+    if source.users_own() || (source.in_workspace() && workspace_trusted) {
+        return SkillState::Ready;
+    }
+    match trusted_fingerprint {
+        None => SkillState::NotTrusted,
+        Some(trusted) if trusted == fingerprint => SkillState::Ready,
+        Some(_) => SkillState::ContentChanged,
+    }
 }
 
-/// What a found Skill is under its saved choices.
+/// What a found Skill is under its saved choices. A Skill is switched on until the user switches
+/// it off; `workspace_trusted` says whether the user trusted the listed workspace's Skills.
 #[must_use]
 pub fn view(
     found: &FoundSkill,
     source: SkillSource,
     workspace: Option<WorkspaceId>,
     setting: Option<&SkillSetting>,
+    workspace_trusted: bool,
 ) -> SkillView {
-    let enabled = setting.map_or(enabled_by_default(source), |s| s.enabled);
+    let enabled = setting.is_none_or(|s| s.enabled);
     let trusted_fingerprint = setting.and_then(|s| s.trusted_fingerprint.clone());
     let mut view = SkillView {
         id: skill_id(source, workspace, &found.relative),
@@ -84,6 +98,9 @@ pub fn view(
         problems: Vec::new(),
         file_count: 0,
         bytes: 0,
+        pinned: false,
+        pinned_left_out: false,
+        pin_tokens: 0,
     };
     match &found.scanned {
         Err(error) => {
@@ -110,14 +127,15 @@ pub fn view(
             view.missing_references.clone_from(&package.missing_references);
             view.file_count = u32::try_from(package.files.len()).unwrap_or(u32::MAX);
             view.bytes = package.bytes;
-            view.state = if !enabled {
-                SkillState::Disabled
+            view.state = if enabled {
+                trusted_state(
+                    source,
+                    workspace_trusted,
+                    trusted_fingerprint.as_ref(),
+                    &package.fingerprint,
+                )
             } else {
-                match trusted_fingerprint {
-                    None => SkillState::NotTrusted,
-                    Some(trusted) if trusted == package.fingerprint => SkillState::Ready,
-                    Some(_) => SkillState::ContentChanged,
-                }
+                SkillState::Disabled
             };
         }
     }

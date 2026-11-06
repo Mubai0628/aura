@@ -16,6 +16,10 @@ mod l13_4_deletion;
 mod l13_browser;
 #[path = "v2_policy/l14_chrome.rs"]
 mod l14_chrome;
+#[path = "v2_policy/l17_plugins.rs"]
+mod l17_plugins;
+#[path = "v2_policy/l18_desktop.rs"]
+mod l18_desktop;
 #[path = "v2_policy/native.rs"]
 mod native;
 #[path = "v2_policy/network.rs"]

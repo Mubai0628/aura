@@ -198,4 +198,15 @@ describe('a profile update naming a thinking level', () => {
       expect(isP05MainParams('models.profile.update', images(choice))).toBe(true);
     expect(isP05MainParams('models.profile.update', images('yes'))).toBe(false);
   });
+  // The speed mode, by the name its catalog entry lists it under, or none for the standard mode.
+  it('passes a speed mode named by a plain word or none, and refuses anything else', () => {
+    const speed = (speed_mode: unknown) => {
+      const request = update(null);
+      return { ...request, request_defaults: { ...request.request_defaults, speed_mode } };
+    };
+    for (const mode of ['fast', 'flex', 'priority', 'fast_2.v-1', 'a'.repeat(64), null, undefined])
+      expect(isP05MainParams('models.profile.update', speed(mode)), String(mode)).toBe(true);
+    for (const mode of ['', 'a'.repeat(65), 'odd name', 'fast,flex', '快速', 7, true, ['fast']])
+      expect(isP05MainParams('models.profile.update', speed(mode)), String(mode)).toBe(false);
+  });
 });

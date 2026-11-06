@@ -68,7 +68,7 @@
   gap: 2px;
   padding: 1px 2px 1px 9px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-muted);
 }
 
@@ -103,7 +103,7 @@
 .browser-site-list input:focus {
   border-color: var(--accent);
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-shadow);
 }
 
 /* Chrome control: the switch with its connection, pairing, and the extension's folder. */
@@ -124,7 +124,7 @@
   margin-left: auto;
   padding: 2px 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   font-size: 12px;
 }

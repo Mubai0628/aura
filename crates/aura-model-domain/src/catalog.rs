@@ -153,6 +153,60 @@ pub struct ProviderCatalogModelEntry {
     pub open_weights: Option<bool>,
     pub status: Option<String>,
     pub price: Option<ProviderCatalogPrice>,
+    /// models.dev's `type`: `chat`, `image`, `embedding`, `video`, `speech`, `transcription`,
+    /// `reranking`, `realtime`. A model without one is a chat model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_type: Option<String>,
+    /// Where the model is served when it is not where its provider's other models are.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub route: Option<ProviderCatalogModelRoute>,
+    /// The message field that carries the model's reasoning in Chat Completions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_field: Option<String>,
+    /// Prices from a context length on, by ascending length; `price` applies below the first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub price_tiers: Vec<ProviderCatalogPriceTier>,
+    /// Modes the model can be asked for, such as `fast` or `flex`, by name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub modes: BTreeMap<String, ProviderCatalogModelMode>,
+}
+
+impl ProviderCatalogModelEntry {
+    /// Whether the model answers in a chat: models.dev names no type, or `chat`.
+    #[must_use]
+    pub fn is_chat(&self) -> bool {
+        self.model_type.as_deref().is_none_or(|kind| kind == "chat")
+    }
+}
+
+/// A model's own route, as models.dev gives it: untrusted, a suggestion only.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCatalogModelRoute {
+    pub api_url: Option<String>,
+    pub npm_package: Option<String>,
+    /// `responses` or `completions` within an OpenAI-style package.
+    pub shape: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCatalogPriceTier {
+    /// The context length, in tokens, from which the price applies.
+    pub from_context_tokens: u64,
+    pub price: ProviderCatalogPrice,
+}
+
+/// One mode of a model and what asking for it changes. Only request body fields and headers on
+/// Aura's list are kept, each with a string value; a mode that needs anything else is left out.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderCatalogModelMode {
+    pub price: Option<ProviderCatalogPrice>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub body: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
 }
 
 /// Renderer-safe catalog item paired with the immutable object hash required
@@ -162,6 +216,22 @@ pub struct ProviderCatalogModelEntry {
 pub struct ProviderCatalogModelView {
     pub catalog_object_hash: ContentHash,
     pub model: ProviderCatalogModelEntry,
+    #[serde(default)]
+    pub route: ProviderCatalogModelRouteView,
+}
+
+/// Which of its Provider's preset variants a catalog model goes by.
+#[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ProviderCatalogModelRouteView {
+    /// Any connection of the Provider takes it.
+    #[default]
+    Any,
+    /// Only a connection of this variant takes it.
+    Variant { variant_id: String },
+    /// No variant takes it: the catalog serves it by a protocol Aura does not speak, or at an
+    /// address the Provider's profile does not have.
+    Unsupported,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -188,6 +258,9 @@ pub struct ProviderCatalogSnapshot {
     pub raw_artifact_id: ArtifactId,
     pub provider_order: Vec<String>,
     pub providers: BTreeMap<String, ProviderCatalogEntry>,
+    /// The parser version that read the providers; 0 for snapshots from before it was kept.
+    #[serde(default)]
+    pub parser_revision: u32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -222,14 +295,36 @@ pub enum ProviderCatalogConfigurationClass {
 /// Renderer-safe initial values for a catalog Provider connection form.
 ///
 /// Aura presets are compiled into the signed application and may define the
-/// complete execution contract. A models.dev API suggestion is intentionally
-/// limited to an HTTPS Base URL and must never be treated as trusted execution
-/// configuration.
+/// complete execution contract. A models.dev API suggestion is limited to an
+/// HTTPS Base URL and the protocol the catalog's package speaks: a draft the
+/// user saves, never trusted execution configuration.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ProviderCatalogConnectionDefaultsView {
-    AuraPreset { variants: Vec<ProviderPresetVariantView> },
-    ModelsDevApiSuggestion { base_url: String },
+    AuraPreset {
+        variants: Vec<ProviderPresetVariantView>,
+        /// Each model goes by its own variant, so the Provider is reached through one
+        /// connection of each.
+        #[serde(default)]
+        by_model: bool,
+    },
+    ModelsDevApiSuggestion {
+        base_url: String,
+        /// Where the catalog's package for the Provider speaks a protocol Aura speaks.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        protocol: Option<ModelsDevProtocolSuggestion>,
+    },
+}
+
+/// The protocol a catalog Provider's package speaks, the key that package sends and, for Chat
+/// Completions, the defaults it sends with.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelsDevProtocolSuggestion {
+    pub api_format: crate::ModelApiFormat,
+    pub auth_scheme: crate::EndpointAuthScheme,
+    pub chat_instruction_role: Option<crate::ChatInstructionRole>,
+    pub chat_output_token_field: Option<crate::ChatOutputTokenField>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -237,6 +332,7 @@ pub enum ProviderCatalogConnectionDefaultsView {
 pub struct ProviderPresetVariantView {
     pub variant_id: String,
     pub display_name: String,
+    /// With a `{name}` in place of each of `base_url_parameters`.
     pub base_url: String,
     pub api_format: crate::ModelApiFormat,
     pub auth_scheme: crate::EndpointAuthScheme,
@@ -244,6 +340,32 @@ pub struct ProviderPresetVariantView {
     pub chat_instruction_role: Option<crate::ChatInstructionRole>,
     pub chat_output_token_field: Option<crate::ChatOutputTokenField>,
     pub recommended: bool,
+    /// The values of the user's own the base URL takes, such as an account or a region.
+    #[serde(default)]
+    pub base_url_parameters: Vec<ProviderPresetParameterView>,
+}
+
+/// A non-secret value of the user's own in a preset's base URL.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderPresetParameterView {
+    /// As it stands in the base URL, between braces.
+    pub name: String,
+    pub display_name: String,
+    pub kind: ProviderPresetParameterKind,
+    pub example: String,
+}
+
+/// Where a parameter stands in a base URL, and so what it may hold: never enough to move a
+/// request, or the key it carries, to another host or path.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderPresetParameterKind {
+    /// One whole label of the host: lower-case letters, digits and inner hyphens, at most 63.
+    DomainLabel,
+    /// One whole segment of the path: letters, digits and `-`, `.`, `_`, `~`, at most 128, and
+    /// neither `.` nor `..`.
+    PathSegment,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

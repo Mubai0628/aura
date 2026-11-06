@@ -38,7 +38,7 @@ impl ModelProtocolDecoder for AnthropicMessagesAdapter {
     }
 
     fn classify_http_error(&self, response: &ProviderErrorResponse) -> NormalizedModelFailure {
-        classify_http_error(response)
+        provider_http_failure(response, HTTP_ERROR)
     }
 
     fn runtime_capability_facts(
@@ -105,7 +105,7 @@ impl ModelStreamDecoder for AnthropicDecoder {
             "message_delta" => self.message_delta(&value),
             "message_stop" => self.message_stop(),
             "ping" => Ok(Vec::new()),
-            "error" => Err(stream_error(&value)),
+            "error" => Err(provider_stream_failure(&value, STREAM_ERROR)),
             unknown => Ok(vec![ModelStreamEvent::ProviderWarning {
                 code: Some("anthropic_event_unknown".to_owned()),
                 message: format!("unrecognized Anthropic Messages event {unknown}"),

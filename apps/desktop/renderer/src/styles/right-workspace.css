@@ -7,7 +7,7 @@
   grid-template-rows: 47px minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
-  background: #fbfbfa;
+  background: var(--pane);
   overflow: hidden;
 }
 
@@ -60,7 +60,7 @@
   width: 265px;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-popover);
 }
@@ -73,8 +73,8 @@
   width: 100%;
   gap: 8px;
   padding: 8px 9px;
-  border-radius: 7px;
-  color: #444b45;
+  border-radius: var(--radius-md);
+  color: var(--ink);
   text-align: left;
   background: transparent;
   transition:
@@ -82,19 +82,26 @@
     color 140ms ease-out;
 }
 
-.tool-picker button:hover,
-.right-shortcuts button:hover {
-  background: #f0f2ef;
+.tool-picker button:hover {
+  background: var(--surface-hover);
 }
 
+.right-shortcuts button:hover {
+  background: var(--surface-selected);
+}
+
+/* A key is a small white cap with a hard bottom edge. */
 kbd {
-  padding: 1px 5px;
-  border: 0;
-  border-radius: 5px;
-  color: #737a75;
-  background: #f0f1ef;
-  font-family: inherit;
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--line-strong);
+  line-height: 1;
   font-variant-numeric: tabular-nums;
 }
 
@@ -115,7 +122,7 @@ kbd {
   display: flex;
   align-items: center;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
@@ -141,15 +148,4 @@ kbd {
   max-width: 235px;
   margin: auto;
   color: var(--quiet);
-}
-
-.right-panel-empty h3 {
-  margin: 12px 0 3px;
-  color: #424943;
-  font-size: 14px;
-}
-.right-panel-empty p {
-  margin: 0 0 12px;
-  color: var(--muted);
-  font-size: 12px;
 }

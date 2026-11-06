@@ -10,7 +10,9 @@ await runDiagnostic('renderer-crash', async ({ dir, log }) => {
     environment: { AURA_IPC_TRACE_FILE: join(dir, 'core-trace.log') },
   });
   const first = await application.firstWindow();
-  await first.getByText('Aura Core 已就绪').waitFor({ state: 'visible', timeout: 20000 });
+  await first
+    .locator('.app-shell[data-core-state="ready"]')
+    .waitFor({ state: 'visible', timeout: 20000 });
   log('first window ready');
 
   const rebuiltPromise = application.waitForEvent('window', { timeout: 15000 });
@@ -23,7 +25,9 @@ await runDiagnostic('renderer-crash', async ({ dir, log }) => {
 
   let ready = false;
   try {
-    await rebuilt.getByText('Aura Core 已就绪').waitFor({ state: 'visible', timeout: 15000 });
+    await rebuilt
+      .locator('.app-shell[data-core-state="ready"]')
+      .waitFor({ state: 'visible', timeout: 15000 });
     ready = true;
     log('REBUILT WINDOW READY');
   } catch {

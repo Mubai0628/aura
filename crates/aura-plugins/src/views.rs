@@ -111,6 +111,19 @@ pub struct PluginCounts {
     pub commands: u32,
     pub servers: u32,
     pub hooks: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub panels: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub services: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub themes: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub channels: u32,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_zero(count: &u32) -> bool {
+    *count == 0
 }
 
 /// A newer copy of an installed plugin, imported and waiting to be trusted. The installed copy
@@ -152,6 +165,24 @@ pub struct PluginView {
     pub pending_update: Option<PluginPendingView>,
     pub file_count: u32,
     pub bytes: u64,
+    /// A plugin in development: used from this folder where it is written, never copied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub development: Option<String>,
+    /// The title of the panel it shows in the right sidebar, when its panel can be used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panel: Option<String>,
+    /// The title of its theme, when its theme can be used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
+    /// Its background service, when it declares one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service: Option<crate::PluginServiceView>,
+    /// Its own settings, with their values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<crate::PluginOptionValue>,
+    /// What its background service may reach, when it declares one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote: Option<crate::PluginRemoteView>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -179,6 +210,44 @@ pub struct PluginPreview {
     pub servers: Vec<PluginServerItem>,
     pub hooks: Vec<PluginHookItem>,
     pub files: Vec<PluginFile>,
+    /// What the plugin's panel and background service may do with the conversations they are
+    /// given.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<crate::PluginCapability>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub panel: Option<PluginPanelItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service: Option<PluginServiceItem>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<crate::PluginOption>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<PluginThemeItem>,
+    /// The chat platform accounts its background service connects.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub channels: Vec<crate::PluginChannel>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginPanelItem {
+    pub panel: crate::PluginPanel,
+    pub problems: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginServiceItem {
+    pub service: crate::PluginService,
+    pub problems: Vec<String>,
+}
+
+/// The plugin's `theme.toml`: its title when it can be used, or why it cannot.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginThemeItem {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub problems: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -199,6 +268,15 @@ pub struct PluginRequest {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PluginImportRequest {
+    pub path: String,
+    pub expected_revision: u64,
+}
+
+/// Installs a folder a plugin is being written in as a plugin in development, where it is.
+/// Nothing is trusted or switched on for it.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginDevelopmentRequest {
     pub path: String,
     pub expected_revision: u64,
 }
@@ -251,6 +329,37 @@ pub struct PluginSelectArchiveRequest {}
 pub struct PluginSelectedArchive {
     /// Absent when the user cancelled.
     pub path: Option<String>,
+}
+
+/// The theme of a ready plugin, for the window to show.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginThemeRequest {
+    pub name: String,
+}
+
+/// Exports an installed plugin as a ZIP file. The window names the plugin; Main asks where to
+/// save it.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginExportRequest {
+    pub name: String,
+}
+
+/// Main's request to Core once the user chose where to save the ZIP file.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginExportToRequest {
+    pub name: String,
+    pub path: String,
+}
+
+/// The plugin was exported, or why it was not (including the user cancelling).
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginExported {
+    pub completed: bool,
+    pub message: String,
 }
 
 /// Main opened an installed plugin's folder in the file manager, or says why it did not.

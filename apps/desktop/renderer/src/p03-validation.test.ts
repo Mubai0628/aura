@@ -180,6 +180,14 @@ describe('P03 Electron boundary', () => {
     expect(isP03MainParams('fs.find_paths', { ...request, limit: 101 })).toBe(false);
   });
 
+  it("searches a workspace's paths before its new conversation exists", () => {
+    const request = { limit: 100, query: 'main', workspace_id: WORKSPACE_ID };
+    expect(isP03MainParams('fs.find_paths', request)).toBe(true);
+    expect(isP03MainParams('fs.find_paths', { ...request, session_id: 'draft_wsp' })).toBe(false);
+    expect(isP03MainParams('fs.find_paths', { ...request, workspace_id: SESSION_ID })).toBe(false);
+    expect(isP03MainParams('fs.find_paths', { ...request, extra: true })).toBe(false);
+  });
+
   it('accepts optional read fields and rejects traversal targets', () => {
     expect(
       isP03MainParams('fs.read_text', {

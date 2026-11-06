@@ -3,22 +3,16 @@ use super::support::{Fixture, skill, write};
 use serde_json::json;
 
 #[test]
-fn a_skill_in_the_users_agents_folder_starts_off_and_trust_switches_it_on() {
+fn a_skill_in_the_users_agents_folder_is_listed_with_its_files_and_preview() {
     let f = Fixture::new();
     skill(&f.global(), "notes");
     let view = f.view("notes");
     assert_eq!(view["source"], "agent_global");
-    assert_eq!(view["state"], "disabled", "found outside Aura: off until the user chooses");
     assert_eq!(view["name"], "notes");
     assert_eq!(view["file_count"], 2);
     let preview = f.dispatch("agent.skills.preview", json!({"id": view["id"]})).expect("preview");
     assert!(preview["skill_md"].as_str().expect("text").contains("Use [the guide]"));
     assert_eq!(preview["files"].as_array().expect("files").len(), 2);
-    let trusted = f.trust("notes");
-    let listed = &trusted["skills"][0];
-    assert_eq!(listed["state"], "ready");
-    assert_eq!(listed["enabled"], true);
-    assert_eq!(listed["trusted_fingerprint"], view["fingerprint"]);
     let roots = f.list()["roots"].clone();
     assert!(
         roots
@@ -30,24 +24,16 @@ fn a_skill_in_the_users_agents_folder_starts_off_and_trust_switches_it_on() {
 }
 
 #[test]
-fn trust_is_given_only_at_the_shown_content_and_lost_when_it_changes() {
+fn trust_is_given_only_at_the_shown_content_and_a_change_names_the_revision() {
     let f = Fixture::new();
-    let directory = skill(&f.global(), "notes");
+    skill(&f.global(), "notes");
     let view = f.view("notes");
     let refused = f.dispatch(
         "agent.skills.trust",
         json!({"id": view["id"], "expected_fingerprint": "0".repeat(64), "expected_revision": f.revision()}),
     );
     assert!(refused.expect_err("refused").to_string().starts_with("skills.content_changed"));
-    f.trust("notes");
-    write(&directory.join("references/guide.md"), "Step two.\n");
-    assert_eq!(f.view("notes")["state"], "content_changed");
-    f.trust("notes");
-    assert_eq!(f.view("notes")["state"], "ready", "trusting the new content again");
-    let id = f.view("notes")["id"].clone();
-    f.dispatch("agent.skills.untrust", json!({"id": id, "expected_revision": f.revision()}))
-        .expect("untrusted");
-    assert_eq!(f.view("notes")["state"], "not_trusted");
+    let id = view["id"].clone();
     f.dispatch(
         "agent.skills.set_enabled",
         json!({"id": id, "enabled": false, "expected_revision": f.revision()}),
@@ -71,7 +57,7 @@ fn importing_copies_exactly_the_checked_folder_and_removing_deletes_only_the_cop
         .expect("imported");
     let imported = f.view("pdf");
     assert_eq!(imported["source"], "aura_store");
-    assert_eq!(imported["state"], "not_trusted", "imported: on, but not trusted yet");
+    assert_eq!(imported["state"], "ready", "imported: usable at once");
     assert!(f.store.join("pdf").join("references").join("guide.md").is_file());
     f.dispatch("agent.skills.import", json!({"path": original, "expected_revision": f.revision()}))
         .expect("a second copy");
@@ -187,7 +173,7 @@ fn a_zip_file_is_unpacked_into_aura_checked_like_a_folder_and_left_unchanged() {
         .expect("imported");
     let imported = f.view("pdf");
     assert_eq!(imported["source"], "aura_store");
-    assert_eq!(imported["state"], "not_trusted", "unpacked: on, but not trusted yet");
+    assert_eq!(imported["state"], "ready", "unpacked: usable at once");
     assert_eq!(imported["file_count"], 2);
     assert!(f.store.join("pdf").join("references").join("guide.md").is_file());
     assert_eq!(std::fs::read(&packed).expect("archive"), before, "the ZIP is not changed");

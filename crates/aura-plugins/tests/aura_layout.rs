@@ -108,7 +108,7 @@ fn a_manifest_is_refused_with_every_reason() {
     let temp = tempfile::tempdir().expect("temp");
     let root = temp.path().join("bad");
     write(&root, "skills/review-guide/SKILL.md", SKILL);
-    write(&root, "aura-plugin.toml", "schema_version = 2\nname = \"Bad_Name\"\nversion = \"\"\n");
+    write(&root, "aura-plugin.toml", "schema_version = 3\nname = \"Bad_Name\"\nversion = \"\"\n");
     let problems = problems(scan(&root));
     assert!(problems.contains("schema_version"), "{problems}");
     assert!(problems.contains("name（Bad_Name）"), "{problems}");

@@ -163,9 +163,13 @@ export const isP03MainParams = <Command extends P03MainCommand>(
     case 'fs.inspect':
       return isTargetReadRequest(value);
     case 'fs.find_paths':
+      // A new conversation's composer searches before the conversation exists.
       return (
-        exactRecord(value, ['limit', 'query', 'session_id', 'workspace_id']) &&
-        isWorkspaceSession(value) &&
+        recordWithOptional(value, ['limit', 'query', 'workspace_id'], ['session_id']) &&
+        isAuraId(value.workspace_id, 'wsp') &&
+        (value.session_id === undefined ||
+          value.session_id === null ||
+          isAuraId(value.session_id, 'ses')) &&
         typeof value.query === 'string' &&
         isSearchLimit(value.limit)
       );

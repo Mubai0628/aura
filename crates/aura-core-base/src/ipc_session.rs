@@ -41,11 +41,13 @@ mod lane_key;
 #[cfg(test)]
 #[path = "ipc_session/resource_wait_tests.rs"]
 mod resource_wait_tests;
+mod session_writes;
 mod terminal_input;
 #[cfg(test)]
 #[path = "ipc_session/terminal_input_tests.rs"]
 mod terminal_input_tests;
-use lane_key::{LaneKey, SessionLaneKey};
+use lane_key::LaneKey;
+use session_writes::session_write_scope;
 
 use aura_domain_common::{CorrelationId, ErrorCategory, ErrorCode, WorkspaceId, WorkspacePath};
 use aura_ipc::{JsonRpcRequest, routes::RouteIdempotency, trace};
@@ -184,66 +186,6 @@ impl FileTargetLaneKey {
 pub(crate) fn is_concurrent_read_only(request: &JsonRpcRequest) -> bool {
     aura_ipc::routes::core_route(&request.method)
         .is_some_and(|route| route.idempotency == RouteIdempotency::ReadOnly)
-}
-
-/// Session-scoped writes that carry the session they belong to.
-///
-/// WHY A TABLE AND NOT A PARAMETER SNIFF. Which requests may run beside another
-/// session's is an ordering claim about Core state, so it is declared here once, next to
-/// the lane it selects, and reviewed like any other classification. Nothing about a route
-/// changes by being listed: it is still authenticated, still takes its invocation claim,
-/// still runs its handler and still settles. Only *when* it may run changes - and only
-/// against a different session.
-///
-/// WHAT IS DELIBERATELY NOT HERE
-/// * `session.create`: it has no session yet, so there is nothing to order it against;
-///   it stays on the ordered lane.
-/// * `permission.set_defaults`, host-preparation mutations, external-grant mutations,
-///   quarantine and artifact routes: global configuration or repository-wide state, not
-///   one session's, so they keep the original order.
-/// * `projection.subscribe` / `projection.unsubscribe`: connection state, not a session's.
-const SESSION_BOUND_WRITE_ROUTES: [&str; 14] = [
-    // Sending a message and editing the pending queue of one session.
-    "agent.submit",
-    "agent.inbox.mutate",
-    // One session's own run/approval/query control.
-    "agent.start",
-    "agent.continue",
-    "agent.related.start",
-    "agent.cancel",
-    "agent.mode.control",
-    "agent.query.answer",
-    "agent.query.touch",
-    "agent.query.select_file",
-    "agent.context.recheck",
-    "agent.approval.resolve",
-    // One session's permission configuration and its own shell stop.
-    "permission.set_session_mode",
-    "agent.shell.stop",
-];
-
-/// Whether a write route is bound to one session, and to which one.
-///
-/// Read-only requests are not session writes: a read cannot observe another read's
-/// ordering, and the concurrent lane already serves them. A route that names a session
-/// but carries no usable `session_id` parameter is **not** put on a session lane - it
-/// falls through to the ordered lane, which can only be stricter than what it asked for.
-#[must_use]
-pub(crate) fn session_write_scope(request: &JsonRpcRequest) -> Option<SessionLaneKey> {
-    if is_concurrent_read_only(request)
-        || CONTROL_ROUTES.contains(&request.method.as_str())
-        || CONNECTION_ORDERED_ROUTES.contains(&request.method.as_str())
-    {
-        return None;
-    }
-    if !SESSION_BOUND_WRITE_ROUTES.contains(&request.method.as_str()) {
-        return None;
-    }
-    let session_id = request.params.get("session_id")?.as_str()?;
-    if session_id.is_empty() {
-        return None;
-    }
-    Some(SessionLaneKey::of(session_id))
 }
 
 /// File routes whose real resource set makes them safe to coordinate by resource rather than by
@@ -1870,11 +1812,11 @@ mod tests {
     /// connection's ordered lane, and each lands on its own session's key.
     #[test]
     fn only_session_bound_writes_leave_the_ordered_lane() {
-        for method in SESSION_BOUND_WRITE_ROUTES {
+        for method in session_writes::SESSION_BOUND_WRITE_ROUTES {
             let request = session_write_named(method, "ses_A", 'V');
             assert_eq!(
                 lane_key_for(&request),
-                LaneKey::Session(SessionLaneKey::of("ses_A")),
+                LaneKey::Session(lane_key::SessionLaneKey::of("ses_A")),
                 "{method} is SessionId-bound and must run on its own session's lane"
             );
         }

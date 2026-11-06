@@ -9,6 +9,7 @@ import { SecuritySettings } from './SecuritySettings';
 import { ToolSettings } from './ToolSettings';
 import { EnvironmentSettings } from './environment-settings/EnvironmentSettings';
 import { BrowserSettings } from './browser-settings/BrowserSettings';
+import { ComputerSettings } from './computer-settings/ComputerSettings';
 import { ArchiveSettings } from './session-lifecycle/ArchiveSettings';
 import { MemorySettings } from './memory-settings/MemorySettings';
 import { CommandSettings } from './command-settings/CommandSettings';
@@ -63,6 +64,13 @@ const SETTINGS_NAVIGATION: readonly {
     label: '网络与浏览器',
     value: 'browser',
     keywords: ['浏览器', '网站', '阻止', '调试'],
+  },
+  {
+    group: '基础',
+    icon: 'desktop',
+    label: '电脑操控',
+    value: 'computer',
+    keywords: ['程序', '截图', '鼠标', '键盘', '总是允许', '操控方式', '前台', '小窗', '快捷键'],
   },
   { group: '智能能力', icon: 'bookmark', label: '记忆', value: 'memory' },
   { group: '智能能力', icon: 'slash', label: '命令', value: 'commands' },
@@ -137,7 +145,10 @@ export function SettingsView({
             />
             <kbd>Ctrl+F</kbd>
           </label>
-          <span className={`settings-core-status state-${coreStatus.tone}`}>
+          <span
+            className={`settings-core-status state-${coreStatus.tone}`}
+            title={coreStatus.detail}
+          >
             <span aria-hidden="true" />
             {coreStatus.label}
           </span>
@@ -186,6 +197,7 @@ export function SettingsView({
           {section === 'tools' ? <ToolSettings /> : null}
           {section === 'environment' ? <EnvironmentSettings /> : null}
           {section === 'browser' ? <BrowserSettings coreReady={coreReady} /> : null}
+          {section === 'computer' ? <ComputerSettings coreReady={coreReady} /> : null}
           {section === 'archive' ? <ArchiveSettings /> : null}
           {section === 'notifications' ? <NotificationSettings /> : null}
           {section === 'memory' ? (
@@ -215,7 +227,7 @@ export function SettingsView({
             />
           ) : null}
           {section === 'security' ? (
-            <SecuritySettings onNotify={onNotify} security={security} />
+            <SecuritySettings coreReady={coreReady} onNotify={onNotify} security={security} />
           ) : null}
         </div>
       </div>

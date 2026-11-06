@@ -1,11 +1,14 @@
 [workspace]
 members = [
     "crates/aura-agent-domain",
+    "crates/aura-message-references",
     "crates/aura-commands",
     "crates/aura-hooks",
     "crates/aura-mcp",
     "crates/aura-skills",
     "crates/aura-plugins",
+    "crates/aura-plugin-session",
+    "crates/aura-plugin-host",
     "crates/aura-activity-domain",
     "crates/aura-activity-runtime",
     "crates/aura-execution-orchestrator",
@@ -14,6 +17,10 @@ members = [
     "crates/aura-browser-domain",
     "crates/aura-chrome-domain",
     "crates/aura-chrome-host",
+    "crates/aura-desktop-domain",
+    "crates/aura-desktop-control",
+    "crates/aura-desktop-pip",
+    "crates/aura-desktop-service",
     "crates/aura-web-runtime",
     "crates/aura-execution-helper",
     "crates/aura-windows-user-contract",
@@ -60,6 +67,7 @@ members = [
     "crates/aura-model-domain",
     "crates/aura-model-config",
     "crates/aura-model-catalog",
+    "crates/aura-provider-profile",
     "crates/aura-model-transport",
     "crates/aura-model-adapter-openai-responses",
     "crates/aura-model-adapter-openai-chat",
@@ -94,7 +102,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.12"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.97.1"
 
@@ -207,6 +215,9 @@ debug = "line-tables-only"
 debug = "line-tables-only"
 
 [profile.dev.package.aura-chrome-service]
+debug = "line-tables-only"
+
+[profile.dev.package.aura-desktop-service]
 debug = "line-tables-only"
 
 [profile.dev.package.aura-git-service]

@@ -56,13 +56,13 @@ const sent = () => answer.mock.calls[0]![0].answers;
 test('every question offers a custom reply, and the user’s words are what is sent', async () => {
   const user = userEvent.setup();
   render(<QueryForm query={query} sessionId="ses_1" onChanged={vi.fn()} />);
-  const customs = screen.getAllByRole('radio', { name: '自定义回复' });
-  expect(customs).toHaveLength(2);
-  await user.click(customs[0]!);
+  await user.click(screen.getByRole('radio', { name: '自定义回复' }));
   await user.type(
     screen.getByRole('textbox', { name: '工作区是空的，你希望我怎么处理？（自定义回复）' }),
     '先列出目录再决定',
   );
+  await user.click(screen.getByRole('button', { name: '下一题' }));
+  expect(screen.getByRole('radio', { name: '自定义回复' })).toBeTruthy();
   await user.click(screen.getByRole('radio', { name: '确认' }));
   await user.click(screen.getByRole('button', { name: '提交回答' }));
   expect(sent()).toEqual([
@@ -71,13 +71,56 @@ test('every question offers a custom reply, and the user’s words are what is s
   ]);
 });
 
-test('a question still unanswered is named, and nothing is sent', async () => {
+test('one question shows at a time, and moving between them keeps each answer', async () => {
   const user = userEvent.setup();
   render(<QueryForm query={query} sessionId="ses_1" onChanged={vi.fn()} />);
+  const form = screen.getByRole('form', { name: '回答当前问题' });
+  expect(form.textContent).toContain('第 1 / 2 题');
+  expect(form.textContent).toContain('工作区是空的');
+  expect(form.textContent).not.toContain('现在继续吗？');
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '上一题' }).disabled).toBe(true);
   await user.click(screen.getByRole('radio', { name: '跳过' }));
-  await user.click(screen.getByRole('button', { name: '提交回答' }));
-  expect(screen.getByRole('alert').textContent).toBe('第 2 个问题：选择一个回复。');
-  expect(answer).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: '下一题' }));
+  expect(form.textContent).toContain('第 2 / 2 题');
+  expect(form.textContent).toContain('现在继续吗？');
+  expect(form.textContent).not.toContain('工作区是空的');
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '下一题' }).disabled).toBe(true);
+  await user.click(screen.getByRole('button', { name: '上一题' }));
+  expect(screen.getByRole<HTMLInputElement>('radio', { name: '跳过' }).checked).toBe(true);
+  // A dot goes straight to its question.
+  await user.click(screen.getByRole('button', { name: '第 2 题' }));
+  expect(form.textContent).toContain('现在继续吗？');
+});
+
+test('提交回答 waits until every question is answered; the dots show which are', async () => {
+  const user = userEvent.setup();
+  render(<QueryForm query={query} sessionId="ses_1" onChanged={vi.fn()} />);
+  const submit = screen.getByRole<HTMLButtonElement>('button', { name: '提交回答' });
+  expect(submit.disabled).toBe(true);
+  await user.click(screen.getByRole('radio', { name: '跳过' }));
+  expect(screen.getByRole('button', { name: '第 1 题（已答）' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '第 2 题' })).toBeTruthy();
+  expect(submit.disabled).toBe(true);
+  // A custom reply with no words is not an answer yet.
+  await user.click(screen.getByRole('button', { name: '下一题' }));
+  await user.click(screen.getByRole('radio', { name: '自定义回复' }));
+  expect(submit.disabled).toBe(true);
+  await user.type(screen.getByRole('textbox', { name: '现在继续吗？（自定义回复）' }), '等我看完');
+  expect(submit.disabled).toBe(false);
+  await user.click(submit);
+  expect(sent()).toEqual([
+    { question_id: 'empty_workspace', value: { answer: 'choices', ids: ['skip'] } },
+    { question_id: 'proceed', value: { answer: 'custom', text: '等我看完' } },
+  ]);
+});
+
+test('a single question has no pager', () => {
+  const one = { ...query, input: { questions: [query.input.questions[1]!] } } as UserQuery;
+  render(<QueryForm query={one} sessionId="ses_1" onChanged={vi.fn()} />);
+  expect(screen.queryByRole('group', { name: '切换问题' })).toBeNull();
+  expect(screen.getByRole('form', { name: '回答当前问题' }).textContent).toContain(
+    'Aura 在等你回复',
+  );
 });
 
 test('declining answers every question as declined', async () => {

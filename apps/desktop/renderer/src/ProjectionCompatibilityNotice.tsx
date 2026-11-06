@@ -10,6 +10,7 @@ type Surface =
   | 'tools'
   | 'environment'
   | 'browser'
+  | 'computer'
   | 'security'
   | 'terminal'
   | 'memory'

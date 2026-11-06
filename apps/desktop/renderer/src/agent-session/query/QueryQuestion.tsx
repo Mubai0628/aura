@@ -29,6 +29,7 @@ function Option({
 }
 
 export function QueryQuestionBlock({
+  disabled = false,
   index,
   question,
   query,
@@ -36,6 +37,7 @@ export function QueryQuestionBlock({
   draft,
   onDraft,
 }: {
+  disabled?: boolean;
   index: number;
   question: QueryQuestion;
   query: UserQuery;
@@ -51,7 +53,7 @@ export function QueryQuestionBlock({
   const choose = (value: QueryAnswerValue | undefined) =>
     onDraft({ ...draft, custom: false, value });
   return (
-    <fieldset className="agent-query-question">
+    <fieldset className="agent-query-question" disabled={disabled}>
       <legend>
         <span className="agent-query-index" aria-hidden="true">
           {index + 1}

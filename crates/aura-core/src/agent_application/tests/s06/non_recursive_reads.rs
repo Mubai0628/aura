@@ -60,6 +60,7 @@ pub(in crate::agent_application::tests) async fn external_list_under_non_recursi
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("List AURA_EXTERNAL_PATH={} and report its entries.", target.display()),
@@ -68,7 +69,9 @@ pub(in crate::agent_application::tests) async fn external_list_under_non_recursi
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

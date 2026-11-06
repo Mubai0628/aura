@@ -333,7 +333,7 @@ fn read_namespace_and_artifact_capture_preserve_session_logical_views() {
             .fs
             .find_paths(FsFindPathsRequest {
                 workspace_id: harness.workspace_id,
-                session_id: harness.session_a,
+                session_id: Some(harness.session_a),
                 query: "note".to_owned(),
                 limit: 10,
             })

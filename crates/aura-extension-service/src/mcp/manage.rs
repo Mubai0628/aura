@@ -1,15 +1,16 @@
 //! Settings → MCP: list, check, save, trust, untrust, switch, remove, test and describe, and put a
 //! plugin server's own configuration back. Every change names the registry revision it was made
 //! against; trust is given only at the fingerprint the user was shown, and never comes from a save.
+//! The "@" list of a conversation reads its servers' resources here too.
 mod brought;
 
 use super::McpRuntime;
 use aura_config::SettingsFacadeError;
 use aura_mcp::{
     McpDescribeRequest, McpListRequest, McpPreview, McpPreviewRequest, McpRefreshRequest,
-    McpRegistryView, McpSaveRequest, McpServerConfig, McpServerDetail, McpServerRequest,
-    McpServerState, McpSetEnabledRequest, McpSignInBegun, McpSignInRequest, McpSignOutRequest,
-    McpToolView, McpTrustRequest,
+    McpRegistryView, McpResourceListRequest, McpSaveRequest, McpServerConfig, McpServerDetail,
+    McpServerRequest, McpServerState, McpSetEnabledRequest, McpSignInBegun, McpSignInRequest,
+    McpSignOutRequest, McpToolView, McpTrustRequest,
 };
 use std::sync::Arc;
 
@@ -42,6 +43,10 @@ impl McpContext {
             "agent.mcp.list" => {
                 let _: McpListRequest = serde_json::from_value(params)?;
                 serde_json::to_value(self.view(true))?
+            }
+            "agent.mcp.resources" => {
+                let request: McpResourceListRequest = serde_json::from_value(params)?;
+                serde_json::to_value(self.runtime.resources(request.session_id))?
             }
             "agent.mcp.preview" => {
                 let request: McpPreviewRequest = serde_json::from_value(params)?;

@@ -26,7 +26,7 @@ async fn main() -> ExitCode {
             Ok(pending) => serde_json::json!(pending),
             Err(error) => serde_json::json!({ "error": error }),
         };
-        let legacy = aura_persistence::store_migration_pending(&root.join("data").join("aura.db"))
+        let legacy = aura_persistence::copy_before_start(&root.join("data/aura.db"), replacing)
             .map_err(|error| error.to_string());
         let execution = aura_persistence_v2::copy_before_start(
             &root.join("data").join("v2-execution").join("aura-v2.db"),

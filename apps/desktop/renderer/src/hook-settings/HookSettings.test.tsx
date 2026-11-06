@@ -74,6 +74,11 @@ afterEach(cleanup);
 
 const rowOf = (name: string) =>
   screen.getByText(name, { selector: 'strong' }).closest('li') as HTMLElement;
+/** The Hook's dialog, opened with its row's 配置. */
+const details = async (name: string) => {
+  await userEvent.click(within(rowOf(name)).getByRole('button', { name: `配置 ${name}` }));
+  return screen.getByRole('dialog', { name });
+};
 
 test('lists Hooks in execution order with their state; the identity warning waits for trust', async () => {
   render(<HookSettings coreReady />);
@@ -85,7 +90,8 @@ test('lists Hooks in execution order with their state; the identity warning wait
   expect(within(rowOf('guard')).getByText('已启用')).toBeTruthy();
   expect(within(rowOf('notes')).getByText('已停用')).toBeTruthy();
   expect(within(rowOf('changed')).getByText('内容已变化，需要重新信任')).toBeTruthy();
-  expect(within(rowOf('guard')).getByText(/工具调用前；只对这些工具：fs\.write/u)).toBeTruthy();
+  expect(within(rowOf('guard')).getByText('guard 说明')).toBeTruthy();
+  expect(within(rowOf('guard')).queryByText(/工具调用前/u)).toBeNull();
   // The page has no warning; the review before trusting carries one sentence.
   expect(screen.queryAllByRole('note')).toHaveLength(0);
   // A changed Hook offers re-trust, never an on/off switch that would pretend it runs.
@@ -93,6 +99,11 @@ test('lists Hooks in execution order with their state; the identity warning wait
   expect(within(rowOf('changed')).getByRole('button', { name: '查看变化并重新信任' })).toBeTruthy();
   expect(screen.getByRole('button', { name: '上移 guard' })).toHaveProperty('disabled', true);
   expect(screen.getByRole('button', { name: '下移 changed' })).toHaveProperty('disabled', true);
+  const dialog = await details('guard');
+  expect(within(dialog).getByText(/工具调用前；只对这些工具：fs\.write/u)).toBeTruthy();
+  expect(within(dialog).getByText('C:\\hooks\\guard')).toBeTruthy();
+  await userEvent.click(within(dialog).getByRole('button', { name: '关闭' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
 
 test('adding a Hook previews the chosen folder and trusts exactly the shown fingerprint', async () => {
@@ -159,10 +170,13 @@ test('re-trusting a changed Hook keeps its on/off choice and a stale revision re
   });
   render(<HookSettings coreReady />);
   await user.click(await screen.findByRole('button', { name: '查看变化并重新信任' }));
-  const panel = await screen.findByRole('region', { name: '预览 Hook changed' });
+  const dialog = screen.getByRole('dialog', { name: 'changed' });
+  const panel = await within(dialog).findByRole('region', { name: '预览 Hook changed' });
   await user.click(within(panel).getByRole('button', { name: '重新信任' }));
   expect(api.trustHook).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
-  expect((await screen.findByRole('alert')).textContent).toBe('Hook 列表已被修改，请刷新后再操作');
+  expect((await within(dialog).findByRole('alert')).textContent).toBe(
+    'Hook 列表已被修改，请刷新后再操作',
+  );
   await waitFor(() => expect(api.listHooks).toHaveBeenCalledTimes(2));
 });
 
@@ -180,8 +194,11 @@ test('switching, untrusting, moving and removing name the revision shown', async
     expected_revision: 3,
   });
   await screen.findByText('已启用 notes');
-  await user.click(within(rowOf('guard')).getByRole('button', { name: '撤销信任' }));
+  const guard = await details('guard');
+  await user.click(within(guard).getByRole('button', { name: '撤销信任' }));
   expect(api.untrustHook).toHaveBeenCalledWith({ path: 'C:\\hooks\\guard', expected_revision: 4 });
+  expect(await within(guard).findByText('已撤销对 guard 的信任')).toBeTruthy();
+  await user.click(within(guard).getByRole('button', { name: '关闭' }));
   api.listHooks.mockResolvedValue(registry([entry('guard'), entry('notes')], 5));
   await user.click(screen.getByRole('button', { name: '刷新' }));
   await screen.findByText('notes', { selector: 'strong' });
@@ -191,12 +208,13 @@ test('switching, untrusting, moving and removing name the revision shown', async
     direction: 'down',
     expected_revision: 5,
   });
-  await user.click(within(rowOf('guard')).getByRole('button', { name: '移除' }));
+  await user.click(within(await details('guard')).getByRole('button', { name: '移除' }));
   const confirm = screen.getByRole('alertdialog', { name: '移除 guard' });
   expect(confirm.textContent).toContain('不会删除它的文件夹');
   await user.click(within(confirm).getByRole('button', { name: '移除' }));
   expect(api.removeHook).toHaveBeenCalledWith({ path: 'C:\\hooks\\guard', expected_revision: 4 });
   expect(await screen.findByText('已从列表移除 guard，文件夹未删除')).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
 
 test('recent calls show outcome, reason and stderr for one Hook', async () => {
@@ -234,7 +252,7 @@ test('recent calls show outcome, reason and stderr for one Hook', async () => {
   });
   render(<HookSettings coreReady />);
   await screen.findByText('guard', { selector: 'strong' });
-  await user.click(within(rowOf('guard')).getByRole('button', { name: '最近调用' }));
+  await user.click(within(await details('guard')).getByRole('button', { name: '最近调用' }));
   const calls = await screen.findByRole('region', { name: 'guard 的最近调用' });
   expect(api.listHookInvocations).toHaveBeenCalledWith({
     path: 'C:\\hooks\\guard',
@@ -265,9 +283,13 @@ test('a plugin’s Hook is listed after the user’s own, switched here, and tru
   await screen.findByText('checker', { selector: 'strong' });
   const row = rowOf('checker');
   expect(within(row).getByText('插件 kit')).toBeTruthy();
-  for (const name of ['预览', '撤销信任', '上移 checker', '下移 checker', '移除'])
+  for (const name of ['上移 checker', '下移 checker'])
     expect(within(row).queryByRole('button', { name })).toBeNull();
   expect(within(row).getByRole('button', { name: '停用' })).toBeTruthy();
+  const dialog = await details('checker');
+  for (const name of ['预览', '撤销信任', '移除'])
+    expect(within(dialog).queryByRole('button', { name })).toBeNull();
+  expect(within(dialog).getByRole('button', { name: '停用' })).toBeTruthy();
   // The user's own Hook cannot be moved below a plugin's.
   expect(
     (within(rowOf('guard')).getByRole('button', { name: '下移 guard' }) as HTMLButtonElement)
@@ -275,9 +297,9 @@ test('a plugin’s Hook is listed after the user’s own, switched here, and tru
   ).toBe(true);
 });
 
-// A listed Hook's preview opens in its own row and the button that opened it
+// A listed Hook's preview opens in its dialog and the button that opened it
 // closes it; only a folder being added, which has no row yet, keeps a cancel button.
-test('a listed Hook’s preview opens in its row and the same button closes it', async () => {
+test('a listed Hook’s preview opens in its dialog and the same button closes it', async () => {
   const user = userEvent.setup();
   api.previewHook.mockResolvedValue({
     ok: true,
@@ -285,10 +307,25 @@ test('a listed Hook’s preview opens in its row and the same button closes it',
   });
   render(<HookSettings coreReady />);
   await screen.findByText('guard', { selector: 'strong' });
-  await user.click(within(rowOf('guard')).getByRole('button', { name: '预览' }));
-  const panel = await within(rowOf('guard')).findByRole('region', { name: '预览 Hook guard' });
+  const dialog = await details('guard');
+  await user.click(within(dialog).getByRole('button', { name: '预览' }));
+  const panel = await within(dialog).findByRole('region', { name: '预览 Hook guard' });
   expect(within(panel).queryByRole('button', { name: /^(关闭|取消)$/u })).toBeNull();
-  await user.click(within(rowOf('guard')).getByRole('button', { name: '收起' }));
+  await user.click(within(dialog).getByRole('button', { name: '收起' }));
   expect(screen.queryByRole('region', { name: '预览 Hook guard' })).toBeNull();
-  expect(within(rowOf('guard')).getByRole('button', { name: '预览' })).toBeTruthy();
+  expect(within(dialog).getByRole('button', { name: '预览' })).toBeTruthy();
+});
+
+test('a folder being added keeps its review on the page while a listed Hook’s dialog opens and closes', async () => {
+  const user = userEvent.setup();
+  api.selectHookDirectory.mockResolvedValue({ ok: true, value: { path: 'C:\\hooks\\fresh' } });
+  api.previewHook.mockResolvedValue({ ok: true, value: preview('fresh') });
+  render(<HookSettings coreReady />);
+  await screen.findByText('guard', { selector: 'strong' });
+  await user.click(screen.getByRole('button', { name: '添加 Hook…' }));
+  expect(await screen.findByRole('region', { name: '预览 Hook fresh' })).toBeTruthy();
+  const dialog = await details('guard');
+  expect(within(dialog).queryByRole('region', { name: '预览 Hook fresh' })).toBeNull();
+  await user.click(within(dialog).getByRole('button', { name: '关闭' }));
+  expect(screen.getByRole('region', { name: '预览 Hook fresh' })).toBeTruthy();
 });

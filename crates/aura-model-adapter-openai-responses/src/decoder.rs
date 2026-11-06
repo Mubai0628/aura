@@ -1,3 +1,4 @@
+use super::errors::{HTTP_ERROR, STREAM_ERROR};
 use super::*;
 
 pub(super) struct ResponsesDecoder {
@@ -68,7 +69,7 @@ impl ModelProtocolDecoder for OpenAiResponsesAdapter {
     }
 
     fn classify_http_error(&self, response: &ProviderErrorResponse) -> NormalizedModelFailure {
-        classify_http_error(response)
+        provider_http_failure(response, HTTP_ERROR)
     }
 
     fn runtime_capability_facts(
@@ -140,7 +141,10 @@ impl ModelStreamDecoder for ResponsesDecoder {
             "response.output_item.done" => self.output_item_done(&value),
             "response.completed" => self.response_completed(&value),
             "response.incomplete" => self.response_incomplete(&value),
-            "error" => Err(provider_stream_error(&value)),
+            "error" => Err(provider_stream_failure(&value, STREAM_ERROR)),
+            "response.failed" => {
+                Err(provider_stream_failure(value.get("response").unwrap_or(&value), STREAM_ERROR))
+            }
             "response.content_part.added"
             | "response.content_part.done"
             | "response.output_text.done"

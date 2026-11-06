@@ -43,7 +43,13 @@ async fn registry_reuses_unchanged_definitions_and_isolates_dynamic_session_memb
     let prepare = |turn: &TurnTask, permission: &aura_security_contract::PermissionSnapshot| {
         let journal = s.broker.lock().expect("journal");
         s.agent_required()
-            .prepare_registry(journal.database.connection(), turn, permission, UtcTimestamp::now())
+            .prepare_registry(
+                journal.database.connection(),
+                turn,
+                permission,
+                UtcTimestamp::now(),
+                false,
+            )
             .expect("registry")
     };
     let (first, empty, settings, _) = prepare(&turn, &permission);

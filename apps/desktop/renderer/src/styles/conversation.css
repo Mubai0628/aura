@@ -72,10 +72,10 @@
   gap: 9px;
   padding: 10px 12px;
   margin: 0 auto 10px;
-  border: 1px solid #dfd2b9;
-  border-radius: 9px;
-  color: #6d5733;
-  background: #faf6ed;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  background: var(--warning-soft);
   font-size: 12px;
 }
 
@@ -90,17 +90,17 @@
 }
 
 .runtime-notice strong {
-  color: #564324;
+  color: var(--warning);
 }
 
 .runtime-notice.notice-danger {
-  color: #7b3838;
-  border-color: #e3bebe;
-  background: #fbefef;
+  color: var(--danger);
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
 }
 
 .runtime-notice.notice-danger strong {
-  color: #682d2d;
+  color: var(--danger);
 }
 
 .conversation-column {
@@ -141,16 +141,16 @@
   height: 31px;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: 50%;
-  color: #4f5550;
-  background: #f1f2ef;
+  border-radius: var(--radius-round);
+  color: var(--muted);
+  background: var(--surface-hover);
   font-size: 11px;
   font-weight: 680;
 }
 
 .message-avatar.aura-avatar {
   color: var(--accent-strong);
-  background: #edf2ef;
+  background: var(--surface-hover);
 }
 
 .message-body {
@@ -177,7 +177,7 @@
 .message-content {
   min-width: 0;
   max-width: 72ch;
-  color: #343934;
+  color: var(--ink);
   line-height: 1.75;
   overflow-wrap: anywhere;
   text-align: left;
@@ -196,7 +196,7 @@
   padding: 11px 13px 12px;
   margin-top: 15px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -217,9 +217,9 @@
   width: 21px;
   height: 21px;
   place-items: center;
-  border-radius: 50%;
-  color: #2f6948;
-  background: #dcebdd;
+  border-radius: var(--radius-round);
+  color: var(--success);
+  background: var(--success-soft);
 }
 
 .tool-result-card ul {
@@ -267,9 +267,9 @@
   align-items: center;
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 6px 18px rgba(41, 47, 43, 0.08);
+  box-shadow: var(--shadow-xs);
   color: var(--ink);
   white-space: nowrap;
 }
@@ -311,9 +311,9 @@
   overflow: auto;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 10px 26px rgba(41, 47, 43, 0.09);
+  box-shadow: var(--shadow-md);
   transform-origin: right 30px;
   animation: activity-bubble-detach 280ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -322,14 +322,14 @@
   from {
     opacity: 0.35;
     clip-path: inset(0 0 0 22% round 20px);
-    box-shadow: 0 3px 8px rgba(41, 47, 43, 0.04);
+    box-shadow: var(--shadow-xs);
     transform: translateX(32px) scale(0.84);
   }
 
   to {
     opacity: 1;
     clip-path: inset(0 round 11px);
-    box-shadow: 0 10px 26px rgba(41, 47, 43, 0.09);
+    box-shadow: var(--shadow-md);
     transform: translateX(0) scale(1);
   }
 }
@@ -344,7 +344,7 @@
 
 .activity-mode {
   margin-top: 10px;
-  color: #4e554f;
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -364,15 +364,15 @@
   min-height: 28px;
   padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #fff;
-  color: #3d443f;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
   font-size: 11px;
 }
 
 .activity-stack button:hover:not(:disabled) {
-  border-color: #c5ccc5;
-  background: #f6f7f5;
+  border-color: var(--line-strong);
+  background: var(--surface-muted);
 }
 
 /* The card's own buttons are padded for words; its close icon is a square
@@ -403,7 +403,7 @@
   min-height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
 }
 
 /* The collapsed card's entry also says how far the task list has got. */
@@ -423,10 +423,10 @@
   gap: 9px;
   padding: 8px 10px 8px 12px;
   margin: 0 0 8px;
-  border: 1px solid #dfd2b9;
-  border-radius: 9px;
-  color: #6d5733;
-  background: #faf6ed;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  background: var(--warning-soft);
   font-size: 12px;
 }
 
@@ -442,24 +442,24 @@
 }
 
 .core-waiting-notice strong {
-  color: #564324;
+  color: var(--warning);
   font-weight: 600;
 }
 
 .core-waiting-notice small {
-  color: #7b3838;
+  color: var(--danger);
 }
 
 .core-waiting-notice button {
   flex: 0 0 auto;
   padding: 4px 10px;
-  border: 1px solid #d6c3a0;
-  border-radius: 7px;
-  color: #564324;
-  background: #fffdf8;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  background: var(--warning-soft);
   font-size: 12px;
 }
 
 .core-waiting-notice button:hover:not(:disabled) {
-  background: #f3ead8;
+  background: var(--warning-soft);
 }

@@ -59,6 +59,7 @@ const kernelDependencies = {
   'aura-web-domain': ['aura-domain-common'],
   'aura-browser-domain': ['aura-domain-common'],
   'aura-chrome-domain': ['aura-domain-common'],
+  'aura-desktop-domain': ['aura-domain-common'],
   'aura-web-runtime': ['aura-domain-common', 'aura-web-domain'],
   'aura-net-tools': [
     'aura-domain-common',
@@ -77,7 +78,7 @@ const kernelDependencies = {
 };
 
 const isRunner = (name) =>
-  /^aura-(?:command-runner|execution-helper|execution-maintainer|restricted-user-spike|sandbox-host|appcontainer-host|egress-proxy|plugin-host|browser-host)$/.test(
+  /^aura-(?:command-runner|execution-helper|execution-maintainer|restricted-user-spike|sandbox-host|appcontainer-host|egress-proxy|plugin-host|browser-host|desktop-control)$/.test(
     name,
   );
 const isPersistence = (name) =>

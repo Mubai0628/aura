@@ -31,7 +31,9 @@ export async function launch(
     },
   });
   const page = await app.firstWindow();
-  await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+    timeout: 60_000,
+  });
   return { app, page };
 }
 

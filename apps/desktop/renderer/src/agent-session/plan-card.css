@@ -5,7 +5,7 @@
   margin: 12px 0;
   padding: 16px 18px 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 .agent-plan-header {
@@ -72,7 +72,7 @@
   min-width: 28px;
   margin-top: 2px;
   padding: 1px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-muted);
   color: var(--muted);
   font-size: 11px;
@@ -109,15 +109,15 @@
   height: 32px;
   padding: 0 16px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--ink);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 13px;
   font-weight: 600;
   transition: background var(--dur-fast) var(--ease-out);
 }
 .agent-plan-implement:hover:not(:disabled) {
-  background: #3b403b;
+  background: var(--accent-hover);
 }
 .agent-plan-implement:disabled {
   opacity: 0.45;

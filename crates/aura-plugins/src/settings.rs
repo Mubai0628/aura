@@ -3,6 +3,7 @@
 //! servers' secrets, and a newer copy waiting to be trusted. What a plugin brings is read from
 //! its folder; nothing here describes it.
 use crate::manifest::valid_plugin_name;
+use crate::remote::{PluginRemote, PluginValues, check_remote, check_values};
 use aura_domain_common::CredentialId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -92,6 +93,15 @@ pub struct PluginPendingSetting {
     pub imported_from: Option<String>,
 }
 
+/// A plugin in development: used from its own folder, where it is being written, and never
+/// copied into Aura's. Uninstalling it leaves the folder alone.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PluginDevelopment {
+    /// The folder's full path.
+    pub folder: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PluginSetting {
@@ -111,6 +121,14 @@ pub struct PluginSetting {
     /// earlier versions.
     #[serde(default, skip_serializing_if = "PluginChanges::is_empty")]
     pub changes: PluginChanges,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub development: Option<PluginDevelopment>,
+    /// The values of its own settings; written once the user filled one in.
+    #[serde(default, skip_serializing_if = "PluginValues::is_empty")]
+    pub values: PluginValues,
+    /// Its background service's switch, scope and allowlist; written once the user changed one.
+    #[serde(default, skip_serializing_if = "PluginRemote::is_empty")]
+    pub remote: PluginRemote,
 }
 
 impl PluginSetting {
@@ -126,7 +144,16 @@ impl PluginSetting {
             imported_from,
             pending: None,
             changes: PluginChanges::default(),
+            development: None,
+            values: PluginValues::default(),
+            remote: PluginRemote::default(),
         }
+    }
+
+    /// A plugin in development, used from `folder`: switched on, not trusted.
+    #[must_use]
+    pub fn in_development(name: &str, folder: String) -> Self {
+        Self { development: Some(PluginDevelopment { folder }), ..Self::imported(name, None) }
     }
 
     /// The credential kept for a server's secret, if there is one.
@@ -165,6 +192,15 @@ pub fn check_settings(plugins: &[PluginSetting]) -> Result<(), String> {
         if plugin.trusted_fingerprint.is_none() && *parts != PluginTrustedParts::default() {
             return Err(format!("{name} 没有信任，却记着信任时的内容"));
         }
+        if let Some(development) = &plugin.development {
+            let folder = std::path::Path::new(&development.folder);
+            if !folder.is_absolute() || development.folder.chars().any(char::is_control) {
+                return Err(format!("{name} 的开发文件夹必须是完整路径"));
+            }
+            if plugin.pending.is_some() {
+                return Err(format!("{name} 在开发中，不会有等待信任的更新"));
+            }
+        }
         for (id, server) in &plugin.changes.servers {
             if server.id != *id {
                 return Err(format!("{name} 改过的服务器 {id} 与它记着的 id 不一致"));
@@ -174,13 +210,15 @@ pub fn check_settings(plugins: &[PluginSetting]) -> Result<(), String> {
                 return Err(format!("{name} 改过的服务器 {id}：{}", problems.join("；")));
             }
         }
+        check_values(name, &plugin.values, &mut credentials)?;
+        check_remote(name, &plugin.remote)?;
         let mut keys = BTreeSet::new();
         for secret in &plugin.secrets {
             if !keys.insert((secret.server.as_str(), secret.key.as_str())) {
                 return Err(format!("{name} 的 {} {} 有两个密钥", secret.server, secret.key));
             }
             if !credentials.insert(secret.secret_id) {
-                return Err(format!("密钥 {} 被用了两次", secret.secret_id));
+                return Err(format!("{name} 的密钥 {} 被用了两次", secret.secret_id));
             }
         }
     }

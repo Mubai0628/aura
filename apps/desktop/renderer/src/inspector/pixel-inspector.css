@@ -125,7 +125,7 @@
   min-width: 0;
   aspect-ratio: 1;
   background: var(--surface-muted);
-  box-shadow: inset -1px -1px 0 rgba(31, 38, 33, 0.12);
+  box-shadow: inset -1px -1px 0 var(--focus-ring);
 }
 
 .pixel-cell.is-system_and_rules {

@@ -308,12 +308,15 @@ async fn unbuildable_last_candidate_hands_off_to_remediation_and_keeps_queue() {
         &runtime,
         "agent.submit",
         json!(AgentSubmitRequest {
+            computer_mode: None,
             session_id: request.session_id,
             text: "/goal stays queued".into(),
             destination: AgentInputLane::NextTurn,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

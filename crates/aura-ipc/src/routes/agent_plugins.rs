@@ -1,7 +1,9 @@
 //! Settings → 插件. Installed plugins, their review, trust and switch; importing copies a
 //! folder (or unpacks a ZIP file) into Aura's own, so it is a command. Main owns the folder and
 //! file dialogs and opens an installed plugin's folder by its name; the renderer never names a
-//! path. None of these routes runs anything a plugin brings.
+//! path. Exporting is named by the plugin too: Main asks where to save it and passes that place
+//! to Core, which writes the ZIP file. A ready plugin's theme is read for the window. None of
+//! these routes runs anything a plugin brings.
 use super::*;
 
 pub(super) const ROUTES: &[RouteDescriptor] = &[
@@ -86,6 +88,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "agent.plugins.add_development",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "PluginDevelopmentRequest",
+        "PluginRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
         "agent.plugins.select_directory",
         Agent,
         Main,
@@ -116,6 +128,46 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "agent.plugins.theme",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "PluginThemeRequest",
+        "PluginTheme",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "agent.plugins.export",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "PluginExportRequest",
+        "PluginExported",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.plugins.configure",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "PluginConfigureRequest",
+        "PluginRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.plugins.secret.set",
+        Agent,
+        Main,
+        SecretInput,
+        "PluginSecretSetRequest",
+        "PluginSecretSetResult",
+        CommandInvocation,
+        RequestLedger
+    ),
+    route!(
         "agent.plugins.list",
         Agent,
         Core,
@@ -141,6 +193,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         Core,
         AuthenticatedMain,
         "PluginImportRequest",
+        "PluginRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.plugins.add_development",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "PluginDevelopmentRequest",
         "PluginRegistryView",
         CommandInvocation,
         None
@@ -194,5 +256,45 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         "PluginRegistryView",
         CommandInvocation,
         None
+    ),
+    route!(
+        "agent.plugins.theme",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "PluginThemeRequest",
+        "PluginTheme",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "agent.plugins.export",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "PluginExportToRequest",
+        "PluginExported",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.plugins.configure",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "PluginConfigureRequest",
+        "PluginRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.plugins.secret.set",
+        Agent,
+        Core,
+        SecretInput,
+        "PluginSecretSetRequest",
+        "PluginSecretSetResult",
+        CommandInvocation,
+        RequestLedger
     ),
 ];

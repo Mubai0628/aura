@@ -24,6 +24,9 @@ pub use background_work::{enter_background_mode, lower_cpu_priority};
 mod bootstrap;
 mod capability;
 mod child_environment;
+mod child_run_once;
+mod child_session;
+pub use child_run_once::ChildRunOnce;
 mod credential;
 mod credential_lock;
 #[cfg(test)]
@@ -96,6 +99,7 @@ pub use atomic_file::{
     handle_bound_replace_with_backup_checked,
 };
 pub use bootstrap::{BOOTSTRAP_SECRET_BYTES, read_inherited_bootstrap_secret};
+pub use child_session::{child_session_id, child_sessions_enabled, log_off_session};
 pub use credential::{
     CredentialApplicationAttribute, CredentialStoreError,
     MAX_CREDENTIAL_ATTRIBUTE_KEYWORD_UTF16_UNITS, MAX_CREDENTIAL_ATTRIBUTE_VALUE_BYTES,
@@ -161,7 +165,9 @@ pub use path::{
 };
 #[cfg(feature = "restricted-user-runtime")]
 pub use pipe::create_execution_byte_pipe_server;
-pub use pipe::{create_secure_byte_pipe_server, open_secure_byte_pipe_client};
+pub use pipe::{
+    create_secure_byte_pipe_server, create_user_byte_pipe_server, open_secure_byte_pipe_client,
+};
 #[cfg(feature = "restricted-user-runtime")]
 pub use process::process_account_sid;
 pub use process::{

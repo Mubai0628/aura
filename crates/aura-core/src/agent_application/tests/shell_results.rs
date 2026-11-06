@@ -1,6 +1,7 @@
 //! What a Shell call gives the model back: the id shell.query and shell.stop take, so the rest of
 //! a long output can be read; for a command Aura stopped at its output limit, the output kept and
-//! why it stopped - never a user's cancellation; and for a wrong id, what shell.query takes.
+//! why it stopped - never a user's cancellation; and for a wrong id, what shell.query takes and
+//! the ids of the session's latest Shell calls.
 use super::*;
 
 /// The model views of the turn's tool results, in order.
@@ -77,5 +78,33 @@ async fn shell_query_and_shell_stop_with_an_id_that_names_no_shell_call_say_what
     for result in results {
         let view = result.to_string();
         assert!(view.contains("shell.powershell or shell.cmd"), "{view}");
+        assert!(view.contains("has run no shell.powershell or shell.cmd call yet"), "{view}");
+    }
+}
+
+#[tokio::test]
+async fn a_wrong_id_is_answered_with_the_ids_of_the_sessions_latest_shell_calls() {
+    const AFTER_COMMANDS: Scenario = Scenario::Sequence {
+        calls: &[
+            ("shell.powershell", r#"{"script":"Write-Output first"}"#),
+            ("shell.powershell", r#"{"script":"Write-Output second"}"#),
+            ("shell.query", r#"{"tool_call_id":"tcl_01ARZ3NDEKTSV4RRFFQ69G5FAV"}"#),
+            ("shell.stop", r#"{"tool_call_id":"tcl_01ARZ3NDEKTSV4RRFFQ69G5FAV"}"#),
+        ],
+    };
+    let results = tool_results(AFTER_COMMANDS).await;
+    assert_eq!(results.len(), 4, "{results:?}");
+    let id = |at: usize| {
+        results[at]["outcome"]["payload"]["value"]["tool_call_id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("the id of command {at}: {}", results[at]))
+            .to_owned()
+    };
+    let (first, second) = (id(0), id(1));
+    for wrong in &results[2..] {
+        let view = wrong.to_string();
+        let newest = view.find(&second).unwrap_or_else(|| panic!("{second}: {view}"));
+        let older = view.find(&first).unwrap_or_else(|| panic!("{first}: {view}"));
+        assert!(newest < older, "newest first: {view}");
     }
 }

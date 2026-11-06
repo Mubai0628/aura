@@ -3,7 +3,7 @@
 //! moves that must not be left half done are written to a small journal first; Core finishes or
 //! rolls them back when it next starts. A plugin's servers stop whenever what it offers changes.
 use super::import;
-use super::runtime::{LocatedPlugin, PluginRuntime};
+use super::runtime::{LocatedPlugin, PluginRuntime, in_development, trusted_at};
 use aura_config::{PluginRegistry, SettingsFacadeError};
 use aura_core_base::append_core_log;
 use aura_domain_common::{CorrelationId, CredentialId};
@@ -59,7 +59,7 @@ fn move_released(from: &Path, to: &Path) -> std::io::Result<()> {
     }
 }
 
-fn remove_or_log(folder: &Path) {
+pub(super) fn remove_or_log(folder: &Path) {
     if let Err(error) = std::fs::remove_dir_all(folder) {
         // Hidden (`.removed-*`) and never listed: swept when Core next starts.
         append_core_log(
@@ -117,7 +117,7 @@ impl PluginRuntime {
     }
 
     /// The registry, unless it cannot be written to or changed since the user looked.
-    fn current(&self, expected: u64) -> anyhow::Result<PluginRegistry> {
+    pub(super) fn current(&self, expected: u64) -> anyhow::Result<PluginRegistry> {
         let registry = self.settings().plugin_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
@@ -131,7 +131,7 @@ impl PluginRuntime {
         Ok(registry)
     }
 
-    fn located(
+    pub(super) fn located(
         &self,
         name: &str,
         expected: u64,
@@ -221,7 +221,7 @@ impl PluginRuntime {
                 }
             }
         }
-        setting.trusted_fingerprint = Some(package.fingerprint.clone());
+        setting.trusted_fingerprint = Some(trusted_at(package, Some(&*setting)).to_owned());
         setting.trusted_parts = parts;
         gone
     }
@@ -247,6 +247,7 @@ impl PluginRuntime {
         let name = &package.manifest.name;
         let folder = self.folder(name);
         let saved = registry.plugin(name).cloned();
+        super::development::refuse_taken_name(saved.as_ref())?;
         if let Some(mut setting) = saved.clone().filter(|s| s.trusted_fingerprint.is_some())
             && folder.exists()
         {
@@ -298,7 +299,7 @@ impl PluginRuntime {
             .as_ref()
             .map_err(|error| anyhow::anyhow!("plugins.invalid: {error}"))?;
         anyhow::ensure!(
-            package.fingerprint == request.expected_fingerprint,
+            trusted_at(package, located.setting.as_ref()) == request.expected_fingerprint,
             "plugins.content_changed: 插件的内容在你查看之后变了，请重新查看再信任"
         );
         let mut setting =
@@ -471,7 +472,10 @@ impl PluginRuntime {
         let secrets: Vec<CredentialId> = located
             .setting
             .iter()
-            .flat_map(|setting| setting.secrets.iter().map(|secret| secret.secret_id))
+            .flat_map(|setting| {
+                let servers = setting.secrets.iter().map(|secret| secret.secret_id);
+                servers.chain(setting.values.secrets.values().copied())
+            })
             .collect();
         let (folder, pending) = (self.folder(&name), self.pending_folder(&name));
         let (installed, waiting) = (self.trash(), self.trash());
@@ -482,7 +486,8 @@ impl PluginRuntime {
             secrets: secrets.clone(),
         })?;
         self.stop_servers(located.scanned.as_ref().ok());
-        let moved = folder.exists();
+        // A plugin in development is the user's own folder: only Aura's record of it goes.
+        let moved = !in_development(located.setting.as_ref()) && folder.exists();
         if moved && let Err(error) = move_released(&folder, &installed) {
             self.clear_journal();
             return Err(busy(&error));
@@ -503,6 +508,8 @@ impl PluginRuntime {
             return Err(error);
         }
         self.forget(&servers, &secrets);
+        self.forget_theme(&name);
+        self.remove_logs(&name);
         for trash in [installed, waiting] {
             if trash.exists() {
                 remove_or_log(&trash);

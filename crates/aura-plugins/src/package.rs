@@ -3,14 +3,16 @@
 //! plugin whose manifest or layout cannot be used is not a plugin Aura can trust.
 use crate::claude::{ClaudeServers, parse_plugin_json};
 use crate::commands::{PluginCommand, aura_commands, claude_commands};
-use crate::files::{MAX_PLUGIN_BYTES, MAX_PLUGIN_FILES, PluginFile, Walked, walk};
+use crate::files::{MAX_PLUGIN_BYTES, MAX_PLUGIN_FILES, PluginFile, THEME_FILE, Walked, walk};
 use crate::manifest::{AURA_MANIFEST, CLAUDE_MANIFEST, PluginManifest, parse_aura_manifest};
 use crate::servers::{
-    PluginAuth, PluginServer, PluginTransport, SERVERS_FILE, aura_servers, claude_servers,
+    PLUGIN_ROOT_VARIABLE, PluginAuth, PluginServer, PluginTransport, SERVERS_FILE, aura_servers,
+    claude_servers, fill,
 };
+use crate::theme::{PluginTheme, parse_theme};
 use crate::views::{
     PluginCommandItem, PluginCounts, PluginHookItem, PluginLayout, PluginServerItem,
-    PluginServerKind, PluginSignIn, PluginSkillItem,
+    PluginServerKind, PluginSignIn, PluginSkillItem, PluginThemeItem,
 };
 use aura_hooks::{HookPackage, scan_package};
 use aura_skills::{FileHashCache, FoundSkill, scan_root};
@@ -31,13 +33,24 @@ pub struct PluginPackage {
     pub layout: PluginLayout,
     pub manifest: PluginManifest,
     pub files: Vec<PluginFile>,
+    /// The BLAKE3 of each of `files`, in the same order.
+    pub file_hashes: Vec<String>,
     pub bytes: u64,
     /// BLAKE3 over every file's path, size and content, in path order.
     pub fingerprint: String,
+    /// What the plugin is trusted at while it is in development: the same, without the parts
+    /// that reload by themselves (see `Walked::development_fingerprint`).
+    pub development_fingerprint: String,
     pub skills: Vec<FoundSkill>,
     pub commands: Vec<PluginCommand>,
     pub hooks: Vec<PluginHook>,
     pub servers: Vec<PluginServer>,
+    /// Why the declared panel is not offered.
+    pub panel_problems: Vec<String>,
+    /// Why the declared background service is not offered.
+    pub service_problems: Vec<String>,
+    /// Its `theme.toml` (Aura's layout only), or why that cannot be used.
+    pub theme: Option<Result<PluginTheme, Vec<String>>>,
     /// Parts Aura does not use, each with the reason.
     pub unsupported: Vec<String>,
     pub warnings: Vec<String>,
@@ -85,13 +98,15 @@ pub fn scan_plugin(
     let walked = walk(root, cache, &wanted)?;
     let mut warnings = Vec::new();
     let mut unsupported = Vec::new();
+    let folder = root.display().to_string();
+    let filled = |value: &str| fill(value, PLUGIN_ROOT_VARIABLE, &folder);
     let (layout, manifest, commands, servers) = if walked.has(AURA_MANIFEST) {
         if walked.has(CLAUDE_MANIFEST) {
             warnings.push(format!("同时有 {CLAUDE_MANIFEST}，按 {AURA_MANIFEST} 读取"));
         }
         let manifest = text(&walked, AURA_MANIFEST)
             .map_err(|problem| vec![problem])
-            .and_then(parse_aura_manifest)
+            .and_then(|text| parse_aura_manifest(text, &filled))
             .map_err(PluginPackageError::Invalid)?;
         let servers = if walked.has(SERVERS_FILE) {
             text(&walked, SERVERS_FILE)
@@ -136,11 +151,36 @@ pub fn scan_plugin(
         Vec::new()
     };
     let hooks = if layout == PluginLayout::Aura { hooks(root) } else { Vec::new() };
-    if skills.is_empty() && commands.is_empty() && hooks.is_empty() && servers.is_empty() {
+    let theme = (layout == PluginLayout::Aura && walked.has(THEME_FILE))
+        .then(|| text(&walked, THEME_FILE).map_err(|problem| vec![problem]).and_then(parse_theme));
+    let declared = &manifest.declared;
+    if skills.is_empty()
+        && commands.is_empty()
+        && hooks.is_empty()
+        && servers.is_empty()
+        && declared.panel.is_none()
+        && declared.service.is_none()
+        && theme.is_none()
+    {
         return Err(PluginPackageError::Invalid(vec![
-            "没有 Aura 能用的内容（Skill、命令、MCP 服务器或 Hook）".into(),
+            "没有 Aura 能用的内容（Skill、命令、MCP 服务器、Hook、面板、后台服务或主题）".into(),
         ]));
     }
+    let panel_problems = declared
+        .panel
+        .iter()
+        .filter(|panel| !walked.has(&panel.entry))
+        .map(|panel| format!("入口页 {} 不存在", panel.entry))
+        .collect();
+    let service_problems = declared
+        .service
+        .iter()
+        .filter_map(|service| {
+            let inside = service.command.strip_prefix(&folder)?;
+            let relative = inside.trim_start_matches('\\').replace('\\', "/");
+            (!walked.has(&relative)).then(|| format!("后台服务的程序 {relative} 不存在"))
+        })
+        .collect();
     Ok(PluginPackage {
         root: root.to_path_buf(),
         layout,
@@ -150,12 +190,17 @@ pub fn scan_plugin(
             .iter()
             .map(|(path, bytes, _)| PluginFile { path: path.clone(), bytes: *bytes })
             .collect(),
+        file_hashes: walked.files.iter().map(|(_, _, hash)| hash.clone()).collect(),
         bytes: walked.bytes,
         fingerprint: walked.fingerprint(),
+        development_fingerprint: walked.development_fingerprint(),
         skills,
         commands,
         hooks,
         servers,
+        panel_problems,
+        service_problems,
+        theme,
         unsupported,
         warnings,
     })
@@ -273,15 +318,41 @@ impl PluginPackage {
             .collect()
     }
 
+    #[must_use]
+    pub fn panel_item(&self) -> Option<crate::PluginPanelItem> {
+        let panel = self.manifest.declared.panel.clone()?;
+        Some(crate::PluginPanelItem { panel, problems: self.panel_problems.clone() })
+    }
+
+    #[must_use]
+    pub fn service_item(&self) -> Option<crate::PluginServiceItem> {
+        let service = self.manifest.declared.service.clone()?;
+        Some(crate::PluginServiceItem { service, problems: self.service_problems.clone() })
+    }
+
+    #[must_use]
+    pub fn theme_item(&self) -> Option<PluginThemeItem> {
+        Some(match self.theme.as_ref()? {
+            Ok(theme) => PluginThemeItem { title: Some(theme.title.clone()), problems: Vec::new() },
+            Err(problems) => PluginThemeItem { title: None, problems: problems.clone() },
+        })
+    }
+
     /// How many of each it brings that can be used.
     #[must_use]
     pub fn counts(&self) -> PluginCounts {
         let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        let declared = &self.manifest.declared;
+        let services_usable = declared.service.is_some() && self.service_problems.is_empty();
         PluginCounts {
             skills: count(self.skills.iter().filter(|s| s.scanned.is_ok()).count()),
             commands: count(self.commands.iter().filter(|c| c.command.issue.is_none()).count()),
             servers: count(self.servers.iter().filter(|s| s.problems.is_empty()).count()),
             hooks: count(self.hooks.iter().filter(|h| h.package.is_ok()).count()),
+            panels: u32::from(declared.panel.is_some() && self.panel_problems.is_empty()),
+            services: u32::from(services_usable),
+            themes: u32::from(matches!(self.theme, Some(Ok(_)))),
+            channels: if services_usable { count(declared.channels.len()) } else { 0 },
         }
     }
 }

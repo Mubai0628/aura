@@ -20,6 +20,7 @@ async fn start(
             runtime,
             "agent.start",
             json!(AgentStartRequest {
+                computer_mode: None,
                 session_id: session,
                 model_profile_id: model,
                 text: text.to_owned(),
@@ -28,7 +29,9 @@ async fn start(
                 explicit_backend_id: None,
                 skill_ids: Vec::new(),
                 reasoning_effort: level,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             }),
         )
         .await,

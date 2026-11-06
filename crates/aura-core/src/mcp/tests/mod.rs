@@ -4,6 +4,7 @@ mod lifecycle;
 mod oauth;
 mod plugin_changes;
 mod plugins;
+mod resources;
 mod routes;
 mod secrets;
 mod stopping;

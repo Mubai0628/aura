@@ -19,6 +19,9 @@ use aura_windows_platform::{
 };
 use thiserror::Error;
 
+pub(crate) mod cleanup;
+pub(crate) use cleanup::CredentialCleanup;
+
 const ATTRIBUTE_CREDENTIAL_ID: &str = "Aura_CredentialId";
 const ATTRIBUTE_CREDENTIAL_REVISION: &str = "Aura_CredentialRevision";
 const ATTRIBUTE_TRANSACTION_ID: &str = "Aura_TransactionId";
@@ -101,6 +104,7 @@ where
 #[derive(Clone)]
 pub struct P05CredentialJournal {
     coordinator: CredentialJournalCoordinator<WindowsCredentialBackend>,
+    retry: Arc<cleanup::RetryState>,
 }
 
 /// Resolves a frozen provider-transport credential binding only after the
@@ -243,6 +247,7 @@ impl P05CredentialJournal {
                 persistence,
                 backend: WindowsCredentialBackend,
             },
+            retry: Arc::default(),
         }
     }
 
@@ -276,7 +281,12 @@ impl P05CredentialJournal {
     where
         F: CredentialProjectionFactory,
     {
-        self.coordinator.recover(projection_factory)
+        let recovered = self.coordinator.recover(projection_factory)?;
+        // Credentials a completed deletion left before the restart are retried as they were.
+        if self.has_pending_deletes() {
+            self.schedule_retry();
+        }
+        Ok(recovered)
     }
 
     pub(crate) fn stage_prepared_child(
@@ -313,13 +323,6 @@ impl P05CredentialJournal {
         journal: CredentialMutationJournalRecord,
     ) -> Result<(), P05CredentialJournalError> {
         self.coordinator.abort_child_before_final_commit(journal)
-    }
-
-    pub(crate) fn delete_published_child(
-        &self,
-        journal: CredentialMutationJournalRecord,
-    ) -> Result<CredentialDeleteChildOutcome, P05CredentialJournalError> {
-        self.coordinator.delete_published_child(journal)
     }
 }
 
@@ -584,96 +587,6 @@ where
             CredentialMutationJournalState::Aborted,
         )?;
         Ok(())
-    }
-
-    fn delete_published_child(
-        &self,
-        mut journal: CredentialMutationJournalRecord,
-    ) -> Result<CredentialDeleteChildOutcome, P05CredentialJournalError> {
-        if journal.journal_kind != CredentialMutationJournalKind::Delete {
-            return Err(PersistenceError::CredentialJournalStateConflict.into());
-        }
-        loop {
-            match journal.state {
-                CredentialMutationJournalState::Staged => {
-                    let record = self
-                        .persistence
-                        .model_credential_record(journal.credential_id)?
-                        .ok_or(PersistenceError::CredentialRecordNotFound)?;
-                    if record.state != ModelCredentialRecordState::DeletionPending
-                        || record.row_revision != journal.target_row_revision
-                        || record.binding != journal.binding
-                    {
-                        self.persistence.transition_credential_mutation_journal(
-                            journal.journal_id,
-                            journal.state,
-                            CredentialMutationJournalState::ReconciliationRequired,
-                        )?;
-                        return Ok(CredentialDeleteChildOutcome::ReconciliationRequired);
-                    }
-                    if let Some(final_record) =
-                        self.backend.read(&journal.binding.credential_ref)?
-                        && !delete_record_matches(&record, &final_record)
-                    {
-                        self.persistence.transition_credential_mutation_journal(
-                            journal.journal_id,
-                            journal.state,
-                            CredentialMutationJournalState::ReconciliationRequired,
-                        )?;
-                        return Ok(CredentialDeleteChildOutcome::ReconciliationRequired);
-                    }
-                    if self.backend.delete(&journal.binding.credential_ref).is_err()
-                        || self.backend.read(&journal.binding.credential_ref)?.is_some()
-                    {
-                        return Ok(CredentialDeleteChildOutcome::CleanupPending);
-                    }
-                    journal = self.persistence.transition_credential_mutation_journal(
-                        journal.journal_id,
-                        CredentialMutationJournalState::Staged,
-                        CredentialMutationJournalState::FinalCredentialWritten,
-                    )?;
-                }
-                CredentialMutationJournalState::FinalCredentialWritten => {
-                    if self.backend.read(&journal.binding.credential_ref)?.is_some() {
-                        self.persistence.transition_credential_mutation_journal(
-                            journal.journal_id,
-                            journal.state,
-                            CredentialMutationJournalState::ReconciliationRequired,
-                        )?;
-                        return Ok(CredentialDeleteChildOutcome::ReconciliationRequired);
-                    }
-                    journal = self
-                        .persistence
-                        .commit_model_credential_delete_metadata(journal.journal_id)?
-                        .journal;
-                }
-                CredentialMutationJournalState::MetadataCommitted => {
-                    journal = self.persistence.transition_credential_mutation_journal(
-                        journal.journal_id,
-                        CredentialMutationJournalState::MetadataCommitted,
-                        CredentialMutationJournalState::CleanupPending,
-                    )?;
-                }
-                CredentialMutationJournalState::CleanupPending => {
-                    self.persistence.transition_credential_mutation_journal(
-                        journal.journal_id,
-                        CredentialMutationJournalState::CleanupPending,
-                        CredentialMutationJournalState::Completed,
-                    )?;
-                    return Ok(CredentialDeleteChildOutcome::Completed);
-                }
-                CredentialMutationJournalState::Completed => {
-                    return Ok(CredentialDeleteChildOutcome::Completed);
-                }
-                CredentialMutationJournalState::ReconciliationRequired => {
-                    return Ok(CredentialDeleteChildOutcome::ReconciliationRequired);
-                }
-                CredentialMutationJournalState::Prepared
-                | CredentialMutationJournalState::Aborted => {
-                    return Err(PersistenceError::CredentialJournalStateConflict.into());
-                }
-            }
-        }
     }
 
     pub fn configure_secret<F>(

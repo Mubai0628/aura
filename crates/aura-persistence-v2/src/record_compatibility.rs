@@ -5,11 +5,11 @@ use std::path::Path;
 
 use aura_persistence_core::StoreResult;
 
-/// The oldest version that reads every record this build writes. 0.1.7 refuses a context
-/// snapshot whose estimates are `approximate`, and reads the newest snapshots of several
-/// conversations before each request. Raised to a new version whenever it starts storing a field
-/// or an enum value its predecessor refuses.
-pub const RECORDS_READABLE_SINCE: &str = "0.1.8";
+/// The oldest version that reads every record this build writes. 0.1.12 and earlier refuse an
+/// authorization scope naming a desktop program's consent, request options with a speed mode,
+/// and queued messages with references or a desktop choice. Raised to a new version whenever it
+/// starts storing a field or an enum value its predecessor refuses.
+pub const RECORDS_READABLE_SINCE: &str = "0.2.0";
 
 /// Whether the execution store at `path` needs a copy before this build first starts in place of
 /// `replacing` (unknown: any older version): this build migrates it, or `replacing` would refuse
@@ -34,8 +34,9 @@ mod tests {
         assert!(refuses_records(Some("0.1.7")));
         assert!(refuses_records(Some("0.0.9")));
         assert!(refuses_records(None));
-        assert!(!refuses_records(Some("0.1.8")));
-        assert!(!refuses_records(Some("0.1.10")));
+        assert!(refuses_records(Some("0.1.12")), "0.1.12 refuses what 0.2.0 stores");
+        assert!(!refuses_records(Some("0.2.0")));
+        assert!(!refuses_records(Some("0.10.0")));
         assert!(!refuses_records(Some("1.0.0")));
     }
 }

@@ -16,7 +16,7 @@ export type FileSource =
   | { kind: 'record'; artifact: string; name: string }
   /** An entry of a zip in the workspace. */
   | { kind: 'zipped'; zip: string; entry: string; name: string }
-  /** A file outside the workspace that a message names by its full path. */
+  /** A file outside the workspace that a message or a call's row names by its full path. */
   | { kind: 'mentioned'; path: string; from: MentionSource; name: string }
   /** A file the user picked or dropped for a message. */
   | { kind: 'picked'; path: string; name: string };
@@ -26,7 +26,10 @@ const ATTACHMENT = new RegExp(`^attachment:(xgr_[0-9A-HJKMNP-TV-Z]{26})/([^/\\\\
 const ZIPPED = /^zipentry:(xgr_[0-9A-HJKMNP-TV-Z]{26})\/(.+)$/u;
 const RECORD = new RegExp(`^record:(art_[0-9A-HJKMNP-TV-Z]{26})/([^/\\\\]+)$`, 'u');
 const WORKSPACE_ZIPPED = /^wszip:([^|]+)\|(.+)$/u;
-const MENTIONED = new RegExp(`^mentioned:(user|assistant|completion):(${ID})\\|(.+)$`, 'u');
+const MENTIONED = new RegExp(
+  `^mentioned:(user|assistant|completion|tool_call):(${ID})\\|(.+)$`,
+  'u',
+);
 const PICKED = /^picked:(.+)$/u;
 
 /** The last part of a path, with either slash. */
@@ -40,14 +43,16 @@ export const recordEntry = (artifact: string, name: string) => `record:${artifac
 export const zipEntry = (grant: string, entry: string) => `zipentry:${grant}/${entry}`;
 /** A file inside a zip in the workspace. */
 export const workspaceZipEntry = (zip: string, entry: string) => `wszip:${zip}|${entry}`;
-/** A file outside the workspace that a message names. */
+/** A file outside the workspace that a message or a call's row names. */
 export function mentionedEntry(from: MentionSource, path: string): string {
   const id =
     from.kind === 'user'
       ? from.event_id
       : from.kind === 'assistant'
         ? from.model_step_id
-        : from.turn_task_id;
+        : from.kind === 'completion'
+          ? from.turn_task_id
+          : from.tool_call_id;
   return `mentioned:${from.kind}:${id}|${path}`;
 }
 /** A file the user picked or dropped for a message. */
@@ -56,6 +61,7 @@ export const pickedEntry = (path: string) => `picked:${path}`;
 function mention(kind: string, id: string): MentionSource {
   if (kind === 'user') return { kind, event_id: id };
   if (kind === 'assistant') return { kind, model_step_id: id };
+  if (kind === 'tool_call') return { kind, tool_call_id: id };
   return { kind: 'completion', turn_task_id: id };
 }
 

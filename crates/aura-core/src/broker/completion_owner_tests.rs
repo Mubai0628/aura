@@ -90,12 +90,13 @@ async fn a_handler_or_evidence_panic_keeps_the_real_effect_unknown_and_never_rep
             operation,
             invocation.to_string(),
             Some(invocation),
+            super::OnChangedFacts::Refuse,
             Arc::new(|| Ok(serde_json::json!({"scope": "fixture"}))),
             Arc::new(move |_, _| -> anyhow::Result<aura_execution_contract::BrokerEvidence> {
                 assert!(panic_in_evidence, "the handler panic must not enter evidence");
                 panic!("fixture post-execution panic");
             }),
-            move || async move {
+            move |_| async move {
                 std::fs::write(handler_file, b"exactly one effect").expect("fixture effect");
                 assert!(panic_in_evidence, "fixture handler panic");
                 Ok(serde_json::json!({"done": true}))

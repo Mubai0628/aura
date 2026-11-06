@@ -25,7 +25,6 @@ const sidebar = () =>
   render(
     <AppSidebar
       activeScreen="workspace"
-      coreStatus={{ label: 'Aura Core 已就绪', tone: 'success' }}
       demoMode={false}
       onNewSession={vi.fn()}
       onNotify={vi.fn()}

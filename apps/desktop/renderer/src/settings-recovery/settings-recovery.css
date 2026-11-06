@@ -2,7 +2,7 @@
   margin-bottom: 1.5rem;
   padding: 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border-radius: var(--radius-md);
   background: var(--surface-muted);
   overflow-wrap: anywhere;
 }

@@ -1,61 +1,96 @@
+/* Bundled with the window: `font-src 'self'` allows no other source. The glyphs are drawn on a
+   12px grid, so they stay sharp only at 12px and 24px, weight 400; every rule that uses this face
+   sets one of those sizes. */
+@font-face {
+  font-family: 'Fusion Pixel 12';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/fusion-pixel-12px-proportional-zh_hans.otf.woff2') format('woff2');
+}
+
 :root {
   color-scheme: light;
-  color: #242724;
-  background: #f7f7f5;
+  color: var(--ink);
+  background: var(--canvas);
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --ink: #242724;
-  --muted: #606761;
-  --quiet: #858b86;
-  --line: #e3e5e1;
-  --line-strong: #d5d8d3;
-  --canvas: #fbfbfa;
+  /* Gray and white: a white work area between light-gray panes, graphite for the main action. */
+  --ink: #1c1c1b;
+  --muted: #52524e;
+  --quiet: #6f6f6b;
+  --faint: #8a8a86;
+  --line: #e3e3e0;
+  --line-strong: #cbcbc7;
+  --line-soft: #ededea;
+  /* The frame of a switch or box that is off. */
+  --control-line: #bdbdb8;
+  --canvas: #ffffff;
+  --pane: #f2f2f0;
   --surface: #ffffff;
-  --surface-muted: #f4f5f2;
-  --surface-selected: #ecefed;
-  --accent: #3f625c;
-  --accent-strong: #2f524c;
-  --accent-soft: #dce8e3;
-  --sand-soft: #ede4d3;
-  --success: #3b7657;
-  --warning: #9a6b22;
-  --danger: #a53e3e;
-  --focus: #2e6973;
-  /* The soft ring around a field being typed into. */
-  --focus-ring: rgba(46, 105, 115, 0.15);
-  --shadow-popover: 0 12px 32px rgba(37, 43, 39, 0.12);
-  /* Design language: one scale for tone, depth, shape and motion. */
-  --success-soft: #e4f0e8;
-  --warning-soft: #f8f0e1;
-  --warning-line: #ead8b4;
-  --danger-soft: #f8e8e8;
-  --danger-line: #ebc9c9;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --shadow-xs: 0 1px 2px rgba(31, 38, 33, 0.05);
-  --shadow-sm: 0 1px 2px rgba(31, 38, 33, 0.04), 0 4px 12px rgba(31, 38, 33, 0.05);
-  --shadow-md: 0 2px 6px rgba(31, 38, 33, 0.05), 0 12px 28px rgba(31, 38, 33, 0.09);
+  --surface-muted: #f4f4f2;
+  --surface-hover: #f0f0ee;
+  --surface-selected: #e8e8e5;
+  --accent: #2a2a28;
+  --accent-strong: #1c1c1b;
+  --accent-hover: #3a3a37;
+  --accent-soft: #e8e8e5;
+  /* Text and marks on the main action's graphite. */
+  --on-accent: #ffffff;
+  --sand-soft: #f6efe0;
+  --success: #3b6e4c;
+  --warning: #8a6220;
+  --danger: #9e3a3a;
+  --focus: #1c1c1b;
+  /* A translucent ink for marks drawn over any surface. */
+  --focus-ring: rgba(28, 28, 27, 0.12);
+  --success-soft: #eef4f0;
+  --success-line: #c5d7cb;
+  --success-dot: #4c8a5f;
+  --warning-soft: #f6efe0;
+  --warning-line: #e3d3ae;
+  --warning-dot: #b58a3a;
+  --danger-soft: #f6e8e8;
+  --danger-line: #e5c5c5;
+  --danger-shade: #f0dada;
+  --danger-dot: #b04848;
+  --idle-dot: #a9a9a4;
+  /* Square corners. A theme may round them; pills and circles follow its largest radius. */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-pill: var(--radius-xl);
+  --radius-round: var(--radius-xl);
+  /* Depth is a hard offset shadow, never a blur. */
+  --pixel-shadow: #dadad6;
+  --shadow-xs: 2px 2px 0 var(--pixel-shadow);
+  --shadow-sm: 3px 3px 0 var(--pixel-shadow);
+  --shadow-md: 4px 4px 0 var(--pixel-shadow);
+  --shadow-popover: 3px 3px 0 var(--pixel-shadow);
+  --shadow-dialog: 6px 6px 0 rgba(28, 28, 27, 0.14);
+  --focus-shadow: 2px 2px 0 var(--pixel-shadow);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
-  /* Fonts, the owner's set C (bundled): Inter with 思源黑体 for the interface and the
-     conversation, 思源宋体 for large titles and thinking, JetBrains Mono for code. */
+  /* Inter with 思源黑体 for reading and typing, 思源宋体 for thinking, JetBrains Mono for code,
+     the pixel face for the interface's own words: titles, labels, buttons, menus, marks, keys
+     and numbers. Characters the pixel face lacks fall back to the reading face. */
   --font-ui:
     'Inter Variable', 'Noto Sans SC Variable', 'Segoe UI Variable Text', 'Microsoft YaHei UI',
     sans-serif;
   --font-serif: 'Noto Serif SC Variable', SimSun, serif;
   --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  --font-pixel: 'Fusion Pixel 12', var(--font-ui);
 }
 
 * {
   box-sizing: border-box;
-  scrollbar-color: #c8ccc8 transparent;
+  scrollbar-color: var(--line-strong) transparent;
   scrollbar-width: thin;
 }
 
@@ -121,9 +156,9 @@ input:is(
   outline-offset: 2px;
 }
 
-/* A field being typed into shows it by its own border in the focus colour and a soft ring that
-   follows its corners — never a dark rectangle drawn around it. A field inside a frame (the search
-   boxes: icon, field, buttons) leaves that to the frame, marked `field-frame`. */
+/* A field being typed into shows it by its own border in the focus colour and a hard shadow
+   beside it — never a dark rectangle drawn around it. A field inside a frame (the search boxes:
+   icon, field, buttons) leaves that to the frame, marked `field-frame`. */
 :where(
   input:not(
     [type='checkbox'],
@@ -140,7 +175,7 @@ input:is(
 ):focus-visible {
   outline: none;
   border-color: var(--focus);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: var(--focus-shadow);
 }
 .field-frame {
   transition:
@@ -149,16 +184,46 @@ input:is(
 }
 .field-frame:focus-within {
   border-color: var(--focus);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: var(--focus-shadow);
 }
 .field-frame :where(input, textarea, select):focus-visible {
   outline: none;
   box-shadow: none;
 }
 
+/* Check boxes and radio buttons are squares: a white box in a firm frame, graphite when chosen
+   with a white tick, or a graphite square inside for a radio button. */
+input:is([type='checkbox'], [type='radio']) {
+  appearance: none;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  vertical-align: middle;
+}
+input[type='checkbox']:checked {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white'%3E%3Cpath d='M8 3h1v1H8zM7 4h1v1H7zM2 5h1v1H2zM6 5h1v1H6zM3 6h1v1H3zM5 6h1v1H5zM4 7h1v1H4z'/%3E%3C/svg%3E")
+    center / 12px 12px no-repeat;
+}
+input[type='checkbox']:indeterminate {
+  border-color: var(--accent);
+  background: linear-gradient(var(--on-accent), var(--on-accent)) center / 6px 2px no-repeat
+    var(--accent);
+}
+input[type='radio']:checked {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 0 3px var(--surface),
+    inset 0 0 0 6px var(--accent);
+}
+
 ::selection {
-  color: #183530;
-  background: #cfe2dc;
+  color: var(--ink);
+  background: var(--pixel-shadow);
 }
 
 ::-webkit-scrollbar {
@@ -168,8 +233,8 @@ input:is(
 
 ::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
-  border-radius: 8px;
-  background: #c8ccc8;
+  border-radius: var(--radius-md);
+  background: var(--line-strong);
   background-clip: padding-box;
 }
 

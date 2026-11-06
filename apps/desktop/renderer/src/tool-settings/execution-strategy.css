@@ -15,7 +15,7 @@
 }
 
 .execution-strategy-fields label[data-invalid='true'] input {
-  border-color: var(--danger, #c2410c);
+  border-color: var(--danger);
 }
 
 .execution-strategy-label {

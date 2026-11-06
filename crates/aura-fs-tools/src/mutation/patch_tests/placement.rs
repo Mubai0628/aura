@@ -6,7 +6,7 @@ use aura_domain_common::WorkspacePath;
 fn patched(base: &str, diff: &str) -> Result<String, FsToolError> {
     let prepared = prepare_diff(diff)?;
     let patch = parse_patch(&prepared.text)?;
-    apply_text(base, &patch, prepared.unplaced)
+    apply_text(base, &patch, &prepared.starts)
 }
 
 fn message(result: Result<String, FsToolError>) -> String {

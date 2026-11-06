@@ -181,6 +181,29 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       }),
     ).toBe(false);
   });
+  it('takes what a message refers to as named references, without contents', () => {
+    const references = [
+      { kind: 'workspace_path', path: 'src/lib.rs' },
+      { kind: 'session', session_id: 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAV' },
+    ];
+    expect(isAgentParams('agent.start', { ...start, references })).toBe(true);
+    const submit = {
+      session_id: start.session_id,
+      text: '',
+      destination: { lane: 'next_turn' },
+      references,
+    };
+    expect(validateAgentRequest({ command: 'agent.submit', value: submit })).toBe(true);
+    for (const reference of [
+      { kind: 'file', path: 'src/lib.rs' },
+      { kind: 'workspace_path', path: 'src/lib.rs', contents: 'fn main() {}' },
+      { kind: 'workspace_path' },
+      { kind: 'session' },
+      { kind: 'session', session_id: 'C:/elsewhere' },
+      { kind: 'session', session_id: 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAV', title: 'x' },
+    ])
+      expect(isAgentParams('agent.start', { ...start, references: [reference] })).toBe(false);
+  });
   it('validates the real projection and rejects incomplete or foreign DTOs', () => {
     expect(parseAgentResult('agent.start', projection)).toEqual(projection);
     for (const value of [
@@ -199,6 +222,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       .mockResolvedValueOnce({ ok: false, error: refusal });
     const bridge = agentBridge(send, error, (v): v is IpcErrorEnvelope => v === refusal);
     expect(Object.keys(bridge).sort()).toEqual([
+      'addDevelopmentPlugin',
       'answerAgentQuery',
       // What a message carried from outside the workspace, through its authorization.
       'attachmentFile',
@@ -210,21 +234,28 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'cancelAgentRun',
       // Chrome control: settings, a conversation's shared tabs, Stop.
       'chrome',
+      // Computer control: settings, the programs, a conversation's 正在操控 and Stop.
+      'computer',
       'configureAgentTools',
+      // The plugin page: the service switch, the plugin's own settings, scope and allowlist.
+      'configurePlugin',
       // A turn a restart of Core cut off, continued with "继续".
       'continueAgent',
       'controlAgentMode',
       'deleteCommand',
       'describeMcpServer',
       'discardPluginUpdate',
+      'exportPlugin',
       'getAgentApproval',
       'getAgentRun',
+      'getPluginTheme',
       'getUiSettings',
       'importPlugin',
       'importSkill',
       'listCommands',
       'listHookInvocations',
       'listHooks',
+      'listMcpResources',
       'listMcpServers',
       'listPlugins',
       'listSkills',
@@ -237,6 +268,10 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'openPluginDirectory',
       'openSkillDirectory',
       'openWorkspaceFileOutside',
+      // A plugin's panel in the right sidebar: placed, hidden and closed (its own validated channel).
+      'pluginPanels',
+      // Plugins' notices and status entries, as Main shows them (its own validated channel).
+      'pluginUi',
       'previewHook',
       'previewMcpServer',
       'previewPlugin',
@@ -276,7 +311,10 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'setMcpSecret',
       'setMcpServerEnabled',
       'setPluginEnabled',
+      // A plugin's secret setting on its own SecretInput channel.
+      'setPluginSecret',
       'setSkillEnabled',
+      'setSkillPinned',
       'signInMcpServer',
       'signOutMcpServer',
       'startAgent',
@@ -293,11 +331,13 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'trustMcpServer',
       'trustPlugin',
       'trustSkill',
+      'trustWorkspaceSkills',
       'uninstallPlugin',
       'untrustHook',
       'untrustMcpServer',
       'untrustPlugin',
       'untrustSkill',
+      'untrustWorkspaceSkills',
       'updateUiSettings',
       // A workspace's media for the 文件 tab (its own validated channel).
       'workspaceMediaUrl',

@@ -1,0 +1,46 @@
+.help-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  cursor: help;
+  vertical-align: middle;
+}
+.help-tip:hover,
+.help-tip:focus-visible {
+  color: var(--ink);
+}
+.help-tip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+/* An ink block with a stepped point, the pixel face inside. */
+.help-tip-bubble {
+  position: fixed;
+  z-index: 80;
+  max-width: 280px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  color: var(--surface);
+  background: var(--ink);
+  line-height: 1.5;
+  pointer-events: none;
+}
+/* The bubble's point, at the question mark it describes: two rows of squares. */
+.help-tip-bubble::after {
+  position: absolute;
+  left: calc(var(--help-tip-arrow, 50%) - 4px);
+  width: 8px;
+  height: 4px;
+  background: var(--ink);
+  content: '';
+}
+.help-tip-bubble[data-side='above']::after {
+  top: 100%;
+  clip-path: polygon(0 0, 100% 0, 100% 50%, 75% 50%, 75% 100%, 25% 100%, 25% 50%, 0 50%);
+}
+.help-tip-bubble[data-side='below']::after {
+  bottom: 100%;
+  clip-path: polygon(25% 0, 75% 0, 75% 50%, 100% 50%, 100% 100%, 0 100%, 0 50%, 25% 50%);
+}

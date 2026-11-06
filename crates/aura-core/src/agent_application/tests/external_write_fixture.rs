@@ -26,6 +26,7 @@ pub(super) async fn external_create_asking_for_approval() -> std::path::PathBuf 
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -37,7 +38,9 @@ pub(super) async fn external_create_asking_for_approval() -> std::path::PathBuf 
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -87,6 +90,7 @@ pub(super) async fn external_write_outcome(mode: PermissionMode) -> ExternalWrit
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -98,7 +102,9 @@ pub(super) async fn external_write_outcome(mode: PermissionMode) -> ExternalWrit
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

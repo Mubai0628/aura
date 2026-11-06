@@ -9,13 +9,18 @@ pub(crate) fn interrupt_run(
     run: AgentRunId,
     at: UtcTimestamp,
 ) -> StoreResult<()> {
+    // The run's own snapshots first, then their attempts. Tested per attempt instead, every
+    // compaction's JSON was read again for each request in the store.
     let mut query = tx.prepare(
-        "SELECT t.id,t.snapshot_id FROM transport_attempts t JOIN model_execution_snapshots s ON s.id=t.snapshot_id
-         WHERE EXISTS(SELECT 1 FROM model_steps m WHERE m.snapshot_id=s.id AND m.agent_run_id=?1)
-         OR EXISTS(SELECT 1 FROM context_compactions c,json_each(c.payload,'$.attempts') a
-                   WHERE json_extract(c.payload,'$.agent_run_id')=?1
-                   AND json_extract(a.value,'$.model_execution_snapshot_id')=s.id)
-         ORDER BY t.id"
+        "WITH own(snapshot_id) AS (
+           SELECT m.snapshot_id FROM model_steps m WHERE m.agent_run_id=?1 AND m.snapshot_id IS NOT NULL
+           UNION
+           SELECT json_extract(a.value,'$.model_execution_snapshot_id')
+           FROM context_compactions c,json_each(c.payload,'$.attempts') a
+           WHERE json_extract(c.payload,'$.agent_run_id')=?1)
+         SELECT t.id,t.snapshot_id FROM own JOIN model_execution_snapshots s ON s.id=own.snapshot_id
+         JOIN transport_attempts t ON t.snapshot_id=s.id
+         ORDER BY t.id",
     )?;
     let rows = query
         .query_map([run.to_string()], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?

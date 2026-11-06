@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { copyFile, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pixelAudit } from './pixel/audit';
 import { armReadOnlyWrite } from './s06/setup';
 import { finished, pending } from './s06/harness';
 
@@ -174,12 +175,18 @@ async function scrolled(page: Page, name: string, parts = 5) {
   }
 }
 
-/** Takes a screenshot after `step`; a step that fails is noted and the tour goes on. */
+/**
+ * Takes a screenshot after `step`, with what breaks the pixel look beside it; a step that fails
+ * is noted and the tour goes on.
+ */
 async function capture(page: Page, name: string, step: () => Promise<unknown>) {
   try {
     await step();
     await wait(450);
     await shot(page, name);
+    const findings = await pixelAudit(page);
+    if (findings.length > 0)
+      await writeFile(join(OUT as string, `${name}.pixel.json`), JSON.stringify(findings, null, 2));
   } catch (error) {
     await writeFile(join(OUT as string, `${name}.error.txt`), String(error));
   }
@@ -216,22 +223,53 @@ test('visual tour of the desktop app', async ({}, info) => {
   try {
     const page = await app.firstWindow();
     // The window the page lives in: the first window in Electron's list is not always that one,
-    // and a resize that silently missed it left a "narrow" capture at full width.
+    // and a resize that silently missed it left a "narrow" capture at full width. A minimized,
+    // maximized or full-screen window keeps its size, so each try first makes it a normal window,
+    // and asks again while the page is not that wide yet. What the tries found that was not a
+    // plain resize is written beside the captures.
     const size = async (width: number, height: number) => {
-      await app.evaluate(
-        ({ BrowserWindow }, [w, h]) => {
-          for (const window of BrowserWindow.getAllWindows())
-            if (!window.isDestroyed()) window.setSize(w!, h!);
-        },
-        [width, height],
-      );
-      // The page is inside the window frame: a little narrower than the window, never wider.
-      await expect
-        .poll(async () => {
+      const missed: string[] = [];
+      try {
+        for (let attempt = 0; ; attempt += 1) {
+          const windows = await app.evaluate(
+            ({ BrowserWindow, screen }, [w, h]) =>
+              BrowserWindow.getAllWindows()
+                .filter((window) => !window.isDestroyed())
+                .map((window) => {
+                  const bounds = window.getBounds();
+                  const state = {
+                    id: window.id,
+                    minimized: window.isMinimized(),
+                    maximized: window.isMaximized(),
+                    fullScreen: window.isFullScreen(),
+                    bounds,
+                    scale: screen.getDisplayMatching(bounds).scaleFactor,
+                  };
+                  if (state.fullScreen) window.setFullScreen(false);
+                  if (state.minimized || state.maximized) window.restore();
+                  const sized = bounds.width === w && bounds.height === h;
+                  if (!sized) window.setSize(w!, h!);
+                  return { ...state, asked: !sized };
+                }),
+            [width, height],
+          );
+          // The page is inside the window frame: a little narrower than the window, never wider.
           const inner = await page.evaluate(() => window.innerWidth);
-          return inner <= width && inner > width - 60;
-        })
-        .toBe(true);
+          const done = inner <= width && inner > width - 60;
+          const unusual = windows.some(
+            (window) => window.minimized || window.maximized || window.fullScreen,
+          );
+          if (unusual || (!done && attempt > 0 && windows.some((window) => window.asked)))
+            missed.push(JSON.stringify({ attempt, inner, windows }));
+          if (done) return;
+          if (attempt === 40)
+            throw new Error(`the page stayed ${inner} wide: ${JSON.stringify(windows)}`);
+          await wait(250);
+        }
+      } finally {
+        if (missed.length > 0)
+          await writeFile(join(OUT as string, `resize-${width}x${height}.txt`), missed.join('\n'));
+      }
     };
     await size(1440, 900);
     await shot(page, '00-startup-first');
@@ -241,7 +279,9 @@ test('visual tour of the desktop app', async ({}, info) => {
       elapsed = at;
       await shot(page, `01-startup-${at}ms`);
     }
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
     await capture(page, '02-ready-empty', async () => undefined);
 
     const setup = await armReadOnlyWrite(page, workspace, model.url, {
@@ -272,17 +312,10 @@ test('visual tour of the desktop app', async ({}, info) => {
       await page.locator('.agent-turn-toggle').last().click();
       await page.locator('.agent-process-section > button').first().click();
     });
-    // The context usage after real requests — a slim bar of moving fluid; a part's name
-    // and amount float above it where the pointer is.
+    // The context usage after real requests: a row of squares per kind of use, then the whole.
     await capture(page, '04c-context-card', () =>
       page.getByRole('button', { name: /^上下文占用/u }).click(),
     );
-    await capture(page, '04c2-context-part', async () => {
-      const track = page.locator('.context-bar-track');
-      const box = await track.boundingBox();
-      if (box) await page.mouse.move(box.x + 3, box.y + box.height / 2);
-      await page.getByRole('tooltip').waitFor({ timeout: 5_000 });
-    });
     await page.keyboard.press('Escape');
     // A path in the reply has its own right-click menu.
     await capture(page, '04d-link-menu', async () => {
@@ -447,6 +480,22 @@ test('visual tour of the desktop app', async ({}, info) => {
           .click(),
       );
       await scrolled(page, `12-settings-${value}`, value === 'tools' ? 16 : 5);
+    }
+    // An item's whole configuration is in its dialog, opened from its row.
+    for (const [value, label, item] of [
+      ['plugins', '插件', 'kit'],
+      ['skills', 'Skill', 'notes'],
+      ['mcp', 'MCP', '插件文件'],
+    ] as const) {
+      await capture(page, `12-settings-${value}-dialog`, async () => {
+        await page
+          .locator('.settings-navigation')
+          .getByRole('button', { name: label, exact: true })
+          .click();
+        await page.getByRole('button', { name: `配置 ${item}` }).click();
+      });
+      const dialog = page.getByRole('dialog', { name: item });
+      if ((await dialog.count()) > 0) await dialog.getByRole('button', { name: '关闭' }).click();
     }
     // The MCP form with the OAuth sign-in chosen.
     await capture(page, '12-settings-mcp-oauth', async () => {

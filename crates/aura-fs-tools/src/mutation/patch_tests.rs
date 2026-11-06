@@ -1,5 +1,6 @@
 use super::patch::{normalize_hunk_counts, parse_patch};
 
+mod hunk_order;
 mod placement;
 
 #[test]

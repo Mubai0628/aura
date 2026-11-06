@@ -16,6 +16,9 @@ mod l10_15_compaction;
 // The thinking level the conversation chose goes out in its turn's requests.
 #[path = "l10_16_reasoning.rs"]
 mod l10_16_reasoning;
+// The speed mode the conversation chose goes out in its turn's requests.
+#[path = "l18_6_speed.rs"]
+mod l18_6_speed;
 // The sidebar's running state.
 #[path = "l10_16_activity.rs"]
 mod l10_16_activity;
@@ -53,6 +56,39 @@ mod l14_chrome;
 // The workspace's AGENTS.md in the model's instructions.
 #[path = "agents_instructions.rs"]
 mod agents_instructions;
+// Pinned Skills and the names of the others, ahead of AGENTS.md.
+#[path = "l15_skill_instructions.rs"]
+mod l15_skill_instructions;
+// What a message refers to with "@", after what was typed.
+#[path = "l16_references.rs"]
+mod l16_references;
+// Another conversation referred to with "@", by its handle.
+#[path = "l16_conversations.rs"]
+mod l16_conversations;
+// What a terminal printed or a page showed, kept as a file of the message.
+#[path = "l16_captures.rs"]
+mod l16_captures;
+// An MCP resource referred to with "@".
+#[path = "l16_mcp_resources.rs"]
+mod l16_mcp_resources;
+// A plugin's panel reading and acting in its conversation.
+#[path = "l17_plugin_session.rs"]
+mod l17_plugin_session;
+// A plugin's channel messages reaching conversations in its scope, and the replies.
+#[path = "l17_plugin_channels.rs"]
+mod l17_plugin_channels;
+
+#[path = "l17_plugin_commands.rs"]
+mod l17_plugin_commands;
+// Approvals handed to a plugin's chats and decided there.
+#[path = "l17_plugin_approvals.rs"]
+mod l17_plugin_approvals;
+// A plugin's own command run, its own settings read and set, and a compaction among its events.
+#[path = "l17_plugin_own.rs"]
+mod l17_plugin_own;
+// Programs on the user's own desktop, against a played desktop host.
+#[path = "l18_computer/mod.rs"]
+mod l18_computer;
 // Several new files written at once into a folder none of them has created yet.
 #[path = "write_batch.rs"]
 mod write_batch;
@@ -188,6 +224,7 @@ pub(in crate::agent_application::tests) async fn start(
         runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: "Check the answer and finish".into(),
@@ -196,7 +233,9 @@ pub(in crate::agent_application::tests) async fn start(
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

@@ -45,6 +45,13 @@ interface ActivityNoteStackProps {
   goal?: ReactNode;
   /** The list whose progress the collapsed card shows. */
   taskList?: TodoState | undefined;
+  /** 正在操控: the programs the model is controlling now, the first part after the conversation's. */
+  computer?: ReactNode;
+  /** How many programs it is controlling, which the collapsed card shows. */
+  controlling?: number;
+  /** Whether the user took the desktop over from it, which the collapsed card shows. */
+  takenOver?: boolean;
+  childDesktop?: boolean;
   /** Where the narrow window's entry goes — the conversation's header, beside its title. */
   entrySlot?: HTMLElement | null | undefined;
 }
@@ -59,6 +66,10 @@ export function ActivityNoteStack({
   todo,
   goal,
   taskList,
+  computer,
+  controlling = 0,
+  takenOver = false,
+  childDesktop = false,
   entrySlot,
 }: ActivityNoteStackProps) {
   const activityRef = useRef<HTMLElement>(null);
@@ -300,7 +311,7 @@ export function ActivityNoteStack({
     display === 'compact' && !expanded ? (
       <button
         aria-expanded="false"
-        aria-label={`展开近期活动（当前模式 ${MODE_LABEL[mode]}${progress ? `，待办 ${progress.done}/${progress.total}` : ''}）`}
+        aria-label={`展开近期活动（当前模式 ${MODE_LABEL[mode]}${progress ? `，待办 ${progress.done}/${progress.total}` : ''}${controlling ? `，正在${childDesktop ? '小窗中' : ''}操控 ${controlling} 个程序` : takenOver ? `，你已接管${childDesktop ? '小窗' : ''}` : ''}）`}
         className="activity-compact-entry icon-button"
         onClick={() => setExpanded(true)}
         ref={entryRef}
@@ -311,6 +322,15 @@ export function ActivityNoteStack({
         <span className="activity-compact-mode">{MODE_LABEL[mode]}</span>
         {progress ? (
           <span className="activity-compact-todo">{`待办 ${progress.done}/${progress.total}`}</span>
+        ) : null}
+        {controlling ? (
+          <span className="activity-compact-computer">
+            {childDesktop ? '小窗中操控' : '操控中'}
+          </span>
+        ) : takenOver ? (
+          <span className="activity-compact-computer is-taken-over">
+            {childDesktop ? '你已接管小窗' : '你已接管'}
+          </span>
         ) : null}
       </button>
     ) : null;
@@ -345,6 +365,7 @@ export function ActivityNoteStack({
         {summary ? (
           <ActivitySummary
             {...summary}
+            computer={computer}
             goal={goal}
             todo={todo}
             onOpenReview={() => {
@@ -360,6 +381,7 @@ export function ActivityNoteStack({
             <section aria-label="会话" className="activity-section">
               {modePart}
             </section>
+            {computer}
             {goal}
             {todo}
           </>

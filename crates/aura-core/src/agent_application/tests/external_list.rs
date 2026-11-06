@@ -35,6 +35,7 @@ async fn an_ordinary_external_directory_is_listed_without_a_grant() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("List AURA_EXTERNAL_PATH={} and report its entries.", external.display()),
@@ -43,7 +44,9 @@ async fn an_ordinary_external_directory_is_listed_without_a_grant() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -102,6 +105,7 @@ async fn approving_an_external_directory_runs_the_original_call() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("List AURA_EXTERNAL_PATH={} and report its entries.", external.display()),
@@ -110,7 +114,9 @@ async fn approving_an_external_directory_runs_the_original_call() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -243,6 +249,7 @@ async fn an_authorized_external_directory_is_listed_through_the_model_loop() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("List AURA_EXTERNAL_PATH={} and report its entries.", external.display()),
@@ -251,7 +258,9 @@ async fn an_authorized_external_directory_is_listed_through_the_model_loop() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

@@ -68,12 +68,15 @@ fn every_mode_waits_without_consuming_queue_and_rechecks_a_new_preflight() {
                     tx,
                     CommandInvocationId::new(),
                     &AgentSubmitRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         text: "/goal is queued text".into(),
                         destination: AgentInputLane::NextTurn,
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     f.at,
                 )
@@ -265,6 +268,7 @@ fn restart_keeps_the_wait_but_never_automatically_runs_the_recheck() {
                 f.turn.agent_run_id,
                 &RunConfiguration {
                     request: AgentStartRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         model_profile_id: ModelProfileId::new(),
                         text: "synthetic context wait".into(),
@@ -273,7 +277,9 @@ fn restart_keeps_the_wait_but_never_automatically_runs_the_recheck() {
                         explicit_backend_id: None,
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     tool_settings: aura_tool_contract::ToolSettingsSnapshotV1::default(),
                     purpose: AgentTaskPurpose::Conversation,

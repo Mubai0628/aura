@@ -9,7 +9,7 @@ fn shown(directory: &str) -> String {
         directory: PathBuf::from(directory),
         scanned: Err(SkillPackageError::MissingSkillFile),
     };
-    view(&found, SkillSource::Workspace, None, None).path
+    view(&found, SkillSource::Workspace, None, None, false).path
 }
 
 #[test]

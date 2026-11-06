@@ -1,3 +1,4 @@
+use super::patch_place::{Region, anywhere, place};
 use super::*;
 use diffy::{Line, Patch};
 use std::borrow::Cow;
@@ -12,22 +13,34 @@ pub(crate) fn prepare_patch_bytes(
     let prepared = prepare_diff(unified_diff)?;
     let patch = parse_patch(&prepared.text)?;
     validate_patch_target(path, &patch, prepared.named.as_deref())?;
-    patched_bytes(path, state, &patch, prepared.unplaced)
+    patched_bytes(path, state, &patch, &prepared.starts)
 }
 
 /// A diff as Aura reads it, with what the reading found.
 pub(crate) struct PreparedDiff {
     pub text: String,
-    /// Its hunks named no line numbers (`@@` alone, as in the apply_patch format): each is placed
-    /// where its lines are.
-    pub unplaced: bool,
+    pub starts: Starts,
     /// The file an apply_patch envelope names (`*** Update File: …`).
     pub named: Option<String>,
 }
 
+/// Where a diff's hunks say they start.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum Starts {
+    /// The parser has each hunk's own line numbers.
+    Numbered,
+    /// The parser has running numbers, which mean nothing: each hunk is placed where its lines
+    /// are, nearest to the line it said it starts at when it said one (a numbered diff whose
+    /// hunks are out of the file's order), as for hunks that name no numbers (`@@` alone, as in
+    /// the apply_patch format).
+    Running(Vec<Option<usize>>),
+}
+
 /// The
 /// apply_patch envelope is read, and a diff whose hunks name no line numbers gets running numbers
-/// so the parser keeps them; [`apply_text`] then places each by its lines.
+/// so the parser keeps them; [`apply_text`] then places each by its lines. A numbered diff the
+/// parser refuses for its numbers alone (hunks out of order, or overlapping by their counts) is
+/// read the same way, each hunk's own start kept as where to look first.
 pub(crate) fn prepare_diff(diff: &str) -> Result<PreparedDiff, FsToolError> {
     let mut named = None;
     let mut lines = Vec::new();
@@ -52,12 +65,35 @@ pub(crate) fn prepare_diff(diff: &str) -> Result<PreparedDiff, FsToolError> {
         }
         lines.push(line.to_owned());
     }
-    let unplaced = lines.iter().any(|line| line.starts_with("@@") && !numbered(line));
-    if unplaced {
+    if lines.iter().any(|line| line.starts_with("@@") && !numbered(line)) {
         running_headers(&mut lines);
+        let text = normalize_hunk_counts(&lines.concat()).into_owned();
+        let hunks = lines.iter().filter(|line| line.starts_with("@@")).count();
+        return Ok(PreparedDiff { text, starts: Starts::Running(vec![None; hunks]), named });
     }
-    let text = lines.concat();
-    Ok(PreparedDiff { text: normalize_hunk_counts(&text).into_owned(), unplaced, named })
+    let text = normalize_hunk_counts(&lines.concat()).into_owned();
+    if parse_patch(&text).is_err() {
+        let hints = lines
+            .iter()
+            .filter(|line| line.starts_with("@@"))
+            .map(|line| old_start(line).map(|start| start.saturating_sub(1)))
+            .collect::<Vec<_>>();
+        let mut running = lines.clone();
+        running_headers(&mut running);
+        let renumbered = normalize_hunk_counts(&running.concat()).into_owned();
+        if parse_patch(&renumbered).is_ok() {
+            return Ok(PreparedDiff { text: renumbered, starts: Starts::Running(hints), named });
+        }
+    }
+    Ok(PreparedDiff { text, starts: Starts::Numbered, named })
+}
+
+/// The first old line a numbered hunk header names: 12 in `@@ -12,4 +12,6 @@`.
+fn old_start(line: &str) -> Option<usize> {
+    let header = line.strip_prefix("@@ -")?;
+    let (old, _) = header.split_once(" +")?;
+    let (start, _) = range(old)?;
+    start.parse().ok()
 }
 
 /// A hunk header with its line numbers: `@@ -12,4 +12,6 @@`.
@@ -209,7 +245,7 @@ pub(crate) fn patched_bytes(
     path: &WorkspacePath,
     state: &ExistingState,
     patch: &Patch<'_, str>,
-    unplaced: bool,
+    starts: &Starts,
 ) -> Result<Vec<u8>, FsToolError> {
     let ExistingState::File { bytes, .. } = state else {
         return Err(FsToolError::InvalidRequest(format!("{} is not a file", path)));
@@ -221,18 +257,19 @@ pub(crate) fn patched_bytes(
         }
         LineEnding::Mixed | LineEnding::None => decoded.text,
     };
-    let patched = apply_text(&base, patch, unplaced)?;
+    let patched = apply_text(&base, patch, starts)?;
     encode_text(&patched, decoded.encoding, decoded.line_ending).map_err(Into::into)
 }
 
-/// The file's text with the diff applied. A hunk goes where its numbers say when its lines
-/// are there; otherwise where its lines are, if that is one place (the nearest to its numbers when
-/// they give one), trailing spaces aside if need be. A hunk that fits nowhere says which line
-/// differs and what the file has there; a diff that changes nothing is refused, never reported done.
+/// The file's text with the diff applied. Each hunk is placed in the file by
+/// [`place`] (its numbers, else its lines), in any order, and the hunks are applied in the file's
+/// order. A hunk that adds and removes nothing is passed over when its lines are in the file. A
+/// hunk that fits nowhere says which line differs and what the file has there; a diff that
+/// changes nothing is refused, never reported done.
 pub(crate) fn apply_text(
     base: &str,
     patch: &Patch<'_, str>,
-    unplaced: bool,
+    starts: &Starts,
 ) -> Result<String, FsToolError> {
     if patch.hunks().is_empty() {
         return Err(FsToolError::InvalidPatch(
@@ -242,7 +279,7 @@ pub(crate) fn apply_text(
         ));
     }
     let lines = base.split_inclusive('\n').collect::<Vec<_>>();
-    let mut out = String::with_capacity(base.len());
+    let mut placed = Vec::<Region>::new();
     let mut cursor = 0;
     for (index, hunk) in patch.hunks().iter().enumerate() {
         let old = hunk
@@ -253,13 +290,36 @@ pub(crate) fn apply_text(
                 Line::Insert(_) => None,
             })
             .collect::<Vec<_>>();
-        let declared = (!unplaced).then(|| hunk.old_range().start().saturating_sub(1));
-        let at = place(&lines, cursor, &old, declared).map_err(|why| {
+        let fail = |why: String| {
             FsToolError::InvalidPatch(format!("hunk #{} does not fit the file: {why}", index + 1))
-        })?;
-        lines[cursor..at].iter().for_each(|line| push_line(&mut out, line));
-        let mut file_line = at;
-        for line in hunk.lines() {
+        };
+        if hunk.lines().iter().all(|line| matches!(line, Line::Context(_))) {
+            // Unchanged lines change nothing wherever they are; lines the file lacks are more
+            // likely new lines that lost their "+".
+            if old.is_empty() || !anywhere(&lines, &old) {
+                return Err(fail(
+                    "it adds and removes no line, and its lines are not all in the file; start \
+                     each added line with + and each removed line with -"
+                        .into(),
+                ));
+            }
+            continue;
+        }
+        let declared = match starts {
+            Starts::Numbered => Some(hunk.old_range().start().saturating_sub(1)),
+            Starts::Running(hints) => hints.get(index).copied().flatten(),
+        };
+        let at = place(&lines, cursor, &old, declared, &placed).map_err(fail)?;
+        placed.push(Region { at, len: old.len(), hunk: index });
+        cursor = cursor.max(at + old.len());
+    }
+    placed.sort_by_key(|region| (region.at, region.hunk));
+    let mut out = String::with_capacity(base.len());
+    let mut file_line = 0;
+    for region in &placed {
+        lines[file_line..region.at].iter().for_each(|line| push_line(&mut out, line));
+        file_line = region.at;
+        for line in patch.hunks()[region.hunk].lines() {
             match line {
                 Line::Context(_) => {
                     push_line(&mut out, lines[file_line]);
@@ -269,9 +329,8 @@ pub(crate) fn apply_text(
                 Line::Insert(text) => push_line(&mut out, text),
             }
         }
-        cursor = at + old.len();
     }
-    lines[cursor..].iter().for_each(|line| push_line(&mut out, line));
+    lines[file_line..].iter().for_each(|line| push_line(&mut out, line));
     if out == base {
         return Err(FsToolError::InvalidPatch(
             "the diff changes nothing in the file (no added or removed line took effect)".into(),
@@ -286,87 +345,6 @@ fn push_line(out: &mut String, line: &str) {
         out.push('\n');
     }
     out.push_str(line);
-}
-
-/// The same line, its line ending aside, and with `loose` its trailing spaces too.
-fn same(file: &str, diff: &str, loose: bool) -> bool {
-    let file = file.trim_end_matches(['\r', '\n']);
-    let diff = diff.trim_end_matches(['\r', '\n']);
-    file == diff || loose && file.trim_end() == diff.trim_end()
-}
-
-/// Where a hunk's old lines start, at or after `cursor`.
-fn place(
-    lines: &[&str],
-    cursor: usize,
-    old: &[&str],
-    declared: Option<usize>,
-) -> Result<usize, String> {
-    if old.is_empty() {
-        return declared.filter(|at| (cursor..=lines.len()).contains(at)).ok_or_else(|| {
-            "it has no unchanged or removed lines to place it by; add the lines around the change"
-                .to_owned()
-        });
-    }
-    let fits = |at: usize, loose: bool| {
-        at + old.len() <= lines.len()
-            && old.iter().enumerate().all(|(i, line)| same(lines[at + i], line, loose))
-    };
-    if let Some(at) = declared.filter(|at| *at >= cursor && fits(*at, false)) {
-        return Ok(at);
-    }
-    for loose in [false, true] {
-        let last = lines.len().saturating_sub(old.len());
-        let found = (cursor..=last).filter(|at| fits(*at, loose)).collect::<Vec<_>>();
-        match (found.as_slice(), declared) {
-            ([], _) => {}
-            ([one], _) => return Ok(*one),
-            (many, Some(near)) => {
-                return Ok(many.iter().copied().min_by_key(|at| at.abs_diff(near)).unwrap_or(near));
-            }
-            (many, None) => {
-                return Err(format!(
-                    "its lines appear {} times in the file; include more unchanged lines around \
-                     the change",
-                    many.len()
-                ));
-            }
-        }
-    }
-    Err(mismatch(lines, old, declared))
-}
-
-/// Which of a hunk's lines the file does not have, and what it has there.
-fn mismatch(lines: &[&str], old: &[&str], declared: Option<usize>) -> String {
-    let show = |text: &str| {
-        let text = text.trim_end_matches(['\r', '\n']);
-        let shown = text.chars().take(160).collect::<String>();
-        if shown.len() < text.len() { format!("«{shown}…»") } else { format!("«{shown}»") }
-    };
-    let Some(at) = declared else {
-        return format!("its line {} is not in the file", show(old[0]));
-    };
-    for (i, expected) in old.iter().enumerate() {
-        let number = at + i + 1;
-        match lines.get(at + i) {
-            None => {
-                return format!(
-                    "line {number} should be {} but the file has only {} lines",
-                    show(expected),
-                    lines.len()
-                );
-            }
-            Some(actual) if !same(actual, expected, true) => {
-                return format!(
-                    "line {number} should be {} but the file has {}",
-                    show(expected),
-                    show(actual)
-                );
-            }
-            Some(_) => {}
-        }
-    }
-    "its lines are not in the file in this order".to_owned()
 }
 
 /// An external file's diff never creates or deletes the file (its target is fixed by the grant).

@@ -12,6 +12,7 @@
 
 ## 已知限制
 
+- **服务商实测范围**：由于个人经济水平有限，没有对全部服务商（Provider）逐一实测；接入某个服务商时遇到问题，欢迎[提交 issue](https://github.com/Mubai0628/aura/issues)。
 - **命令里的删除只认常见写法**：`Remove-Item`、`del`、`rd`、`git clean -f`、`robocopy /MIR` 等写法，包括写在引号里、`Invoke-Expression` 或 `powershell -c` 里的，会每次问你；用 Python、Node 等脚本间接删除的识别不出来。
 - **命令里的联网不受网站规则限制**：网站的允许与阻止只管联网工具和内置浏览器。
 - **被 `.gitignore` 忽略的文件夹不进入查找和搜索**：它们在文件树里照常显示，展开时从磁盘现读，模型也能列出和读取其中的文件。

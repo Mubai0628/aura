@@ -1,32 +1,16 @@
 import type { AgentMessageAttachment } from '@aura/contracts/generated';
 import { useCallback, useContext, useEffect, useState } from 'react';
 
-import { AppIcon } from '../app-icons';
 import { carriedMenuEntries, openCarried } from '../files/carried-menu';
 import { FileLinkContext } from '../files/file-links';
 import type { FileActionScope } from '../files/file-menu';
-import { ToolIcon } from '../tool-icon';
 import { useContextMenu } from '../ui/useContextMenu';
+import { useNearView } from '../ui/useNearView';
 import { FileCard } from './AttachmentCards';
 import { PicturePreview } from './PicturePreview';
+import { pictureMenuEntries } from './picture-menu';
+import { readPicture } from './picture-reads';
 import './composer-attachments.css';
-
-/** A picture copied as a picture, or saved where the user chooses; Main reads it from Core. */
-async function pictureAction(
-  scope: FileActionScope,
-  sessionId: string,
-  artifactId: string,
-  name: string,
-  action: 'copy' | 'save',
-) {
-  const done = await window.aura.v1.messagePicture({
-    action,
-    session_id: sessionId,
-    artifact_id: artifactId,
-    name,
-  });
-  if (!done.completed && done.message) scope.notify(done.message);
-}
 
 /** One picture of a message, read back from the conversation's own record. */
 function SentPicture({
@@ -42,52 +26,33 @@ function SentPicture({
 }) {
   const [url, setUrl] = useState<string | null>();
   const [previewing, setPreviewing] = useState(false);
+  const [spot, near] = useNearView<HTMLLIElement>();
   const menu = useContextMenu();
   // Stable while the viewer is open, so its focus is kept for its whole life.
   const close = useCallback(() => setPreviewing(false), []);
   useEffect(() => {
+    if (!near) return;
     let current = true;
-    void window.aura.v1.browser
-      ?.readScreenshot({ session_id: sessionId, artifact_id: artifactId })
-      .then((result) => {
-        if (!current) return;
-        setUrl(
-          result.ok ? `data:${result.value.media_type};base64,${result.value.data_base64}` : null,
-        );
-      });
+    void readPicture(sessionId, artifactId).then((read) => {
+      if (current && read !== undefined) setUrl(read);
+    });
     return () => {
       current = false;
     };
-  }, [sessionId, artifactId]);
+  }, [near, sessionId, artifactId]);
   return (
-    <li className="attachment-picture" title={name}>
+    <li className="attachment-picture" ref={spot} title={name}>
       {url ? (
         <button
           aria-label={`预览 ${name}`}
           className="attachment-picture-open"
           onClick={() => setPreviewing(true)}
           onContextMenu={(event) =>
-            menu.open(event, `${name} 的操作`, [
-              {
-                label: '预览',
-                icon: <AppIcon name="eye" size={14} />,
-                run: () => setPreviewing(true),
-              },
-              ...(scope
-                ? [
-                    {
-                      label: '复制图片',
-                      icon: <ToolIcon name="copy" size={14} />,
-                      run: () => void pictureAction(scope, sessionId, artifactId, name, 'copy'),
-                    },
-                    {
-                      label: '另存为…',
-                      icon: <AppIcon name="file" size={14} />,
-                      run: () => void pictureAction(scope, sessionId, artifactId, name, 'save'),
-                    },
-                  ]
-                : []),
-            ])
+            menu.open(
+              event,
+              `${name} 的操作`,
+              pictureMenuEntries(scope, sessionId, artifactId, name, () => setPreviewing(true)),
+            )
           }
           type="button"
         >

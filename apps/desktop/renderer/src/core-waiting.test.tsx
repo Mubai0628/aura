@@ -36,15 +36,18 @@ test('the wait reads in the turn duration units', () => {
   expect(waitedText(65)).toBe('1 分 5 秒');
 });
 
-test('while Main waits for Core, the status at the foot counts the wait; then it is ready again', async () => {
+test('while Main waits for Core, the notice above the composer counts the wait; then it goes', async () => {
   const push = healthPushes();
-  render(<App />);
-  expect(await screen.findByText('Aura Core 已就绪')).toBeTruthy();
+  const { container } = render(<App />);
+  await waitFor(() =>
+    expect(container.querySelector('.app-shell')?.getAttribute('data-core-state')).toBe('ready'),
+  );
   push(waitingFor(12));
-  const footer = () => document.querySelector('.core-footer-status')?.textContent;
-  await waitFor(() => expect(footer()).toBe('Aura Core 正在处理，已等待 12 秒'));
+  const notice = () => container.querySelector('.core-waiting-notice strong')?.textContent;
+  await waitFor(() => expect(notice()).toBe('Aura Core 正在处理，已等待 12 秒'));
+  expect(container.querySelector('.sidebar-footer')?.textContent).toBe('设置');
   push({ ...readyProjection, revision: '4' });
-  expect(await screen.findByText('Aura Core 已就绪')).toBeTruthy();
+  await waitFor(() => expect(container.querySelector('.core-waiting-notice')).toBeNull());
 });
 
 test('above the composer, the wait counts on and 立即重启 asks Main to restart Core', async () => {

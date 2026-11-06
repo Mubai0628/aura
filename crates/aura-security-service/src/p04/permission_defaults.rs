@@ -34,6 +34,12 @@ pub(crate) fn permission_defaults_from_settings(
     Ok(PermissionDefaults { revision: aura.document.revision, mode })
 }
 
+/// The permission mode a new conversation starts in, read as P04 reads it for one: from the Aura
+/// settings as they are now. A setting that does not read is an error, never a guessed mode.
+pub fn default_permission_mode(settings: &SettingsFacade) -> Result<PermissionMode> {
+    parse_default_permission_mode(&settings.snapshot(ConfigModule::Aura)?.document)
+}
+
 /// Why the global permission defaults could not be read.
 ///
 /// A typed reason rather than a string so the caller can attribute the fault to

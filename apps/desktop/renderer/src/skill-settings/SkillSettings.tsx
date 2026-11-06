@@ -6,10 +6,16 @@ import type {
   WorkspaceId,
 } from '@aura/contracts/generated';
 import type { ResultEnvelope } from '../../../shared/aura-api';
-import { SkillPreviewPanel } from './SkillPreviewPanel';
-import type { CSSProperties } from 'react';
 import { AppIcon } from '../app-icons';
-import { skillError, skillSourceLabel, skillStateLabel, skillStateTone } from './skill-labels';
+import { SkillDetails, SkillHeading, type SkillChange } from './SkillDetails';
+import {
+  skillError,
+  skillName,
+  skillSourceLabel,
+  skillStateTone,
+  skillUsable,
+} from './skill-labels';
+import { SettingsItemDialog, SettingsRow, SettingsRowOpen } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './skill-settings.css';
@@ -33,6 +39,7 @@ export function SkillSettings({
   const [notice, setNotice] = useState<Notice>();
   const [preview, setPreview] = useState<SkillPreview>();
   const [removing, setRemoving] = useState<string>();
+  const [opened, setOpened] = useState<string>();
   const workspace = workspaceId ?? null;
   useEffect(() => {
     if (!coreReady) return;
@@ -77,7 +84,18 @@ export function SkillSettings({
   const revision = registry?.revision ?? 0;
   const skills = registry?.skills ?? NO_SKILLS;
   const pages = useIncrementalList(skills);
-  const name = (skill: SkillView) => skill.name ?? skill.relative;
+  // A Skill that leaves the list, removed here or no longer found, takes its dialog with it.
+  const shown = opened === undefined ? undefined : skills.find((skill) => skill.id === opened);
+  const close = () => {
+    setOpened(undefined);
+    setRemoving(undefined);
+    setPreview(undefined);
+  };
+  // A dialog shows what is done in it, never the outcome of an earlier action on another item.
+  const openItem = (id: string) => {
+    setNotice(undefined);
+    setOpened(id);
+  };
   const request = (skill: SkillView) => ({
     id: skill.id,
     workspace_id: skill.workspace_id ?? null,
@@ -94,19 +112,23 @@ export function SkillSettings({
       setPreview(result.value);
       return undefined;
     });
-  const trust = (shown: SkillPreview) =>
-    run(`trust:${shown.skill.id}`, async () => {
-      const done = applied(
-        await window.aura.v1.trustSkill({
-          ...request(shown.skill),
-          expected_fingerprint: shown.skill.fingerprint ?? '',
-        }),
-        `已信任并启用 ${name(shown.skill)}`,
-      );
-      if (!done.alert) setPreview(undefined);
-      return done;
+  // The listed workspace's two Skill folders are trusted, or no longer trusted, as a whole.
+  const trustWorkspace = (trusted: boolean) =>
+    run('workspace', async () => {
+      if (!workspace) return undefined;
+      const scope = { workspace_id: workspace, expected_revision: revision };
+      return trusted
+        ? applied(await window.aura.v1.trustWorkspaceSkills(scope), '已信任当前工作区的 Skill')
+        : applied(await window.aura.v1.untrustWorkspaceSkills(scope), '已撤销对当前工作区的信任');
     });
-  const change = (skill: SkillView, action: 'enable' | 'disable' | 'untrust' | 'remove') =>
+  const pin = (skill: SkillView, pinned: boolean) =>
+    run(`pin:${skill.id}`, async () =>
+      applied(
+        await window.aura.v1.setSkillPinned({ ...request(skill), pinned }),
+        pinned ? `已固定加载 ${skillName(skill)}` : `已取消固定加载 ${skillName(skill)}`,
+      ),
+    );
+  const change = (skill: SkillView, action: SkillChange) =>
     run(`${action}:${skill.id}`, async () => {
       const api = window.aura.v1;
       switch (action) {
@@ -114,16 +136,26 @@ export function SkillSettings({
         case 'disable':
           return applied(
             await api.setSkillEnabled({ ...request(skill), enabled: action === 'enable' }),
-            action === 'enable' ? `已启用 ${name(skill)}` : `已停用 ${name(skill)}`,
+            action === 'enable' ? `已启用 ${skillName(skill)}` : `已停用 ${skillName(skill)}`,
           );
         case 'untrust':
-          return applied(await api.untrustSkill(request(skill)), `已撤销对 ${name(skill)} 的信任`);
-        case 'remove':
-          setRemoving(undefined);
           return applied(
-            await api.removeSkill(request(skill)),
-            skill.source === 'aura_store' ? `已移除 ${name(skill)}` : `已删除 ${name(skill)}`,
+            await api.untrustSkill(request(skill)),
+            `已撤销对 ${skillName(skill)} 的信任`,
           );
+        case 'remove': {
+          setRemoving(undefined);
+          if (preview?.skill.id === skill.id) setPreview(undefined);
+          const done = applied(
+            await api.removeSkill(request(skill)),
+            skill.source === 'aura_store'
+              ? `已移除 ${skillName(skill)}`
+              : `已删除 ${skillName(skill)}`,
+          );
+          // A Skill imported again later under the same id does not reopen this dialog.
+          if (!done.alert) close();
+          return done;
+        }
       }
     });
   // Main opens the folder Core lists for this Skill; the page never sends a path.
@@ -147,154 +179,44 @@ export function SkillSettings({
       if (!chosen.value.path) return undefined;
       return applied(
         await window.aura.v1.importSkill({ path: chosen.value.path, expected_revision: revision }),
-        '已导入；查看并信任后模型才能使用',
+        '已导入，可以使用',
       );
     });
 
   const row = (skill: SkillView, index: number) => {
-    const locked = busy !== undefined;
-    const usable = skill.state !== 'invalid' && skill.state !== 'unavailable';
-    // A plugin's Skill is trusted and removed with its plugin.
-    const plugin = skill.source === 'plugin' ? (skill.plugin ?? '') : undefined;
-    const needsTrust =
-      plugin === undefined &&
-      usable &&
-      (skill.trusted_fingerprint == null || skill.state === 'content_changed');
     const tone = skillStateTone(skill);
-    const shown = preview?.skill.id === skill.id;
     return (
-      <li
+      <SettingsRow
         key={skill.id}
-        className="settings-card"
-        data-state={skill.state}
-        data-tone={tone === 'success' ? undefined : tone}
-        style={{ '--item': index } as CSSProperties}
-      >
-        <div className="settings-card-heading skill-row-heading">
-          <strong>{name(skill)}</strong>
-          <span className="settings-tag skill-row-source">
-            {plugin === undefined ? skillSourceLabel(skill.source) : `插件 ${plugin}`}
-          </span>
-          <span className="status-pill skill-row-state" data-tone={tone}>
-            {skillStateLabel(skill)}
-          </span>
-        </div>
-        {skill.description ? <p>{skill.description}</p> : null}
-        <p className="skill-row-path">
-          <code>{skill.path}</code>
-        </p>
-        {skill.allowed_tools.length ? (
-          <p className="skill-row-tools">
-            它说需要的工具：{skill.allowed_tools.join('、')}（只是说明，不会因此允许任何工具）
-          </p>
-        ) : null}
-        {skill.problems.length ? (
-          <p className="settings-inline-alert" role="alert">
-            {skill.problems.join('；')}
-          </p>
-        ) : null}
-        {skill.warnings.length ? (
-          <p className="skill-row-warning">{skill.warnings.join('；')}</p>
-        ) : null}
-        <div className="settings-card-actions">
-          {usable ? (
-            // The button that opens the preview also closes it.
-            <button
-              type="button"
-              className={needsTrust && !shown ? 'button is-primary is-small' : 'button is-small'}
-              disabled={locked}
-              aria-expanded={shown}
-              onClick={() => (shown ? setPreview(undefined) : void open(skill))}
-            >
-              {shown
-                ? '收起'
-                : needsTrust
-                  ? skill.state === 'content_changed'
-                    ? '查看变化并重新信任'
-                    : '查看并信任'
-                  : '预览'}
-            </button>
-          ) : null}
-          {usable && !needsTrust ? (
-            <button
-              type="button"
-              className="button is-small"
-              disabled={locked}
-              onClick={() => void change(skill, skill.enabled ? 'disable' : 'enable')}
-            >
-              {skill.enabled ? '停用' : '启用'}
-            </button>
-          ) : null}
-          {skill.trusted_fingerprint && plugin === undefined ? (
-            <button
-              type="button"
-              className="button is-small"
-              disabled={locked}
-              onClick={() => void change(skill, 'untrust')}
-            >
-              撤销信任
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="button is-ghost is-small"
-            disabled={locked}
-            onClick={() => void reveal(skill)}
-          >
-            <AppIcon name="folder" size={14} />
-            打开文件夹
-          </button>
-          {skill.source === 'plugin' ? null : (
-            <button
-              type="button"
-              className="button is-danger is-small skill-remove"
-              disabled={locked}
-              onClick={() => setRemoving(skill.id)}
-            >
-              {skill.source === 'aura_store' ? '移除' : '删除'}
-            </button>
-          )}
-        </div>
-        {removing === skill.id ? (
-          <div
-            role="alertdialog"
-            aria-label={`${skill.source === 'aura_store' ? '移除' : '删除'} ${name(skill)}`}
-            className="settings-panel is-danger"
-          >
-            {skill.source === 'aura_store' ? (
-              <p>移除后 Aura 里的这份副本会被删除；你当初导入的原文件夹不受影响。</p>
-            ) : (
-              <p>
-                删除后，这个 Skill 的文件夹会移到回收站：{skill.path}
-                {skill.source === 'agent_global' ? ' 其他使用 .agents 的工具也会看不到它。' : null}
-              </p>
-            )}
-            <div className="settings-card-actions">
-              <button
-                type="button"
-                className="button is-danger is-solid is-small"
-                onClick={() => void change(skill, 'remove')}
-              >
-                {skill.source === 'aura_store' ? '移除' : '删除'}
-              </button>
+        state={skill.state}
+        tone={tone === 'success' ? undefined : tone}
+        index={index}
+        headingClassName="skill-row-heading"
+        heading={<SkillHeading skill={skill} />}
+        summary={skill.description || undefined}
+        alerts={
+          skill.problems.length ? (
+            <p className="settings-inline-alert" role="alert">
+              {skill.problems.join('；')}
+            </p>
+          ) : null
+        }
+        actions={
+          <>
+            {skillUsable(skill) ? (
               <button
                 type="button"
                 className="button is-small"
-                onClick={() => setRemoving(undefined)}
+                disabled={busy !== undefined}
+                onClick={() => void change(skill, skill.enabled ? 'disable' : 'enable')}
               >
-                取消
+                {skill.enabled ? '停用' : '启用'}
               </button>
-            </div>
-          </div>
-        ) : null}
-        {shown && preview ? (
-          <SkillPreviewPanel
-            preview={preview}
-            busy={locked}
-            onTrust={needsTrust ? () => void trust(preview) : undefined}
-          />
-        ) : null}
-      </li>
+            ) : null}
+            <SettingsRowOpen name={skillName(skill)} onOpen={() => openItem(skill.id)} />
+          </>
+        }
+      />
     );
   };
 
@@ -322,6 +244,16 @@ export function SkillSettings({
           >
             导入 ZIP…
           </button>
+          {workspace && registry ? (
+            <button
+              type="button"
+              className="button"
+              disabled={!coreReady || busy !== undefined}
+              onClick={() => void trustWorkspace(!registry.workspace_trusted)}
+            >
+              {registry.workspace_trusted ? '撤销对当前工作区的信任' : '信任当前工作区的 Skill'}
+            </button>
+          ) : null}
           <button
             type="button"
             className="button is-ghost"
@@ -366,6 +298,11 @@ export function SkillSettings({
         <SkeletonRows label="正在读取 Skill" />
       ) : (
         <>
+          {skills.some((skill) => skill.pinned) ? (
+            <p className="skill-pin-total">
+              {`固定加载 约 ${registry.pinned_tokens ?? 0} / ${registry.pinned_limit ?? 0} token`}
+            </p>
+          ) : null}
           <ul className="skill-roots" aria-label="Skill 位置">
             {registry.roots.map((root) => (
               <li key={`${root.source}:${root.path}`}>
@@ -390,6 +327,30 @@ export function SkillSettings({
           )}
         </>
       )}
+      {shown ? (
+        <SettingsItemDialog
+          title={skillName(shown)}
+          heading={<SkillHeading skill={shown} named={false} />}
+          headingClassName="skill-row-heading"
+          notice={notice}
+          onClose={close}
+        >
+          <SkillDetails
+            skill={shown}
+            locked={busy !== undefined}
+            workspaceTrusted={Boolean(registry?.workspace_trusted)}
+            preview={preview?.skill.id === shown.id ? preview : undefined}
+            removing={removing === shown.id}
+            onPreview={() => void open(shown)}
+            onClosePreview={() => setPreview(undefined)}
+            onChange={(action) => void change(shown, action)}
+            onPin={(pinned) => void pin(shown, pinned)}
+            onReveal={() => void reveal(shown)}
+            onAskRemove={() => setRemoving(shown.id)}
+            onCancelRemove={() => setRemoving(undefined)}
+          />
+        </SettingsItemDialog>
+      ) : null}
     </section>
   );
 }

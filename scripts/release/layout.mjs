@@ -56,6 +56,16 @@ export const COMPONENTS = [
     path: 'aura-chrome-host.exe',
     from: 'binaries',
   },
+  // Beside Core, which starts it by its full path when a computer tool needs the desktop. Its
+  // kind is one the manifest contract has had since R01 and nothing else uses: a kind of its own
+  // would keep the launcher, setup program and Main of the installed versions from reading the
+  // manifest of an update that carries it.
+  {
+    id: 'aura-desktop-control',
+    kind: 'plugin_host',
+    path: 'aura-desktop-host.exe',
+    from: 'binaries',
+  },
 ];
 /** Where the Chrome extension the user loads sits in a release's folder. */
 export const CHROME_EXTENSION_PATH = 'resources/chrome-extension';

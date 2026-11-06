@@ -106,12 +106,15 @@ async fn plan_and_goal_survive_normal_completion_and_the_next_user_turn() {
             &runtime,
             "agent.submit",
             json!(AgentSubmitRequest {
+                computer_mode: None,
                 session_id: start.turn.session_id,
                 text: "Stay in the same mode".into(),
                 destination: AgentInputLane::NextTurn,
                 skill_ids: Vec::new(),
                 reasoning_effort: None,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             }),
         )
         .await;

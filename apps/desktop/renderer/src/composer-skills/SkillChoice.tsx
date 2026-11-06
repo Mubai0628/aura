@@ -58,15 +58,24 @@ export function SkillPicker({
       {picker.loading ? <p role="status">正在读取 Skill…</p> : null}
       {picker.error ? <p role="alert">{picker.error}</p> : null}
       {!picker.loading && !picker.error && !picker.skills.length ? (
-        <p>没有可用的 Skill：在 设置 → Skill 里查看并信任后才能选择。</p>
+        <p>没有可用的 Skill：在 设置 → Skill 里导入或启用后才能选择。</p>
       ) : null}
       <ul aria-label="可用的 Skill">
         {picker.skills.map((skill) => {
           const taken = chosen.some((entry) => entry.id === skill.id);
+          // A pinned Skill sent at the start of every request is already loaded.
+          const loaded = Boolean(skill.pinned && !skill.pinned_left_out);
           return (
             <li key={skill.id}>
-              <button type="button" disabled={taken || full} onClick={() => onChoose(skill)}>
-                <span>{skill.name ?? skill.relative}</span>
+              <button
+                type="button"
+                disabled={taken || full || loaded}
+                onClick={() => onChoose(skill)}
+              >
+                <span>
+                  {skill.name ?? skill.relative}
+                  {loaded ? <em>已加载</em> : null}
+                </span>
                 <small>
                   {skillSourceLabel(skill.source)}
                   {skill.description ? ` · ${skill.description}` : ''}

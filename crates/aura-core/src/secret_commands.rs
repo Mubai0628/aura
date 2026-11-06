@@ -1,5 +1,6 @@
 //! Bound metadata, one-shot SecretInput dispatch and expiration.
 use crate::*;
+use aura_extension_service::secret_routes;
 
 pub(crate) async fn prepare_pending_secret_command(
     state: &RuntimeState,
@@ -65,8 +66,8 @@ pub(crate) async fn prepare_pending_secret_command(
     }
     if let Err(error) = if terminal_secret::binding(&request.method).is_some() {
         terminal_secret::validate(&request.params, request.id)
-    } else if mcp::credentials::command::binding(&request.method).is_some() {
-        mcp::credentials::command::validate(&request.params, request.id)
+    } else if secret_routes::binding(&request.method).is_some() {
+        secret_routes::validate(&request.method, &request.params, request.id)
     } else if tool_credential_service::commands::binding(&request.method).is_some() {
         tool_credential_service::commands::validate(&request.method, &request.params, request.id)
     } else {
@@ -82,7 +83,7 @@ pub(crate) async fn prepare_pending_secret_command(
         return Ok(None);
     }
     let (operation, slot) = terminal_secret::binding(&request.method)
-        .or_else(|| mcp::credentials::command::binding(&request.method))
+        .or_else(|| secret_routes::binding(&request.method))
         .or_else(|| tool_credential_service::commands::binding(&request.method))
         .or_else(|| P05Services::secret_input_binding(&request.method))
         .context("recognized SecretInput method has no frame binding")?;
@@ -111,8 +112,11 @@ pub(crate) async fn handle_secret_request(
         .context("pending SecretInput request has no CommandInvocationId")?;
     let result = if terminal_secret::binding(&request.method).is_some() {
         terminal_secret::dispatch(state, request, secret).await
-    } else if mcp::credentials::command::binding(&request.method).is_some() {
-        mcp::credentials::command::dispatch(state, request, secret).await
+    } else if secret_routes::binding(&request.method).is_some() {
+        let (mcp, plugins) = (Arc::clone(&services.mcp), Arc::clone(&services.plugins));
+        secret_routes::dispatch(mcp, plugins, &request.method, &request.params, secret, request.id)
+            .await
+            .map(|value| p05::P05CommandDispatch { value, projection_changes: Vec::new() })
     } else if tool_credential_service::commands::binding(&request.method).is_some() {
         tool_credential_service::commands::dispatch(
             state,

@@ -8,11 +8,10 @@ use base64::Engine as _;
 
 use aura_domain_common::{
     CommandInvocationId, CorrelationId, CredentialId, ErrorCategory, ErrorCode, EventId,
-    ModelAvailabilityTestId, ModelDiscoveryRunId, NormalizedIssueCode, Revision, UtcTimestamp,
+    ModelAvailabilityTestId, ModelDiscoveryRunId, Revision, UtcTimestamp,
 };
 use aura_model_config::{
-    ModelConfigError, ModelConfigValidationError, UpdateModelProfileInput, add_manual_model,
-    apply_catalog_update, create_endpoint, create_model_from_catalog, create_provider,
+    ModelConfigError, UpdateModelProfileInput, add_manual_model, create_endpoint, create_provider,
     credential_binding_fingerprint, credential_ref_for_credential, endpoint_fingerprint,
     model_credential_final_target, normalize_base_url, rename_provider,
     reset_endpoint_compatibility, set_model_subagent_availability,
@@ -29,27 +28,25 @@ use aura_model_domain::{
     ModelDiscoveryCancelRequest, ModelDiscoveryStartRequest, ModelEndpointCreateRequest,
     ModelEndpointCreatedPayload, ModelEndpointDeleteRequest, ModelEndpointDeletedPayload,
     ModelEndpointMutationResult, ModelEndpointUpdateRequest, ModelEndpointUpdatedPayload,
-    ModelExecutionReadinessView, ModelProfileApplyCatalogUpdateRequest,
-    ModelProfileCreateFromCatalogRequest, ModelProfileCreateManualRequest,
-    ModelProfileCreatedPayload, ModelProfileDeleteRequest, ModelProfileDeletedPayload,
-    ModelProfileMutationResult, ModelProfileSetSubagentAvailabilityRequest,
-    ModelProfileUpdateRequest, ModelProfileUpdatedPayload, ModelProviderCreateRequest,
-    ModelProviderCreatedPayload, ModelProviderDeleteRequest, ModelProviderDeletedPayload,
-    ModelProviderMutationResult, ModelProviderRenameRequest, ModelProviderRenamedPayload,
+    ModelProfileCreateManualRequest, ModelProfileCreatedPayload, ModelProfileDeleteRequest,
+    ModelProfileDeletedPayload, ModelProfileMutationResult,
+    ModelProfileSetSubagentAvailabilityRequest, ModelProfileUpdateRequest,
+    ModelProfileUpdatedPayload, ModelProviderCreateRequest, ModelProviderCreatedPayload,
+    ModelProviderDeleteRequest, ModelProviderDeletedPayload, ModelProviderMutationResult,
+    ModelProviderRenameRequest, ModelProviderRenamedPayload,
     ModelProviderSetAllCurrentModelsSubagentAvailabilityRequest,
     ModelSubagentAvailabilityChangedPayload, ProviderBulkAvailabilityResult,
     ProviderCatalogProjection, ProviderIconReadRequest, ProviderIconReadResult,
-    SessionModelBindingChangedPayload, SessionModelBindingMutationResult,
-    SessionModelBindingSetRequest, model_ipc_method,
+    SessionModelBindingChangedPayload, SessionModelBindingSetRequest, model_ipc_method,
 };
 use aura_network_control::{
     AuthenticatedConfigurationChannelIdentity, UserConfigurationOperationIdentity,
 };
 use aura_permission_domain::NormalizedOrigin;
 use aura_persistence::{
-    CommitSessionModelBinding, CreateModelCredentialSlot, EventActor,
-    ModelCredentialDeletionReason, ModelCredentialRecordState, ModelCredentialStorageBinding,
-    ModelProjectionDraft, PersistentEventDraft, PreparedSessionModelBindingClear,
+    CreateModelCredentialSlot, EventActor, ModelCredentialDeletionReason,
+    ModelCredentialRecordState, ModelCredentialStorageBinding, ModelProjectionDraft,
+    PersistentEventDraft, PreparedSessionModelBindingClear,
 };
 use aura_projection_contract::{ProjectionChange, ProjectionKind, ProjectionScope};
 use aura_runtime_contract::{IpcErrorEnvelope, IpcRequestTerminal};
@@ -70,10 +67,14 @@ use super::{
     discovery::{ModelDiscoveryServiceError, PreparedModelDiscovery, model_discovery_identity},
     projection::P05ProjectionError,
 };
+pub(super) use journal_errors::journal_error;
 
+mod catalog_model;
 mod connections;
 mod context;
 mod credential;
+mod journal_errors;
+mod session_binding;
 mod window_trial;
 
 pub struct P05CommandDispatch {
@@ -391,9 +392,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -472,9 +471,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -554,7 +551,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(expected_revision.value()),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -732,9 +729,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                expected_models_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -754,264 +749,17 @@ impl P05Services {
             model_ipc_method::ENDPOINT_DELETE => {
                 self.dispatch_delete_endpoint(params, command_invocation_id, correlation_id).await
             }
-            model_ipc_method::PROFILE_CREATE_FROM_CATALOG => {
-                let request: ModelProfileCreateFromCatalogRequest = decode(params, correlation_id)?;
-                let command_invocation_id =
-                    require_command_id(command_invocation_id, correlation_id)?;
-                let catalog = self.provider_catalog.current_snapshot().ok_or_else(|| {
-                    catalog_error(
-                        aura_model_catalog::CatalogError::Unavailable.into(),
-                        correlation_id,
-                    )
-                })?;
-                if catalog.catalog_revision != request.expected_catalog_revision {
-                    return Err(catalog_error(
-                        aura_model_catalog::CatalogError::RevisionConflict {
-                            expected: request.expected_catalog_revision.value(),
-                            actual: catalog.catalog_revision.value(),
-                        }
-                        .into(),
-                        correlation_id,
-                    ));
-                }
-                let completion = self
-                    .config_journal
-                    .execute(command_invocation_id, correlation_id, |journal_id| {
-                        let prepared = self.model_config.prepare_update(
-                            journal_id.to_string(),
-                            request.expected_models_revision.value(),
-                            |registry| {
-                                let endpoint = registry
-                                    .endpoints
-                                    .get(&request.endpoint_id)
-                                    .ok_or(ModelConfigError::EndpointIdNotFound(
-                                        request.endpoint_id,
-                                    ))?;
-                                if endpoint.revision.value()
-                                    != request.expected_endpoint_revision.value()
-                                {
-                                    return Err(ModelConfigError::EndpointObjectRevisionConflict {
-                                        expected: request.expected_endpoint_revision.value(),
-                                        actual: endpoint.revision.value(),
-                                    });
-                                }
-                                create_model_from_catalog(
-                                    registry,
-                                    request.endpoint_id,
-                                    &catalog,
-                                    &request.catalog_provider_id,
-                                    &request.catalog_model_id,
-                                    &request.expected_catalog_object_hash,
-                                    UtcTimestamp::now(),
-                                )
-                            },
-                        )?;
-                        let profile = prepared
-                            .candidate_registry
-                            .models
-                            .get(&prepared.value)
-                            .cloned()
-                            .ok_or(ModelConfigError::InternalInvariant(
-                                "catalog-created Model Profile is absent from the candidate registry",
-                            ))?;
-                        let endpoint = prepared
-                            .candidate_registry
-                            .endpoints
-                            .get(&profile.endpoint_id)
-                            .ok_or(ModelConfigError::EndpointNotFound(profile.id))?;
-                        let snapshot = prepared_snapshot(&prepared);
-                        let status_overrides = BTreeMap::new();
-                        let result = ModelProfileMutationResult {
-                            changed: prepared.changed,
-                            revision: prepared.candidate_revision,
-                            value: profile.clone(),
-                        };
-                        let prepared_bundle = prepared.prepared_bundle.ok_or(
-                            ModelConfigError::InternalInvariant(
-                                "catalog-created Model Profile mutation lacks a prepared bundle",
-                            ),
-                        )?;
-                        Ok(ModelConfigCommandPlan::Publish {
-                            prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_models_revision.value(),
-                            ),
-                            reserved_models_revision: Some(prepared.candidate_revision),
-                            expected_aura_revision: None,
-                            reserved_aura_revision: None,
-                            credential_slot_creations: Vec::new(),
-                            session_binding_clears: Vec::new(),
-                            metadata_events: vec![user_event(
-                                "ModelProfileCreated",
-                                correlation_id,
-                                None,
-                                &ModelProfileCreatedPayload {
-                                    provider_id: endpoint.provider_id,
-                                    endpoint_id: endpoint.id,
-                                    profile: profile.clone(),
-                                    models_revision: prepared.candidate_revision,
-                                },
-                            )?],
-                            projection_drafts: vec![
-                                ModelProjectionDraft::ModelSettings(
-                                    self.projections
-                                        .model_settings(&snapshot, &status_overrides)
-                                        .map_err(ModelConfigJournalError::from)?,
-                                ),
-                                ModelProjectionDraft::EndpointDetail(Box::new(
-                                    self.projections
-                                        .endpoint_detail(
-                                            &snapshot,
-                                            endpoint.id,
-                                            &status_overrides,
-                                        )
-                                        .map_err(ModelConfigJournalError::from)?,
-                                )),
-                                ModelProjectionDraft::ModelProfile(Box::new(
-                                    self.projections
-                                        .model_profile(&snapshot, profile.id, &status_overrides)
-                                        .map_err(ModelConfigJournalError::from)?,
-                                )),
-                            ],
-                            success_result: serde_json::to_value(result)?,
-                        })
-                    })
-                    .map_err(|error| journal_error(error, correlation_id))?;
-                Ok(P05CommandDispatch {
-                    value: completion.success_result,
-                    projection_changes: completion.projection_changes,
-                })
-            }
+            model_ipc_method::PROFILE_CREATE_FROM_CATALOG => self
+                .dispatch_create_profile_from_catalog(
+                    params,
+                    command_invocation_id,
+                    correlation_id,
+                ),
             model_ipc_method::PROFILE_APPLY_CATALOG_UPDATE => {
-                let request: ModelProfileApplyCatalogUpdateRequest =
-                    decode(params, correlation_id)?;
-                let command_invocation_id =
-                    require_command_id(command_invocation_id, correlation_id)?;
-                let catalog = self.provider_catalog.current_snapshot().ok_or_else(|| {
-                    catalog_error(
-                        aura_model_catalog::CatalogError::Unavailable.into(),
-                        correlation_id,
-                    )
-                })?;
-                if catalog.catalog_revision != request.expected_catalog_revision {
-                    return Err(catalog_error(
-                        aura_model_catalog::CatalogError::RevisionConflict {
-                            expected: request.expected_catalog_revision.value(),
-                            actual: catalog.catalog_revision.value(),
-                        }
-                        .into(),
-                        correlation_id,
-                    ));
-                }
-                let completion = self
-                    .config_journal
-                    .execute(command_invocation_id, correlation_id, |journal_id| {
-                        let prepared = self.model_config.prepare_update(
-                            journal_id.to_string(),
-                            request.expected_models_revision.value(),
-                            |registry| {
-                                let profile =
-                                    registry.models.get(&request.model_profile_id).ok_or(
-                                        ModelConfigError::ProfileNotFound(request.model_profile_id),
-                                    )?;
-                                if profile.revision.value()
-                                    != request.expected_model_profile_revision.value()
-                                {
-                                    return Err(ModelConfigError::ProfileObjectRevisionConflict {
-                                        expected: request.expected_model_profile_revision.value(),
-                                        actual: profile.revision.value(),
-                                    });
-                                }
-                                apply_catalog_update(
-                                    registry,
-                                    request.model_profile_id,
-                                    &catalog,
-                                    &request.expected_catalog_object_hash,
-                                    UtcTimestamp::now(),
-                                )
-                            },
-                        )?;
-                        let previous = prepared
-                            .previous
-                            .registry
-                            .models
-                            .get(&request.model_profile_id)
-                            .cloned()
-                            .ok_or(ModelConfigError::ProfileNotFound(request.model_profile_id))?;
-                        let profile = prepared
-                            .candidate_registry
-                            .models
-                            .get(&request.model_profile_id)
-                            .cloned()
-                            .ok_or(ModelConfigError::ProfileNotFound(request.model_profile_id))?;
-                        let result = ModelProfileMutationResult {
-                            changed: prepared.changed,
-                            revision: prepared.candidate_revision,
-                            value: profile.clone(),
-                        };
-                        if !prepared.changed {
-                            return Ok(ModelConfigCommandPlan::NoChange {
-                                success_result: serde_json::to_value(result)?,
-                            });
-                        }
-                        let endpoint = prepared
-                            .candidate_registry
-                            .endpoints
-                            .get(&profile.endpoint_id)
-                            .ok_or(ModelConfigError::EndpointNotFound(profile.id))?;
-                        let snapshot = prepared_snapshot(&prepared);
-                        let status_overrides = BTreeMap::new();
-                        let prepared_bundle =
-                            prepared.prepared_bundle.ok_or(ModelConfigError::InternalInvariant(
-                                "catalog update mutation lacks a prepared bundle",
-                            ))?;
-                        Ok(ModelConfigCommandPlan::Publish {
-                            prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_models_revision.value(),
-                            ),
-                            reserved_models_revision: Some(prepared.candidate_revision),
-                            expected_aura_revision: None,
-                            reserved_aura_revision: None,
-                            credential_slot_creations: Vec::new(),
-                            session_binding_clears: Vec::new(),
-                            metadata_events: vec![user_event(
-                                "ModelProfileUpdated",
-                                correlation_id,
-                                None,
-                                &ModelProfileUpdatedPayload {
-                                    provider_id: endpoint.provider_id,
-                                    endpoint_id: endpoint.id,
-                                    profile: profile.clone(),
-                                    changed_fields: profile_changed_fields(&previous, &profile),
-                                    models_revision: prepared.candidate_revision,
-                                },
-                            )?],
-                            projection_drafts: vec![
-                                ModelProjectionDraft::ModelSettings(
-                                    self.projections
-                                        .model_settings(&snapshot, &status_overrides)
-                                        .map_err(ModelConfigJournalError::from)?,
-                                ),
-                                ModelProjectionDraft::EndpointDetail(Box::new(
-                                    self.projections
-                                        .endpoint_detail(&snapshot, endpoint.id, &status_overrides)
-                                        .map_err(ModelConfigJournalError::from)?,
-                                )),
-                                ModelProjectionDraft::ModelProfile(Box::new(
-                                    self.projections
-                                        .model_profile(&snapshot, profile.id, &status_overrides)
-                                        .map_err(ModelConfigJournalError::from)?,
-                                )),
-                            ],
-                            success_result: serde_json::to_value(result)?,
-                        })
-                    })
-                    .map_err(|error| journal_error(error, correlation_id))?;
-                Ok(P05CommandDispatch {
-                    value: completion.success_result,
-                    projection_changes: completion.projection_changes,
-                })
+                self.dispatch_apply_catalog_update(params, command_invocation_id, correlation_id)
+            }
+            model_ipc_method::PROFILE_CATALOG_ENTRIES => {
+                self.dispatch_catalog_entries(params, correlation_id)
             }
             model_ipc_method::PROFILE_CREATE_MANUAL => {
                 let request: ModelProfileCreateManualRequest = decode(params, correlation_id)?;
@@ -1067,7 +815,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(expected_revision.value()),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -1238,9 +986,7 @@ impl P05Services {
                         };
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared.prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: Some(prepared.expected_aura_revision),
                             reserved_aura_revision: prepared
@@ -1401,9 +1147,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -1480,9 +1224,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -1615,9 +1357,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -1709,102 +1449,11 @@ impl P05Services {
             }
             model_ipc_method::SESSION_SET_BINDING => {
                 let request: SessionModelBindingSetRequest = decode(params, correlation_id)?;
-                let _command_invocation_id =
-                    require_command_id(command_invocation_id, correlation_id)?;
-                let snapshot = self
-                    .model_config
-                    .snapshot()
-                    .map_err(|error| journal_error(error.into(), correlation_id))?;
-                let current = self
-                    .persistence
-                    .session_model_binding_state(request.session_id)
-                    .map_err(|error| journal_error(error.into(), correlation_id))?;
-                let readable_ref_at_binding = request
-                    .model_profile_id
-                    .map(|model_profile_id| -> Result<String, ModelConfigJournalError> {
-                        let profile = snapshot
-                            .registry
-                            .models
-                            .get(&model_profile_id)
-                            .ok_or(ModelConfigError::ProfileNotFound(model_profile_id))?;
-                        if !profile.enabled {
-                            return Err(ModelConfigError::ProfileDisabled(model_profile_id).into());
-                        }
-                        if profile.effective_max_output_tokens().is_none() {
-                            return Err(ModelConfigError::OutputLimitConfigurationRequired(
-                                model_profile_id,
-                            )
-                            .into());
-                        }
-                        let endpoint = snapshot
-                            .registry
-                            .endpoints
-                            .get(&profile.endpoint_id)
-                            .ok_or(ModelConfigError::EndpointNotFound(model_profile_id))?;
-                        let provider = snapshot
-                            .registry
-                            .providers
-                            .get(&endpoint.provider_id)
-                            .ok_or(ModelConfigError::ProviderNotFound(model_profile_id))?;
-                        let credential_status =
-                            self.projections.active_credential_status(endpoint)?;
-                        if endpoint.auth_scheme != EndpointAuthScheme::None
-                            && !credential_status.as_ref().is_some_and(|status| {
-                                status.state == EndpointCredentialState::Configured
-                            })
-                        {
-                            return Err(ModelConfigError::InvalidExecutionCredentialBinding.into());
-                        }
-                        Ok(format!(
-                            "{}/{}/{}",
-                            provider.slug, endpoint.slug, profile.provider_model_name
-                        ))
-                    })
-                    .transpose()
-                    .map_err(|error| journal_error(error, correlation_id))?;
-                let mut selector = self
-                    .projections
-                    .session_model_selector(&snapshot, request.session_id, current.binding)
-                    .map_err(|error| projection_error(error, correlation_id))?;
-                selector.selected_model_profile_id = request.model_profile_id;
-                selector.selected_model_execution_readiness = request
-                    .model_profile_id
-                    .and_then(|model_profile_id| {
-                        selector
-                            .models
-                            .iter()
-                            .find(|model| model.model_profile_id == model_profile_id)
-                            .map(|model| model.execution_readiness.clone())
-                    })
-                    .unwrap_or_else(|| ModelExecutionReadinessView {
-                        is_executable: false,
-                        issue_code: Some(
-                            NormalizedIssueCode::new("configuration.model_profile_not_selected")
-                                .expect("frozen selector issue code"),
-                        ),
-                    });
-                let commit = self
-                    .persistence
-                    .commit_session_model_binding(CommitSessionModelBinding {
-                        session_id: request.session_id,
-                        expected_revision: request.expected_revision,
-                        model_profile_id: request.model_profile_id,
-                        readable_ref_at_binding,
-                        bound_at: UtcTimestamp::now(),
-                        correlation_id,
-                        atomic_group_id: None,
-                        selector_projection: selector,
-                    })
-                    .map_err(|error| journal_error(error.into(), correlation_id))?;
-                let result = SessionModelBindingMutationResult {
-                    changed: commit.changed,
-                    revision: commit.revision,
-                    value: commit.binding,
-                };
-                Ok(P05CommandDispatch {
-                    value: encode(result, correlation_id)?,
-                    projection_changes: commit.projection_changes,
-                })
+                require_command_id(command_invocation_id, correlation_id)?;
+                self.set_session_binding(request, correlation_id)
+            }
+            model_ipc_method::CREDENTIAL_CLEANUP_RETRY => {
+                self.retry_credential_cleanup(params, command_invocation_id, correlation_id)
             }
             model_ipc_method::COMPATIBILITY_RESET => {
                 let request: ModelCompatibilityResetRequest = decode(params, correlation_id)?;
@@ -1875,9 +1524,7 @@ impl P05Services {
                             ))?;
                         Ok(ModelConfigCommandPlan::Publish {
                             prepared_bundle: Box::new(prepared_bundle),
-                            expected_models_revision: Revision::new(
-                                request.expected_revision.value(),
-                            ),
+                            expected_models_revision: Revision::new(prepared.previous.revision),
                             reserved_models_revision: Some(prepared.candidate_revision),
                             expected_aura_revision: None,
                             reserved_aura_revision: None,
@@ -2096,7 +1743,7 @@ impl P05Services {
                         .unwrap_or_default();
                     Ok(ModelConfigCredentialDeleteCommandPlan {
                         prepared_bundle: Box::new(prepared.prepared_bundle),
-                        expected_models_revision: Revision::new(request.expected_revision.value()),
+                        expected_models_revision: Revision::new(prepared.previous.revision),
                         reserved_models_revision: prepared.candidate_revision,
                         expected_aura_revision: Some(prepared.expected_aura_revision),
                         reserved_aura_revision: prepared
@@ -2340,7 +1987,7 @@ impl P05Services {
                     );
                     Ok(ModelConfigCredentialDeleteCommandPlan {
                         prepared_bundle: Box::new(prepared.prepared_bundle),
-                        expected_models_revision: Revision::new(request.expected_revision.value()),
+                        expected_models_revision: Revision::new(prepared.previous.revision),
                         reserved_models_revision: prepared.candidate_revision,
                         expected_aura_revision: Some(prepared.expected_aura_revision),
                         reserved_aura_revision: prepared
@@ -2855,224 +2502,6 @@ fn provider_icon_error(correlation_id: CorrelationId) -> IpcErrorEnvelope {
         terminal: IpcRequestTerminal::Failed,
         details: BTreeMap::new(),
     }
-}
-
-pub(super) fn journal_error(
-    error: ModelConfigJournalError,
-    correlation_id: CorrelationId,
-) -> IpcErrorEnvelope {
-    #[cfg(any(test, feature = "test-hooks"))]
-    eprintln!("P05 model config command failed: {error:?}");
-    let (code, category, message, retryable, details) = match error {
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::MissingChatOutputTokenField { .. },
-        )) => (
-            "models.endpoint.chat_output_token_field_required",
-            ErrorCategory::Validation,
-            "OpenAI Chat Completions 连接必须选择 Output Token Field。",
-            false,
-            endpoint_field_details("chat_output_token_field"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::MissingChatInstructionRole { .. },
-        )) => (
-            "models.endpoint.chat_instruction_role_required",
-            ErrorCategory::Validation,
-            "OpenAI Chat Completions 连接必须选择 Chat Instruction Role。",
-            false,
-            endpoint_field_details("chat_instruction_role"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::InvalidRoutingField { field, .. },
-        )) => (
-            "models.endpoint.field_not_allowed",
-            ErrorCategory::Validation,
-            "该字段不适用于所选的 API 类型，请核对后重新保存。",
-            false,
-            endpoint_field_details(field),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::InvalidAuthScheme { .. },
-        )) => (
-            "models.endpoint.invalid_auth_scheme",
-            ErrorCategory::Validation,
-            "当前认证方式不适用于所选的 API 类型。",
-            false,
-            endpoint_field_details("auth_scheme"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::InvalidBaseUrl { .. },
-        )) => (
-            "models.endpoint.invalid_base_url",
-            ErrorCategory::Validation,
-            "Base URL 无效，请填写不含用户信息、查询参数或片段的有效地址。",
-            false,
-            endpoint_field_details("base_url"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::InvalidModelsPath { .. },
-        )) => (
-            "models.endpoint.invalid_models_path",
-            ErrorCategory::Validation,
-            "模型目录请求路径无效，请填写同一地址下的 HTTP 路径。",
-            false,
-            endpoint_field_details("models_path"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::InvalidTimeout { field, .. },
-        )) => (
-            "models.endpoint.invalid_timeout",
-            ErrorCategory::Validation,
-            "超时必须是大于 0 的整数。",
-            false,
-            endpoint_field_details(field),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::InvalidParallelLimit { .. },
-        )) => (
-            "models.endpoint.invalid_parallel_limit",
-            ErrorCategory::Validation,
-            "并发请求上限必须是大于 0 的整数。",
-            false,
-            endpoint_field_details("max_parallel_model_requests"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::BlankValue { path },
-        )) if path == "endpoint.display_name" => (
-            "models.endpoint.invalid_display_name",
-            ErrorCategory::Validation,
-            "请输入连接名称。",
-            false,
-            endpoint_field_details("display_name"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::BlankValue { path },
-        )) if path == "endpoint.base_url" => (
-            "models.endpoint.invalid_base_url",
-            ErrorCategory::Validation,
-            "Base URL 无效，请填写不含用户信息、查询参数或片段的有效地址。",
-            false,
-            endpoint_field_details("base_url"),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Validation(
-            ModelConfigValidationError::BlankValue { path },
-        )) if path.starts_with("endpoint.") => (
-            "models.endpoint.invalid_field",
-            ErrorCategory::Validation,
-            "有一个连接字段只有空白，请填写内容或清空后再保存。",
-            false,
-            endpoint_field_details(path.trim_start_matches("endpoint.")),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::ProviderNotFoundById(_)) => (
-            "models.provider.not_found",
-            ErrorCategory::NotFound,
-            "这个服务商已不存在，请刷新模型设置。",
-            false,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::DuplicateProviderModelName {
-            ..
-        }) => (
-            "models.profile.already_exists",
-            ErrorCategory::Conflict,
-            "这个连接下已经添加过同一个模型。",
-            false,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::Settings(
-            aura_config::SettingsFacadeError::RevisionConflict { .. },
-        ))
-        | ModelConfigJournalError::ModelConfig(
-            ModelConfigError::EndpointObjectRevisionConflict { .. }
-            | ModelConfigError::ProfileObjectRevisionConflict { .. },
-        )
-        | ModelConfigJournalError::Persistence(
-            aura_persistence::PersistenceError::SessionModelBindingRevisionConflict,
-        ) => (
-            "models.configuration.revision_conflict",
-            ErrorCategory::Conflict,
-            "模型设置已在别处更新，请刷新后再试。",
-            true,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::Aborted(_) => (
-            "models.configuration.aborted",
-            ErrorCategory::Internal,
-            "这次修改在生效前被中止，模型设置没有改变，请重试。",
-            false,
-            BTreeMap::new(),
-        ),
-        // Binding refusals name their real reason; the catch-all below would leave
-        // the user with an unexplained "could not be committed" and no next step.
-        ModelConfigJournalError::ModelConfig(
-            ModelConfigError::InvalidExecutionCredentialBinding,
-        ) => (
-            "models.binding.credential_required",
-            ErrorCategory::Permission,
-            "这个模型所在的连接还没有可用的凭据，暂时不能选用；请在模型设置里保存 API Key 后再试。",
-            false,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::ModelConfig(
-            ModelConfigError::OutputLimitConfigurationRequired(_),
-        ) => (
-            "models.binding.output_limit_required",
-            ErrorCategory::Validation,
-            "这个模型需要先设置最大输出 Token 上限，才能选用。",
-            false,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::ProfileDisabled(_)) => (
-            "models.binding.profile_disabled",
-            ErrorCategory::Conflict,
-            "这个模型已停用，请在模型设置中启用或选择其他模型。",
-            false,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::ModelConfig(ModelConfigError::ProfileNotFound(_)) => (
-            "models.binding.profile_missing",
-            ErrorCategory::NotFound,
-            "这个模型已不存在，请在模型设置中重新选择。",
-            false,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::ModelConfig(
-            ModelConfigError::EndpointNotFound(_) | ModelConfigError::ProviderNotFound(_),
-        ) => (
-            "models.binding.endpoint_missing",
-            ErrorCategory::NotFound,
-            "这个模型所属的连接已不存在，请在模型设置中重新配置。",
-            false,
-            BTreeMap::new(),
-        ),
-        ModelConfigJournalError::ReconciliationRequired(_) => (
-            "persistence.reconciliation_required",
-            ErrorCategory::Unavailable,
-            "模型设置需要先完成恢复才能修改，请到设置中查看恢复选项。",
-            false,
-            BTreeMap::new(),
-        ),
-        _ => (
-            "models.configuration.failed",
-            ErrorCategory::Internal,
-            "模型设置没有保存成功，配置保持不变；请重试，仍不行请查看本机日志。",
-            false,
-            BTreeMap::new(),
-        ),
-    };
-    IpcErrorEnvelope {
-        code: ErrorCode::new(code).expect("static ErrorCode is valid"),
-        category,
-        message: message.to_owned(),
-        retryable,
-        correlation_id,
-        terminal: IpcRequestTerminal::Failed,
-        details,
-    }
-}
-
-fn endpoint_field_details(field: &str) -> BTreeMap<String, Value> {
-    BTreeMap::from([("field".to_owned(), Value::String(field.to_owned()))])
 }
 
 fn availability_error(

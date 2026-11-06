@@ -145,6 +145,7 @@ fn body(request: &LogicalModelRequest, snapshot: &ModelExecutionSnapshot) -> Val
             operation_context: &operation,
             compatibility_removals: &Default::default(),
             applied_output_token_field_alias: None,
+            session_id: None,
         })
         .expect("compile Chat request");
     serde_json::from_slice(&plan.body).expect("request JSON")

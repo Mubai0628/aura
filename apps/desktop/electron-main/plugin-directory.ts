@@ -1,4 +1,4 @@
-import { shell, type BrowserWindow } from 'electron';
+import { dialog, shell, type BrowserWindow } from 'electron';
 import type { AgentMainParams, AgentMainResult } from '../shared/generated/routes.js';
 import type { CoreSupervisor } from './core-supervisor.js';
 import { isDirectory, ordinaryPath, selectFile, selectFolder } from './folder-dialog.js';
@@ -7,6 +7,8 @@ type Selected = AgentMainResult['agent.plugins.select_directory'];
 type SelectedArchive = AgentMainResult['agent.plugins.select_archive'];
 type OpenRequest = AgentMainParams['agent.plugins.open_directory'];
 type Opened = AgentMainResult['agent.plugins.open_directory'];
+type ExportRequest = AgentMainParams['agent.plugins.export'];
+type Exported = AgentMainResult['agent.plugins.export'];
 
 /**
  * Settings → 插件: Main's own folder dialog for importing a plugin. Core checks the folder,
@@ -39,4 +41,31 @@ export async function openPluginDirectory(
   return failure
     ? { completed: false, message: '无法打开插件文件夹，请检查它是否仍存在与文件权限。' }
     : { completed: true, message: '已打开插件文件夹' };
+}
+
+/**
+ * Exports an installed plugin as a ZIP file: Main asks where to save it and Core writes exactly
+ * the files it read there. The window names only the plugin.
+ */
+export async function exportPlugin(
+  owner: BrowserWindow,
+  request: ExportRequest,
+  supervisor: CoreSupervisor,
+): Promise<Exported> {
+  const listed = await supervisor.requestAgent('agent.plugins.list', {});
+  const plugin = listed.plugins.find((each) => each.name === request.name);
+  if (!plugin) return { completed: false, message: '没有找到这个插件，请刷新后再试。' };
+  const version = plugin.version ? `-${plugin.version.replace(/[^\w.-]/gu, '_')}` : '';
+  const selected = await dialog.showSaveDialog(owner, {
+    title: '导出插件',
+    defaultPath: `${plugin.name}${version}.zip`,
+    filters: [{ name: '插件（ZIP）', extensions: ['zip'] }],
+    properties: ['showOverwriteConfirmation', 'dontAddToRecent'],
+  });
+  if (selected.canceled || !selected.filePath) return { completed: false, message: '已取消导出' };
+  // Core's side of this route takes the place Main chose; the window never names one.
+  return supervisor.requestAgent('agent.plugins.export', {
+    name: plugin.name,
+    path: selected.filePath,
+  } as unknown as ExportRequest);
 }

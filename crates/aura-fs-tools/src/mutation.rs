@@ -40,6 +40,7 @@ use aura_workspace_domain::{
     ResourceCommit, ResourceRequest, TextEncoding, WorkspaceFileTarget,
 };
 mod patch;
+mod patch_place;
 #[cfg(test)]
 mod patch_tests;
 use patch::prepare_patch_bytes;

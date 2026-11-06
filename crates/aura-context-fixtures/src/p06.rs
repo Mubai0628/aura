@@ -534,6 +534,7 @@ fn build_prepared_fixture(
             reasoning_effort: None,
             reasoning_by_effort: false,
             image_input: false,
+            speed_mode: None,
         },
         historical_tool_call_wire_bindings: Vec::new(),
         credential_id: None,

@@ -30,6 +30,18 @@ export function NotificationViewport({
           <div className="notification-copy">
             <strong>{item.title}</strong>
             <p>{item.message}</p>
+            {item.action === undefined ? null : (
+              <button
+                className="button is-small notification-action"
+                onClick={() => {
+                  onDismiss(item.id);
+                  item.action?.run();
+                }}
+                type="button"
+              >
+                {item.action.label}
+              </button>
+            )}
           </div>
           <button
             aria-label="关闭消息"

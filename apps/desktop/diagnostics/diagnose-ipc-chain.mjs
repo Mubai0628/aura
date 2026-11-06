@@ -11,7 +11,9 @@ await runDiagnostic('ipc-chain', async ({ dir, log }) => {
     environment: { AURA_IPC_TRACE_FILE: traceFile },
   });
   const window = await application.firstWindow();
-  await window.getByText('Aura Core 已就绪').waitFor({ state: 'visible', timeout: 20000 });
+  await window
+    .locator('.app-shell[data-core-state="ready"]')
+    .waitFor({ state: 'visible', timeout: 20000 });
   log('core ready');
 
   const probe = async (label) => {

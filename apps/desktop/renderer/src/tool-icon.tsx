@@ -1,4 +1,5 @@
-import { LUCIDE_ICON_PATHS, type LucideIconName } from './tool-icon-paths';
+import { PixelIcon } from './pixel-icons/PixelIcon';
+import { TOOL_ART, type ToolIconName } from './pixel-icons/tool-art';
 
 /** One fixed 16px slot per icon role. Expansion, Tool type and state are
  *  different responsibilities and never share a character stand-in. */
@@ -7,26 +8,17 @@ export function ToolIcon({
   size = 16,
   className,
 }: {
-  name: LucideIconName;
+  name: ToolIconName;
   size?: number;
   className?: string;
 }) {
   return (
-    <svg
-      aria-hidden="true"
+    <PixelIcon
+      art={TOOL_ART[name]}
       className={className === undefined ? 'tool-icon' : `tool-icon ${className}`}
       data-icon={name}
-      fill="none"
-      height={size}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      viewBox="0 0 24 24"
-      width={size}
-    >
-      {LUCIDE_ICON_PATHS[name]}
-    </svg>
+      size={size}
+    />
   );
 }
 

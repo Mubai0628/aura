@@ -1,0 +1,42 @@
+[package]
+name = "aura-desktop-pip"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-desktop-domain = { path = "../aura-desktop-domain" }
+serde.workspace = true
+serde_json.workspace = true
+# The COM macros (`implement`, `interface`) name this crate directly.
+windows-core = "=0.62.2"
+windows = { version = "=0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_Pipes",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# Mode two of computer use runs Aura's desktop host in two more roles, both through Windows
+# itself: the picture-in-picture window and the child session's supervisor. Every unsafe call
+# stays in `src/native`.
+[lints.rust]
+unsafe_code = "allow"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"

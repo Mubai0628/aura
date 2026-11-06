@@ -116,6 +116,9 @@ pub struct ModelSettingsProjection {
     /// The thinking levels each model offers; a model offering none is absent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasoning_efforts: Vec<ModelReasoningEffortsView>,
+    /// The speed modes each model offers; a model offering none is absent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub speed_modes: Vec<crate::ModelSpeedModesView>,
 }
 
 /// The thinking levels one model offers, lowest first.
@@ -254,6 +257,10 @@ pub struct SessionModelOptionView {
     /// The level its profile asks for; none is the provider's default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<crate::ReasoningEffort>,
+    /// The speed modes a conversation can choose for the model's turns, by name; empty until its
+    /// settings allow them, or when its catalog entry offers none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub speed_modes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

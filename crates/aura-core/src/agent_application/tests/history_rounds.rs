@@ -112,7 +112,12 @@ async fn rounds_follow_how_the_conversations_turns_ended() {
         aura_persistence_v2::agent::rounds::read(
             db,
             session,
-            &HistoryReadInput { entries: vec!["T1.3".into()], offset: None, limit: None },
+            &HistoryReadInput {
+                entries: vec!["T1.3".into()],
+                offset: None,
+                limit: None,
+                conversation: None,
+            },
         )
         .expect("an entry of the first round")
     });

@@ -6,6 +6,7 @@ use aura_tool_projection::*;
 use rusqlite::{Connection, OptionalExtension};
 mod browser;
 mod chrome;
+mod computer;
 mod display;
 pub(crate) use display::title as tool_title;
 mod git;
@@ -280,6 +281,7 @@ pub fn page(
             permission_revision: authority
                 .as_ref()
                 .map(|a| a.permission_snapshot.session_permission_revision),
+            remote_decision: crate::agent::approver::of_call(db, id)?,
         });
     }
     let next_before_call_id =

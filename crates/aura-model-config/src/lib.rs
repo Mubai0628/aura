@@ -1,16 +1,20 @@
 #![forbid(unsafe_code)]
 
+mod background;
+mod catalog_choice;
 mod context;
 mod credential_status;
 mod crud;
 mod routing;
 pub use routing::{connection_order, next_connection};
 mod discovery;
+mod error;
 mod fingerprint;
 mod request_options;
 mod service;
 mod validation;
 
+pub use catalog_choice::{catalog_entries, choose_catalog_entry};
 pub use context::{
     CONTEXT_WINDOW_AUTOMATIC_CANDIDATES, apply_runtime_context_window_candidates,
     apply_runtime_context_window_correction, next_context_window_candidate,
@@ -31,13 +35,14 @@ pub use crud::{
 pub use discovery::{
     add_manual_model, apply_catalog_update, create_model_from_catalog, merge_discovery_results,
 };
+pub use error::ModelConfigError;
 pub use fingerprint::{
     ModelUrlError, credential_binding_fingerprint, credential_ref_for_credential,
     endpoint_fingerprint, model_credential_final_target, model_name_hash, normalize_base_url,
     resolve_api_url, resolve_models_url,
 };
 pub use service::{
-    CreateModelExecutionSnapshot, ModelConfigError, ModelConfigService, ModelConfigSnapshot,
+    CreateModelExecutionSnapshot, ModelConfigService, ModelConfigSnapshot,
     ModelExecutionCredentialBinding, PreparedModelConfigMutation,
 };
 pub use validation::{ModelConfigValidationError, ModelConfigValidator, validate_model_registry};

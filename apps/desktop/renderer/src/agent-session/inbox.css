@@ -8,9 +8,9 @@
   padding: 5px 6px 6px 10px;
   overflow-y: auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: 0 6px 18px rgba(28, 38, 32, 0.07);
+  box-shadow: var(--shadow-md);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
@@ -82,7 +82,7 @@
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -122,7 +122,7 @@
   min-height: 46px;
   padding: 6px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: inherit;
   font: inherit;
@@ -133,7 +133,7 @@
 .agent-inbox > p[role='alert'] {
   margin: 4px 0 2px;
   padding: 6px 9px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: var(--surface-muted);
   color: var(--muted);
 }

@@ -67,7 +67,7 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         ReadOnly,
         None
     ),
-    // A file outside the workspace a message names, found in that message first; only Main
+    // A file outside the workspace a message or a call's row names, found there first; only Main
     // learns where.
     route!(
         "agent.files.mentioned",

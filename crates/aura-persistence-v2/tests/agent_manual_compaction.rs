@@ -65,12 +65,15 @@ fn manual_command_is_idempotent_and_waits_without_becoming_task_input() {
                     tx,
                     CommandInvocationId::new(),
                     &AgentSubmitRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         text: "next normal turn".into(),
                         destination: AgentInputLane::NextTurn,
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     f.at,
                 )

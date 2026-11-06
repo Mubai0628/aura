@@ -10,6 +10,7 @@ aura-domain-common = { path = "../aura-domain-common" }
 aura-model-domain = { path = "../aura-model-domain" }
 aura-network-control = { path = "../aura-network-control" }
 aura-permission-domain = { path = "../aura-permission-domain" }
+aura-provider-profile = { path = "../aura-provider-profile" }
 aura-tool-contract = { path = "../aura-tool-contract" }
 base64.workspace = true
 getrandom.workspace = true

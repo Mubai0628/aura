@@ -1,5 +1,8 @@
 import { configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
+import { resetKeptDraftsForTests } from './agent-session/kept-draft';
+import { forgetProgramIconsForTests } from './composer-references/program-icons';
+import { forgetProgramsForTests } from './composer-references/program-tokens';
 import { forgetTurnChoices } from './agent-session/turn-choices';
 import { forgetToolCallDirectories } from './agent-session/useToolCallDirectory';
 
@@ -54,9 +57,12 @@ if (typeof HTMLCanvasElement !== 'undefined')
   HTMLCanvasElement.prototype.getContext = (() =>
     null) as typeof HTMLCanvasElement.prototype.getContext;
 
-/** What the window keeps of each conversation (its calls, the user's choices in each turn)
- * starts empty in every test. */
+/** What the window keeps of each conversation (its calls, the user's choices in each turn, what
+ * its composer holds, the programs and icons it has read) starts empty in every test. */
 afterEach(() => {
   forgetToolCallDirectories();
   forgetTurnChoices();
+  resetKeptDraftsForTests();
+  forgetProgramIconsForTests();
+  forgetProgramsForTests();
 });

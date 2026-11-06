@@ -145,7 +145,9 @@ test('L10.17 reels at startup, the Todo in the activity card, the thinking count
       .toBe(true);
     expect(leftAt).toBeGreaterThanOrEqual(introEnds - 5);
     await expect(page.locator('#aura-splash')).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
 
     const setup = await armReadOnlyWrite(page, workspace, model.url, {
       title: 'L10.17',

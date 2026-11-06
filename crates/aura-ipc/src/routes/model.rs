@@ -83,6 +83,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "models.credential_cleanup.retry",
+        Model,
+        Main,
+        TrustedRenderer,
+        "ModelCredentialCleanupRetryRequest",
+        "ModelCredentialCleanupRetryResult",
+        CommandInvocation,
+        None
+    ),
+    route!(
         "models.context_window.clear_user_override",
         Model,
         Main,
@@ -240,6 +250,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         "ModelProfileApplyCatalogUpdateRequest",
         "ModelProfileMutationResult",
         CommandInvocation,
+        None
+    ),
+    route!(
+        "models.profile.catalog_entries",
+        Model,
+        Main,
+        TrustedRenderer,
+        "ModelProfileCatalogEntriesRequest",
+        "ModelProfileCatalogEntriesView",
+        ReadOnly,
         None
     ),
     route!(
@@ -433,6 +453,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "models.credential_cleanup.retry",
+        Model,
+        Core,
+        AuthenticatedMain,
+        "ModelCredentialCleanupRetryRequest",
+        "ModelCredentialCleanupRetryResult",
+        CommandInvocation,
+        None
+    ),
+    route!(
         "models.context_window.clear_user_override",
         Model,
         Core,
@@ -590,6 +620,16 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         "ModelProfileApplyCatalogUpdateRequest",
         "ModelProfileMutationResult",
         CommandInvocation,
+        None
+    ),
+    route!(
+        "models.profile.catalog_entries",
+        Model,
+        Core,
+        AuthenticatedMain,
+        "ModelProfileCatalogEntriesRequest",
+        "ModelProfileCatalogEntriesView",
+        ReadOnly,
         None
     ),
     route!(

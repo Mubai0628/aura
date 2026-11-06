@@ -62,6 +62,7 @@ async fn a_blocked_message_is_refused_and_a_rewritten_one_is_shown_after_the_ori
         &refused.runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: refused.session,
             model_profile_id: refused.model,
             text: "Check the answer and finish".into(),
@@ -70,7 +71,9 @@ async fn a_blocked_message_is_refused_and_a_rewritten_one_is_shown_after_the_ori
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

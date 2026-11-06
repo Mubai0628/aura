@@ -20,6 +20,11 @@ pub use chrome::{
     chrome_consent_covers, chrome_hard_risk, chrome_mode_covers, chrome_origin_blocked,
     chrome_origin_confirmed, chrome_share, chrome_site_consent_covers, chrome_tool,
 };
+mod desktop;
+pub use desktop::{
+    DesktopAppConsentRef, built_in_computer, computer_tool, desktop_app, desktop_app_authorized,
+    desktop_app_consent_covers, desktop_capability, desktop_mode_covers,
+};
 mod git_native;
 mod native_session;
 mod shell_consent;

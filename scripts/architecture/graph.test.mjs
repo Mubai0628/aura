@@ -151,3 +151,19 @@ test('the evaluation dependency prohibition also applies to product test depende
   });
   assert.ok(violations(graph).includes('evaluation:aura-core->aura-tool-eval'));
 });
+
+test('the desktop host reaches no store and the desktop domain only the shared primitives', () => {
+  assert.deepEqual(
+    violations({
+      'aura-desktop-control': ['aura-desktop-domain', 'aura-memory-store'],
+      'aura-desktop-domain': ['aura-domain-common', 'aura-security-contract'],
+      'aura-domain-common': [],
+      'aura-memory-store': [],
+      'aura-security-contract': [],
+    }),
+    [
+      'kernel:aura-desktop-domain->aura-security-contract',
+      'runner:aura-desktop-control->aura-memory-store',
+    ],
+  );
+});

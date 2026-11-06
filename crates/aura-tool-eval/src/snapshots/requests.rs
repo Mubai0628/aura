@@ -42,6 +42,7 @@ pub fn current_requests() -> Result<BTreeMap<String, Value>> {
             operation_context: &context,
             compatibility_removals: &Default::default(),
             applied_output_token_field_alias: None,
+            session_id: None,
         })?;
         result.insert(name.into(),json!({"method":plan.method,"url":plan.request_url,"body":serde_json::from_slice::<Value>(&plan.body)?}));
     }

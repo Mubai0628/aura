@@ -83,7 +83,14 @@ pub fn execute_with(
     let after = inspect(tx, batch)?;
     let turn = turns::load(tx, batch.invocation_identity.turn_task_id)?;
     let operation_rejection = match output.as_ref().err() {
-        Some(Error::Invalid(message)) => classify_invalid(message),
+        Some(Error::Invalid(message)) => {
+            let detail = if *message == crate::execution::shell::NOT_A_SHELL_CALL {
+                crate::execution::shell::wrong_id_hint(tx, batch.invocation_identity.session_id)?
+            } else {
+                String::new()
+            };
+            classify_invalid(message, &detail)
+        }
         _ => None,
     };
     if let Some((_, Some(failure))) = &operation_rejection {
@@ -158,7 +165,7 @@ fn dispatch(
             let i: TodoReplaceInput = input(arguments)?;
             let old = work::todo(tx, id.turn_task_id)?;
             if old.revision != i.expected_revision {
-                return Err(Error::Conflict);
+                return Err(stale_todo(&old));
             }
             let state = TodoState {
                 turn_task_id: old.turn_task_id,
@@ -176,10 +183,13 @@ fn dispatch(
             let i: TodoUpdateInput = input(arguments)?;
             let old = work::todo(tx, id.turn_task_id)?;
             if old.revision != i.expected_revision {
-                return Err(Error::Conflict);
+                return Err(stale_todo(&old));
             }
             let mut state = old.clone();
-            let item = state.items.iter_mut().find(|v| v.id == i.item_id).ok_or(Error::Conflict)?;
+            let item = state.items.iter_mut().find(|v| v.id == i.item_id).ok_or(Error::Invalid(
+                "todo.item_id: this turn's to-do has no item with this id; read the to-do with \
+                 todo.get for its items and their ids",
+            ))?;
             item.status = i.status;
             if let Some(title) = i.title {
                 item.title = title;
@@ -299,6 +309,19 @@ fn dispatch(
     }
 }
 
+/// A to-do change sent against another revision than the to-do's own. Each user message starts a
+/// new to-do, empty at the first revision, while the conversation still shows the earlier one.
+fn stale_todo(todo: &TodoState) -> Error {
+    Error::Invalid(if todo.revision == Revision::INITIAL && todo.items.is_empty() {
+        "todo.expected_revision: this turn's to-do is new and empty, at revision \"1\"; each new \
+         user message starts a new to-do, so the to-do and revisions in earlier results no longer \
+         apply. Send expected_revision \"1\""
+    } else {
+        "todo.expected_revision: it is not the current revision of this turn's to-do; read the \
+         to-do with todo.get and send the revision it shows"
+    })
+}
+
 fn disposition_blocks(
     tx: &Transaction<'_>,
     batch: &ToolBatchRequestV1,
@@ -389,8 +412,10 @@ fn bound_reconcile(
     })
 }
 
+/// `detail` follows the message: what this session's records tell about it, or nothing.
 fn classify_invalid(
     message: &'static str,
+    detail: &str,
 ) -> Option<(ModelSafeToolErrorV1, Option<DeterministicFailure>)> {
     let failure = lineage_failure(message);
     let (code, category) = match message {
@@ -420,7 +445,9 @@ fn classify_invalid(
             if other.starts_with("tools.")
                 || other.starts_with("task_lineage.")
                 || other.starts_with("skills.")
+                || other.starts_with("plugins.")
                 || other.starts_with("shell.")
+                || other.starts_with("todo.")
                 || other.starts_with("context.")
                 || other.starts_with("history.") =>
         {
@@ -429,7 +456,7 @@ fn classify_invalid(
         _ => return None,
     };
     let text = failure.as_ref().map(DeterministicFailure::model_message).unwrap_or_else(|| {
-        format!("{message}. retryable:false means the identical arguments will fail; corrected arguments may be submitted.")
+        format!("{message}.{detail} retryable:false means the identical arguments will fail; corrected arguments may be submitted.")
     });
     Some((ModelSafeToolErrorV1 { code, category, message: text, retryable: false }, failure))
 }

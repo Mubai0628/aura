@@ -136,7 +136,7 @@ export function ChromeSettings({ coreReady }: { coreReady: boolean }) {
   };
 
   const ready = status?.revision != null && !busy;
-  const enabled = status?.enabled ?? false;
+  const enabled = status?.enabled;
   return (
     <section aria-label="Chrome" className="settings-surface browser-settings-chrome">
       <div className="browser-settings-row-inline">

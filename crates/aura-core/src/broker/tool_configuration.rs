@@ -105,9 +105,10 @@ where
         operation,
         request.command_invocation_id.map_or_else(|| request.id.to_string(), |id| id.to_string()),
         request.command_invocation_id,
+        super::OnChangedFacts::Refuse,
         inspect,
         evidence,
-        call,
+        move |_| call(),
     )
     .await
 }

@@ -51,6 +51,7 @@ aura-core-activity = { path = "../aura-core-activity" }
 aura-core-broker = { path = "../aura-core-broker" }
 aura-model-service = { path = "../aura-model-service" }
 aura-chrome-service = { path = "../aura-chrome-service" }
+aura-desktop-service = { path = "../aura-desktop-service" }
 aura-git-service = { path = "../aura-git-service" }
 aura-memory = { path = "../aura-memory" }
 aura-execution-orchestrator = { path = "../aura-execution-orchestrator" }
@@ -62,10 +63,12 @@ aura-backend-api = { path = "../aura-backend-api" }
 aura-backend-core = { path = "../aura-backend-core" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }
 aura-chrome-domain = { path = "../aura-chrome-domain" }
+aura-desktop-domain = { path = "../aura-desktop-domain" }
 aura-windows-user-contract = { path = "../aura-windows-user-contract" }
 aura-execution-contract = { path = "../aura-execution-contract" }
 aura-commands = { path = "../aura-commands" }
 aura-mcp = { path = "../aura-mcp" }
+aura-plugin-session = { path = "../aura-plugin-session" }
 aura-plugins = { path = "../aura-plugins" }
 aura-workspace-domain = { path = "../aura-workspace-domain" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }
@@ -128,6 +131,7 @@ aura-core-activity = { path = "../aura-core-activity", features = ["test-hooks"]
 aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
 aura-model-service = { path = "../aura-model-service", features = ["test-hooks"] }
 aura-chrome-service = { path = "../aura-chrome-service", features = ["test-hooks"] }
+aura-desktop-service = { path = "../aura-desktop-service", features = ["test-hooks"] }
 aura-git-service = { path = "../aura-git-service", features = ["test-hooks"] }
 junction.workspace = true
 # Test-only: hold one file's real scan open, so the IPC lifecycle tests drive the

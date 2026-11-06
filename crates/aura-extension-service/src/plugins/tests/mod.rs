@@ -1,4 +1,12 @@
+mod chats;
+mod development;
+mod export;
 mod import;
+mod logs;
 mod routes;
+mod secret_keys;
+mod secret_route;
+mod service;
 mod support;
+mod theme;
 mod uninstall;

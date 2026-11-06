@@ -12,7 +12,9 @@ await runDiagnostic('core-liveness', async ({ dir, log }) => {
     environment: { AURA_IPC_TRACE_FILE: join(dir, 'core-trace.log') },
   });
   const window = await application.firstWindow();
-  await window.getByText('Aura Core 已就绪').waitFor({ state: 'visible', timeout: 20000 });
+  await window
+    .locator('.app-shell[data-core-state="ready"]')
+    .waitFor({ state: 'visible', timeout: 20000 });
   log('core ready');
 
   // Start the slow probe without awaiting it, then issue a fast command on the

@@ -159,6 +159,7 @@ pub fn authorize(
         mcp_consent: None,
         chrome_consent: None,
         chrome_site_consent: None,
+        desktop_app_consent: None,
         file_consent: None,
         network_consent: None,
         capability_limit: None,

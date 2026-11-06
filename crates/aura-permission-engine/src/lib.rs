@@ -2,6 +2,7 @@
 
 mod browser;
 mod chrome;
+mod desktop;
 pub mod dispatch_guard;
 pub mod mode_ceiling;
 pub mod network;
@@ -584,7 +585,8 @@ fn capability_baseline_within_mode(
         C::ToolRegistryRead
         | C::ToolEphemeralExposureWrite
         | C::AgentTaskRead
-        | C::AgentTaskWrite => Allow,
+        | C::AgentTaskWrite
+        | C::PluginDevelopmentInstall => Allow,
         C::MemoryRead | C::MemoryWrite | C::MemoryDelete => Ask,
         C::ChromeRead => Allow,
         C::ChromeInteraction => {
@@ -595,6 +597,8 @@ fn capability_baseline_within_mode(
             }
         }
         C::ChromeSensitiveAction => Ask,
+        // Whether a program is authorized is the session's, never the mode's.
+        C::DesktopRead | C::DesktopInput => Ask,
         C::ExternalExtensionCall => {
             if mode == ReadOnly {
                 Ask

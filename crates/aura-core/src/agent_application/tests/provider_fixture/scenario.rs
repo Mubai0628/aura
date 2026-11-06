@@ -36,6 +36,13 @@ pub enum Scenario {
         tool: &'static str,
         arguments: &'static str,
     },
+    /// `history.list_turns` and then `history.read` of round 1's first message, of the other
+    /// conversation the request's user message refers to by its handle, then an answer; a
+    /// request that refers to none is answered at once.
+    ReferredHistory,
+    /// `fs.read` of the file outside the workspace attached to the request's user message, by
+    /// the path its line names, then an answer; a request with none is answered at once.
+    ReadAttachedFile,
     /// Several calls in one turn, each after the previous one's result, then an
     /// answer; each is a tool and its arguments as JSON text.
     Sequence {

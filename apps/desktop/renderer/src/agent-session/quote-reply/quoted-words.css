@@ -1,0 +1,19 @@
+/* A message with quotes, before the conversation shows it: each quote behind a bar, as the
+   conversation's Markdown draws one. */
+.quoted-words {
+  display: grid;
+  gap: 6px;
+}
+
+.quoted-words p,
+.quoted-words blockquote {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quoted-words blockquote {
+  padding-left: 8px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--muted);
+}

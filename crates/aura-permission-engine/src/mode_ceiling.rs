@@ -52,6 +52,10 @@ pub fn permits(
     if capabilities.contains(&C::ConfigurationWrite) {
         return false;
     }
+    // A program on the user's desktop is authorized by the session, not by any mode.
+    if capabilities.iter().copied().any(aura_security_contract::desktop_capability) {
+        return false;
+    }
     if mode == PermissionMode::FullAccess {
         return true;
     }
@@ -75,6 +79,8 @@ pub fn permits(
         C::ProcessExecute => mode != PermissionMode::ReadOnly,
         // A trusted MCP server's tool; ReadOnly asks once per server per turn.
         C::ExternalExtensionCall => mode != PermissionMode::ReadOnly,
+        // Inert until the user trusts the plugin; ReadOnly refuses it below.
+        C::PluginDevelopmentInstall => mode != PermissionMode::ReadOnly,
         // A workspace write, delete or move is what WorkspaceReadWrite and FullAccess
         // already authorize without asking. In ReadOnly it is not authorized *by the
         // mode* — the approval flow asks, and one approved target may proceed.
@@ -124,6 +130,11 @@ pub(crate) fn process(c: C) -> bool {
 /// is deliberately *not* here: it asks.
 pub(crate) fn refuses_outright(actor: InvocationActor, capabilities: &[C]) -> bool {
     if capabilities.contains(&C::ConfigurationWrite) {
+        return true;
+    }
+    // Installing a plugin in development changes Aura's plugin list, which ReadOnly never does;
+    // only ReadOnly reaches here for it. The user can add the folder on the plugin page.
+    if capabilities.contains(&C::PluginDevelopmentInstall) {
         return true;
     }
     // UNWIRED: nothing creates a child agent run, so this actor never reaches here.

@@ -23,6 +23,30 @@ export function useTurnChoice<T>(key: string, initial: T): [T, (value: T) => voi
   return [value, choose];
 }
 
+/**
+ * What the user chose for one stretch of a turn's process, by the keys of its parts, first part
+ * first. A stretch is named by its first part, and a long turn's earlier steps are read later, in
+ * front of the stretch that was first: a choice kept under any of its parts is the stretch's.
+ */
+export function sectionChoice(
+  chosen: Record<string, boolean>,
+  keys: readonly string[],
+): boolean | undefined {
+  const key = keys.find((key) => Object.hasOwn(chosen, key));
+  return key === undefined ? undefined : chosen[key];
+}
+
+/** The turn's choices with this stretch set to `open`, kept under its first part only. */
+export function withSectionChoice(
+  chosen: Record<string, boolean>,
+  keys: readonly string[],
+  open: boolean,
+): Record<string, boolean> {
+  const next = Object.fromEntries(Object.entries(chosen).filter(([key]) => !keys.includes(key)));
+  next[keys[0]!] = open;
+  return next;
+}
+
 /** Tests start from a window that kept nothing. */
 export function forgetTurnChoices(): void {
   kept.clear();

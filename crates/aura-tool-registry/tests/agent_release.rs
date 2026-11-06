@@ -7,8 +7,46 @@ fn closed_release_has_complete_unique_stable_identities() {
     let embedded = release().expect("embedded release matches generated schemas");
     assert_eq!(&generated, embedded.manifest());
     // The count is a completeness check on the closed release, so it moves when
-    // the release legitimately gains a tool and the new entry is named below.
-    assert_eq!(generated.entries.len(), 112);
+    // the release legitimately gains or retires a tool and the entry is named below.
+    assert_eq!(generated.entries.len(), 118);
+    // Programs on the user's desktop: the parent's only; the listing is task state, reads read
+    // the desktop and the rest act on it.
+    for (name, capability, writes) in [
+        ("computer.apps", aura_security_contract::ResolvedCapability::AgentTaskRead, false),
+        ("computer.open", aura_security_contract::ResolvedCapability::DesktopInput, true),
+        ("computer.snapshot", aura_security_contract::ResolvedCapability::DesktopRead, false),
+        ("computer.screenshot", aura_security_contract::ResolvedCapability::DesktopRead, false),
+        ("computer.act", aura_security_contract::ResolvedCapability::DesktopInput, true),
+        ("computer.input", aura_security_contract::ResolvedCapability::DesktopInput, true),
+        ("computer.window", aura_security_contract::ResolvedCapability::DesktopInput, true),
+    ] {
+        let entry = embedded.entry(name).expect("computer tool is published");
+        assert_eq!(entry.definition.audience, aura_tool_contract::ToolAudienceV1::ParentAgentOnly);
+        assert_eq!(entry.definition.capabilities, vec![capability], "{name}");
+        assert_eq!(
+            entry.definition.execution_semantics.may_create_persistent_effects, writes,
+            "{name}"
+        );
+    }
+    // Writing a plugin: a check and an error read, and an install that records the folder and
+    // trusts nothing. All the parent's.
+    for (name, capability, writes) in [
+        ("plugins.validate", aura_security_contract::ResolvedCapability::ToolRegistryRead, false),
+        (
+            "plugins.dev_install",
+            aura_security_contract::ResolvedCapability::PluginDevelopmentInstall,
+            true,
+        ),
+        ("plugins.logs", aura_security_contract::ResolvedCapability::ToolRegistryRead, false),
+    ] {
+        let entry = embedded.entry(name).expect("plugin tool is published");
+        assert_eq!(entry.definition.audience, aura_tool_contract::ToolAudienceV1::ParentAgentOnly);
+        assert_eq!(entry.definition.capabilities, vec![capability], "{name}");
+        assert_eq!(
+            entry.definition.execution_semantics.may_create_persistent_effects, writes,
+            "{name}"
+        );
+    }
     // The conversation's history by round: three reads, all the parent's.
     for name in ["history.list_turns", "history.search", "history.read"] {
         let entry = embedded.entry(name).expect("published");
@@ -96,17 +134,14 @@ fn closed_release_has_complete_unique_stable_identities() {
     let call = embedded.entry("tools.call").expect("L10.21 entry is published");
     assert!(!call.definition.execution_semantics.may_create_persistent_effects);
     assert_eq!(call.definition.audience, aura_tool_contract::ToolAudienceV1::ParentAgentOnly);
-    // The user's Skills: four reads, and a load and an unload that change only this turn.
-    for (name, writes) in [
-        ("skills.search", false),
-        ("skills.describe", false),
-        ("skills.load", true),
-        ("skills.unload", true),
-        ("skills.list_loaded", false),
-        ("skills.read_resource", false),
-    ] {
-        let entry = embedded.entry(name).expect("L09 Skill tool is published");
-        assert_eq!(entry.definition.execution_semantics.may_create_persistent_effects, writes);
+    // The user's Skills: a search and a load by name, both reads. The tools that described,
+    // unloaded, listed and read loaded Skills are no longer offered.
+    for name in ["skills.search", "skills.load"] {
+        let entry = embedded.entry(name).expect("Skill tool is published");
+        assert!(!entry.definition.execution_semantics.may_create_persistent_effects, "{name}");
+    }
+    for name in ["skills.describe", "skills.unload", "skills.list_loaded", "skills.read_resource"] {
+        assert!(embedded.entry(name).is_none(), "{name}");
     }
     // Workspace prompt commands: two reads, and a save and a delete that write files.
     for (name, writes) in [

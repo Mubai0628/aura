@@ -75,6 +75,8 @@ pub(super) fn entries(
     entries.extend(super::media_definitions::entries(at)?);
     entries.extend(super::chrome_definitions::entries(at)?);
     entries.extend(super::history_definitions::entries(at)?);
+    entries.extend(super::plugin_definitions::entries(at)?);
+    entries.extend(super::computer_definitions::entries(at)?);
     Ok(entries)
 }
 
@@ -129,6 +131,10 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
             | AgentBuiltinHandler::SkillsUnload
             | AgentBuiltinHandler::SkillsListLoaded
             | AgentBuiltinHandler::SkillsReadResource
+            // Writing a plugin is the user's conversation with the model, not a child's task.
+            | AgentBuiltinHandler::PluginsValidate
+            | AgentBuiltinHandler::PluginsDevInstall
+            | AgentBuiltinHandler::PluginsLogs
             | AgentBuiltinHandler::ToolsCall
             // The built-in browser is the parent's; a child agent has none (V2 §18).
             | AgentBuiltinHandler::BrowserOpen
@@ -165,6 +171,14 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
             | AgentBuiltinHandler::ChromeConsole
             | AgentBuiltinHandler::ChromeClose
             | AgentBuiltinHandler::ChromeRequestUser
+            // And the user's own desktop.
+            | AgentBuiltinHandler::ComputerApps
+            | AgentBuiltinHandler::ComputerOpen
+            | AgentBuiltinHandler::ComputerSnapshot
+            | AgentBuiltinHandler::ComputerScreenshot
+            | AgentBuiltinHandler::ComputerAct
+            | AgentBuiltinHandler::ComputerInput
+            | AgentBuiltinHandler::ComputerWindow
     );
     let mut claims = vec![];
     if matches!(

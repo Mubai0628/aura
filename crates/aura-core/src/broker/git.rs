@@ -74,9 +74,10 @@ pub(crate) async fn dispatch_git(
         operation,
         request.id.to_string(),
         request.command_invocation_id,
+        super::OnChangedFacts::Refuse,
         inspect,
         evidence,
-        move || async move {
+        move |_| async move {
             let reader = prepared
                 .lock()
                 .map_err(|_| super::error_envelope(correlation, "git.preparation_lock"))?

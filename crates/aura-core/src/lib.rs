@@ -529,11 +529,10 @@ struct RuntimeServices {
     /// its configuration domain is damaged — it is **not** a Core failure, and
     /// every field below that is not `Option` keeps working regardless.
     ///
-    /// Each slot is behind its own `Mutex` so a **real**
-    /// configuration recovery can supply the missing service on the live runtime. A
-    /// missing capability is not permanent — the configuration it depends on can be
-    /// repaired in place — and the slot has to be fillable for the recovery to be able to
-    /// report anything more than a cleared record.
+    /// Each slot is behind its own `Mutex` so a **real** configuration recovery can supply the
+    /// missing service on the live runtime. A missing capability is not permanent — the
+    /// configuration it depends on can be repaired in place — and the slot has to be fillable
+    /// for the recovery to be able to report anything more than a cleared record.
     ///
     /// A per-slot lock, deliberately **not** one lock over the whole service graph: a
     /// rebuild prepares outside the lock and publishes inside it for one slot, so unrelated
@@ -581,8 +580,9 @@ struct RuntimeServices {
     mcp: Arc<mcp::McpRuntime>,
     /// The user's Skills, for Settings → Skill and the model's `skills.*` tools.
     skills: Arc<skills::SkillRuntime>,
-    /// The installed plugins, for Settings → 插件.
+    /// The installed plugins, for Settings → 插件, and the background services it turned on.
     plugins: Arc<plugins::PluginRuntime>,
+    plugin_services: Arc<aura_plugin_session::PluginServices>,
     /// Chrome control: the relay's pipe, pairing and the connected extension.
     chrome: Arc<chrome_control::ChromeControl>,
     /// The process's configuration-derived capability availability, passed
@@ -1960,9 +1960,9 @@ fn send_control_answer(queue: &AsyncPriorityQueue, response: &JsonRpcResponse) -
 /// Queue a frame without waiting for space.
 ///
 /// Used by the branches the read loop answers directly (refusals, expirations,
-/// secret-input replies). Parking the reader for queue space would starve
-/// cancellation and connection control, so a full partition is an error the
-/// caller turns into a connection failure.
+/// secret-input replies). Parking the reader would starve cancellation and
+/// connection control; a P0 answer waits in the queue's bounded overflow, and
+/// only a full queue is an error the caller turns into a connection failure.
 fn try_send_json<T: Serialize>(
     queue: &AsyncPriorityQueue,
     priority: QueuePriority,

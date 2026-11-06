@@ -196,7 +196,10 @@ fn concurrent_writers_at_one_revision_each_keep_their_own_history_entry() {
     assert!(!names.is_empty(), "{applied} concurrent saves applied, so the history is not empty");
 
     // And the reader still recovers the revision from every name, because the name format is a
-    // contract `recovery::recorded_versions` depends on.
+    // contract `recovery::recorded_versions` depends on: the revision of the document the entry
+    // holds. It has no floor. Opening a facade records the valid file it loaded, so a writer that
+    // opened before any save applied leaves an entry at revision 1; when that writer was slow,
+    // its entry is among the newest and outlives the retention limit.
     let recovered = aura_config::recovery::recorded_versions(&paths, module)
         .expect("the history reader really runs");
     assert_eq!(
@@ -205,12 +208,17 @@ fn concurrent_writers_at_one_revision_each_keep_their_own_history_entry() {
         "every versioned entry is still readable as a version, so the name format kept its contract: \
          {names:?}"
     );
-    assert!(
-        recovered.iter().all(|version| version.revision >= 2),
-        "and each is recovered at or above the revision it was written from, so no name lost its \
-         revision: {:?}",
-        recovered.iter().map(|version| version.revision).collect::<Vec<_>>()
-    );
+    for version in &recovered {
+        let bytes = fs::read(&version.path).expect("a versioned entry is readable");
+        let document =
+            aura_config::parse_document(module, &bytes).expect("a versioned entry is a document");
+        assert_eq!(
+            version.revision,
+            document.revision,
+            "the name of {} gives the revision of the document it holds",
+            version.path.display()
+        );
+    }
 }
 
 ///

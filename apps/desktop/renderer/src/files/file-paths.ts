@@ -98,9 +98,14 @@ const NOT_A_WINDOWS_PATH = /[\n\r\t"<>|?*:]/u;
  * A file outside the
  * workspace named by its full path, a drive first, with a name this conversation recognizes as a
  * file's; spaces and brackets are allowed, as in `C:\Program Files (x86)\…`. Nothing for a path in
- * the workspace (that is `fileReference`'s) or for anything else.
+ * the workspace (that is `fileReference`'s) or for anything else. `file: true` is for text known to
+ * name a file, as a file tool's target, which needs no recognisable extension.
  */
-export function outsidePath(text: string, root: string): string | undefined {
+export function outsidePath(
+  text: string,
+  root: string,
+  options: { file?: boolean } = {},
+): string | undefined {
   const path = text.trim();
   if (!/^[a-z]:[\\/]/iu.test(path) || path.length > 400 || NOT_A_WINDOWS_PATH.test(path.slice(2)))
     return undefined;
@@ -110,7 +115,8 @@ export function outsidePath(text: string, root: string): string | undefined {
   const parts = path.slice(3).split(/[\\/]/u);
   if (parts.some((part) => part === '' || part === '.' || part === '..')) return undefined;
   const name = parts.at(-1)!;
-  if (!NAMES.has(name) && !EXTENSIONS.has(extensionOf(name) ?? '')) return undefined;
+  if (!options.file && !NAMES.has(name) && !EXTENSIONS.has(extensionOf(name) ?? ''))
+    return undefined;
   return path;
 }
 

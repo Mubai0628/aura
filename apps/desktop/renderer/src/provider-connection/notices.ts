@@ -1,5 +1,8 @@
 import type { NotificationInput } from '../notification-center-store';
 import { userMessage } from '../agent-session/user-message';
+import { FACTS_CHANGED, MODEL_SETTINGS_CHANGING } from '../model-settings-store';
+
+type Notify = (notification: NotificationInput) => void;
 
 /** When Core's answer has no sentence the user can read. */
 export const MODEL_FAILURE_FALLBACK = '操作没有完成。请刷新模型设置，核对当前状态后重试。';
@@ -13,7 +16,10 @@ export const notifyFailure = (
 ) => {
   notify({
     dedupeKey: `${key}:${error.code}`,
-    message: userMessage(error, MODEL_FAILURE_FALLBACK),
+    message:
+      error.code === FACTS_CHANGED
+        ? MODEL_SETTINGS_CHANGING
+        : userMessage(error, MODEL_FAILURE_FALLBACK),
     title,
     tone: 'danger',
   });
@@ -49,16 +55,74 @@ export const notifyCredentialFailure = (
 };
 
 export const notifyDeletion = (
-  notify: (notification: NotificationInput) => void,
+  notify: Notify,
   displayName: string,
   credentialCleanupPending: boolean,
 ) => {
-  notify({
-    dedupeKey: `model-config-deleted:${displayName}:${credentialCleanupPending}`,
-    message: credentialCleanupPending
-      ? '配置已删除，仍有凭据等待安全清理。配置不会重新进入 Runtime，也不能再解析该凭据。'
-      : `${displayName} 已从本地模型配置删除。`,
-    title: credentialCleanupPending ? '凭据清理待完成' : '配置已删除',
-    tone: credentialCleanupPending ? 'warning' : 'success',
-  });
+  notify(
+    credentialCleanupPending
+      ? credentialCleanupNotice(
+          notify,
+          `model-config-deleted:${displayName}:true`,
+          `${displayName} 已删除，仍有凭据等待安全清理，Aura 会在后台继续重试。配置不会重新进入 Runtime，也不能再解析该凭据。`,
+        )
+      : {
+          dedupeKey: `model-config-deleted:${displayName}:false`,
+          message: `${displayName} 已从本地模型配置删除。`,
+          title: '配置已删除',
+          tone: 'success',
+        },
+  );
+};
+
+/** Credentials of deleted settings that Windows Credential Manager still holds, with 重试. */
+const credentialCleanupNotice = (
+  notify: Notify,
+  dedupeKey: string,
+  message: string,
+): NotificationInput => ({
+  action: retryAction(notify),
+  dedupeKey,
+  message,
+  title: '凭据清理待完成',
+  tone: 'warning',
+});
+
+const retryAction = (notify: Notify) => ({
+  label: '重试',
+  run: () => void retryCredentialCleanup(notify),
+});
+
+/** Tries every credential deleted settings left once more, and says what is left. */
+export const retryCredentialCleanup = async (notify: Notify) => {
+  const result = await window.aura.v1.retryModelCredentialCleanup({}).catch(() => undefined);
+  if (result === undefined || !result.ok) {
+    const error = result?.error;
+    notify({
+      action: retryAction(notify),
+      dedupeKey: `model-credential-cleanup:${error?.code ?? 'unanswered'}`,
+      message:
+        error?.code === FACTS_CHANGED
+          ? MODEL_SETTINGS_CHANGING
+          : userMessage(error, '凭据清理没有完成，Aura 会在后台继续重试。'),
+      title: '凭据清理未完成',
+      tone: 'danger',
+    });
+    return;
+  }
+  const pending = result.value.pending_credentials;
+  notify(
+    pending === 0
+      ? {
+          dedupeKey: 'model-credential-cleanup:done',
+          message: '已删除配置的凭据都已从 Windows 凭据管理器清理。',
+          title: '凭据已清理',
+          tone: 'success',
+        }
+      : credentialCleanupNotice(
+          notify,
+          'model-credential-cleanup:pending',
+          `Windows 凭据管理器仍未删除 ${pending} 个凭据，Aura 会在后台继续重试。`,
+        ),
+  );
 };

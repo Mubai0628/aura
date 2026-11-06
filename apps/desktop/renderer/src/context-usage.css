@@ -9,7 +9,7 @@
   place-items: center;
   padding: 4px;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: transparent;
   cursor: pointer;
 }
@@ -19,11 +19,18 @@
 }
 .context-ring {
   display: block;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: conic-gradient(#242827 var(--context-angle), #dcdedc 0);
-  mask: radial-gradient(transparent 53%, #000 55%);
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+.pixel-ring {
+  display: block;
+}
+.pixel-ring-lit {
+  fill: currentColor;
+}
+.pixel-ring-rest {
+  fill: var(--line-strong);
 }
 /* Above the ring, a square-cornered
    card in the inspector's pixel style — a row of squares per kind of use, then the whole use. */
@@ -39,7 +46,7 @@
   padding: 10px 12px 12px;
   border: 1px solid var(--line-strong);
   background: var(--surface);
-  box-shadow: 4px 4px 0 rgba(31, 38, 33, 0.08);
+  box-shadow: var(--shadow-md);
   transform: translateX(-50%);
   animation: context-pixel-enter 140ms ease-out;
 }

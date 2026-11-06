@@ -18,6 +18,8 @@ export const SHIPPED = [
   'aura-elevated-helper',
   'aura-setup',
   'aura-chrome-host',
+  // Builds aura-desktop-host.exe.
+  'aura-desktop-control',
 ];
 const LICENSE_FILE = /^(licen[cs]e|copying|notice)/iu;
 

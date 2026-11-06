@@ -7,7 +7,7 @@
   padding: 14px;
   margin-top: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface-muted);
 }
 .availability-skeleton strong {
@@ -18,7 +18,7 @@
 .skeleton-bar {
   display: block;
   height: 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--line);
   animation: availability-pulse 1.6s ease-in-out infinite;
 }

@@ -1,13 +1,13 @@
 use std::{
     collections::VecDeque,
     sync::{
-        Arc,
+        Arc, Mutex, MutexGuard, PoisonError,
         atomic::{AtomicBool, Ordering},
     },
 };
 
 use thiserror::Error;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::Notify;
 
 use crate::{
     AUTHENTICATED_FRAME_HEADER_SIZE, FRAME_LENGTH_PREFIX_SIZE, MAX_CONTROL_PAYLOAD_BYTES, WireFrame,
@@ -25,6 +25,13 @@ const P1_RESERVED_BYTES: usize =
 const BULK_MAX_FRAMES: usize = SHARED_MAX_FRAMES - P1_RESERVED_FRAMES;
 const BULK_MAX_BYTES: usize = SHARED_MAX_BYTES - P1_RESERVED_BYTES;
 const P0_MAX_FRAME_BYTES: usize = 32 * 1024;
+/// Answers the connection reader writes itself ([`AsyncPriorityQueue::try_send`] at P0) that find
+/// the reservation full wait here, right behind it, so a burst of refused requests is answered
+/// instead of ending the connection. Main keeps at most 848 requests per channel waiting for an
+/// answer (768 ordinary, 80 control), so such a burst always fits; the bound still stops a peer that
+/// never reads from growing it.
+const P0_OVERFLOW_FRAMES: usize = 1024;
+const P0_OVERFLOW_BYTES: usize = 1024 * 1024;
 const SHARED_SCHEDULE: [QueuePriority; 7] = [
     QueuePriority::P1,
     QueuePriority::P1,
@@ -73,10 +80,12 @@ pub struct QueueClosed;
 #[derive(Default)]
 struct QueueState {
     p0: VecDeque<OutboundFrame>,
+    p0_overflow: VecDeque<OutboundFrame>,
     p1: VecDeque<OutboundFrame>,
     p2: VecDeque<OutboundFrame>,
     p3: VecDeque<OutboundFrame>,
     p0_bytes: usize,
+    p0_overflow_bytes: usize,
     shared_bytes: usize,
     shared_cursor: usize,
 }
@@ -96,7 +105,7 @@ impl QueueState {
 
     /// Frames still queued, for tracing only.
     fn depth(&self) -> usize {
-        self.p0.len() + self.shared_frames()
+        self.p0.len() + self.p0_overflow.len() + self.shared_frames()
     }
 
     fn validate_push(&self, outbound: &OutboundFrame) -> Result<(), QueuePushError> {
@@ -152,9 +161,40 @@ impl QueueState {
         }
     }
 
+    /// [`AsyncPriorityQueue::try_send`]'s push. A P0 answer that finds the reservation full, or
+    /// earlier answers already waiting behind it, joins the overflow, so the reader's answers keep
+    /// their order and control frames sent with [`AsyncPriorityQueue::send`] keep the reservation.
+    fn push_answer(&mut self, outbound: OutboundFrame) -> Result<(), QueuePushError> {
+        let fits = self.validate_push(&outbound);
+        if outbound.priority != QueuePriority::P0 {
+            fits?;
+            self.push(outbound);
+            return Ok(());
+        }
+        match fits {
+            Ok(()) if self.p0_overflow.is_empty() => self.push(outbound),
+            Ok(()) | Err(QueuePushError::Full) => {
+                let bytes = outbound.encoded_len();
+                if self.p0_overflow.len() >= P0_OVERFLOW_FRAMES
+                    || self.p0_overflow_bytes.saturating_add(bytes) > P0_OVERFLOW_BYTES
+                {
+                    return Err(QueuePushError::Full);
+                }
+                self.p0_overflow_bytes += bytes;
+                self.p0_overflow.push_back(outbound);
+            }
+            Err(error) => return Err(error),
+        }
+        Ok(())
+    }
+
     fn pop(&mut self) -> Option<OutboundFrame> {
         if let Some(frame) = self.p0.pop_front() {
             self.p0_bytes = self.p0_bytes.saturating_sub(frame.encoded_len());
+            return Some(frame);
+        }
+        if let Some(frame) = self.p0_overflow.pop_front() {
+            self.p0_overflow_bytes = self.p0_overflow_bytes.saturating_sub(frame.encoded_len());
             return Some(frame);
         }
 
@@ -177,11 +217,20 @@ impl QueueState {
 }
 
 struct SharedQueue {
+    /// Held only to push or pop one frame, never across an await, so a contended lock is a wait of
+    /// microseconds rather than a reason to report the queue full.
     state: Mutex<QueueState>,
     item_available: Notify,
     space_available: Notify,
     connection_closed: Notify,
     closed: AtomicBool,
+}
+
+impl SharedQueue {
+    /// The critical sections cannot leave the state half changed, so a poisoned lock is still usable.
+    fn lock(&self) -> MutexGuard<'_, QueueState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 #[derive(Clone)]
@@ -216,7 +265,7 @@ impl AsyncPriorityQueue {
                 return Err(QueuePushError::Closed);
             }
             {
-                let mut state = self.shared.state.lock().await;
+                let mut state = self.shared.lock();
                 match state.validate_push(&outbound) {
                     Ok(()) => {
                         state.push(outbound);
@@ -237,15 +286,17 @@ impl AsyncPriorityQueue {
     /// [`Self::send`] parks until the target partition has room, which is fine
     /// for producer tasks. The connection reader cannot afford that: it owes the
     /// peer an immediate answer for a refused request, and waiting would stop it
-    /// from serving cancellation and connection control. A full partition is
-    /// therefore reported as [`QueuePushError::Full`] and the caller decides.
+    /// from serving cancellation and connection control. A P0 answer that finds
+    /// the reservation full waits in the overflow behind it
+    /// ([`P0_OVERFLOW_FRAMES`]); only when that is full too, or for another
+    /// priority whose partition is full, is [`QueuePushError::Full`] reported and
+    /// the caller decides.
     pub fn try_send(&self, outbound: OutboundFrame) -> Result<(), QueuePushError> {
         if self.shared.closed.load(Ordering::Acquire) {
             return Err(QueuePushError::Closed);
         }
-        let mut state = self.shared.state.try_lock().map_err(|_| QueuePushError::Full)?;
-        state.validate_push(&outbound)?;
-        state.push(outbound);
+        let mut state = self.shared.lock();
+        state.push_answer(outbound)?;
         drop(state);
         self.shared.item_available.notify_one();
         Ok(())
@@ -255,7 +306,7 @@ impl AsyncPriorityQueue {
         loop {
             let notified = self.shared.item_available.notified();
             {
-                let mut state = self.shared.state.lock().await;
+                let mut state = self.shared.lock();
                 if let Some(frame) = state.pop() {
                     let depth = state.depth();
                     drop(state);
@@ -294,6 +345,8 @@ impl AsyncPriorityQueue {
 }
 
 #[cfg(test)]
+mod answer_overflow_tests;
+#[cfg(test)]
 mod media_connection_tests;
 #[cfg(test)]
 mod tests {
@@ -307,17 +360,17 @@ mod tests {
     fn try_send_reports_a_full_partition_instead_of_waiting() {
         let queue = AsyncPriorityQueue::new();
         let mut sent = 0;
-        // The P0 partition is reserved for connection control, so it is small
-        // on purpose: the reader must be told "full" rather than park.
+        // The reservation and the overflow behind it are both bounded: once
+        // they are full the reader must be told "full" rather than park.
         loop {
             match queue.try_send(error_frame(64)) {
                 Ok(()) => sent += 1,
                 Err(QueuePushError::Full) => break,
                 Err(error) => panic!("unexpected push error: {error}"),
             }
-            assert!(sent <= P0_RESERVED_FRAMES, "the reserved bound must hold");
+            assert!(sent <= P0_RESERVED_FRAMES + P0_OVERFLOW_FRAMES, "the bound must hold");
         }
-        assert_eq!(sent, P0_RESERVED_FRAMES, "the reserved frames are all usable");
+        assert_eq!(sent, P0_RESERVED_FRAMES + P0_OVERFLOW_FRAMES, "every bounded place is usable");
     }
 
     #[tokio::test]

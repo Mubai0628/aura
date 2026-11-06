@@ -5,6 +5,8 @@ import type {
   ProviderPresetVariantView,
 } from '@aura/contracts/generated';
 
+import { fillBaseUrl, matchBaseUrl } from './base-url-template';
+
 /** The endpoint editor's draft: what it starts from and when it differs from what is saved. */
 export type EditorTarget = 'new' | string | undefined;
 export type DiscoveryModeChoice = ModelDiscoveryMode['type'];
@@ -58,11 +60,18 @@ export const isEndpointDraftDirty = (
   );
 };
 
+/** Whether `baseUrl` is the address the preset writes: its own, or its template at the values
+ *  the address gives. One written otherwise is kept as the user typed it. */
+const presetWritesAddress = (preset: ProviderPresetVariantView, baseUrl: string): boolean => {
+  const values = matchBaseUrl(preset, baseUrl);
+  return values !== undefined && fillBaseUrl(preset, values) === baseUrl;
+};
+
 export const presetMatchesEndpoint = (
   preset: ProviderPresetVariantView,
   endpoint: ModelEndpointConfig,
 ): boolean =>
-  preset.base_url === endpoint.base_url &&
+  presetWritesAddress(preset, endpoint.base_url) &&
   preset.api_format === endpoint.api_format &&
   preset.auth_scheme === endpoint.auth_scheme &&
   JSON.stringify(preset.discovery_mode) === JSON.stringify(endpoint.discovery_mode) &&

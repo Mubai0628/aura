@@ -84,6 +84,23 @@ fn authenticated_secret_input_uses_frame_kind_three_and_zeroizes_decoded_bytes()
 }
 
 #[test]
+fn a_plugin_settings_secret_has_its_own_operation_on_the_frame() {
+    let frame = SecretInputFrameV1::new(
+        CorrelationId::new(),
+        CommandInvocationId::new(),
+        SecretInputOperation::PluginSecretSet,
+        SecretInputSlot::ApiKey,
+        b"bot-token".to_vec(),
+    )
+    .expect("secret frame");
+    let encoded = aura_ipc::encode_secret_input_payload(&frame);
+    assert_eq!(encoded[1], 8, "the operation after MCP's 7");
+    let mut copy = encoded.to_vec();
+    let decoded = aura_ipc::decode_secret_input_payload(&mut copy).expect("decoded");
+    assert_eq!(decoded.operation, SecretInputOperation::PluginSecretSet);
+}
+
+#[test]
 fn authenticated_frames_reject_a_truncated_channel_header() {
     let mut encoded = vec![0_u8; 4 + 32];
     encoded[..4].copy_from_slice(&32_u32.to_le_bytes());

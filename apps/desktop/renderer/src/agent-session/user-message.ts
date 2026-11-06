@@ -49,6 +49,25 @@ const messages: Record<string, string> = {
     '模型服务暂时不可用，已自动重试 2 次仍未成功。任务已暂停，过程输出仍可阅读；稍后在输入框发“继续”即可接着做。',
   'provider_failed: internal_server_error':
     '模型服务的服务端出错（可能是它的网关或代理暂时不通），已重试仍未成功。任务已暂停；稍后在输入框发“继续”即可接着做。',
+  // A setting of the user's own account at the Provider: no retry can pass it. These come
+  // before the kinds below, which they share.
+  'provider_failed: provider_account_region':
+    '模型服务拒绝了这一步：这个模型要求在服务商的账号设置里开放对应的区域（例如 OpenCode 工作区 Privacy 设置里的 Global）。这要在服务商那边改，重试不会成功，所以没有自动重试。任务已暂停；改好后在输入框发“继续”即可接着做，也可以换一个模型。',
+  'provider_failed: provider_account_data_policy':
+    '模型服务拒绝了这一步：这个模型的服务节点会拿请求数据训练或保留数据，服务商账号的隐私设置没有允许（例如 OpenCode 的“允许会拿请求数据训练的付费节点”）。这要在服务商那边改，重试不会成功，所以没有自动重试。任务已暂停；改好后在输入框发“继续”即可接着做，也可以换一个模型。',
+  'provider_failed: provider_client_not_allowed':
+    '这个套餐只允许它名单上的客户端使用，拒绝了 Aura。Aura 只用自己的名字连接，不会冒充别的工具，重试也不会成功，所以没有自动重试。任务已暂停；可以试这家服务商其他协议的连接，或改用普通 API（按量计费的密钥），或换一个模型，然后在输入框发“继续”接着做。',
+  // A Provider's own refusal whose code has no sentence of its own, by its kind; only when the
+  // Provider replied, as Aura's own refusals before a request carry no status.
+  '(QuotaOrBalance, HTTP Some(':
+    '模型服务说额度或余额不足（或套餐用量已到上限），重试不会成功，所以没有自动重试。任务已暂停；充值或等额度恢复后在输入框发“继续”即可接着做，也可以换一个模型。',
+  '(Authentication, HTTP Some(':
+    '模型服务没有接受这个连接的密钥（认证失败）。任务已暂停；请到模型设置里检查或重新保存这个连接的密钥，然后在输入框发“继续”即可接着做。',
+  '(Authorization, HTTP Some(':
+    '模型服务拒绝了这一步：这个连接的密钥没有使用这个模型的权限。任务已暂停；请到服务商那边检查密钥的权限或套餐，或换一个模型，然后在输入框发“继续”即可接着做。',
+  // A reply that does not follow the service's protocol; the decoder that read it records no status.
+  '(Protocol, HTTP ':
+    '模型服务返回的数据格式不符合预期，这一步没有完成。任务已暂停，过程输出仍可阅读；在输入框发“继续”即可接着做，也可以换一个模型。',
   'tools.configuration_revision_conflict': '工具配置已在其他位置更新，请重新载入后再保存。',
   'tools.fixed_selection_invalid': '所选工具已发生变化，请重新载入工具列表。',
   'tools.dynamic_limit_must_be_positive': '动态工具上限必须为大于零的整数。',

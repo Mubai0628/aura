@@ -87,6 +87,13 @@ pub fn rename_session(
     )?)
 }
 
+/// The Sessions of a Workspace mirrored here.
+pub fn sessions_of(connection: &Connection, workspace: WorkspaceId) -> StoreResult<Vec<SessionId>> {
+    let mut statement = connection.prepare("SELECT id FROM sessions WHERE workspace_id=?1")?;
+    let ids = statement.query_map([workspace.to_string()], |row| row.get::<_, String>(0))?;
+    ids.map(|id| id?.parse().map_err(|_| Error::Invalid("session ID"))).collect()
+}
+
 pub fn session(connection: &Connection, id: SessionId) -> StoreResult<Option<SessionMetadata>> {
     let row: Option<(String, String, String, String)> = connection
         .query_row(

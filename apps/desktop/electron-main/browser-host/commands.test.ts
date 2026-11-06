@@ -23,6 +23,7 @@ describe('commands from the renderer', () => {
     for (const kind of [
       'devtools',
       'picture',
+      'text',
       'back',
       'forward',
       'reload',

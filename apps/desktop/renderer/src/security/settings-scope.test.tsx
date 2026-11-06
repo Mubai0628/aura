@@ -18,7 +18,7 @@ test('default permission saves to Core without changing a session', async () => 
     value: { v1: { getPermissionDefaults, setPermissionDefaults, setSessionPermissionMode } },
   });
   const notify = vi.fn();
-  render(<PermissionDefaultsCard onNotify={notify} />);
+  render(<PermissionDefaultsCard coreReady onNotify={notify} />);
   await waitFor(() =>
     expect(screen.getByRole<HTMLInputElement>('radio', { name: /只读/u }).checked).toBe(true),
   );

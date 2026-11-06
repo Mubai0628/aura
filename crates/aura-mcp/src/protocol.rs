@@ -1,4 +1,5 @@
-//! The MCP subset Aura speaks: initialize, tools/list, tools/call, cancellation and ping.
+//! The MCP subset Aura speaks: initialize, tools/list, tools/call, cancellation and ping, and
+//! the resources a message refers to (`crate::resources`).
 //! Aura declares no client capability (no roots, sampling or elicitation), so a server has
 //! nothing to ask of it beyond ping.
 use serde_json::{Value, json};
@@ -32,6 +33,8 @@ pub struct InitializeResult {
     pub server_info: ServerInfo,
     pub tools_supported: bool,
     pub tools_list_changed: bool,
+    /// The server offers resources (`resources/list`, `resources/read`).
+    pub resources_supported: bool,
     pub instructions: Option<String>,
 }
 
@@ -44,7 +47,7 @@ pub fn initialize_params(client_version: &str) -> Value {
     })
 }
 
-fn text(value: &Value, key: &str, limit: usize) -> Option<String> {
+pub(crate) fn text(value: &Value, key: &str, limit: usize) -> Option<String> {
     value.get(key).and_then(Value::as_str).map(|s| s.chars().take(limit).collect())
 }
 
@@ -70,6 +73,7 @@ pub fn parse_initialize_result(value: &Value) -> Result<InitializeResult, Protoc
             .and_then(|t| t.get("listChanged"))
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        resources_supported: value.get("capabilities").and_then(|c| c.get("resources")).is_some(),
         instructions: text(value, "instructions", MAX_INSTRUCTIONS_CHARS),
     })
 }

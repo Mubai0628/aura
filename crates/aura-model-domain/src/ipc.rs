@@ -39,6 +39,7 @@ pub mod model_ipc_method {
     pub const PROFILE_CREATE_MANUAL: &str = "models.profile.create_manual";
     pub const PROFILE_CREATE_FROM_CATALOG: &str = "models.profile.create_from_catalog";
     pub const PROFILE_APPLY_CATALOG_UPDATE: &str = "models.profile.apply_catalog_update";
+    pub const PROFILE_CATALOG_ENTRIES: &str = "models.profile.catalog_entries";
     pub const PROFILE_TEST_AVAILABILITY: &str = "models.profile.test_availability";
     pub const AVAILABILITY_TEST_CANCEL: &str = "models.availability_test.cancel";
     pub const PROFILE_UPDATE: &str = "models.profile.update";
@@ -55,6 +56,7 @@ pub mod model_ipc_method {
         "models.context_window.reset_runtime_correction";
     pub const COMPATIBILITY_GET: &str = "models.compatibility.get";
     pub const COMPATIBILITY_RESET: &str = "models.compatibility.reset";
+    pub const CREDENTIAL_CLEANUP_RETRY: &str = "models.credential_cleanup.retry";
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -466,6 +468,10 @@ pub struct ModelProfileApplyCatalogUpdateRequest {
     pub expected_model_profile_revision: ExpectedRevision,
     pub expected_catalog_revision: Revision,
     pub expected_catalog_object_hash: ContentHash,
+    /// Links the profile to this entry, one its model name matches; none updates the entry the
+    /// profile is linked to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_entry: Option<crate::ProviderCatalogMatchCandidate>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
@@ -551,6 +557,20 @@ pub struct ModelCompatibilityGetRequest {
 pub struct ModelCompatibilityResetRequest {
     pub expected_revision: ExpectedRevision,
     pub endpoint_id: EndpointId,
+}
+
+/// Tries the credentials of deleted model settings that Windows Credential Manager still holds.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelCredentialCleanupRetryRequest {}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelCredentialCleanupRetryResult {
+    /// Whether this retry deleted any of them.
+    pub changed: bool,
+    /// How many Windows Credential Manager still holds.
+    pub pending_credentials: u32,
 }
 
 #[cfg(test)]

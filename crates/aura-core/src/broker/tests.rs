@@ -1,6 +1,10 @@
 use super::*;
+use aura_backend_api::ExecutionBackend;
+use aura_backend_core::CoreBroker;
 use aura_core_base::{command_settlement, ipc_session, sync_boundary};
+use aura_domain_common::UtcTimestamp;
 use serde_json::{Value, json};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn request(
@@ -44,6 +48,7 @@ fn authority(op: &SecuredOperation, backend: &BackendDescriptor) -> Authorizatio
             mcp_consent: None,
             chrome_consent: None,
             chrome_site_consent: None,
+            desktop_app_consent: None,
             file_consent: None,
         },
         decided_at: now,
@@ -81,7 +86,7 @@ async fn r05_exact_claim_replay_handle_and_unique_result_use_real_sqlite() {
         responsibility:std::sync::Arc::new(Mutex::new(None)),
         inspect:std::sync::Arc::new(||Ok(json!({"scope":"test"}))),
         evidence:std::sync::Arc::new(move |r:&DispatchRequest,_:&Result<Value,IpcErrorEnvelope>|Ok(BrokerEvidence {action_kind:r.operation.content.action_kind.clone(),request_fingerprint:r.operation.fingerprint.0.clone(),before:json!({}),after:json!({"hash":aura_domain_common::ContentHash::blake3(&std::fs::read(&evidence_file)?)}),domain_journal:Value::Null,side_effect:SideEffectStateV1::Unknown})),
-        call:Mutex::new(Some(move ||async move {assert!(ipc_session::current_resource_wait_handler().is_some(), "the real Broker owned task must inherit the connection wait ticket");std::fs::write(&handler_file,"once").expect("real effect");Ok(json!({"done":true}))})),
+        call:Mutex::new(Some(move |_|async move {assert!(ipc_session::current_resource_wait_handler().is_some(), "the real Broker owned task must inherit the connection wait ticket");std::fs::write(&handler_file,"once").expect("real effect");Ok(json!({"done":true}))})),
     }).expect("backend");
     let plan = backend
         .prepare(PrepareRequest {
@@ -253,7 +258,7 @@ async fn r05_changed_preparation_and_replaced_main_channel_never_invoke() {
                     panic!("must not create receipt")
                 },
             ),
-            call: Mutex::new(Some(|| async { panic!("must not invoke changed resource") })),
+            call: Mutex::new(Some(|_| async { panic!("must not invoke changed resource") })),
         },
     )
     .expect("backend");
@@ -290,6 +295,7 @@ async fn r05_changed_preparation_and_replaced_main_channel_never_invoke() {
         op,
         "channel".into(),
         None,
+        OnChangedFacts::Refuse,
         std::sync::Arc::new({
             let state = state.clone();
             move || {
@@ -302,7 +308,7 @@ async fn r05_changed_preparation_and_replaced_main_channel_never_invoke() {
                 panic!("no receipt")
             },
         ),
-        || async { panic!("no invocation") },
+        |_| async { panic!("no invocation") },
     )
     .await;
     assert!(result.is_err());
@@ -352,5 +358,39 @@ fn r05_main_basis_rejects_expiry_cancellation_and_agent_identity() {
             UtcTimestamp::now(),
         );
         assert_eq!(result.is_ok(), kind == "valid", "{kind}");
+    }
+}
+
+/// The UI's file reads and its saves of text the user wrote are prepared again when their file
+/// changed before they started; the other workspace changes are refused as before.
+#[test]
+fn file_reads_and_saves_are_retried_and_other_workspace_changes_are_not() {
+    use aura_ipc::method;
+    let retried = [
+        method::FS_STAT,
+        method::FS_LIST,
+        method::FS_FIND_PATHS,
+        method::FS_GLOB,
+        method::FS_READ_TEXT,
+        method::FS_SEARCH_TEXT,
+        method::FS_HASH,
+        method::FS_INSPECT,
+        method::FS_READ_BINARY_RANGE,
+        method::FS_WRITE_FILE,
+        method::FS_APPLY_PATCH,
+        method::BUFFER_SAVE,
+    ];
+    for method in retried {
+        assert_eq!(super::files::on_changed_facts(method), OnChangedFacts::Retry, "{method}");
+    }
+    let refused = [
+        method::FS_CREATE_DIRECTORY,
+        method::FS_COPY,
+        method::FS_MOVE,
+        method::FS_DELETE,
+        method::FS_APPLY_CHANGESET,
+    ];
+    for method in refused {
+        assert_eq!(super::files::on_changed_facts(method), OnChangedFacts::Refuse, "{method}");
     }
 }

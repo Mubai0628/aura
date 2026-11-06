@@ -172,6 +172,7 @@ pub fn chrome_consent_covers(
         && scope.memory_consent.is_none()
         && scope.mcp_consent.is_none()
         && scope.chrome_site_consent.is_none()
+        && scope.desktop_app_consent.is_none()
         && scope.capability_limit.as_ref().is_none_or(|limit| {
             limit
                 .iter()
@@ -231,6 +232,7 @@ pub fn chrome_site_consent_covers(
         && scope.memory_consent.is_none()
         && scope.mcp_consent.is_none()
         && scope.chrome_consent.is_none()
+        && scope.desktop_app_consent.is_none()
         && identity.actor == InvocationActor::ParentAgent
         && identity.session_id == Some(consent.session_id)
         && identity.principal_id == consent.principal_id

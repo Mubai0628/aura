@@ -3,10 +3,11 @@
 //! and a newer copy waiting to be trusted is the same name in `plugins\pending`.
 use aura_config::{PluginRegistry, SettingsFacade};
 use aura_plugins::{
-    PluginCounts, PluginLimits, PluginPackage, PluginPackageError, PluginPendingView,
-    PluginRegistryView, PluginSetting, PluginState, PluginView, scan_plugin,
+    PluginCounts, PluginLimits, PluginOptionKind, PluginPackage, PluginPackageError,
+    PluginPendingView, PluginRegistryView, PluginSetting, PluginState, PluginView, scan_plugin,
 };
 use aura_skills::FileHashCache;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -27,12 +28,27 @@ pub struct ReadyPlugin {
 
 impl ReadyPlugin {
     /// What each process tree the plugin starts may use.
-    pub(crate) fn job_limits(&self) -> aura_windows_platform::JobLimits {
+    #[must_use]
+    pub fn job_limits(&self) -> aura_windows_platform::JobLimits {
         let limits = self.package.manifest.limits;
         aura_windows_platform::JobLimits {
             memory_bytes: u64::from(limits.memory_mb) * 1024 * 1024,
             active_processes: limits.processes,
         }
+    }
+
+    /// The values of the plugin's text settings that are set, by key, for the settings its
+    /// manifest declares now. A secret one's value is only ever in its service's environment.
+    #[must_use]
+    pub fn text_values(&self) -> BTreeMap<String, String> {
+        let options = self.package.manifest.declared.options.iter();
+        options
+            .filter(|option| option.kind == PluginOptionKind::Text)
+            .filter_map(|option| {
+                let text = self.setting.values.text.get(&option.key)?;
+                Some((option.key.clone(), text.clone()))
+            })
+            .collect()
     }
 }
 
@@ -52,7 +68,16 @@ pub struct PluginRuntime {
     pub(crate) mcp: Option<Arc<crate::mcp::McpRuntime>>,
     /// One change at a time (import, trust, update, uninstall), so folder moves never interleave.
     pub(crate) changing: Mutex<()>,
+    /// One log write at a time, so a file is never moved aside while another write appends.
+    pub(crate) changing_logs: Mutex<()>,
+    /// Values already handed to a service remain protected while an old process may still log.
+    pub(crate) log_secrets: Mutex<BTreeMap<String, Option<Vec<zeroize::Zeroizing<String>>>>>,
     ready_cache: Mutex<Option<(Instant, Arc<Vec<ReadyPlugin>>)>>,
+    /// What the host reports for each plugin's running background service.
+    pub(crate) service_status:
+        Mutex<std::collections::BTreeMap<String, aura_plugins::PluginServiceStatus>>,
+    /// One change of a plugin's chat state at a time.
+    pub(crate) changing_chats: Mutex<()>,
 }
 
 impl PluginRuntime {
@@ -67,7 +92,11 @@ impl PluginRuntime {
             hashes: FileHashCache::default(),
             mcp,
             changing: Mutex::new(()),
+            changing_logs: Mutex::new(()),
+            log_secrets: Mutex::default(),
             ready_cache: Mutex::new(None),
+            service_status: Mutex::default(),
+            changing_chats: Mutex::new(()),
         });
         runtime.recover();
         runtime
@@ -91,6 +120,35 @@ impl PluginRuntime {
 
     pub(crate) fn pending_folder(&self, name: &str) -> PathBuf {
         self.root().join(PENDING).join(name)
+    }
+
+    /// Where a plugin is: its folder in Aura's, or, in development, the folder it is written in.
+    pub(crate) fn located_folder(&self, name: &str, setting: Option<&PluginSetting>) -> PathBuf {
+        match setting.and_then(|setting| setting.development.as_ref()) {
+            Some(development) => PathBuf::from(&development.folder),
+            None => self.folder(name),
+        }
+    }
+
+    /// Reads a plugin where it is: one in development may have any folder name, and must keep
+    /// the name it was installed with.
+    pub(crate) fn scan_located(
+        &self,
+        name: &str,
+        setting: Option<&PluginSetting>,
+    ) -> Result<PluginPackage, PluginPackageError> {
+        let folder = self.located_folder(name, setting);
+        if setting.is_none_or(|setting| setting.development.is_none()) {
+            return self.scan(&folder);
+        }
+        let package = scan_plugin(&folder, &self.hashes)?;
+        if package.manifest.name != name {
+            return Err(PluginPackageError::Invalid(vec![format!(
+                "清单里的名字改成了 {}，装上时是 {name}；改回 {name}，或卸载后用新名字重新装",
+                package.manifest.name
+            )]));
+        }
+        Ok(package)
     }
 
     /// Reads the plugin in `folder` and holds it to be the plugin named by the folder.
@@ -126,9 +184,9 @@ impl PluginRuntime {
         let located = names
             .into_iter()
             .map(|name| {
-                let folder = self.folder(&name);
                 let setting = registry.plugin(&name).cloned();
-                let scanned = self.scan(&folder);
+                let folder = self.located_folder(&name, setting.as_ref());
+                let scanned = self.scan_located(&name, setting.as_ref());
                 let state = state(&scanned, setting.as_ref());
                 LocatedPlugin { name, folder, setting, scanned, state }
             })
@@ -170,6 +228,13 @@ impl PluginRuntime {
             pending_update: self.pending_view(plugin),
             file_count: 0,
             bytes: 0,
+            development: in_development(plugin.setting.as_ref())
+                .then(|| aura_domain_common::display_path(&plugin.folder)),
+            panel: None,
+            theme: None,
+            service: self.service_view(plugin),
+            options: Vec::new(),
+            remote: None,
         };
         match &plugin.scanned {
             Ok(package) => {
@@ -178,7 +243,7 @@ impl PluginRuntime {
                 view.author.clone_from(&package.manifest.author);
                 view.homepage.clone_from(&package.manifest.homepage);
                 view.layout = Some(package.layout);
-                view.fingerprint = Some(package.fingerprint.clone());
+                view.fingerprint = Some(trusted_at(package, plugin.setting.as_ref()).to_owned());
                 view.limits = package.manifest.limits;
                 view.counts = package.counts();
                 view.warnings.clone_from(&package.warnings);
@@ -194,6 +259,13 @@ impl PluginRuntime {
                 view.unsupported.clone_from(&package.unsupported);
                 view.file_count = u32::try_from(package.files.len()).unwrap_or(u32::MAX);
                 view.bytes = package.bytes;
+                view.panel = package
+                    .panel_item()
+                    .filter(|item| item.problems.is_empty())
+                    .map(|item| item.panel.title);
+                view.theme = package.theme_item().and_then(|item| item.title);
+                view.options = Self::option_values(package, plugin.setting.as_ref());
+                view.remote = self.remote_view(package, plugin.setting.as_ref());
             }
             Err(error) => view.problems = problems(error),
         }
@@ -243,7 +315,12 @@ impl PluginRuntime {
                 .into_iter()
                 .filter(|plugin| plugin.state == PluginState::Ready)
                 .filter_map(|plugin| {
-                    Some(ReadyPlugin { package: plugin.scanned.ok()?, setting: plugin.setting? })
+                    let package = plugin.scanned.ok()?;
+                    let mut setting = plugin.setting?;
+                    if setting.development.is_some() {
+                        reloaded(&package, &mut setting);
+                    }
+                    Some(ReadyPlugin { package, setting })
                 })
                 .collect()
         };
@@ -252,6 +329,12 @@ impl PluginRuntime {
             *cache = Some((Instant::now(), Arc::clone(&ready)));
         }
         ready
+    }
+
+    /// The state of the installed plugin named `name`, if one is.
+    pub fn state_of(&self, name: &str) -> Option<PluginState> {
+        let (_, located) = self.locate_all();
+        located.into_iter().find(|plugin| plugin.name == name).map(|plugin| plugin.state)
     }
 
     /// Something changed here: the next reader reads the plugins again.
@@ -279,6 +362,38 @@ pub(crate) fn problems(error: &PluginPackageError) -> Vec<String> {
     }
 }
 
+pub(crate) fn in_development(setting: Option<&PluginSetting>) -> bool {
+    setting.is_some_and(|setting| setting.development.is_some())
+}
+
+/// The fingerprint a plugin is trusted at: all of it, or, in development, all but the parts that
+/// reload by themselves.
+pub(crate) fn trusted_at<'a>(
+    package: &'a PluginPackage,
+    setting: Option<&PluginSetting>,
+) -> &'a str {
+    if in_development(setting) { &package.development_fingerprint } else { &package.fingerprint }
+}
+
+/// A plugin in development offers its Skills and commands as they are now: they reload without
+/// it being trusted again. Hooks and servers keep the fingerprints they were trusted at.
+fn reloaded(package: &PluginPackage, setting: &mut PluginSetting) {
+    let parts = &mut setting.trusted_parts;
+    parts.skills = package
+        .skills
+        .iter()
+        .filter_map(|found| {
+            Some((found.relative.clone(), found.scanned.as_ref().ok()?.fingerprint.clone()))
+        })
+        .collect();
+    parts.commands = package
+        .commands
+        .iter()
+        .filter(|plugin| plugin.command.issue.is_none())
+        .filter_map(|plugin| Some((plugin.command.name.clone(), plugin.command.revision.clone()?)))
+        .collect();
+}
+
 /// What a plugin is under its saved choices.
 pub(crate) fn state(
     scanned: &Result<PluginPackage, PluginPackageError>,
@@ -289,7 +404,9 @@ pub(crate) fn state(
         Err(_) => PluginState::Invalid,
         Ok(package) => match setting.and_then(|s| s.trusted_fingerprint.as_ref().map(|t| (s, t))) {
             None => PluginState::NotTrusted,
-            Some((_, trusted)) if *trusted != package.fingerprint => PluginState::ContentChanged,
+            Some((_, trusted)) if trusted != trusted_at(package, setting) => {
+                PluginState::ContentChanged
+            }
             Some((setting, _)) if !setting.enabled => PluginState::Disabled,
             Some(_) => PluginState::Ready,
         },

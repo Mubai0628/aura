@@ -40,7 +40,11 @@ pub(super) fn compile_responses_history(
                 if let Some(aura_model_domain::ProviderHistoryData::Responses { reasoning_items }) =
                     provider_history.as_ref().and_then(|h| h.for_snapshot(snapshot))
                 {
-                    input.extend(reasoning_items.clone());
+                    if aura_model_transport::store_off(snapshot) {
+                        input.extend(reasoning_items.iter().filter_map(unstored_reasoning));
+                    } else {
+                        input.extend(reasoning_items.clone());
+                    }
                 }
                 if let Some(content) = content {
                     input.push(json!({
@@ -97,4 +101,16 @@ pub(super) fn compile_responses_history(
         input.push(json!({"role": "user", "content": pending_images}));
     }
     Ok(input)
+}
+
+/// A reasoning item as a Provider that keeps nothing takes it back: only with the reasoning it
+/// returned encrypted, and without the id it would look the item up by, which it never kept.
+fn unstored_reasoning(item: &Value) -> Option<Value> {
+    let encrypted = item.get("encrypted_content").and_then(Value::as_str);
+    if encrypted.is_none_or(str::is_empty) {
+        return None;
+    }
+    let mut item = item.clone();
+    item.as_object_mut()?.remove("id");
+    Some(item)
 }

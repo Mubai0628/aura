@@ -175,7 +175,7 @@ async fn exercise(
     .await
     .expect("explicit fixture visibility");
     app.memory_maintenance.enabled.store(true, std::sync::atomic::Ordering::Release);
-    let started=crate::r03_tests::success(&runtime,"agent.start",json!(AgentStartRequest{ session_id:session,model_profile_id:model,text:"Perform the requested local file work and report the result. Synthetic code, build errors and local fixture text are approved model input.".into(),mode:AgentTaskMode::Normal,goal_budget:None,explicit_backend_id:None, skill_ids: Vec::new(), reasoning_effort: None, attachments: Vec::new() })).await;
+    let started=crate::r03_tests::success(&runtime,"agent.start",json!(AgentStartRequest{ computer_mode: None, session_id:session,model_profile_id:model,text:"Perform the requested local file work and report the result. Synthetic code, build errors and local fixture text are approved model input.".into(),mode:AgentTaskMode::Normal,goal_budget:None,explicit_backend_id:None, skill_ids: Vec::new(), reasoning_effort: None, speed_mode: None, attachments: Vec::new(), references: Vec::new() })).await;
     let start: AgentRunProjection = serde_json::from_value(started).expect("started");
     let run = start.run.agent_run_id;
     tokio::time::timeout(std::time::Duration::from_secs(35), async {

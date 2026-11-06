@@ -17,18 +17,23 @@ test-hooks = ["aura-core-base/test-hooks"]
 
 [dependencies]
 anyhow.workspace = true
+aura-agent-domain = { path = "../aura-agent-domain" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-commands = { path = "../aura-commands" }
 aura-config = { path = "../aura-config" }
+aura-context-runtime = { path = "../aura-context-runtime" }
 aura-core-base = { path = "../aura-core-base" }
 aura-core-broker = { path = "../aura-core-broker" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-hooks = { path = "../aura-hooks" }
+aura-ipc = { path = "../aura-ipc" }
 aura-mcp = { path = "../aura-mcp" }
 aura-network-control = { path = "../aura-network-control" }
 aura-permission-domain = { path = "../aura-permission-domain" }
 aura-persistence-core = { path = "../aura-persistence-core" }
 aura-persistence-v2 = { path = "../aura-persistence-v2" }
 aura-plugins = { path = "../aura-plugins" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
 aura-security-contract = { path = "../aura-security-contract" }
 aura-skills = { path = "../aura-skills" }
 aura-tool-contract = { path = "../aura-tool-contract" }
@@ -51,6 +56,9 @@ zeroize.workspace = true
 # Core's tests do (memory roots under TEMP, a test's own log route).
 aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
 aura-core-broker = { path = "../aura-core-broker", features = ["test-hooks"] }
+# A real workspace for the Skills of a workspace's own folders.
+aura-persistence = { path = "../aura-persistence" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
 junction.workspace = true
 zip.workspace = true
 

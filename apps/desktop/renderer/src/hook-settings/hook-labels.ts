@@ -2,6 +2,7 @@ import type {
   HookDefinition,
   HookEffect,
   HookEntryState,
+  HookEntryView,
   HookEvent,
   HookFailureKind,
   HookOutcome,
@@ -127,3 +128,21 @@ export const shortFingerprint = (fingerprint?: string | null) =>
   fingerprint ? fingerprint.slice(0, 16) : '—';
 
 export const folderName = (path: string) => path.split(/[\\/]/u).filter(Boolean).at(-1) ?? path;
+
+export const hookName = (entry: HookEntryView) => entry.definition?.name ?? folderName(entry.path);
+
+/** When a Hook runs: its events and the tools it is limited to. */
+export const hookEvents = (entry: HookEntryView) => {
+  const { definition } = entry;
+  if (!definition) return undefined;
+  const tools = hookToolsLabel(definition);
+  return `事件：${definition.events.map(hookEventLabel).join('、')}${tools ? `；${tools}` : ''}`;
+};
+
+/** A changed or new Hook is reviewed before it runs; the review button says which. */
+export const hookReview = (entry: HookEntryView) =>
+  entry.state === 'content_changed'
+    ? '查看变化并重新信任'
+    : entry.state === 'not_trusted'
+      ? '预览并信任'
+      : undefined;

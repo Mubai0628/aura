@@ -32,6 +32,7 @@ vi.mock('./store', () => ({
     state.consumers.set(record.view.terminal_id, consume);
   },
   configureTerminalRenderer() {},
+  configureTerminalText() {},
   terminalApi: vi.fn(),
   terminalFailure: vi.fn(),
 }));

@@ -7,7 +7,9 @@ test('in a short window the settings section list scrolls to its last section', 
   const application = await launchAura();
   try {
     const window = await application.firstWindow();
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
     await application.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.setSize(1_200, 540);
     });

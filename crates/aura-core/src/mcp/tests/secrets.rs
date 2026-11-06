@@ -205,6 +205,24 @@ fn the_credential_manager_keeps_the_value_with_its_server_and_revision() {
     let run = format!("l08b5{:x}", std::time::UNIX_EPOCH.elapsed().expect("time").as_nanos());
     let store = WindowsSecretStore::isolated(&run);
     let id = CredentialId::new();
+    let target = format!("Aura/test/{run}/{id}");
+    println!("AURA_TEST_CREDENTIAL={}", json!({"target":target,"server":"web","revision":1}));
+    struct Cleanup<'a> {
+        store: &'a WindowsSecretStore,
+        id: CredentialId,
+        target: String,
+    }
+    impl Drop for Cleanup<'_> {
+        fn drop(&mut self) {
+            let _ = self.store.delete(self.id);
+            let absent = matches!(self.store.read(self.id), Ok(None));
+            println!(
+                "AURA_TEST_CREDENTIAL_CLEANUP={}",
+                json!({"target":self.target,"verified_absent":absent})
+            );
+        }
+    }
+    let _cleanup = Cleanup { store: &store, id, target };
     let value = SecretBytes::new(SECRET.as_bytes().to_vec());
     let written = store.write(id, "web", 1, &value);
     let read = store.read(id);

@@ -38,7 +38,9 @@ test('a menu over the browser page leaves a picture of the page in its place', a
   });
   try {
     const page = await app.firstWindow();
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
     const scope = await page.evaluate(async (selected_root) => {
       const workspace = await window.aura.v1.createWorkspace({
         display_name: 'Picture',

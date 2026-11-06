@@ -7,7 +7,7 @@
   max-height: min(56vh, 520px);
   margin-bottom: 8px;
   overflow: hidden;
-  border: 1px solid #d3e0d9;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-md);
@@ -23,7 +23,7 @@
   min-height: 42px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--line);
-  background: #f5f9f7;
+  background: var(--surface-muted);
 }
 
 .agent-query-mark {
@@ -31,7 +31,7 @@
   flex: none;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   place-items: center;
   color: var(--accent-strong);
   background: var(--accent-soft);
@@ -53,7 +53,7 @@
   margin-left: auto;
   padding: 3px 10px 3px 4px;
   border: 1px solid var(--warning-line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--warning);
   background: var(--warning-soft);
   font-size: 12px;
@@ -68,15 +68,15 @@
   background: var(--danger-soft);
 }
 
-/* The ring empties as the countdown goes; `--left` is the share of time left. */
+/* The ring of squares empties as the countdown goes. */
 .agent-query-countdown-ring {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: conic-gradient(currentColor calc(var(--left, 1) * 360deg), rgba(0, 0, 0, 0.08) 0);
-  -webkit-mask: radial-gradient(circle, transparent 4.5px, #000 5px);
-  mask: radial-gradient(circle, transparent 4.5px, #000 5px);
-  transition: background 480ms linear;
+  flex: none;
+}
+.agent-query-countdown-ring .pixel-ring-lit {
+  fill: currentColor;
+}
+.agent-query-countdown-ring .pixel-ring-rest {
+  fill: var(--focus-ring);
 }
 
 .agent-query-body {
@@ -88,6 +88,51 @@
   padding: 6px 14px 10px;
   overflow-y: auto;
   border: 0;
+}
+
+/* Before, a dot per question (filled once answered, ringed where the card is), after. */
+.agent-query-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: auto;
+}
+
+.agent-query-dots {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.agent-query-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-round);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.agent-query-dot[data-answered] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.agent-query-dot[aria-current='step'] {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--accent-strong);
+}
+
+.agent-query-dot:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-shadow);
 }
 
 .agent-query-question {
@@ -126,7 +171,7 @@
   width: 20px;
   height: 20px;
   margin-top: 1px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   place-items: center;
   color: var(--accent-strong);
   background: var(--accent-soft);
@@ -156,13 +201,13 @@
 }
 
 .agent-query-option:hover {
-  border-color: #c4ccc6;
+  border-color: var(--line-strong);
   background: var(--surface-muted);
 }
 
 .agent-query-option[data-checked] {
-  border-color: #9fbcb3;
-  background: #f1f7f4;
+  border-color: var(--ink);
+  background: var(--surface-muted);
 }
 
 .agent-query-option input {
@@ -188,7 +233,7 @@
 .agent-query-textarea:focus-visible {
   border-color: var(--focus);
   outline: 0;
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: var(--focus-shadow);
 }
 
 .agent-query-file {
@@ -248,7 +293,7 @@
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--line);
-  background: #fcfcfb;
+  background: var(--surface);
 }
 
 /* The answer in the conversation: the questions and what was replied, never raw JSON. */
@@ -282,7 +327,7 @@
 .agent-query-reply-custom {
   margin-right: 6px;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--accent-strong);
   background: var(--accent-soft);
   font-size: 11px;

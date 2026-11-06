@@ -3,7 +3,7 @@
   display: grid;
   width: 28px;
   height: 28px;
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   place-items: center;
   color: var(--accent-strong);
   background: var(--accent-soft);
@@ -36,9 +36,126 @@
   font-size: 12.5px;
 }
 
-.plugin-card > .settings-panel,
-.plugin-card > .plugin-runtime {
-  margin-top: 12px;
+.plugin-folder {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+/* A plugin's dialog: what it is, then its panels, then its buttons. */
+.plugin-details {
+  display: grid;
+  gap: 12px;
+}
+
+.plugin-details > p,
+.plugin-details > .settings-card-actions {
+  margin: 0;
+}
+
+/* The background service's switch and state, the plugin's own settings, and what the service
+   may reach. */
+.plugin-service,
+.plugin-options,
+.plugin-remote {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.plugin-scope,
+.plugin-scope ul,
+.plugin-allowed ul,
+.plugin-unknown ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+
+.plugin-scope ul {
+  padding-left: 22px;
+}
+
+.plugin-scope label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plugin-allowed,
+.plugin-unknown {
+  display: grid;
+  gap: 6px;
+}
+
+.plugin-allowed li,
+.plugin-unknown li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  overflow-wrap: anywhere;
+}
+
+.plugin-allowed-id {
+  color: var(--muted);
+}
+
+.plugin-allowed-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 6px;
+}
+
+.plugin-allowed-add > .plugin-option {
+  flex: 1 1 160px;
+}
+
+.plugin-service-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.plugin-service-heading .aura-switch {
+  margin-left: auto;
+}
+
+.plugin-service-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.plugin-service-detail[role='alert'] {
+  color: var(--danger);
+}
+
+.plugin-option {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.plugin-option.is-secret {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 6px;
+}
+
+.plugin-option.is-secret > label {
+  display: grid;
+  flex: 1 1 220px;
+  gap: 4px;
 }
 
 .plugin-uninstall {

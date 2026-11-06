@@ -139,19 +139,22 @@ test('L08 an MCP server is added, trusted, called once per turn answer and switc
     await form.getByRole('button', { name: '保存' }).click();
     const list = settings.getByRole('list', { name: 'MCP 服务器' });
     await expect(list).toContainText('未信任，不会启动');
+    // The row's review opens the server's dialog with what trusting it covers.
     await list.getByRole('button', { name: '查看并信任' }).click();
-    const trust = settings.getByRole('alertdialog', { name: '信任 测试文件' });
+    const server = page.getByRole('dialog', { name: '测试文件' });
+    const trust = server.getByRole('alertdialog', { name: '信任 测试文件' });
     await expect(trust).toContainText('fixture-server.exe');
     await expect(trust).toContainText('SHA-256');
     await expect(trust).toContainText('以你的身份运行');
     await expect(trust).toContainText('只信任你了解的服务器');
     await trust.getByRole('button', { name: '信任并启用' }).click();
     await expect(list).toContainText('可用 · 5 个工具', { timeout: 60_000 });
-    await list.getByRole('button', { name: '测试连接' }).click();
-    await expect(settings.getByText('测试文件 连接成功，列出 5 个工具')).toBeVisible({
+    await server.getByRole('button', { name: '测试连接' }).click();
+    await expect(server.getByText('测试文件 连接成功，列出 5 个工具')).toBeVisible({
       timeout: 60_000,
     });
-    await expect(settings.getByRole('region', { name: '测试文件 的工具' })).toContainText(ECHO);
+    await expect(server.getByRole('region', { name: '测试文件 的工具' })).toContainText(ECHO);
+    await server.getByRole('button', { name: '关闭' }).click();
     await page.getByRole('button', { name: '返回会话' }).click();
 
     // ReadOnly: the first call to the server asks once; the turn answer covers its next tool.

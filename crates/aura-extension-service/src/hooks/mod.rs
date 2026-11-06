@@ -179,6 +179,21 @@ impl HookRunner {
                 stderr: attempt.stderr,
             };
             self.record(&view, call.subject.as_deref(), &attempt.input, &attempt.output)?;
+            if let (Some(plugin), Some(plugins), Some(failure)) =
+                (&hook.plugin, &self.plugins, view.failure)
+            {
+                let mut text = format!("{failure:?}");
+                for detail in view.reason.iter().chain(view.stderr.iter()) {
+                    text.push_str(": ");
+                    text.push_str(detail);
+                }
+                plugins.log(
+                    plugin,
+                    aura_agent_domain::PluginLogSource::Hook,
+                    &view.hook_name,
+                    &text,
+                );
+            }
             outcome.invocations.push(view);
             if outcome.block.is_some() {
                 break;

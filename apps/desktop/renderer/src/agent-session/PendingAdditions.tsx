@@ -2,6 +2,7 @@ import type { AgentInboxProjection, AgentPendingMessage } from '@aura/contracts/
 import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../clipboard';
 import { ToolIcon } from '../tool-icon';
+import { QuotedWords } from './quote-reply/QuotedWords';
 import { userMessage } from './user-message';
 import './pending-additions.css';
 
@@ -88,7 +89,9 @@ function PendingAddition({
           <i />
         </span>
       </small>
-      {message.text ? <p className="agent-message-text">{message.text}</p> : null}
+      {message.text ? (
+        <QuotedWords className="agent-message-text" text={message.text} words={(text) => text} />
+      ) : null}
       {files ? <small>附件 {files}</small> : null}
       <div className="agent-user-actions">
         <div className="agent-reply-actions">

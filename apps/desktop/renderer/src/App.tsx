@@ -26,6 +26,8 @@ import { useStartupSplash, type StartupPhase } from './startup-splash';
 import { NotificationViewport } from './NotificationCenter';
 import { UpdateNotifications } from './app-updates/UpdateNotifications';
 import { useNotificationCenter } from './notification-center-store';
+import { usePluginNotices } from './plugin-ui/plugin-ui';
+import { PluginTheme } from './plugin-theme/PluginTheme';
 import { useMainErrorNotice } from './useMainErrorNotice';
 import { useSecurityControl } from './security-control-store';
 import { PermissionModeFeedback } from './PermissionModeFeedback';
@@ -84,7 +86,7 @@ export function App() {
   const corePresentation = health.loading
     ? { label: '正在连接 Aura Core', tone: 'warning' as const }
     : waiting
-      ? { label: 'Aura Core 正在处理', tone: 'warning' as const, waitingSince: waiting.since }
+      ? { label: 'Aura Core 正在处理', tone: 'warning' as const }
       : projection?.payload.status_code === STORE_CHECK_FAILED
         ? {
             label: '数据库检查发现问题',
@@ -142,6 +144,7 @@ export function App() {
     publish: publishNotification,
     withdraw: withdrawNotifications,
   } = useNotificationCenter();
+  usePluginNotices(publishNotification);
   const mainErrorNotice = useMainErrorNotice();
 
   const selectedWorkspace =
@@ -192,6 +195,28 @@ export function App() {
       rememberOpenSession({ workspaceId: openWorkspaceId, sessionId: openSessionId });
     }
   }, [openWorkspaceId, openSessionId]);
+
+  // Damage the background store check found stays in a notice, with what to do, until it is
+  // closed or the check passes again.
+  const storeDamage =
+    projection?.payload.status_code === STORE_CHECK_FAILED
+      ? userMessage(
+          projection.payload.status_message,
+          '数据库检查发现了问题，建议先备份 Aura 的数据文件夹。',
+        )
+      : undefined;
+  useEffect(() => {
+    if (storeDamage === undefined) {
+      withdrawNotifications('core:store-check:');
+      return;
+    }
+    publishNotification({
+      dedupeKey: `core:store-check:${storeDamage}`,
+      message: storeDamage,
+      title: '数据库检查发现问题',
+      tone: 'danger',
+    });
+  }, [publishNotification, storeDamage, withdrawNotifications]);
 
   useEffect(() => {
     if (security.error === undefined) {
@@ -292,7 +317,8 @@ export function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-core-state={health.loading ? undefined : coreState}>
+      <PluginTheme />
       {/* Owned here, not inside the workspace view: re-creating that view must
           never mount a second modal layer, and exactly one dialog can exist. */}
       <SessionGrantDialog
@@ -306,7 +332,6 @@ export function App() {
           left={
             <AppSidebar
               activeScreen={screen}
-              coreStatus={corePresentation}
               demoMode={false}
               onNotify={publishNotification}
               onOpenSettings={() => openSettings(settingsSection)}
@@ -338,6 +363,9 @@ export function App() {
             <NewSessionView
               key={shownDraft.id}
               draft={shownDraft}
+              conversations={
+                navigation.find((workspace) => workspace.id === shownDraft.workspaceId)?.sessions
+              }
               onOpenSettings={openSettings}
               onAccepted={(localId, sessionId) => {
                 removeComposerDraft(localId);

@@ -1,5 +1,6 @@
 import type { PluginPreview } from '@aura/contracts/generated';
 import { AppIcon } from '../app-icons';
+import { PluginDeclarations } from './PluginDeclarations';
 import { bytesLabel, limitsLabel, serverTargetLabel, signInLabel } from './plugin-labels';
 
 /** Everything a plugin (or its waiting update) brings, read before the user trusts it. The
@@ -96,6 +97,7 @@ export function PluginPreviewPanel({
           </ul>
         </section>
       ) : null}
+      <PluginDeclarations preview={preview} />
       {plugin.unsupported.length && !preview.pending ? (
         <section aria-label="不支持的部分">
           <h4>Aura 不使用的部分</h4>

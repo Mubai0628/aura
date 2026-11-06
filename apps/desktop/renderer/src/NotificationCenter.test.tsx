@@ -1,10 +1,20 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { NotificationViewport } from './NotificationCenter';
-import { useNotificationCenter, type NotificationTone } from './notification-center-store';
+import {
+  useNotificationCenter,
+  type NotificationAction,
+  type NotificationTone,
+} from './notification-center-store';
 
-function NotificationHarness({ tone = 'danger' }: { tone?: NotificationTone }) {
+function NotificationHarness({
+  action,
+  tone = 'danger',
+}: {
+  action?: NotificationAction;
+  tone?: NotificationTone;
+}) {
   const { dismiss, items, publish, withdraw } = useNotificationCenter();
 
   return (
@@ -12,6 +22,7 @@ function NotificationHarness({ tone = 'danger' }: { tone?: NotificationTone }) {
       <button
         onClick={() =>
           publish({
+            ...(action === undefined ? {} : { action }),
             dedupeKey: 'test-notice',
             message: '测试消息正文',
             title: '测试消息',
@@ -63,6 +74,21 @@ describe('NotificationCenter', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '关闭消息' }));
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  // A notice with a button waits for it.
+  test('keeps a notice with a button until the button is used, then closes it', () => {
+    vi.useFakeTimers();
+    const run = vi.fn();
+    render(<NotificationHarness action={{ label: '重试', run }} tone="warning" />);
+
+    fireEvent.click(screen.getByRole('button', { name: '发布消息' }));
+    act(() => vi.advanceTimersByTime(60_000));
+    const notice = screen.getByRole('status');
+    fireEvent.click(within(notice).getByRole('button', { name: '重试' }));
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   test('deduplicates an active message and supports explicit close', () => {

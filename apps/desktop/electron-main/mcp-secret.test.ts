@@ -76,3 +76,41 @@ describe('MCP SecretInput', () => {
     });
   });
 });
+
+describe("a plugin's secret setting", () => {
+  it('has its own operation on the frame', () => {
+    const secret = Buffer.from('bot-token-value');
+    const frame = encodeSecretInputFrame({
+      binding: { channelId: 'chn_01ARZ3NDEKTSV4RRFFQ69G5FAV', connectionEpoch: 1n },
+      commandInvocationId: 'civ_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      correlationId: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      operation: 'plugin_secret_set',
+      secret,
+      sequence: 1n,
+    });
+    expect(frame[38]).toBe(8);
+    expect(secret.every((byte) => byte === 0)).toBe(true);
+    frame.fill(0);
+  });
+
+  it('sends the plugin and the setting, never the value, and returns the revision', async () => {
+    const requestWithSecretInput = vi.fn().mockResolvedValue({ revision: 7 });
+    const confirm: ConfirmedRequest = async ({ accept, send }) =>
+      accept(await send({ requestWithSecretInput } as unknown as CoreTransport));
+    const secret = Buffer.from('bot-token-value');
+    const result = await requestAgentSecret(
+      'agent.plugins.secret.set',
+      { name: 'chat-bot', key: 'app_secret' },
+      secret,
+      confirm,
+    );
+    expect(result).toEqual({ revision: 7 });
+    const [command, params, operation] = requestWithSecretInput.mock.calls[0] as unknown[];
+    expect([command, params, operation]).toEqual([
+      'agent.plugins.secret.set',
+      { name: 'chat-bot', key: 'app_secret' },
+      'plugin_secret_set',
+    ]);
+    expect(secret.every((byte) => byte === 0)).toBe(true);
+  });
+});

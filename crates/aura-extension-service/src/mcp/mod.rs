@@ -10,4 +10,4 @@ pub(crate) mod oauth;
 mod runtime;
 
 pub use manage::McpContext;
-pub use runtime::{McpNetwork, McpRuntime};
+pub use runtime::{McpNetwork, McpRuntime, ReadResource};

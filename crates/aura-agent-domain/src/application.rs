@@ -23,18 +23,29 @@ pub struct AgentStartRequest {
     /// default. Kept with the run's configuration, so every step of the turn uses it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<TurnReasoningEffort>,
+    /// The speed mode the conversation uses for this turn; none is the standard mode. Kept with
+    /// the run's configuration, so every step of the turn uses it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speed_mode: Option<TurnSpeedMode>,
+    /// Frozen with this turn, including recovery after a Core restart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_mode: Option<ComputerMode>,
     /// Pictures and files added to the message in the composer. The run's configuration
     /// keeps their digests ([`AgentStartRequest::receipt`]); the message keeps them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<AgentAttachmentDraft>,
+    /// What the message refers to with "@", resolved when it is sent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<AgentMessageReference>,
 }
 impl AgentStartRequest {
     /// The request as a repeated command is compared and kept: digests in place of what its
-    /// pictures and text files hold.
+    /// pictures and text files hold, and other conversations by their handles.
     #[must_use]
     pub fn receipt(&self) -> Self {
         Self {
             attachments: self.attachments.iter().map(AgentAttachmentDraft::receipt).collect(),
+            references: self.references.iter().map(AgentMessageReference::receipt).collect(),
             ..self.clone()
         }
     }
@@ -46,6 +57,8 @@ impl AgentStartRequest {
 pub struct AgentInitStartRequest {
     pub session_id: SessionId,
     pub model_profile_id: ModelProfileId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_mode: Option<ComputerMode>,
     #[serde(default)]
     pub text: String,
 }
@@ -56,6 +69,8 @@ pub struct AgentInitStartRequest {
 pub struct AgentCompactionStartRequest {
     pub session_id: SessionId,
     pub model_profile_id: ModelProfileId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_mode: Option<ComputerMode>,
     #[serde(default)]
     pub focus: Option<String>,
 }
@@ -95,6 +110,9 @@ pub struct AgentQueryTouchView {
 pub struct AgentRunProjection {
     pub turn: TurnTask,
     pub run: AgentRun,
+    /// The desktop frozen with this turn, also used by a user-requested continuation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_mode: Option<ComputerMode>,
     pub model_steps: Vec<ModelStep>,
     pub pending_query: Option<UserQuery>,
     /// When the waiting question ends as "no response" unless the user touches it.

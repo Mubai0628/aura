@@ -1,0 +1,83 @@
+/* A program chosen with "@" shows as a block, its icon in front, in the composer's words (see
+   ProgramBlocks). The two copies must lay out their text exactly as the textarea does: the same
+   padding, line height and wrapping as `.composer textarea`. */
+.composer-editor {
+  --program-block: rgba(28, 28, 27, 0.07);
+  position: relative;
+  isolation: isolate;
+}
+
+.composer-editor > textarea {
+  position: relative;
+  z-index: 1;
+}
+
+.composer-program-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  padding: 3px 4px 7px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+
+.composer-program-layer[data-layer='back'] {
+  z-index: 0;
+}
+
+.composer-program-layer[data-layer='front'] {
+  z-index: 2;
+}
+
+/* Opaque, so that the covers in front hide the quote marks under them. */
+.composer-program-block,
+.composer-program-mark,
+.composer-program-end {
+  padding: 2px 0;
+  background: linear-gradient(var(--program-block), var(--program-block)), var(--surface);
+}
+
+.composer-program-block {
+  border-radius: var(--radius-sm);
+}
+
+.composer-program-mark {
+  position: relative;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.composer-program-end {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.composer-program-mark > :is(img, svg) {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: var(--muted);
+  transform: translate(-50%, -50%);
+}
+
+.program-icon {
+  flex: none;
+  object-fit: contain;
+}
+
+/* The same block in a sent message, where the words are plain text: the icon before the name. */
+.message-program-block {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: rgba(28, 28, 27, 0.07);
+  white-space: nowrap;
+}
+
+.message-program-block > :is(img, svg) {
+  margin-right: 3px;
+  color: var(--muted);
+  vertical-align: -2px;
+}

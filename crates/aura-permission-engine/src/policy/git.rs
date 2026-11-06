@@ -13,6 +13,11 @@ pub(super) fn mode_permits(
             aura_security_contract::chrome_mode_covers(input.snapshot.mode, *cap, &c.resources)
         });
     }
+    if crate::desktop::shape(input) {
+        return capabilities
+            .iter()
+            .all(|cap| aura_security_contract::desktop_mode_covers(*cap, &c.resources));
+    }
     if crate::browser::shape(input) {
         return capabilities.iter().all(|cap| {
             aura_security_contract::browser_mode_covers(input.snapshot.mode, *cap, &c.resources)

@@ -7,7 +7,6 @@ import {
   installAppTestEnvironment,
   MODEL_PROVIDER_ID,
   ANTHROPIC_PROVIDER_ID,
-  SUGGESTED_PROVIDER_ID,
   MODEL_ENDPOINT_ID,
   MODEL_PROFILE_ID,
   modelSettingsProjection,
@@ -332,72 +331,5 @@ describe('P05 prerequisite desktop shell', () => {
     expect((within(dialog).getByLabelText(/模型目录请求模式/u) as HTMLSelectElement).value).toBe(
       'automatic',
     );
-  });
-
-  test('prefills only the models.dev HTTPS Base URL suggestion for a manual Provider', async () => {
-    const suggestedSettings: ModelSettingsProjection = {
-      ...modelSettingsProjection,
-      registry: {
-        ...modelSettingsProjection.registry,
-        provider_order: [MODEL_PROVIDER_ID, SUGGESTED_PROVIDER_ID],
-        providers: {
-          ...modelSettingsProjection.registry.providers,
-          [SUGGESTED_PROVIDER_ID]: {
-            created_at: '2026-09-01T00:00:00Z',
-            display_name: 'Suggested API',
-            endpoint_order: [],
-            id: SUGGESTED_PROVIDER_ID,
-            slug: 'suggested-api',
-            source: { catalog_provider_id: 'suggested-api', type: 'models_dev' },
-            updated_at: '2026-09-01T00:00:00Z',
-          },
-        },
-      },
-    };
-    const suggestedCatalog: ProviderCatalogProjection = {
-      ...modelProviderCatalog,
-      cards: [
-        ...modelProviderCatalog.cards,
-        {
-          catalog_model_count: 5,
-          catalog_provider_id: 'suggested-api',
-          configuration_class: 'manual_configuration',
-          connection_defaults: {
-            base_url: 'https://api.suggested.example/v1',
-            source: 'models_dev_api_suggestion',
-          },
-          display_name: 'Suggested API',
-          fallback_initial: 'S',
-          icon_ref: null,
-          local_provider_id: SUGGESTED_PROVIDER_ID,
-        },
-      ],
-    };
-    vi.mocked(window.aura.v1.getModelSettings).mockResolvedValue({
-      ok: true,
-      value: suggestedSettings,
-    });
-    vi.mocked(window.aura.v1.getModelProviderCatalog).mockResolvedValue({
-      ok: true,
-      value: suggestedCatalog,
-    });
-    vi.mocked(window.aura.v1.ensureModelProviderCatalogFresh).mockResolvedValue({
-      ok: true,
-      value: suggestedCatalog,
-    });
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(screen.getByRole('button', { name: '设置' }));
-    await user.click(await screen.findByRole('button', { name: '配置 Suggested API' }));
-    const dialog = screen.getByRole('dialog', { name: 'Suggested API' });
-    await user.click(within(dialog).getByRole('button', { name: '添加连接' }));
-
-    expect((within(dialog).getByLabelText(/Base URL/u) as HTMLInputElement).value).toBe(
-      'https://api.suggested.example/v1',
-    );
-    expect(within(dialog).getByText('来自 models.dev 的未保存建议')).toBeTruthy();
-    expect((within(dialog).getByLabelText('API 类型') as HTMLSelectElement).value).toBe('');
-    expect((within(dialog).getByLabelText(/认证方式/u) as HTMLSelectElement).value).toBe('none');
   });
 });

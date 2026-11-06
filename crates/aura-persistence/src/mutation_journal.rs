@@ -527,6 +527,18 @@ pub(crate) fn insert_prepared_mutation_journal(
     input: &PrepareMutationJournal,
 ) -> Result<MutationJournalRecord, PersistenceError> {
     input.validate()?;
+    // One journal leases a resource at a time. Another journal still holding it is a conflict
+    // the caller can wait out, not a storage failure.
+    let leased = connection.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM mutation_leases WHERE resource_kind=?1 AND resource_id=?2
+         )",
+        params![input.resource_kind, input.resource_id],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if leased {
+        return Err(PersistenceError::MutationLeaseConflict);
+    }
     let lease_epoch = next_lease_epoch(connection)?;
     let now = UtcTimestamp::now();
     connection.execute(
@@ -757,6 +769,32 @@ mod tests {
             .expect("adopt stale journal");
         assert_eq!(adopted.owner_runtime_instance_id, second_runtime);
         assert!(adopted.lease_epoch > 1);
+    }
+
+    #[test]
+    fn a_resource_another_journal_holds_refuses_a_second_journal_without_storing_it() {
+        let (_directory, persistence) = start(RuntimeInstanceId::new());
+        let journal = |journal_id| PrepareMutationJournal {
+            journal_id,
+            journal_kind: "test_recovery".to_owned(),
+            idempotency_key: None,
+            initial_state: "prepared".to_owned(),
+            payload: serde_json::json!({"public_value":"safe"}),
+            resource_kind: "test_resource".to_owned(),
+            resource_id: "resource-1".to_owned(),
+        };
+        let holder = MutationJournalId::new();
+        persistence.prepare_mutation_journal(journal(holder)).expect("prepare holder");
+
+        let second = MutationJournalId::new();
+        let refused = persistence.prepare_mutation_journal(journal(second));
+        assert!(matches!(refused, Err(PersistenceError::MutationLeaseConflict)), "{refused:?}");
+        assert!(persistence.mutation_journal(second).expect("read second journal").is_none());
+
+        persistence
+            .transition_mutation_journal(holder, "test_recovery", "prepared", "completed", None)
+            .expect("finish holder");
+        persistence.prepare_mutation_journal(journal(second)).expect("prepare after holder");
     }
 
     #[test]

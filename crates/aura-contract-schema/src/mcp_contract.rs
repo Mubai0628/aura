@@ -24,4 +24,7 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
     generator.subschema_for::<McpSignInRequest>();
     generator.subschema_for::<McpSignInBegun>();
     generator.subschema_for::<McpSignOutRequest>();
+    // The resources a message may refer to with "@".
+    generator.subschema_for::<McpResourceListRequest>();
+    generator.subschema_for::<McpResourceList>();
 }

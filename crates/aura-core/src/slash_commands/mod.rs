@@ -1,12 +1,9 @@
-//! The Slash command catalog: the built-in commands, then the user's and the selected
-//! workspace's prompt commands, and the settings actions on them. Only the composer and
-//! settings read the catalog; the model reaches workspace commands only through its own
-//! approved tools and never Aura's configuration.
+//! The Slash command routes: the catalog for the selected workspace, built in
+//! `aura-extension-service`, and the settings actions on the user's and the workspace's commands.
 mod manage;
 #[cfg(test)]
 mod tests;
-use aura_agent_domain::{CommandCatalog, CommandCatalogRequest, CommandSource, builtin_commands};
-use aura_commands::WORKSPACE_COMMANDS_DIRECTORY;
+use aura_agent_domain::{CommandCatalog, CommandCatalogRequest};
 use aura_domain_common::WorkspaceId;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -63,80 +60,13 @@ impl CommandContext {
         &self,
         workspace_id: Option<WorkspaceId>,
     ) -> anyhow::Result<CommandCatalog> {
-        let user = aura_commands::scan(&self.user_root, CommandSource::User);
-        let workspace = workspace_id
-            .map(|id| -> anyhow::Result<_> {
-                let root = self.workspace_root(id)?;
-                let commands = aura_commands::scan_within(
-                    &root,
-                    WORKSPACE_COMMANDS_DIRECTORY,
-                    CommandSource::Workspace,
-                );
-                Ok((id, root.join(".aura").join("commands"), commands))
-            })
-            .transpose()?;
-        let disabled = self.settings.disabled_commands();
-        let mut commands = aura_commands::merge(
-            builtin_commands(),
-            &user,
-            workspace.as_ref().map(|(id, _, commands)| (*id, commands.as_slice())),
-            &disabled.keys,
-        );
-        if let Some(plugins) = &self.plugins {
-            aura_commands::add_plugin_commands(&mut commands, &plugin_commands(plugins));
-            switch_off_plugin_commands(&mut commands, plugins);
-        }
-        Ok(CommandCatalog {
-            commands,
-            user_directory: aura_domain_common::display_path(&self.user_root),
-            workspace_directory: workspace
-                .map(|(_, directory, _)| aura_domain_common::display_path(&directory)),
-        })
+        let workspace =
+            workspace_id.map(|id| self.workspace_root(id).map(|root| (id, root))).transpose()?;
+        Ok(aura_extension_service::commands::command_catalog(
+            &self.user_root,
+            &self.settings.disabled_commands().keys,
+            workspace.as_ref().map(|(id, root)| (*id, root.as_path())),
+            self.plugins.as_deref(),
+        ))
     }
-}
-
-/// The plugin commands the user switched off stay listed, off.
-fn switch_off_plugin_commands(
-    commands: &mut [aura_agent_domain::CommandEntry],
-    plugins: &aura_extension_service::plugins::PluginRuntime,
-) {
-    let ready = plugins.ready();
-    for entry in commands.iter_mut().filter(|entry| entry.source == CommandSource::Plugin) {
-        let switched_off = ready.iter().any(|plugin| {
-            entry.plugin.as_ref() == Some(&plugin.package.manifest.name)
-                && plugin.setting.changes.switched_off.commands.contains(&entry.name)
-        });
-        if switched_off {
-            entry.enabled = false;
-        }
-    }
-}
-
-/// Each ready plugin's commands, offered only at the revision they had when the plugin
-/// was trusted.
-fn plugin_commands(
-    plugins: &aura_extension_service::plugins::PluginRuntime,
-) -> Vec<(String, Vec<aura_commands::LoadedCommand>)> {
-    plugins
-        .ready()
-        .iter()
-        .map(|plugin| {
-            let trusted = &plugin.setting.trusted_parts.commands;
-            let commands = plugin
-                .package
-                .commands
-                .iter()
-                .map(|offered| {
-                    let mut command = offered.command.clone();
-                    if command.issue.is_none()
-                        && trusted.get(&command.name) != command.revision.as_ref()
-                    {
-                        command.issue = Some("内容在信任之后变了，请重新信任插件".into());
-                    }
-                    command
-                })
-                .collect();
-            (plugin.package.manifest.name.clone(), commands)
-        })
-        .collect()
 }

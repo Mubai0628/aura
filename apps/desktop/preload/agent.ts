@@ -2,8 +2,11 @@ import type { IpcErrorEnvelope } from '@aura/contracts/generated';
 import { terminalBridge } from './terminal.js';
 import { browserBridge } from './browser.js';
 import { chromeBridge } from './chrome.js';
+import { computerBridge } from './computer.js';
+import { pluginPanelsBridge } from './plugin-panels.js';
+import { pluginUiBridge } from './plugin-ui.js';
 import { attachmentFile, attachmentPath, messagePicture, workspaceMediaUrl } from './media.js';
-import { setMcpSecret } from './mcp-secret.js';
+import { setMcpSecret, setPluginSecret } from './mcp-secret.js';
 import type { ResultEnvelope } from '../shared/aura-api.js';
 import {
   isAgentParams,
@@ -57,6 +60,9 @@ export function agentBridge(
     terminal: terminalBridge(invoke, error, isError),
     browser: browserBridge(invoke),
     chrome: chromeBridge(invoke),
+    computer: computerBridge(invoke),
+    pluginPanels: pluginPanelsBridge(),
+    pluginUi: pluginUiBridge(),
     workspaceMediaUrl,
     attachmentPath,
     attachmentFile,
@@ -112,6 +118,8 @@ export function agentBridge(
       invoke('agent.hooks.select_directory', request),
     listMcpServers: (request: AgentMainParams['agent.mcp.list']) =>
       invoke('agent.mcp.list', request),
+    listMcpResources: (request: AgentMainParams['agent.mcp.resources']) =>
+      invoke('agent.mcp.resources', request),
     previewMcpServer: (request: AgentMainParams['agent.mcp.preview']) =>
       invoke('agent.mcp.preview', request),
     describeMcpServer: (request: AgentMainParams['agent.mcp.describe']) =>
@@ -131,6 +139,7 @@ export function agentBridge(
     refreshMcpServer: (request: AgentMainParams['agent.mcp.refresh']) =>
       invoke('agent.mcp.refresh', request),
     setMcpSecret: setMcpSecret(isError, error),
+    setPluginSecret: setPluginSecret(isError, error),
     signInMcpServer: (request: AgentMainParams['agent.mcp.oauth.sign_in']) =>
       invoke('agent.mcp.oauth.sign_in', request),
     signOutMcpServer: (request: AgentMainParams['agent.mcp.oauth.sign_out']) =>
@@ -146,8 +155,14 @@ export function agentBridge(
       invoke('agent.skills.trust', request),
     untrustSkill: (request: AgentMainParams['agent.skills.untrust']) =>
       invoke('agent.skills.untrust', request),
+    trustWorkspaceSkills: (request: AgentMainParams['agent.skills.trust_workspace']) =>
+      invoke('agent.skills.trust_workspace', request),
+    untrustWorkspaceSkills: (request: AgentMainParams['agent.skills.untrust_workspace']) =>
+      invoke('agent.skills.untrust_workspace', request),
     setSkillEnabled: (request: AgentMainParams['agent.skills.set_enabled']) =>
       invoke('agent.skills.set_enabled', request),
+    setSkillPinned: (request: AgentMainParams['agent.skills.set_pinned']) =>
+      invoke('agent.skills.set_pinned', request),
     importSkill: (request: AgentMainParams['agent.skills.import']) =>
       invoke('agent.skills.import', request),
     removeSkill: (request: AgentMainParams['agent.skills.remove']) =>
@@ -164,6 +179,8 @@ export function agentBridge(
       invoke('agent.plugins.preview', request),
     importPlugin: (request: AgentMainParams['agent.plugins.import']) =>
       invoke('agent.plugins.import', request),
+    addDevelopmentPlugin: (request: AgentMainParams['agent.plugins.add_development']) =>
+      invoke('agent.plugins.add_development', request),
     trustPlugin: (request: AgentMainParams['agent.plugins.trust']) =>
       invoke('agent.plugins.trust', request),
     untrustPlugin: (request: AgentMainParams['agent.plugins.untrust']) =>
@@ -180,6 +197,12 @@ export function agentBridge(
       invoke('agent.plugins.select_archive', request),
     openPluginDirectory: (request: AgentMainParams['agent.plugins.open_directory']) =>
       invoke('agent.plugins.open_directory', request),
+    exportPlugin: (request: AgentMainParams['agent.plugins.export']) =>
+      invoke('agent.plugins.export', request),
+    getPluginTheme: (request: AgentMainParams['agent.plugins.theme']) =>
+      invoke('agent.plugins.theme', request),
+    configurePlugin: (request: AgentMainParams['agent.plugins.configure']) =>
+      invoke('agent.plugins.configure', request),
     readAgentCompaction: (request: AgentMainParams['agent.compaction.status']) =>
       invoke('agent.compaction.status', request),
     selectAgentQueryFile: (request: AgentMainParams['agent.query.select_file']) =>

@@ -24,9 +24,10 @@ test('the third-party notices cover every program a release ships', () => {
   assert.deepEqual([...programs].sort(), [...SHIPPED].sort());
 });
 
-test('the Chrome relay sits in the same folder as Core', () => {
+test('the Chrome relay and the desktop host sit in the same folder as Core', () => {
   const folder = (id) => dirname(COMPONENTS.find((component) => component.id === id).path);
   assert.equal(folder('aura-chrome-host'), folder('aura-core'));
+  assert.equal(folder('aura-desktop-control'), folder('aura-core'));
 });
 
 test('versions compare by number, not by text', () => {

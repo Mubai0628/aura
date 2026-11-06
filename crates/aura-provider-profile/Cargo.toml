@@ -1,0 +1,12 @@
+[package]
+name = "aura-provider-profile"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-model-domain = { path = "../aura-model-domain" }
+url.workspace = true
+
+[lints]
+workspace = true

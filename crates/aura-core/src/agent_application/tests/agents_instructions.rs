@@ -12,7 +12,7 @@ fn instructions(request: &Value) -> String {
 }
 
 /// The `<Workspace-AGENTS-Instructions>` block of a request's instructions.
-fn agents_block(request: &Value) -> String {
+pub(super) fn agents_block(request: &Value) -> String {
     let text = instructions(request);
     let start = text.find("<Workspace-AGENTS-Instructions>").expect("the AGENTS block");
     let end = text.find("</Workspace-AGENTS-Instructions>").expect("its end");

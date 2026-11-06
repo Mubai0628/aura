@@ -14,6 +14,9 @@ import { ReviewPanel } from './review/ReviewPanel';
 import { FilesPanel } from './files/FilesPanel';
 import { BrowserPanel } from './browser/BrowserPanel';
 import { browserTabs } from './browser/browser-tabs';
+import { pluginPanelsApi } from './plugin-panels/bridge';
+import { usePanelPlugins, type PanelPlugin } from './plugin-panels/panel-plugins';
+import { PluginPanel } from './plugin-panels/PluginPanel';
 import {
   availableTools,
   tabLabels,
@@ -57,23 +60,9 @@ const ICONS: Record<ToolKind, IconName> = {
   process: 'activity',
   browser: 'browser',
   files: 'folder',
-  chat: 'chat',
   'prompt-inspector': 'activity',
+  'plugin-panel': 'puzzle',
 };
-
-function Placeholder({ kind }: { kind: 'chat' }) {
-  const copy = {
-    chat: ['侧边对话尚未开始', '侧边对话功能尚不可用。'],
-  }[kind];
-  return (
-    <div className="right-panel-empty">
-      <AppIcon name={ICONS[kind]} size={28} />
-      <h3>{copy[0]}</h3>
-      <p>{copy[1]}</p>
-      <span className="mock-inline-note">计划功能 · 尚未接入</span>
-    </div>
-  );
-}
 
 function ToolChoice({ kind, onPick, role }: { kind: ToolKind; onPick: () => void; role?: string }) {
   const shortcut = TOOL_SHORTCUTS[kind];
@@ -86,10 +75,29 @@ function ToolChoice({ kind, onPick, role }: { kind: ToolKind; onPick: () => void
   );
 }
 
+function PanelChoice({
+  panel,
+  onPick,
+  role,
+}: {
+  panel: PanelPlugin;
+  onPick: () => void;
+  role?: string;
+}) {
+  return (
+    <button onClick={onPick} role={role} title={panel.plugin} type="button">
+      <AppIcon name={ICONS['plugin-panel']} />
+      <span>{panel.title}</span>
+      <span />
+    </button>
+  );
+}
+
 /**
  * The right sidebar holds the conversation's tool tabs. "+" offers every tool
- * that may open more than once and the single ones not yet open; a terminal you opened ends with
- * its tab, the model's terminal keeps running when its tab closes.
+ * that may open more than once and the single ones not yet open, then the panels of ready plugins
+ * not yet open; a terminal you opened ends with its tab, the model's terminal keeps running when
+ * its tab closes, and a plugin's panel closes with its tab.
  */
 export function RightWorkspace({
   visible = true,
@@ -117,6 +125,10 @@ export function RightWorkspace({
   const records = useSyncExternalStore(subscribeTerminals, terminalSnapshot);
   const active = state.tabs.find((tab) => tab.id === state.active);
   const offered = availableTools(state);
+  // A plugin's panel opens once in a conversation, like the single tools.
+  const panels = usePanelPlugins(menuOpen || active === undefined).filter(
+    ({ plugin }) => !state.tabs.some((tab) => tab.kind === 'plugin-panel' && tab.plugin === plugin),
+  );
   const files = useMemo(
     () =>
       workspaceId && sessionId
@@ -135,6 +147,10 @@ export function RightWorkspace({
     if (sessionId) toolTabs.open(sessionId, kind);
     setMenuOpen(false);
   };
+  const openPanel = (panel: PanelPlugin) => {
+    if (sessionId) toolTabs.openPanel(sessionId, panel.plugin, panel.title);
+    setMenuOpen(false);
+  };
   const close = async (tab: ToolTab) => {
     if (!sessionId) return;
     setCloseError('');
@@ -142,8 +158,10 @@ export function RightWorkspace({
       const failure = await closeTerminalTab(sessionId, tab);
       if (failure) setCloseError(failure);
     } else {
-      // The browser's pages end with its tab.
+      // The browser's pages end with its tab, and so does a plugin's panel.
       if (tab.kind === 'browser') browserTabs.closeAll(sessionId);
+      if (tab.kind === 'plugin-panel' && tab.plugin !== undefined)
+        void pluginPanelsApi()?.command({ kind: 'close', sessionId, plugin: tab.plugin });
       toolTabs.close(sessionId, tab.id);
     }
   };
@@ -156,7 +174,11 @@ export function RightWorkspace({
       tab,
       label: record?.view.owner === 'agent' ? record?.view.title || '模型终端' : label,
       icon: model ? 'model' : ICONS[tab.kind],
-      title: record ? (record.view.shell === 'cmd' ? 'CMD' : 'PowerShell 7') : tab.file,
+      title: record
+        ? record.view.shell === 'cmd'
+          ? 'CMD'
+          : 'PowerShell 7'
+        : (tab.plugin ?? tab.file),
       givesWay: model,
     };
   });
@@ -205,6 +227,17 @@ export function RightWorkspace({
               <div aria-label="选择工具" className="tool-picker" role="menu">
                 {offered.map((kind) => (
                   <ToolChoice key={kind} kind={kind} onPick={() => open(kind)} role="menuitem" />
+                ))}
+                {panels.length > 0 && offered.length > 0 ? (
+                  <div className="tool-picker-separator" role="separator" />
+                ) : null}
+                {panels.map((panel) => (
+                  <PanelChoice
+                    key={panel.plugin}
+                    panel={panel}
+                    onPick={() => openPanel(panel)}
+                    role="menuitem"
+                  />
                 ))}
               </div>
             ) : null}
@@ -266,6 +299,10 @@ export function RightWorkspace({
           {MENU_TOOLS.map((kind) => (
             <ToolChoice key={kind} kind={kind} onPick={() => open(kind)} />
           ))}
+          {panels.length > 0 ? <div className="tool-picker-separator" role="separator" /> : null}
+          {panels.map((panel) => (
+            <PanelChoice key={panel.plugin} panel={panel} onPick={() => openPanel(panel)} />
+          ))}
         </div>
       ) : active.kind === 'terminal' ? null : active.kind === 'files' ? (
         files ? null : (
@@ -304,9 +341,16 @@ export function RightWorkspace({
         ) : (
           <p className="right-panel-empty">选择会话后使用浏览器。</p>
         )
-      ) : (
-        <Placeholder kind={active.kind} />
-      )}
+      ) : active.kind === 'plugin-panel' ? (
+        sessionId && active.plugin !== undefined ? (
+          <PluginPanel
+            key={`${sessionId}:${active.plugin}`}
+            plugin={active.plugin}
+            sessionId={sessionId}
+            visible={visible}
+          />
+        ) : null
+      ) : null}
     </aside>
   );
 }

@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type {
   HookEntryView,
   McpServerView,
+  PluginOption,
   PluginPreview,
   PluginRegistryView,
   PluginView,
 } from '@aura/contracts/generated';
 import type { ResultEnvelope } from '../../../shared/aura-api';
 import { AppIcon } from '../app-icons';
+import { usePluginStatuses } from '../plugin-ui/plugin-ui';
 import type { SettingsSection } from '../app-shell-types';
-import { PluginCard, type PluginAction } from './PluginCard';
+import { PluginDetails, type PluginAction, type PluginChange } from './PluginDetails';
+import { PluginHeading, PluginRow } from './PluginRow';
 import { pluginError } from './plugin-labels';
+import { useServiceChanges } from './useServiceChanges';
+import { SettingsItemDialog } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './plugin-settings.css';
@@ -35,8 +40,13 @@ export function PluginSettings({
   const [notice, setNotice] = useState<Notice>();
   const [preview, setPreview] = useState<PluginPreview>();
   const [uninstalling, setUninstalling] = useState<string>();
+  // The plugin whose dialog is open, by name.
+  const [opened, setOpened] = useState<string>();
   const [running, setRunning] = useState<Running>({ servers: [], hooks: [] });
   const [poll, setPoll] = useState(0);
+  const statuses = usePluginStatuses();
+  const relist = useCallback(() => setReload((value) => value + 1), []);
+  useServiceChanges(coreReady, relist);
   useEffect(() => {
     if (!coreReady) return;
     let live = true;
@@ -117,6 +127,21 @@ export function PluginSettings({
   const plugins = registry?.plugins ?? NONE;
   const pages = useIncrementalList(plugins);
   const change = { expected_revision: revision };
+  // A plugin that leaves the list, uninstalled here or no longer found, takes its dialog with it.
+  const shown = opened === undefined ? undefined : plugins.find((plugin) => plugin.name === opened);
+  /** The action under way on this plugin, shown on its button. */
+  const working = (plugin: PluginView) =>
+    busy?.endsWith(`:${plugin.name}`) ? busy.slice(0, busy.lastIndexOf(':')) : undefined;
+  const close = () => {
+    setOpened(undefined);
+    setUninstalling(undefined);
+    setPreview(undefined);
+  };
+  // A dialog shows what is done in it, never the outcome of an earlier action on another item.
+  const openItem = (name: string) => {
+    setNotice(undefined);
+    setOpened(name);
+  };
 
   const act = (plugin: PluginView, action: PluginAction) =>
     run(`${action}:${plugin.name}`, async () => {
@@ -152,11 +177,45 @@ export function PluginSettings({
           if (!result.ok) return { alert: true, text: pluginError(result.error.message) };
           return { alert: !result.value.completed, text: result.value.message };
         }
-        case 'uninstall':
+        case 'export': {
+          // Main asks where to save it; Core writes the files it read there.
+          const result = await api.exportPlugin({ name });
+          if (!result.ok) return { alert: true, text: pluginError(result.error.message) };
+          const cancelled = !result.value.completed && result.value.message.startsWith('已取消');
+          return { alert: !result.value.completed && !cancelled, text: result.value.message };
+        }
+        case 'uninstall': {
           setUninstalling(undefined);
           if (preview?.plugin.name === name) setPreview(undefined);
-          return applied(await api.uninstallPlugin({ ...change, name }), `已卸载 ${name}`);
+          const done = applied(await api.uninstallPlugin({ ...change, name }), `已卸载 ${name}`);
+          // A plugin imported again later under the same name does not reopen this dialog.
+          if (!done.alert) close();
+          return done;
+        }
       }
+    });
+  const configure = (plugin: PluginView, request: PluginChange, done: string) =>
+    run(`configure:${plugin.name}`, async () =>
+      applied(
+        await window.aura.v1.configurePlugin({ ...request, ...change, name: plugin.name }),
+        done,
+      ),
+    );
+  // The value goes only on the secret channel; the answer names the new revision, so the list
+  // is read again.
+  const setSecret = (plugin: PluginView, option: PluginOption, bytes: Uint8Array) =>
+    run(`secret:${plugin.name}`, async () => {
+      const result = await window.aura.v1.setPluginSecret(
+        { name: plugin.name, key: option.key },
+        bytes,
+      );
+      relist();
+      return result.ok
+        ? { alert: false, text: `已保存 ${option.title}` }
+        : {
+            alert: true,
+            text: pluginError(result.error.message, '保密设置没有确认保存，请重新填写。'),
+          };
     });
   const trust = (shown: PluginPreview) =>
     run(`trust:${shown.plugin.name}`, async () => {
@@ -172,19 +231,26 @@ export function PluginSettings({
       if (!done.alert) setPreview(undefined);
       return done;
     });
-  // Main shows the dialog; Core copies a folder or unpacks a ZIP file and checks it.
-  const importFrom = (kind: 'folder' | 'archive') =>
+  // Main shows the dialog; Core copies a folder or unpacks a ZIP file and checks it, or records a
+  // folder a plugin is being written in where it is.
+  const importFrom = (kind: 'folder' | 'archive' | 'development') =>
     run(`import:${kind}`, async () => {
       const chosen =
-        kind === 'folder'
-          ? await window.aura.v1.selectPluginDirectory({})
-          : await window.aura.v1.selectPluginArchive({});
+        kind === 'archive'
+          ? await window.aura.v1.selectPluginArchive({})
+          : await window.aura.v1.selectPluginDirectory({});
       if (!chosen.ok) return { alert: true, text: pluginError(chosen.error.message) };
       if (!chosen.value.path) return undefined;
-      return applied(
-        await window.aura.v1.importPlugin({ path: chosen.value.path, expected_revision: revision }),
-        '已导入；查看它带来的内容并信任后才会生效',
-      );
+      const request = { path: chosen.value.path, expected_revision: revision };
+      return kind === 'development'
+        ? applied(
+            await window.aura.v1.addDevelopmentPlugin(request),
+            '已添加开发中的插件；查看它带来的内容并信任后才会生效',
+          )
+        : applied(
+            await window.aura.v1.importPlugin(request),
+            '已导入；查看它带来的内容并信任后才会生效',
+          );
     });
 
   const importButtons = (
@@ -207,6 +273,15 @@ export function PluginSettings({
         onClick={() => void importFrom('archive')}
       >
         导入 ZIP…
+      </button>
+      <button
+        type="button"
+        className="button"
+        disabled={!coreReady || busy !== undefined}
+        aria-busy={busy === 'import:development' ? true : undefined}
+        onClick={() => void importFrom('development')}
+      >
+        添加开发中的插件…
       </button>
     </>
   );
@@ -265,24 +340,19 @@ export function PluginSettings({
       ) : plugins.length ? (
         <ul className="plugin-list settings-card-list" aria-label="插件">
           {pages.shown.map((plugin, index) => (
-            <PluginCard
+            <PluginRow
               key={plugin.name}
               plugin={plugin}
               index={index}
               busy={busy !== undefined}
-              working={
-                busy?.endsWith(`:${plugin.name}`) ? busy.slice(0, busy.lastIndexOf(':')) : undefined
-              }
-              preview={preview?.plugin.name === plugin.name ? preview : undefined}
-              servers={running.servers.filter((server) => server.plugin === plugin.name)}
-              hooks={running.hooks.filter((hook) => hook.plugin === plugin.name)}
-              confirmingUninstall={uninstalling === plugin.name}
+              status={statuses.find((entry) => entry.plugin === plugin.name)}
+              working={working(plugin)}
+              onOpen={() => openItem(plugin.name)}
+              onReview={() => {
+                openItem(plugin.name);
+                void act(plugin, 'preview');
+              }}
               onAction={(action) => void act(plugin, action)}
-              onTrust={(shown) => void trust(shown)}
-              onClosePreview={() => setPreview(undefined)}
-              onAskUninstall={() => setUninstalling(plugin.name)}
-              onCancelUninstall={() => setUninstalling(undefined)}
-              onOpenSection={onOpenSection}
             />
           ))}
           {pages.more ? <ListSentinel sentinel={pages.sentinel} /> : null}
@@ -299,6 +369,38 @@ export function PluginSettings({
           </p>
         </div>
       )}
+      {shown ? (
+        <SettingsItemDialog
+          title={shown.name}
+          heading={<PluginHeading plugin={shown} named={false} />}
+          notice={notice}
+          onClose={close}
+        >
+          <PluginDetails
+            plugin={shown}
+            busy={busy !== undefined}
+            working={working(shown)}
+            preview={preview?.plugin.name === shown.name ? preview : undefined}
+            servers={running.servers.filter((server) => server.plugin === shown.name)}
+            hooks={running.hooks.filter((hook) => hook.plugin === shown.name)}
+            confirmingUninstall={uninstalling === shown.name}
+            onAction={(action) => void act(shown, action)}
+            onTrust={(review) => void trust(review)}
+            onClosePreview={() => setPreview(undefined)}
+            onAskUninstall={() => setUninstalling(shown.name)}
+            onCancelUninstall={() => setUninstalling(undefined)}
+            onOpenSection={
+              onOpenSection &&
+              ((section) => {
+                close();
+                onOpenSection(section);
+              })
+            }
+            onConfigure={(request, done) => void configure(shown, request, done)}
+            onSetSecret={(option, bytes) => void setSecret(shown, option, bytes)}
+          />
+        </SettingsItemDialog>
+      ) : null}
     </section>
   );
 }

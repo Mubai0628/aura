@@ -6,6 +6,12 @@ pub use browser::{
 };
 mod chrome;
 pub use chrome::{ChromeControlSettings, ChromeControlSettingsSnapshot, ChromePairing};
+mod computer;
+pub use computer::{
+    ComputerAddedApp, ComputerApp, ComputerControlSettings, ComputerControlSettingsSnapshot,
+    ComputerControlSettingsUpdate, DEFAULT_SCREENSHOT_EDGE, MAX_LISTED_APPS, MAX_SCREENSHOT_EDGE,
+    MIN_SCREENSHOT_EDGE,
+};
 mod commands;
 pub use commands::DisabledCommands;
 mod hooks;
@@ -36,7 +42,7 @@ pub mod recovery_contract;
 mod service;
 mod tools;
 mod ui;
-pub use ui::{DefaultTerminal, UiSettings, UiSettingsSnapshot, UiSettingsUpdate};
+pub use ui::{BackgroundMotion, DefaultTerminal, UiSettings, UiSettingsSnapshot, UiSettingsUpdate};
 mod watch;
 
 pub use document::{

@@ -23,36 +23,38 @@ pub(super) fn execute(
             );
             service.verify_source(call)?;
             let _activity = aura_fs_tools::observe_file_execution(&[]);
-            // Skill folders are read before the store transaction; only the turn's loaded
-            // set is recorded inside it.
+            // Skill folders are read before the store transaction; only the answer is recorded
+            // inside it.
             let action_kind = &request.operation.content.action_kind;
-            let skill = super::skill_tools::is_skill_tool(action_kind).then(|| {
-                super::skill_tools::prepare(
+            let archived = super::conversations::archived_refusal(service, call, request)?;
+            let skill = if super::skill_tools::is_skill_tool(action_kind) {
+                Some(super::skill_tools::prepare(
                     service,
                     call,
                     action_kind,
                     &request.operation.content.action,
-                )
-            });
+                ))
+            } else if super::plugin_tools::is_plugin_tool(action_kind) {
+                Some(super::plugin_tools::prepare(
+                    service,
+                    call,
+                    action_kind,
+                    &request.operation.content.action,
+                ))
+            } else {
+                None
+            };
             service.journal.lock()?.database.unit_of_work(|tx| {
                 let at = UtcTimestamp::now();
                 if let Some(prepared) = skill {
-                    let run = call.batch.invocation_identity.agent_run_id;
                     aura_persistence_v2::agent::tool_state::execute_with(
                         tx,
                         request,
                         &call.batch,
                         call.validated.call.tool_call_id,
                         at,
-                        |tx, _name, _arguments| {
-                            let prepared = prepared
-                                .map_err(aura_persistence_core::PersistenceCoreError::Invalid)?;
-                            if let Some(loaded) = &prepared.loaded {
-                                aura_persistence_v2::agent::skills::set_loaded(
-                                    tx, run, loaded, at,
-                                )?;
-                            }
-                            Ok(prepared.output)
+                        |_tx, _name, _arguments| {
+                            prepared.map_err(aura_persistence_core::PersistenceCoreError::Invalid)
                         },
                     )
                 } else if request.operation.content.action_kind == "chrome.tabs" {
@@ -70,6 +72,17 @@ pub(super) fn execute(
                                     )
                                 },
                             )
+                        },
+                    )
+                } else if request.operation.content.action_kind == "computer.apps" {
+                    aura_persistence_v2::agent::tool_state::execute_with(
+                        tx,
+                        request,
+                        &call.batch,
+                        call.validated.call.tool_call_id,
+                        at,
+                        |tx, _name, arguments| {
+                            super::computer::apps_result(service, call, tx, arguments)
                         },
                     )
                 } else if request.operation.content.action_kind == "agent.activity.query" {
@@ -90,6 +103,17 @@ pub(super) fn execute(
                         at,
                         |tx, name, arguments| {
                             super::registry::execute(tx, call, name, arguments, at)
+                        },
+                    )
+                } else if let Some(refusal) = archived {
+                    aura_persistence_v2::agent::tool_state::execute_with(
+                        tx,
+                        request,
+                        &call.batch,
+                        call.validated.call.tool_call_id,
+                        at,
+                        |_tx, _name, _arguments| {
+                            Err(aura_persistence_core::PersistenceCoreError::Invalid(refusal))
                         },
                     )
                 } else {

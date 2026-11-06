@@ -187,6 +187,7 @@ async fn unparseable_provider_tool_arguments_do_not_poison_the_conversation() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: "Ask the provider for a malformed tool call, then finish.".into(),
@@ -195,7 +196,9 @@ async fn unparseable_provider_tool_arguments_do_not_poison_the_conversation() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

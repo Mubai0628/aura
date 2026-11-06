@@ -518,3 +518,31 @@ fn networked_cli_high_risk_operations_still_require_approval() {
         }
     }
 }
+
+/// A program on the user's desktop is authorized by the session, never by a mode: the older
+/// entry asks in every mode too, and no mode's ceiling covers it, so changing the mode never
+/// reaches a call on a program.
+#[test]
+fn computer_control_is_never_allowed_by_the_mode_alone() {
+    let actor = aura_security_contract::InvocationActor::ParentAgent;
+    for mode in
+        [PermissionMode::ReadOnly, PermissionMode::WorkspaceReadWrite, PermissionMode::FullAccess]
+    {
+        for capability in [ResolvedCapability::DesktopRead, ResolvedCapability::DesktopInput] {
+            let (mut plan, snapshot) = fixture(mode);
+            plan.capabilities = vec![capability];
+            let decision = evaluate(&plan, &snapshot, &[], &[]);
+            assert_ne!(decision_name(&decision), "allow", "{mode:?} {capability:?}");
+            assert!(
+                !aura_permission_engine::mode_ceiling::permits(
+                    actor,
+                    mode,
+                    &[capability],
+                    false,
+                    false
+                ),
+                "{mode:?} {capability:?}"
+            );
+        }
+    }
+}

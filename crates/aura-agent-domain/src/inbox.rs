@@ -27,9 +27,17 @@ pub struct AgentPendingMessage {
     /// The thinking level chosen with this message for the turn it starts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<crate::TurnReasoningEffort>,
+    /// The speed mode chosen with this message for the turn it starts; none is the standard mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speed_mode: Option<crate::TurnSpeedMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_mode: Option<crate::ComputerMode>,
     /// The pictures and files added to this message, kept with it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<crate::AgentMessageAttachment>,
+    /// What the message refers to, as it was when the message was sent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<crate::MessageReferenceView>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -63,9 +71,18 @@ pub struct AgentSubmitRequest {
     /// starts; none is the model's default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<crate::TurnReasoningEffort>,
+    /// The speed mode the conversation uses with its model, for the turn this message starts;
+    /// none is the standard mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speed_mode: Option<crate::TurnSpeedMode>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_mode: Option<crate::ComputerMode>,
     /// Pictures and files added to the message in the composer.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<crate::AgentAttachmentDraft>,
+    /// What the message refers to with "@", resolved when it is sent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<crate::AgentMessageReference>,
 }
 
 impl AgentSubmitRequest {
@@ -82,12 +99,15 @@ impl AgentSubmitRequest {
             destination,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
+            computer_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }
     }
 
     /// The request as a repeated command is compared and kept: digests in place of what its
-    /// pictures and text files hold.
+    /// pictures and text files hold, and other conversations by their handles.
     #[must_use]
     pub fn receipt(&self) -> Self {
         Self {
@@ -96,6 +116,7 @@ impl AgentSubmitRequest {
                 .iter()
                 .map(crate::AgentAttachmentDraft::receipt)
                 .collect(),
+            references: self.references.iter().map(crate::AgentMessageReference::receipt).collect(),
             ..self.clone()
         }
     }

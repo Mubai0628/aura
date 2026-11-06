@@ -53,10 +53,8 @@ describe('Provider Catalog grouping', () => {
     const onSelect = vi.fn();
     render(
       <ProviderCatalog
-        catalogLabel="models.dev 目录 · 最新"
         onAddCustom={vi.fn()}
         onConfigure={onConfigure}
-        onRefresh={vi.fn()}
         onSelect={onSelect}
         providers={[
           configuredProvider(1),
@@ -72,8 +70,11 @@ describe('Provider Catalog grouping', () => {
       '已配置 Provider',
       '未配置目录',
     ]);
-    // No explanation under the heading.
+    // No explanation under the heading, no section label and no catalog status line.
     expect(screen.queryByText(/目录来自 models\.dev/u)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Provider' })).toBeNull();
+    expect(screen.queryByText(/models\.dev 目录/u)).toBeNull();
+    expect(screen.queryByRole('button', { name: /刷新/u })).toBeNull();
     expect(screen.getByRole('button', { name: /添加提供商/u })).toBeTruthy();
     expect(screen.getByRole('button', { name: /^Provider 14.*尚未添加$/u })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Provider 15.*尚未添加$/u })).toBeNull();
@@ -91,5 +92,23 @@ describe('Provider Catalog grouping', () => {
     expect(screen.getByRole('button', { name: /^Provider 20.*尚未添加$/u })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /收起 Provider/u }));
     expect(screen.queryByRole('button', { name: /^Provider 15.*尚未添加$/u })).toBeNull();
+  });
+
+  test('an unavailable catalog says so where its Providers would be', () => {
+    render(
+      <ProviderCatalog
+        catalogUnavailable
+        onAddCustom={vi.fn()}
+        onConfigure={vi.fn()}
+        onSelect={vi.fn()}
+        providers={[configuredProvider(1)]}
+        selectedProviderId="configured-1"
+      />,
+    );
+    const directory = screen.getByRole('region', { name: '未配置目录' });
+    expect(directory.textContent).toContain('models.dev 目录暂不可用');
+    expect(screen.getByRole('region', { name: '已配置 Provider' }).textContent).not.toContain(
+      '不可用',
+    );
   });
 });

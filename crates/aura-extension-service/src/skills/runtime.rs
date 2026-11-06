@@ -1,6 +1,8 @@
 //! Where Skill folders are, and what each one is under the user's choices. Aura's own folder,
-//! the user's `.agents\skills` and the selected workspace's `.agents\skills` are read; every
-//! folder on the way must be a real folder. A ready plugin's Skills follow the plugin.
+//! the folder of the Skills that come with Aura,
+//! the user's `.agents\skills` and `.claude\skills`, and the selected workspace's two folders of
+//! the same names are read; every folder on the way must be a real folder. A ready plugin's
+//! Skills follow the plugin.
 use aura_config::{SettingsFacade, SkillRegistry};
 use aura_core_base::append_core_log;
 use aura_domain_common::{SkillInstanceId, WorkspaceId};
@@ -13,6 +15,8 @@ use std::sync::Arc;
 
 /// Under a user profile or a workspace.
 pub(crate) const AGENTS_SKILLS: &str = ".agents/skills";
+/// Under a user profile or a workspace, as Claude Code keeps them.
+pub(crate) const CLAUDE_SKILLS: &str = ".claude/skills";
 /// Under Aura's local data root.
 pub(crate) const STORE_SKILLS: &str = "skills/packages";
 
@@ -43,6 +47,11 @@ pub struct SkillRuntime {
     /// Held while the start's first reading of the Skill folders runs; a listing waits for
     /// it rather than reading the same files beside it.
     pub(super) warming: std::sync::Mutex<()>,
+    /// Whether the Skills that come with Aura are listed: always, except in a test that has not
+    /// asked for them, so that it lists only what it wrote.
+    builtin: std::sync::atomic::AtomicBool,
+    /// Set once this start has written them.
+    builtin_written: std::sync::OnceLock<()>,
 }
 
 /// The user profile, except in tests: unit tests use a folder under their TEMP data root, and
@@ -126,7 +135,15 @@ impl SkillRuntime {
             hashes: FileHashCache::default(),
             plugins: std::sync::OnceLock::new(),
             warming: std::sync::Mutex::new(()),
+            builtin: std::sync::atomic::AtomicBool::new(!cfg!(any(test, feature = "test-hooks"))),
+            builtin_written: std::sync::OnceLock::new(),
         })
+    }
+
+    /// Lists the Skills that come with Aura in a test, as every other build does.
+    #[cfg(any(test, feature = "test-hooks"))]
+    pub fn include_builtin_skills(&self) {
+        self.builtin.store(true, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub(crate) fn settings(&self) -> &SettingsFacade {
@@ -169,7 +186,8 @@ impl SkillRuntime {
                         .cloned(),
                     available_for_subagents: false,
                 };
-                let mut view = aura_skills::view(&found, SkillSource::Plugin, None, Some(&setting));
+                let mut view =
+                    aura_skills::view(&found, SkillSource::Plugin, None, Some(&setting), false);
                 view.id = id;
                 view.plugin = Some(name.clone());
                 skills.push(LocatedSkill { view, found, setting: Some(setting) });
@@ -182,7 +200,7 @@ impl SkillRuntime {
         self.local_root.join(STORE_SKILLS.replace('/', "\\"))
     }
 
-    fn workspace_root(&self, id: WorkspaceId) -> anyhow::Result<PathBuf> {
+    pub(crate) fn workspace_root(&self, id: WorkspaceId) -> anyhow::Result<PathBuf> {
         let runtime =
             self.workspace.as_ref().ok_or_else(|| anyhow::anyhow!("workspace.unavailable"))?;
         let resolver = runtime.resolver(id)?;
@@ -198,22 +216,37 @@ impl SkillRuntime {
             path: self.store_root(),
             status: root_status(&self.local_root, STORE_SKILLS),
         }];
-        if let Some(profile) = &self.profile {
-            roots.push(Root {
-                source: SkillSource::AgentGlobal,
-                workspace: None,
-                path: profile.join(".agents").join("skills"),
-                status: root_status(profile, AGENTS_SKILLS),
+        if self.builtin.load(std::sync::atomic::Ordering::Relaxed) {
+            use super::builtin::{BUILTIN_SKILLS, write_all};
+            self.builtin_written.get_or_init(|| {
+                if let Err(error) = write_all(&self.local_root) {
+                    append_core_log(
+                        "skills.builtin",
+                        serde_json::json!({"error": error.to_string()}),
+                    );
+                }
             });
+            roots.push(Root {
+                source: SkillSource::AuraBuiltIn,
+                workspace: None,
+                path: self.local_root.join(BUILTIN_SKILLS.replace('/', "\\")),
+                status: root_status(&self.local_root, BUILTIN_SKILLS),
+            });
+        }
+        let under = |base: &Path, relative: &str, source, workspace| Root {
+            source,
+            workspace,
+            path: relative.split('/').fold(base.to_path_buf(), |path, part| path.join(part)),
+            status: root_status(base, relative),
+        };
+        if let Some(profile) = &self.profile {
+            roots.push(under(profile, AGENTS_SKILLS, SkillSource::AgentGlobal, None));
+            roots.push(under(profile, CLAUDE_SKILLS, SkillSource::ClaudeGlobal, None));
         }
         if let Some(id) = workspace {
             let base = self.workspace_root(id)?;
-            roots.push(Root {
-                source: SkillSource::Workspace,
-                workspace: Some(id),
-                path: base.join(".agents").join("skills"),
-                status: root_status(&base, AGENTS_SKILLS),
-            });
+            roots.push(under(&base, AGENTS_SKILLS, SkillSource::Workspace, Some(id)));
+            roots.push(under(&base, CLAUDE_SKILLS, SkillSource::ClaudeWorkspace, Some(id)));
         }
         Ok(roots)
     }
@@ -233,6 +266,8 @@ impl SkillRuntime {
         workspace: Option<WorkspaceId>,
     ) -> anyhow::Result<(SkillRegistry, Vec<SkillRootView>, Vec<LocatedSkill>)> {
         let registry = self.settings.skill_registry();
+        let workspace_trusted =
+            workspace.is_some_and(|id| registry.trusted_workspaces.contains(&id));
         let mut roots = Vec::new();
         let mut skills = Vec::new();
         for Root { source, workspace, path: root, status } in self.roots(workspace)? {
@@ -247,11 +282,18 @@ impl SkillRuntime {
             for found in scan_root(&root, &self.hashes) {
                 let id = aura_skills::skill_id(source, workspace, &found.relative);
                 let setting = registry.skills.iter().find(|s| s.id == id).cloned();
-                let view = aura_skills::view(&found, source, workspace, setting.as_ref());
+                let view = aura_skills::view(
+                    &found,
+                    source,
+                    workspace,
+                    setting.as_ref(),
+                    workspace_trusted,
+                );
                 skills.push(LocatedSkill { view, found, setting });
             }
         }
         self.plugin_skills(&mut skills);
+        super::instructions::mark_pins(&registry.pinned, &mut skills);
         Ok((registry, roots, skills))
     }
 

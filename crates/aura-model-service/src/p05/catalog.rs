@@ -10,9 +10,9 @@ use aura_model_catalog::{
 use aura_model_config::{ModelConfigService, ModelConfigSnapshot};
 use aura_model_domain::{
     ModelCatalogProviderGetRequest, ProviderCatalogConfigurationClass,
-    ProviderCatalogConnectionDefaultsView, ProviderCatalogEntry, ProviderCatalogModelPage,
-    ProviderCatalogProjection, ProviderCatalogStatus, ProviderPresetVariantView,
-    has_trusted_provider_preset, provider_preset_registry_v1,
+    ProviderCatalogConnectionDefaultsView, ProviderCatalogEntry, ProviderCatalogModelEntry,
+    ProviderCatalogModelPage, ProviderCatalogModelRouteView, ProviderCatalogProjection,
+    ProviderCatalogStatus,
 };
 use aura_network_control::{
     CoreHttpClientGateway, GatewayRequest, NetworkControlPlane, StandardNetworkRequestGrant,
@@ -20,6 +20,9 @@ use aura_network_control::{
 use aura_permission_domain::{
     CoreRequestGrant, NetworkByteLimits, NetworkDestinationPolicy, NetworkProtocolClass,
     NetworkRequestPlan, RedirectPolicy,
+};
+use aura_provider_profile::{
+    catalog_package_protocol, has_builtin_routes, model_route_view, preset_defaults,
 };
 use aura_security_contract::{
     InvocationActor, InvocationIdentity, NetworkCallerKind, NetworkDataClass,
@@ -168,7 +171,7 @@ pub(crate) fn project_catalog(
 pub(crate) fn catalog_configuration_class(
     entry: &ProviderCatalogEntry,
 ) -> ProviderCatalogConfigurationClass {
-    if has_trusted_provider_preset(&entry.catalog_provider_id) {
+    if has_builtin_routes(&entry.catalog_provider_id) {
         return ProviderCatalogConfigurationClass::TrustedPreset;
     }
     if validated_models_dev_api_suggestion(entry).is_some() {
@@ -189,27 +192,22 @@ impl ProviderConfigurationPolicy for CatalogProjectionPolicy {
         &self,
         entry: &ProviderCatalogEntry,
     ) -> Option<ProviderCatalogConnectionDefaultsView> {
-        let variants = provider_preset_registry_v1()
-            .into_iter()
-            .filter(|preset| preset.catalog_provider_id == entry.catalog_provider_id)
-            .map(|preset| ProviderPresetVariantView {
-                variant_id: preset.variant_id.to_owned(),
-                display_name: preset.display_name.to_owned(),
-                base_url: preset.base_url.to_owned(),
-                api_format: preset.api_format,
-                auth_scheme: preset.auth_scheme,
-                discovery_mode: preset.discovery_mode,
-                chat_instruction_role: preset.chat_instruction_role,
-                chat_output_token_field: preset.chat_output_token_field,
-                recommended: preset.recommended,
+        preset_defaults(&entry.catalog_provider_id).or_else(|| {
+            validated_models_dev_api_suggestion(entry).map(|base_url| {
+                ProviderCatalogConnectionDefaultsView::ModelsDevApiSuggestion {
+                    base_url,
+                    protocol: entry.npm_package.as_deref().and_then(catalog_package_protocol),
+                }
             })
-            .collect::<Vec<_>>();
-        if !variants.is_empty() {
-            return Some(ProviderCatalogConnectionDefaultsView::AuraPreset { variants });
-        }
-        validated_models_dev_api_suggestion(entry).map(|base_url| {
-            ProviderCatalogConnectionDefaultsView::ModelsDevApiSuggestion { base_url }
         })
+    }
+
+    fn model_route_for(
+        &self,
+        entry: &ProviderCatalogEntry,
+        model: &ProviderCatalogModelEntry,
+    ) -> ProviderCatalogModelRouteView {
+        model_route_view(entry, model.route.as_ref())
     }
 }
 
@@ -653,7 +651,7 @@ mod tests {
     use aura_model_catalog::ProviderConfigurationPolicy;
     use aura_model_domain::{
         ProviderCatalogConfigurationClass, ProviderCatalogConnectionDefaultsView,
-        ProviderCatalogEntry,
+        ProviderCatalogEntry, ProviderCatalogModelEntry, ProviderCatalogModelRouteView,
     };
 
     use super::{CatalogProjectionPolicy, catalog_configuration_class};
@@ -691,7 +689,7 @@ mod tests {
         let defaults = CatalogProjectionPolicy
             .connection_defaults_for(&entry)
             .expect("compiled preset variants");
-        let ProviderCatalogConnectionDefaultsView::AuraPreset { variants } = defaults else {
+        let ProviderCatalogConnectionDefaultsView::AuraPreset { variants, .. } = defaults else {
             panic!("trusted Provider must project signed Aura presets");
         };
         assert!(variants.iter().any(|variant| {
@@ -701,6 +699,64 @@ mod tests {
         }));
         assert!(
             variants.iter().all(|variant| variant.base_url != "https://untrusted.example.test/v9")
+        );
+    }
+
+    #[test]
+    fn opencode_go_offers_its_routes_together_and_each_model_its_own() {
+        let mut entry =
+            catalog_entry("opencode-go", Some("https://opencode.ai/inference/go/openai/v1"));
+        entry.npm_package = Some("@ai-sdk/openai-compatible".to_owned());
+        let Some(ProviderCatalogConnectionDefaultsView::AuraPreset { variants, by_model }) =
+            CatalogProjectionPolicy.connection_defaults_for(&entry)
+        else {
+            panic!("OpenCode Go has built-in routes");
+        };
+        assert!(by_model);
+        assert_eq!(variants.len(), 3);
+        let mut model: ProviderCatalogModelEntry = serde_json::from_value(serde_json::json!({
+            "catalog_model_id": "minimax-m3",
+            "display_name": "MiniMax M3",
+            "family": null,
+            "description": null,
+            "aliases": [],
+            "context_window_tokens": null,
+            "input_limit_tokens": null,
+            "output_limit_tokens": null,
+            "input_modalities": [],
+            "output_modalities": [],
+            "capabilities": {
+                "attachment": false,
+                "reasoning": false,
+                "tool_call": true,
+                "structured_output": false,
+                "temperature": true,
+                "interleaved": null
+            },
+            "reasoning_options": [],
+            "knowledge_cutoff": null,
+            "release_date": null,
+            "last_updated": null,
+            "open_weights": null,
+            "status": null,
+            "price": null,
+            "model_type": null,
+            "route": {
+                "api_url": "https://opencode.ai/inference/go/anthropic/v1",
+                "npm_package": "@ai-sdk/anthropic",
+                "shape": null
+            },
+            "reasoning_field": null
+        }))
+        .expect("a catalog model");
+        assert_eq!(
+            CatalogProjectionPolicy.model_route_for(&entry, &model),
+            ProviderCatalogModelRouteView::Variant { variant_id: "anthropic-messages".to_owned() }
+        );
+        model.route = None;
+        assert_eq!(
+            CatalogProjectionPolicy.model_route_for(&entry, &model),
+            ProviderCatalogModelRouteView::Variant { variant_id: "chat-completions".to_owned() }
         );
     }
 
@@ -716,8 +772,40 @@ mod tests {
             CatalogProjectionPolicy.connection_defaults_for(&entry),
             Some(ProviderCatalogConnectionDefaultsView::ModelsDevApiSuggestion {
                 base_url: "https://api.example.test/v1".to_owned(),
+                protocol: None,
             })
         );
+    }
+
+    /// The catalog's package for the Provider drafts the protocol beside the address; a package
+    /// Aura does not know drafts the address alone.
+    #[test]
+    fn the_catalog_package_drafts_the_protocol_beside_the_address() {
+        let mut entry = catalog_entry("provider-a", Some("https://api.example.test/anthropic/v1"));
+        entry.npm_package = Some("@ai-sdk/anthropic".to_owned());
+        assert_eq!(
+            CatalogProjectionPolicy.connection_defaults_for(&entry),
+            Some(ProviderCatalogConnectionDefaultsView::ModelsDevApiSuggestion {
+                base_url: "https://api.example.test/anthropic/v1".to_owned(),
+                protocol: Some(aura_model_domain::ModelsDevProtocolSuggestion {
+                    api_format: aura_model_domain::ModelApiFormat::AnthropicMessages,
+                    auth_scheme: aura_model_domain::EndpointAuthScheme::AnthropicApiKey,
+                    chat_instruction_role: None,
+                    chat_output_token_field: None,
+                }),
+            })
+        );
+        entry.npm_package = Some("@ai-sdk/groq".to_owned());
+        assert_eq!(
+            CatalogProjectionPolicy.connection_defaults_for(&entry),
+            Some(ProviderCatalogConnectionDefaultsView::ModelsDevApiSuggestion {
+                base_url: "https://api.example.test/anthropic/v1".to_owned(),
+                protocol: None,
+            })
+        );
+        entry.api_url = Some("http://api.example.test/anthropic/v1".to_owned());
+        entry.npm_package = Some("@ai-sdk/anthropic".to_owned());
+        assert_eq!(CatalogProjectionPolicy.connection_defaults_for(&entry), None);
     }
 
     #[test]

@@ -237,7 +237,7 @@ export function ModelAvailabilityCheckList({ result }: { result: ModelAvailabili
           ['模型生成', result.model_generation],
         ] as const
       ).map(([label, check]) => (
-        <div key={label}>
+        <div className={check.status === 'passed' ? undefined : 'is-wide'} key={label}>
           <dt>{label}</dt>
           <dd title={availabilityCheckCode(check)}>{availabilityCheckLabel(check)}</dd>
         </div>
@@ -282,6 +282,13 @@ const CHECK_FAILURES: Record<string, string> = {
   'provider.rate_limited': '服务商限流，请稍后再试',
   'provider.server_error': '服务商出错，请稍后再试',
   'provider.request_rejected': '服务商拒绝了请求，请检查模型名称与连接设置',
+  // A setting of the user's account at the Provider, which accepted the key.
+  'provider.account_region':
+    '服务商账号的区域设置不允许这个模型，请在服务商那边开放对应区域，或换一个模型',
+  'provider.account_data_policy':
+    '服务商账号的隐私设置不允许这个模型的服务节点，请在服务商那边修改，或换一个模型',
+  'provider.client_not_allowed':
+    '这个套餐只允许名单上的客户端，拒绝了 Aura，请试这家服务商其他协议的连接，或改用普通 API',
   'provider.invalid_response': '服务商的回复无法识别',
   'provider.visible_text_missing': '回复里没有可显示的文字',
   'network.timeout': '连接超时，请检查网络与代理设置',

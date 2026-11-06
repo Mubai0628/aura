@@ -8,6 +8,10 @@ import { PackageApprovalFacts } from './PackageApprovalFacts';
 import { McpApprovalFacts } from './McpApprovalFacts';
 import { ChromeApprovalFacts } from './ChromeApprovalFacts';
 import { chromeFacts, chromeWarning } from './chrome-approval-facts';
+import { ComputerApprovalFacts } from './ComputerApprovalFacts';
+import { computerFacts } from './computer-approval-facts';
+import { computerControl } from '../computer/bridge';
+import { ProgramIcon } from '../composer-references/ProgramIcon';
 import { MemoryApprovalFacts } from './MemoryApprovalFacts';
 import { CommandApprovalFacts, WorkspaceInitApprovalFacts } from './WorkspaceInitApprovalFacts';
 import {
@@ -19,7 +23,7 @@ import {
   workspaceTargets,
 } from './approval-facts';
 import type { ApprovalDecisionKind, ExecutionApprovalView } from '@aura/contracts/generated';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { AppIcon } from '../app-icons';
 import { approvalActionLabel } from './approval-action-label';
 
@@ -32,6 +36,8 @@ const labels: Record<ApprovalDecisionKind, string> = {
 };
 
 const NATIVE_BACKEND_ID = 'windows-user-native-v1';
+
+const NOT_LISTED = '没有记进总是允许的名单，请重试。';
 
 /**
  * Why this call is being asked about, in the terms the decision actually uses.
@@ -157,6 +163,27 @@ export function ApprovalPanel({
       setBusy(false);
     }
   };
+  const computer = view ? computerFacts(view) : undefined;
+  // 总是允许: the program goes on the settings' list, then this call goes ahead as this
+  // session's answer.
+  const alwaysAllow = async () => {
+    if (!view || busy || !computer) return;
+    setBusy(true);
+    let listed = false;
+    try {
+      const result = await computerControl()?.alwaysAllow({
+        app_id: computer.appId,
+        name: computer.name,
+      });
+      listed = result?.ok === true;
+      if (!listed) setError(result && !result.ok ? result.error.message : NOT_LISTED);
+    } catch {
+      setError(NOT_LISTED);
+    } finally {
+      setBusy(false);
+    }
+    if (listed) await decide('allow_session');
+  };
   const kind = view ? approvalKind(view) : 'other';
   const git =
     view?.backend.class === 'native' &&
@@ -239,6 +266,15 @@ export function ApprovalPanel({
               <span>模型说明</span>
               {view.operation.content.purpose || '模型没有说明这次操作的目的。'}
             </p>
+            {computer ? (
+              <p className="agent-approval-purpose agent-approval-program">
+                <span>程序</span>
+                <strong title={computer.appId}>
+                  <ProgramIcon appId={computer.appId} size={16} />
+                  {computer.name}
+                </strong>
+              </p>
+            ) : null}
             {((view.operation.content.risks ?? []) as readonly string[]).includes(
               'permanent_file_deletion',
             ) ? (
@@ -293,6 +329,8 @@ export function ApprovalPanel({
                 <McpApprovalFacts view={view} server={mcp} />
               ) : chrome ? (
                 <ChromeApprovalFacts view={view} facts={chrome} />
+              ) : computer ? (
+                <ComputerApprovalFacts />
               ) : kind === 'native' ? (
                 <p className="agent-approval-mode">
                   将以当前 Windows
@@ -370,8 +408,13 @@ export function ApprovalPanel({
                   重启后仍有效；撤销、到期或会话删除时失效。目标对象被替换须重新批准。 在 Aura
                   编辑器中保存不会使批准失效；被其他程序替换时须重新批准。 文件批准不授予联网权限。
                 </p>
-              ) : network || shell || git || installed || mcp || chrome ? null : consent ===
-                undefined ? (
+              ) : network ||
+                shell ||
+                git ||
+                installed ||
+                mcp ||
+                chrome ||
+                computer ? null : consent === undefined ? (
                 view.approval.allowed_decisions.includes('allow_session') ? (
                   <p>
                     「本会话允许」只覆盖这一类操作在本会话内的后续调用；每次调用仍会生成独立的操作身份与派发绑定。
@@ -419,19 +462,32 @@ export function ApprovalPanel({
           </div>
           <div className="agent-approval-actions">
             {view.approval.allowed_decisions.map((decision, index) => (
-              <button
-                type="button"
-                key={decision}
-                className={decisionClass(
-                  decision,
-                  view.approval.allowed_decisions.findIndex((value) => value !== 'deny') === index,
-                )}
-                disabled={busy || view.approval.state !== 'pending'}
-                aria-busy={busy ? true : undefined}
-                onClick={() => void decide(decision)}
-              >
-                {chrome && decision === 'allow_session' ? '本会话允许此站点' : labels[decision]}
-              </button>
+              <Fragment key={decision}>
+                <button
+                  type="button"
+                  className={decisionClass(
+                    decision,
+                    view.approval.allowed_decisions.findIndex((value) => value !== 'deny') ===
+                      index,
+                  )}
+                  disabled={busy || view.approval.state !== 'pending'}
+                  aria-busy={busy ? true : undefined}
+                  onClick={() => void decide(decision)}
+                >
+                  {chrome && decision === 'allow_session' ? '本会话允许此站点' : labels[decision]}
+                </button>
+                {computer && decision === 'allow_session' ? (
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={busy || view.approval.state !== 'pending'}
+                    aria-busy={busy ? true : undefined}
+                    onClick={() => void alwaysAllow()}
+                  >
+                    总是允许
+                  </button>
+                ) : null}
+              </Fragment>
             ))}
           </div>
         </>

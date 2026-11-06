@@ -33,13 +33,19 @@ fn entries_root(journal: &broker::BrokerJournal) -> anyhow::Result<std::path::Pa
     Ok(data.join("v2-attachment-entries"))
 }
 
-/// A deleted conversation's opened zip entries go with it.
-pub fn forget_entries(journal: &broker::BrokerJournal, session: SessionId) -> anyhow::Result<()> {
+/// The files Aura keeps for a deleted conversation go with it: the zip entries opened for its 文件
+/// tab and the captures its messages carried.
+pub fn forget_kept_files(
+    journal: &broker::BrokerJournal,
+    session: SessionId,
+) -> anyhow::Result<()> {
     let folder = entries_root(journal)?.join(session.to_string());
-    match std::fs::remove_dir_all(&folder) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.into()),
-        _ => Ok(()),
+    if let Err(error) = std::fs::remove_dir_all(&folder)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        return Err(error.into());
     }
+    super::attachments::forget_captures(journal, session)
 }
 
 /// The entry's own name, as a file of Windows can be called.

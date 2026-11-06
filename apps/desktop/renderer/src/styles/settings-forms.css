@@ -1,6 +1,6 @@
 .settings-surface {
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -28,7 +28,7 @@
 }
 
 .settings-form-grid label > span {
-  color: #4f5650;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 650;
 }
@@ -49,8 +49,8 @@
   height: 34px;
   padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #fbfbfa;
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
 .settings-form-grid input[aria-invalid='true'],
@@ -69,7 +69,7 @@
     box-shadow: 0 0 0 0 rgba(170, 64, 64, 0);
   }
   45% {
-    border-color: #b62f2f;
+    border-color: var(--danger);
     box-shadow: 0 0 0 3px rgba(170, 64, 64, 0.16);
   }
 }
@@ -85,9 +85,9 @@
   gap: 14px;
   padding: 11px;
   margin-top: 14px;
-  border: 1px solid #d9e3de;
-  border-radius: 8px;
-  background: #f6f9f7;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
 }
 
 .credential-input-boundary {
@@ -114,7 +114,7 @@
 }
 
 .secret-api-key-field > label > span {
-  color: #4f5650;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 650;
 }
@@ -129,18 +129,18 @@
   height: 34px;
   padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #fbfbfa;
+  border-radius: var(--radius-md);
+  background: var(--surface);
   font-family: inherit;
 }
 
 .catalog-field-source {
-  color: #58766c;
+  color: var(--accent);
 }
 
 .field-warning {
   margin: 0;
-  color: #806027;
+  color: var(--warning);
   font-size: 9px;
 }
 
@@ -157,9 +157,9 @@
   height: 31px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 8px;
-  color: #366153;
-  background: #dce9e2;
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: var(--line);
 }
 
 .credential-copy strong {
@@ -173,7 +173,7 @@
 }
 
 .primary-button {
-  color: #ffffff !important;
+  color: var(--on-accent) !important;
   border-color: var(--accent) !important;
   background: var(--accent) !important;
 }
@@ -186,7 +186,7 @@
 
 .model-empty-state strong {
   margin-top: 10px;
-  color: #424943;
+  color: var(--muted);
   font-size: 13px;
 }
 

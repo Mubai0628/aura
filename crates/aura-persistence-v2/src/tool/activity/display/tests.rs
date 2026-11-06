@@ -25,6 +25,37 @@ fn error(category: ErrorCategory) -> ErrorEnvelope {
     )
 }
 
+fn envelope(code: &str, category: ErrorCategory, message: &str) -> ErrorEnvelope {
+    ErrorEnvelope::new(
+        aura_domain_common::ErrorCode::new(code).expect("code"),
+        category,
+        message,
+        false,
+        aura_domain_common::CorrelationId::new(),
+        None,
+    )
+}
+
+/// A computer call admission refused as a resource it could not resolve, with the desktop's
+/// message.
+fn admitted(message: &str) -> ToolResultOutcomeV1 {
+    ToolResultOutcomeV1::NotExecuted {
+        reason: ToolNotExecutedReasonV1::ResourceClaimResolutionFailed,
+        error: Some(envelope(
+            "tool.resource.identity_resolution_failed",
+            ErrorCategory::Validation,
+            message,
+        )),
+    }
+}
+
+/// A call the desktop refused with `code`.
+fn rejected(code: &str, category: ErrorCategory) -> ToolResultOutcomeV1 {
+    ToolResultOutcomeV1::OperationRejected {
+        error: envelope(code, category, &format!("{code}: 没有执行")),
+    }
+}
+
 fn result(outcome: ToolResultOutcomeV1) -> ToolResultV1 {
     ToolResultV1 {
         tool_call_id: aura_domain_common::ToolCallId::new(),
@@ -139,6 +170,39 @@ fn a_directory_left_to_its_default_is_shown_as_the_workspace_root() {
     assert_eq!(target("fs.find", None), None, "an unreadable call names nothing");
 }
 
+/// A Skill row showed only the tool's name. It names the Skill loaded (with where it is from
+/// when the call said) or the words searched for, and what came back.
+#[test]
+fn a_skill_row_names_the_skill_or_the_words_and_what_came_back() {
+    use serde_json::json;
+    assert_eq!(title("skills.load"), "加载 Skill");
+    assert_eq!(title("skills.search"), "搜索 Skill");
+    assert_eq!(target("skills.load", Some(&json!({"name":"notes"}))).as_deref(), Some("notes"));
+    assert_eq!(
+        target("skills.load", Some(&json!({"name":"notes","from":"agent_global"}))).as_deref(),
+        Some("notes [agent_global]")
+    );
+    assert_eq!(
+        target("skills.search", Some(&json!({"query":"pdf form"}))).as_deref(),
+        Some("pdf form")
+    );
+    assert_eq!(target("skills.search", Some(&json!({"query":" "}))), None, "every Skill");
+    let mut found = view();
+    summarize(&mut found, "skills.search", &json!({"skills":[{"name":"a"},{"name":"b"}]}));
+    assert_eq!(found.summary, "找到 2 个 Skill");
+    let mut more = view();
+    summarize(&mut more, "skills.search", &json!({"skills":[{"name":"a"}],"truncated":true}));
+    assert_eq!(more.summary, "找到 1 个 Skill，还有更多");
+    let mut loaded = view();
+    summarize(
+        &mut loaded,
+        "skills.load",
+        &json!({"name":"notes","folder":"C:\\Users\\me\\.agents\\skills\\notes","files":["references/guide.md"]}),
+    );
+    assert_eq!(loaded.summary, "已加载，另有 1 个文件");
+    assert_eq!(loaded.details, vec!["文件夹：C:\\Users\\me\\.agents\\skills\\notes"]);
+}
+
 /// A Shell row showed only `.`, the working directory, so nobody saw what ran. It
 /// names the command, and opens to all of it and a directory the model chose.
 #[test]
@@ -186,6 +250,115 @@ fn a_filename_lookup_reports_hits_and_whether_the_answer_is_whole() {
     assert!(v.truncated);
 }
 
+/// A computer call the user ended read “无法确定操作目标” or “操作被拒绝”: admission refuses a
+/// taken-over turn as a resource it could not resolve, and the desktop's own refusal is a
+/// cancellation. The row says what the user did instead.
+#[test]
+fn a_computer_call_the_user_ended_says_so() {
+    for (outcome, said) in [
+        (
+            admitted("computer.taken_over: 用户已接管电脑，这一轮不能再操作电脑；没有执行"),
+            "未执行：你已接管电脑",
+        ),
+        (rejected("computer.taken_over", ErrorCategory::Cancelled), "未执行：你已接管电脑"),
+        (rejected("computer.busy", ErrorCategory::Unavailable), "未执行：另一段对话正在操控电脑"),
+        (
+            admitted(
+                "computer.stopped: 用户已停止这个程序的电脑操控，这一回合不能再操作；没有执行",
+            ),
+            "未执行：你已停止操控这个程序",
+        ),
+        (rejected("computer.stopped", ErrorCategory::Cancelled), "未执行：你已停止操控这个程序"),
+        (admitted("computer.point: 这个点不在程序的窗口里"), "未执行：无法确定操作目标"),
+        (rejected("computer.stale", ErrorCategory::Conflict), "未执行：状态已变化"),
+    ] {
+        assert_eq!(summary_line("computer.input", &outcome), said, "{outcome:?}");
+    }
+    // Only a computer call is read this way, and only for a call that changed nothing.
+    let taken = admitted("computer.taken_over: 用户已接管电脑");
+    assert_eq!(summary_line("browser.click", &taken), "未执行：无法确定操作目标");
+    let failed = ToolResultOutcomeV1::Failed {
+        error: envelope(
+            "tool.runtime.dispatch_failed",
+            ErrorCategory::Unavailable,
+            "computer.busy: x",
+        ),
+    };
+    assert_eq!(summary_line("computer.input", &failed), "执行失败：当前不可用");
+}
+
+/// The row names what took the desktop over when the refusal says it, from admission and from
+/// the desktop alike.
+#[test]
+fn a_computer_call_the_user_ended_says_what_they_did() {
+    for (outcome, said) in [
+        (
+            admitted(
+                "computer.taken_over: 用户已接管电脑（点了鼠标），这一轮不能再操作电脑；没有执行",
+            ),
+            "未执行：你已接管电脑（点了鼠标）",
+        ),
+        (
+            ToolResultOutcomeV1::OperationRejected {
+                error: envelope(
+                    "computer.taken_over",
+                    ErrorCategory::Cancelled,
+                    "computer.taken_over: 用户已接管电脑（滚了滚轮，来自另一个程序），这一轮不要再操作电脑",
+                ),
+            },
+            "未执行：你已接管电脑（滚了滚轮，来自另一个程序）",
+        ),
+        (admitted("computer.taken_over: 用户已接管电脑（），没有执行"), "未执行：你已接管电脑"),
+    ] {
+        assert_eq!(summary_line("computer.input", &outcome), said, "{outcome:?}");
+    }
+}
+
+/// A computer call the user took the desktop over from offers nothing on its row or its turn:
+/// the desktop is given back from 近期活动. No other computer refusal offers anything either.
+#[test]
+fn a_computer_call_the_user_took_over_offers_nothing() {
+    let offered = |name: &str, outcome: ToolResultOutcomeV1| row_offer(name, &result(outcome));
+    for (name, outcome) in [
+        (
+            "computer.input",
+            admitted(
+                "computer.taken_over: 用户已接管电脑，用户交还操作权之前不要再操作电脑；没有执行",
+            ),
+        ),
+        ("computer.act", rejected("computer.taken_over", ErrorCategory::Cancelled)),
+        (
+            "computer.input",
+            ToolResultOutcomeV1::Indeterminate {
+                reason: aura_tool_contract::ToolIndeterminateReasonV1::DispatchOutcomeUnknown,
+                error: envelope(
+                    "computer.taken_over",
+                    ErrorCategory::Unavailable,
+                    "computer.taken_over: 用户已接管小窗，这一步可能执行了部分",
+                ),
+            },
+        ),
+        ("computer.input", rejected("computer.busy", ErrorCategory::Unavailable)),
+        ("computer.input", rejected("computer.stopped", ErrorCategory::Cancelled)),
+        ("computer.input", admitted("computer.point: 这个点不在程序的窗口里")),
+        ("browser.click", admitted("computer.taken_over: 用户已接管电脑")),
+        (
+            "computer.input",
+            ToolResultOutcomeV1::Failed {
+                error: envelope(
+                    "tool.runtime.dispatch_failed",
+                    ErrorCategory::Unavailable,
+                    "computer.taken_over: x",
+                ),
+            },
+        ),
+        ("computer.input", ToolResultOutcomeV1::Succeeded),
+    ] {
+        let shown = format!("{name} {outcome:?}");
+        assert_eq!(offered(name, outcome), None, "{shown}");
+    }
+}
+
 /// A call stopped for that reason offers the switch on its row.
 #[test]
 fn a_page_debugging_call_stopped_by_the_switch_offers_it() {
@@ -202,16 +375,10 @@ fn a_page_debugging_call_stopped_by_the_switch_offers_it() {
         })
     };
     let off = refused("browser.debugging_off: 网页调试没有开启。");
-    assert_eq!(
-        debugging_offer("browser.evaluate", &off),
-        Some(AgentToolOffer::EnableBrowserDebugging)
-    );
-    assert_eq!(
-        debugging_offer("browser.network", &off),
-        Some(AgentToolOffer::EnableBrowserDebugging)
-    );
+    assert_eq!(row_offer("browser.evaluate", &off), Some(AgentToolOffer::EnableBrowserDebugging));
+    assert_eq!(row_offer("browser.network", &off), Some(AgentToolOffer::EnableBrowserDebugging));
     // Another reason, or another tool, offers nothing.
-    assert_eq!(debugging_offer("browser.evaluate", &refused("browser.refused: 已接管")), None);
-    assert_eq!(debugging_offer("fs.read", &off), None);
-    assert_eq!(debugging_offer("browser.evaluate", &result(ToolResultOutcomeV1::Succeeded)), None);
+    assert_eq!(row_offer("browser.evaluate", &refused("browser.refused: 已接管")), None);
+    assert_eq!(row_offer("fs.read", &off), None);
+    assert_eq!(row_offer("browser.evaluate", &result(ToolResultOutcomeV1::Succeeded)), None);
 }

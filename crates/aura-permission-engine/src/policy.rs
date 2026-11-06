@@ -147,7 +147,12 @@ pub fn assess(input: &PolicyInput<'_>) -> Result<PolicyAssessment, PolicyDenyRea
     if let Some(reason) = crate::chrome::refusal(input) {
         return Err(reason);
     }
+    // Programs on the user's desktop: only the exact shape, and never a child agent.
+    if let Some(reason) = crate::desktop::refusal(input) {
+        return Err(reason);
+    }
     let chrome = crate::chrome::shape(input);
+    let desktop = crate::desktop::shape(input);
     // An installed, trusted package program is the terminal-like Native exception
     //. Only its exact shape qualifies.
     let package_program = aura_security_contract::package_program(
@@ -366,8 +371,9 @@ pub fn assess(input: &PolicyInput<'_>) -> Result<PolicyAssessment, PolicyDenyRea
                 controlled_web,
             )
     });
-    let asks = if chrome {
-        // A shared tab is neither a file nor a network call: what the mode does not cover asks.
+    let asks = if chrome || desktop {
+        // A shared tab or a program on the desktop is neither a file nor a network call: what
+        // the mode does not cover asks.
         forced_once || !mode_permits
     } else {
         forced_once
@@ -510,6 +516,7 @@ pub fn authorize(
         mcp_consent: None,
         chrome_consent: None,
         chrome_site_consent: None,
+        desktop_app_consent: None,
         file_consent: None,
     };
     let changed = previous.is_some_and(|p| {
@@ -553,6 +560,9 @@ pub fn authorize(
         }
         if let Some(chrome) = crate::chrome::allowed_decisions(input, assessment.forced_once) {
             allowed_decisions = chrome;
+        }
+        if let Some(desktop) = crate::desktop::allowed_decisions(input, assessment.forced_once) {
+            allowed_decisions = desktop;
         }
         // A session approval of a Native Shell is the one answer that creates a
         // reusable consent, and only when the approved Operation is one a consent
@@ -634,6 +644,14 @@ pub fn explicit_grant_covers_operation(
 }
 
 fn grant_covers_operation(grant: &AuthorizationGrant, input: &PolicyInput<'_>) -> bool {
+    // A program's session answer covers only the computer-control call it answered, and no
+    // other grant covers a computer-control call except an answer for that exact call.
+    if grant.scope.desktop_app_consent.is_some() {
+        return crate::desktop::app_consent_covers(grant, input);
+    }
+    if crate::desktop::shape(input) {
+        return crate::desktop::exact_answer_covers(grant, input);
+    }
     if grant.scope.chrome_consent.is_some() {
         return crate::chrome::consent_covers(grant, input);
     }
@@ -906,6 +924,7 @@ fn capability_asks(c: ResolvedCapability, mode: PermissionMode) -> bool {
             | ResolvedCapability::DownloadArtifact
             | ResolvedCapability::GitRemoteRead
             | ResolvedCapability::ExternalExtensionCall
+            | ResolvedCapability::PluginDevelopmentInstall
     )
 }
 

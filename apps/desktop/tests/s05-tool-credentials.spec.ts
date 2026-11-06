@@ -50,7 +50,9 @@ test('S05 Tool settings manages a real Tool Secret over the authenticated produc
     const page = await app.firstWindow();
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 30_000,
+    });
     // A local deterministic Provider substitutes only the remote service. Actual
     // credentials, production Agent execution and transport remain in this Core.
     const modelResults = await page.evaluate(

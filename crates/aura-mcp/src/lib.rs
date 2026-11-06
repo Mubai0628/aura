@@ -8,6 +8,7 @@ mod config;
 mod framing;
 mod jsonrpc;
 mod protocol;
+mod resources;
 mod schema;
 mod sse;
 mod tools;
@@ -27,6 +28,10 @@ pub use protocol::{
     CallToolResult, ContentBlock, InitializeResult, McpTool, PROTOCOL_VERSIONS, ProtocolError,
     REQUESTED_PROTOCOL_VERSION, ServerInfo, ToolsPage, cancelled_params, initialize_params,
     model_text, parse_call_result, parse_initialize_result, parse_tools_page,
+};
+pub use resources::{
+    McpResource, ResourcePart, ResourcesPage, parse_read_result, parse_resources_page,
+    resource_text,
 };
 pub use schema::input_schema;
 pub use sse::{SseEvent, SseParser, SseTooLarge};

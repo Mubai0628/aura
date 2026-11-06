@@ -4,8 +4,15 @@ import { useComposerAttachments } from './useComposerAttachments';
 import { ConversationAttachmentContext } from './conversation-attachment-context';
 import './composer-attachments.css';
 
-export function ConversationAttachmentState({ children }: { children: ReactNode }) {
-  const attached = useComposerAttachments();
+/** `draftKey` names the conversation whose pictures and files are kept while Aura runs. */
+export function ConversationAttachmentState({
+  draftKey,
+  children,
+}: {
+  draftKey?: string | undefined;
+  children: ReactNode;
+}) {
+  const attached = useComposerAttachments(undefined, draftKey);
   return (
     <ConversationAttachmentContext.Provider value={attached}>
       {children}
@@ -16,13 +23,15 @@ export function ConversationAttachmentState({ children }: { children: ReactNode 
 /** The conversation column owns one attachment state for its list, composer and empty page. */
 export function ConversationAttachments({
   className,
+  draftKey,
   children,
 }: {
   className?: string;
+  draftKey?: string | undefined;
   children: ReactNode;
 }) {
   return (
-    <ConversationAttachmentState>
+    <ConversationAttachmentState draftKey={draftKey}>
       <ConversationDropArea className={className}>{children}</ConversationDropArea>
     </ConversationAttachmentState>
   );

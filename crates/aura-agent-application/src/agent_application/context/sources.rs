@@ -10,8 +10,8 @@ pub(in crate::agent_application) fn core_tool(
 ) -> bool {
     (purpose == AgentTaskPurpose::WorkspaceInit && name == "workspace_init.complete")
         || name.starts_with("tools.")
-        // The model can always find, load and read the user's trusted Skills.
-        || matches!(name, "skills.search" | "skills.load" | "skills.read_resource")
+        // The model can always find and load the user's usable Skills.
+        || matches!(name, "skills.search" | "skills.load")
         || matches!(
             name,
             "task_lineage.list_open"

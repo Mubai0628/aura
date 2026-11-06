@@ -1,7 +1,7 @@
 import type { CoreBusyActivityV1, CoreBusyV1 } from '@aura/contracts/generated';
 import type { CoreStatusPresentation } from './app-shell-types';
 
-/** What Core is deleting in the background, in the status at the window's foot. */
+/** What Core is deleting in the background, in Core's status on the settings page. */
 const DOING: Record<CoreBusyActivityV1, string> = {
   deleting_session: '正在后台删除会话记录',
   removing_workspace: '正在后台删除工作区记录',

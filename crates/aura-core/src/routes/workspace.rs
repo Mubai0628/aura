@@ -150,15 +150,12 @@ pub(crate) async fn dispatch(
         }
         method_name if P03Services::handles_main_command(method_name) => {
             let StartupMode::Ready(services) = &state.startup_mode else {
-                let error = IpcErrorEnvelope {
-                    code: ErrorCode::new("core.recovery_required")?,
-                    category: ErrorCategory::Unavailable,
-                    message: "Aura 的数据需要恢复，工作区操作暂不可用。".to_owned(),
-                    retryable: false,
-                    correlation_id: request.id,
-                    terminal: IpcRequestTerminal::Failed,
-                    details: BTreeMap::new(),
-                };
+                let error = IpcErrorEnvelope::failed(
+                    ErrorCode::new("core.recovery_required")?,
+                    ErrorCategory::Unavailable,
+                    "Aura 的数据需要恢复，工作区操作暂不可用。",
+                    request.id,
+                );
                 send_recorded_response(
                     state,
                     queue,

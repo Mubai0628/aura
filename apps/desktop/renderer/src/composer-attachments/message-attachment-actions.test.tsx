@@ -9,6 +9,7 @@ import { carriedByName } from '../files/carried-menu';
 import { root, session, workspace } from '../files/files-fixture';
 import { resetToolTabsForTests, toolTabs } from '../right-workspace/tool-tabs';
 import { MessageAttachments } from './MessageAttachments';
+import { resetPictureReadsForTests } from './picture-reads';
 
 // What a message carried opens in the sidebar and has a right-click menu —
 // "我发送的消息中预览图、视频等以及各种类型的文件此次需要实现文件的右键菜单功能" — and a file outside the
@@ -30,6 +31,7 @@ const statWorkspaceFile = vi.fn();
 const globWorkspacePaths = vi.fn();
 
 beforeEach(() => {
+  resetPictureReadsForTests();
   resetToolTabsForTests();
   notify.mockReset();
   attachmentFile.mockReset().mockResolvedValue({ ok: true, kind: 'opened', message: '' });

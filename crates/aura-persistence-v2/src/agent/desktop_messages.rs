@@ -71,6 +71,11 @@ pub fn page(
                 at: u.at,
                 skills: super::skills::selected(db, u.event_id)?,
                 attachments: attached.map(|(_, attachments)| attachments).unwrap_or_default(),
+                references: super::references::of_message(db, u.event_id)?
+                    .iter()
+                    .map(ResolvedMessageReference::view)
+                    .collect(),
+                sender: super::sender::of_message(db, u.event_id)?,
             })
         })
         .collect::<StoreResult<_>>()?;
@@ -178,6 +183,14 @@ fn frozen_context_meter(db: &Connection, step: &str) -> FrozenMeter {
         compaction_running: state.as_deref() == Some("running"),
         reduction: parsed(reduction),
     }
+}
+
+/// A step's frozen context meter, when its request was measured.
+pub(super) fn context_meter(
+    db: &Connection,
+    step: &str,
+) -> Option<aura_context_domain::ContextUsageSummaryView> {
+    frozen_context_meter(db, step).usage
 }
 
 fn parsed<T: serde::de::DeserializeOwned>(raw: Option<String>) -> Option<T> {

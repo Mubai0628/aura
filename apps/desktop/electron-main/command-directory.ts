@@ -10,6 +10,7 @@ import { isDirectory, ordinaryPath } from './folder-dialog.js';
 import { selectHookDirectory } from './hook-directory.js';
 import { openSkillDirectory, selectSkillArchive, selectSkillDirectory } from './skill-directory.js';
 import {
+  exportPlugin,
   openPluginDirectory,
   selectPluginArchive,
   selectPluginDirectory,
@@ -61,7 +62,7 @@ export async function openCommandDirectory(
 
 /**
  * Agent routes: Main serves `agent.commands.open_directory`, the Chrome extension's folder, the Hook,
- * Skill and plugin dialogs,
+ * Skill and plugin dialogs (including where to save an exported plugin),
  * opening a listed Skill's or plugin's folder, starting an MCP sign-in and opening a
  * workspace file or a web link outside Aura itself; Core serves the rest.
  */
@@ -89,6 +90,8 @@ export function agentRouteHandler(
     'agent.plugins.select_archive': (event) => selectPluginArchive(owner(event)),
     'agent.plugins.open_directory': (_event, params) =>
       openPluginDirectory(params as AgentMainParams['agent.plugins.open_directory'], supervisor),
+    'agent.plugins.export': (event, params) =>
+      exportPlugin(owner(event), params as AgentMainParams['agent.plugins.export'], supervisor),
     'agent.mcp.oauth.sign_in': (_event, params) =>
       signInMcpServer(params as AgentMainParams['agent.mcp.oauth.sign_in'], supervisor),
     'agent.files.open_outside': (_event, params) =>

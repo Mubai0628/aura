@@ -59,8 +59,15 @@ describe('R03 generated route and readiness boundaries', () => {
     for (const route of Object.values(MAIN_ROUTES)) {
       if (route.auth === 'secret_input') {
         expect(coreRoute(route.method)?.auth).toBe('secret_input');
-        // The terminal's sensitive input and the MCP secret are the Agent's own secret inputs.
-        if (['terminal.user.sensitive.submit', 'agent.mcp.secret.set'].includes(route.method))
+        // The terminal's sensitive input, the MCP secret and a plugin's secret setting are the
+        // Agent's own secret inputs.
+        if (
+          [
+            'terminal.user.sensitive.submit',
+            'agent.mcp.secret.set',
+            'agent.plugins.secret.set',
+          ].includes(route.method)
+        )
           expect(route.owner).toBe('agent');
         else expect(['model', 'tool']).toContain(route.owner);
       }
@@ -82,6 +89,7 @@ describe('R03 generated route and readiness boundaries', () => {
         'tools.credential.rotate',
         'terminal.user.sensitive.submit',
         'agent.mcp.secret.set',
+        'agent.plugins.secret.set',
       ]),
     );
   });

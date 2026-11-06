@@ -58,7 +58,7 @@
 .memory-maintenance input[type='number']:focus {
   border-color: var(--focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(46, 105, 115, 0.14);
+  box-shadow: var(--focus-shadow);
 }
 
 .memory-maintenance input[type='checkbox'] {
@@ -174,7 +174,7 @@
 
 .maintenance-log-list li[data-state='failed'] strong,
 .maintenance-log-list li[data-state='interrupted'] strong {
-  color: var(--danger, #a54040);
+  color: var(--danger);
 }
 
 .memory-settings summary {

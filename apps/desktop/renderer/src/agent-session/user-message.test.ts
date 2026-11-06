@@ -136,6 +136,25 @@ test('a model service that answered badly or failed midway says so and what to d
   expect(said('context_length_exceeded')).toContain('上下文');
 });
 
+// A Chat Completions stream that broke its protocol (a finish reason sent twice, the end of the
+// reply never sent) stopped a task with only the generic sentence.
+test('a reply that does not follow the service protocol says so and what to do next', () => {
+  const fallback = '任务暂时中断。过程输出仍可阅读，请在输入框说明下一步。';
+  for (const code of [
+    'openai_chat_content_after_finish',
+    'openai_chat_terminal_missing',
+    'provider_content_type_invalid',
+  ]) {
+    const said = userMessage(`agent.provider_failed: ${code} (Protocol, HTTP None)`, fallback);
+    expect(said, code).toContain('数据格式不符合预期');
+    expect(said, code).toContain('继续');
+    expect(said, code).toContain('换一个模型');
+  }
+  // A code with a sentence of its own keeps it.
+  const sse = userMessage('agent.provider_failed: provider_sse_invalid (Protocol, HTTP None)');
+  expect(sse).toContain('无法解析');
+});
+
 // An overloaded service says so, and that it was asked again.
 test('an overloaded model service says so and that it was retried', () => {
   const fallback = '任务暂时中断。过程输出仍可阅读，请在输入框说明下一步。';
@@ -150,4 +169,32 @@ test('an overloaded model service says so and that it was retried', () => {
     expect(said, code).toContain('自动重试');
     expect(said, code).toContain('继续');
   }
+});
+
+// A Provider that refused the step for a setting of the user's own account there, or because
+// its plan serves other clients only, says which and what to do; none of these is sent again.
+test('a refusal by the provider account says which setting and what to do next', () => {
+  const fallback = '任务暂时中断。过程输出仍可阅读，请在输入框说明下一步。';
+  const said = (code: string, kind: string, status: string) =>
+    userMessage(`agent.provider_failed: ${code} (${kind}, HTTP ${status})`, fallback);
+  const region = said('provider_account_region', 'Authorization', 'Some(403)');
+  expect(region).toContain('区域');
+  const policy = said('provider_account_data_policy', 'Authorization', 'Some(404)');
+  expect(policy).toContain('训练');
+  const client = said('provider_client_not_allowed', 'Authorization', 'Some(403)');
+  expect(client).toContain('不会冒充');
+  expect(client).toContain('普通 API');
+  for (const sentence of [region, policy, client]) {
+    expect(sentence).toContain('没有自动重试');
+    expect(sentence).toContain('继续');
+  }
+  expect(policy).not.toBe(region);
+  // A Provider's own code with no sentence of its own is told by its kind.
+  expect(said('insufficient_quota', 'QuotaOrBalance', 'Some(429)')).toContain('余额');
+  expect(said('invalid_api_key', 'Authentication', 'Some(401)')).toContain('密钥');
+  const denied = said('permission_denied', 'Authorization', 'Some(403)');
+  expect(denied).toContain('权限');
+  expect(denied).not.toBe(region);
+  // Aura's own refusal before any reply is not the Provider's.
+  expect(said('credential.binding_mismatch', 'Authentication', 'None')).toBe(fallback);
 });

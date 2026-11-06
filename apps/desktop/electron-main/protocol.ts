@@ -36,7 +36,8 @@ export type SecretInputOperation =
   | 'tools_credential_create'
   | 'tools_credential_rotate'
   | 'terminal_sensitive_input'
-  | 'mcp_secret_set';
+  | 'mcp_secret_set'
+  | 'plugin_secret_set';
 
 export interface IpcFrameBinding {
   channelId: string;
@@ -112,6 +113,8 @@ const secretOperationDiscriminant = (operation: SecretInputOperation): number =>
       return 6;
     case 'mcp_secret_set':
       return 7;
+    case 'plugin_secret_set':
+      return 8;
   }
 };
 

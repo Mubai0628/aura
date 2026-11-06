@@ -13,4 +13,5 @@ use crate::command_claims::MAX_COMMAND_OUTCOMES;
 // Behavior tests are real child modules; shared fixtures are imported explicitly.
 mod command_outcomes;
 mod options;
+mod refusal_burst;
 mod response_limits;

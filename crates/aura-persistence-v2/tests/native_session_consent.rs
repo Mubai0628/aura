@@ -43,6 +43,8 @@ mod fixture;
 use fixture::*;
 #[path = "native_session_consent/chrome_site.rs"]
 mod chrome_site;
+#[path = "native_session_consent/desktop_app.rs"]
+mod desktop_app;
 #[path = "native_session_consent/editor_publication.rs"]
 mod editor_publication;
 #[path = "native_session_consent/file_session.rs"]
@@ -197,6 +199,7 @@ fn an_approval_after_the_window_closed_is_refused() {
             mcp_consent: None,
             chrome_consent: None,
             chrome_site_consent: None,
+            desktop_app_consent: None,
             file_consent: None,
         },
         allowed_decisions: vec![

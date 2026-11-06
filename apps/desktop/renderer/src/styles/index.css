@@ -1,5 +1,6 @@
 /* The app's base styles, split by region; the order is the cascade order. */
 @import './base.css';
+@import './pixel.css';
 @import './buttons.css';
 @import './shell.css';
 @import './conversation.css';

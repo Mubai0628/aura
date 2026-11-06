@@ -136,22 +136,24 @@ test('L08 an OAuth MCP server is signed in through the browser and called with i
     await form.getByLabel('OAuth 登录（在浏览器中登录）').check();
     await form.getByRole('button', { name: '保存' }).click();
     const list = settings.getByRole('list', { name: 'MCP 服务器' });
+    // The row's review opens the server's dialog; its sign-in is there too.
     await list.getByRole('button', { name: '查看并信任' }).click();
-    const trust = settings.getByRole('alertdialog', { name: '信任 测试登录' });
+    const server = page.getByRole('dialog', { name: '测试登录' });
+    const trust = server.getByRole('alertdialog', { name: '信任 测试登录' });
     await expect(trust).toContainText('信任后还要在浏览器中登录');
     await trust.getByRole('button', { name: '信任并启用' }).click();
-    const signIn = settings.getByRole('group', { name: '测试登录 的登录' });
+    const signIn = server.getByRole('group', { name: '测试登录 的登录' });
     await expect(signIn).toContainText('需要在浏览器中登录', { timeout: 60_000 });
-    // A narrow window: the long sign-in address must break inside the page, not widen it.
+    // A narrow window: the long sign-in address must break inside the dialog, not widen it.
     const size = await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]?.getSize(),
     );
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(900, 720));
     await signIn.getByRole('button', { name: '在浏览器中登录' }).click();
-    await expect(settings.getByText(/已在浏览器中打开 127\.0\.0\.1 的登录页面/u)).toBeVisible();
+    await expect(server.getByText(/已在浏览器中打开 127\.0\.0\.1 的登录页面/u)).toBeVisible();
     await expect(signIn.getByRole('button', { name: '复制链接' })).toBeVisible();
     const overflow = await page.evaluate(() => {
-      const content = document.querySelector('.settings-content');
+      const content = document.querySelector('.settings-item-dialog-body');
       return content ? content.scrollWidth - content.clientWidth : Number.NaN;
     });
     expect(overflow).toBeLessThanOrEqual(1);
@@ -170,6 +172,7 @@ test('L08 an OAuth MCP server is signed in through the browser and called with i
     expect(await browse(address)).toBe(200);
     await expect(list).toContainText('可用 · 9 个工具', { timeout: 60_000 });
     await expect(signIn).toContainText('已登录');
+    await server.getByRole('button', { name: '关闭' }).click();
     await page.getByRole('button', { name: '返回会话' }).click();
 
     // ReadOnly: asked once; the call carries the token the gateway adds.
@@ -195,7 +198,10 @@ test('L08 an OAuth MCP server is signed in through the browser and called with i
 
     // Signing out ends the sign-in; the server waits for a new one.
     const again = await mcpSettings(page);
-    const group = again.getByRole('group', { name: '测试登录 的登录' });
+    await again.getByRole('button', { name: '配置 测试登录' }).click();
+    const group = page
+      .getByRole('dialog', { name: '测试登录' })
+      .getByRole('group', { name: '测试登录 的登录' });
     await group.getByRole('button', { name: '退出登录' }).click();
     await expect(group).toContainText('需要在浏览器中登录');
     expect(model.provider.errors).toEqual([]);

@@ -1,10 +1,123 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, test, vi } from 'vitest';
 import { App } from './App';
 import { installAppTestEnvironment } from './app-test-fixtures';
 
 installAppTestEnvironment();
+
+const RUN = 'run_01ARZ3NDEKTSV4RRFFQ69G5FAW';
+const TURN = 'trn_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+
+/** A conversation whose one turn is running. */
+async function runningTurn() {
+  const history = vi.mocked(window.aura.v1.readAgentHistory);
+  const page = (await history({} as never)) as unknown as { ok: true; value: object };
+  history.mockResolvedValue({
+    ok: true,
+    value: {
+      ...page.value,
+      active: {
+        run: { agent_run_id: RUN, revision: '1', state: { state: 'running' } },
+        turn: { turn_task_id: TURN },
+        pending_approval_ids: [],
+      },
+      turns: [
+        {
+          turn: {
+            session_id: 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            turn_task_id: TURN,
+            agent_run_id: RUN,
+            mode: 'normal',
+            revision: '1',
+            state: { state: 'running' },
+          },
+          user_messages: [],
+          assistant_messages: [],
+        },
+      ],
+    },
+  } as never);
+}
+
+/** Core's answer to the 停止 of this test, given when the test says. */
+function heldStop() {
+  let answer: (result: unknown) => void = () => undefined;
+  const cancel = vi.fn(() => new Promise((resolve) => (answer = resolve)));
+  const stopCommand = {
+    name: 'stop',
+    title: '停止当前任务',
+    description: '停止当前任务',
+    kind: 'immediate',
+    source: 'builtin',
+    argument_hint: null,
+    template: null,
+    enabled: true,
+    issue: null,
+    location: null,
+    revision: null,
+  };
+  Object.assign(window.aura.v1, {
+    cancelAgentRun: cancel,
+    listCommands: vi.fn().mockResolvedValue({ ok: true, value: { commands: [stopCommand] } }),
+  });
+  return { cancel, answer: (result: unknown) => act(async () => answer(result)) };
+}
+
+// Core answers a 停止 once the run has really stopped, which took seconds; the page showed
+// nothing meanwhile, and the button and /stop took the same stop again.
+test('停止 says it is stopping from the click on and is not sent again before Core answers', async () => {
+  await runningTurn();
+  const stop = heldStop();
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(await screen.findByRole('button', { name: '停止当前任务' }));
+  const waiting = screen.getByRole<HTMLButtonElement>('button', { name: '正在停止' });
+  expect(waiting.disabled).toBe(true);
+  expect(document.querySelector('.agent-turn-status')?.textContent).toContain('正在停止');
+  fireEvent.click(waiting);
+  await user.type(screen.getByLabelText('输入消息'), '/sto{Enter}');
+  expect(stop.cancel).toHaveBeenCalledTimes(1);
+  await stop.answer({ ok: true, value: {} });
+  expect(stop.cancel).toHaveBeenCalledTimes(1);
+});
+
+// A stop Core refused leaves the run as it was; one whose last step is still ending stays a
+// stop, and the notice asks for another click, so the button takes one again either way.
+test.each([
+  {
+    case: 'refused',
+    error: { code: 'agent.cancel_unconfirmed', message: 'agent.cancel_unconfirmed: 停止未确认。' },
+    turnSays: '正在思考',
+  },
+  {
+    case: 'still ending',
+    error: { code: 'agent.stop_pending', message: 'agent.stop_pending: run is still alive' },
+    turnSays: '正在停止',
+  },
+])('after a stop Core did not finish, 停止 can be asked again ($case)', async (example) => {
+  await runningTurn();
+  const stop = heldStop();
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(await screen.findByRole('button', { name: '停止当前任务' }));
+  await stop.answer({ ok: false, error: example.error });
+  const again = await screen.findByRole<HTMLButtonElement>('button', { name: '停止当前任务' });
+  expect(again.disabled).toBe(false);
+  expect(document.querySelector('.agent-turn-status')?.textContent).toContain(example.turnSays);
+  await user.click(again);
+  expect(stop.cancel).toHaveBeenCalledTimes(2);
+});
+
+test('a stop whose reply never came back takes back 正在停止', async () => {
+  await runningTurn();
+  Object.assign(window.aura.v1, { cancelAgentRun: vi.fn().mockRejectedValue(new Error('gone')) });
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(await screen.findByRole('button', { name: '停止当前任务' }));
+  expect(await screen.findByRole('button', { name: '停止当前任务' })).toBeTruthy();
+  expect(document.querySelector('.agent-turn-status')?.textContent).not.toContain('正在停止');
+});
 
 // The session view kept a notification list of its own that nothing displayed, so a stop
 // Core did not confirm was never shown; it now goes to the one list the app shows.

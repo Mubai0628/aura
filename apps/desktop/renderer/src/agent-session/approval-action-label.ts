@@ -40,6 +40,12 @@ const LABELS: Record<string, string> = {
   'chrome.wait': '等待 Chrome 标签页',
   'chrome.console': '读取 Chrome 控制台',
   'chrome.close': '关闭 Chrome 标签页',
+  'computer.open': '打开程序',
+  'computer.snapshot': '读取程序窗口',
+  'computer.screenshot': '截取屏幕',
+  'computer.act': '操作程序',
+  'computer.input': '用鼠标键盘操作程序',
+  'computer.window': '调整程序窗口',
 };
 
 export function approvalActionLabel(actionKind: string): string {

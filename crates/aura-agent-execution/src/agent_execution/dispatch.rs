@@ -196,6 +196,9 @@ impl AgentExecution {
             )
             .await?;
         }
+        if let Some(message) = self.child_session_desktop_notice(&call).await? {
+            return Ok(CallOutcome::NotStarted { message });
+        }
         if let Some(message) = self.network_preflight_notice(&call).await {
             return Ok(CallOutcome::NotStarted { message });
         }

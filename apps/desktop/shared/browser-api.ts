@@ -67,7 +67,9 @@ export type BrowserUserCommand =
         /** The page's own Chromium DevTools, in a window of their own, for the user. */
         | 'devtools'
         /** A picture of the page as it is now, shown or hidden, to draw where it would be. */
-        | 'picture';
+        | 'picture'
+        /** The page's title, address and text as it is now, for a message that refers to it. */
+        | 'text';
       sessionId: string;
       pageId: string;
     }
@@ -78,12 +80,26 @@ export type BrowserUserCommand =
   /** Signs out of every site and empties the cache of the browser's own profile. */
   | { kind: 'clear-data' };
 
+/** A page's text, its first `PAGE_TEXT_CHARS` characters, with what it is. */
+export interface PageText {
+  title: string;
+  url: string;
+  text: string;
+  /** The page has more text than was kept. */
+  truncated: boolean;
+}
+
+/** The most of a page's text a message keeps. */
+export const PAGE_TEXT_CHARS = 200_000;
+
 export type BrowserCommandResult =
   | {
       ok: true;
       state?: BrowserPageState | undefined;
       /** For 'picture': a JPEG data URL; absent when the page could not be pictured. */
       picture?: string | undefined;
+      /** For 'text': the page as read; absent when it could not be read. */
+      text?: PageText | undefined;
     }
   | { ok: false; message: string };
 

@@ -2,6 +2,7 @@ import type { ModelSettingsProjection } from '@aura/contracts/generated';
 import { useEffect, useMemo, useState } from 'react';
 import { useScopedModelProjection } from '../model-projection-store';
 import type { ModelChoice } from '../ModelPicker';
+import { speedModesOf } from '../speed-mode';
 
 export function useDraftModelChoices() {
   const route = useMemo(
@@ -52,6 +53,9 @@ export function useDraftModelChoices() {
                     ?.reasoning_efforts ?? [],
                 level: model.request_defaults.reasoning_effort ?? undefined,
               },
+              speedModes: model.request_defaults.allow_speed_modes
+                ? (speedModesOf(settings, model.id)?.modes.map((mode) => mode.name) ?? [])
+                : [],
               ...(!model.enabled ? { disabledReason: '模型已停用' } : {}),
             });
         }

@@ -146,8 +146,9 @@ impl Drop for RuntimeServices {
         if let Some(packages) = &self.packages {
             packages.shutdown();
         }
-        // Every MCP server's process tree ends with the runtime.
+        // Every MCP server's and plugin service's process tree ends with the runtime.
         self.mcp.shutdown();
+        self.plugin_services.stop();
     }
 }
 

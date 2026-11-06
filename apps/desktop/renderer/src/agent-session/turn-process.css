@@ -17,7 +17,7 @@
   gap: 9px;
   padding: 2px 6px 2px 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -45,34 +45,29 @@
   justify-content: center;
 }
 .agent-turn-status[data-state='completed'] .agent-turn-symbol {
-  color: #39765b;
+  color: var(--success);
 }
 .agent-turn-status:not([data-state='completed']) .agent-turn-symbol {
   color: var(--muted);
 }
-/* The turn under way shows a thin arc going round, its tail fading — the
-   kind of ring the stop button wears — instead of the square of dots. */
+/* The turn under way shows eight blocks in a ring, the lit one going round with its tail
+   fading. */
 .agent-turn-spinner {
   display: block;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0 25%, currentColor 100%);
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-  animation: aura-tool-spin 0.9s linear infinite;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  mask: var(--pixel-spinner) 0 0 / 128px 16px no-repeat;
+  animation: pixel-spin 800ms steps(8) infinite;
 }
 .agent-turn-status[data-state='running'] .agent-turn-symbol {
   color: var(--ink);
 }
+/* The loading icon has no picture of its own: it is the pixel spinner. */
 .tool-icon[data-icon='loader-circle'] {
-  transform-origin: center;
-  animation: aura-tool-spin 0.9s linear infinite;
-}
-
-@keyframes aura-tool-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  background: currentColor;
+  mask: var(--pixel-spinner) 0 0 / 128px 16px no-repeat;
+  animation: pixel-spin 800ms steps(8) infinite;
 }
 
 .agent-process-toggle {
@@ -101,7 +96,7 @@
 }
 .agent-tool-chevron {
   display: inline-flex;
-  width: 14px;
+  width: 16px;
   align-items: center;
   color: var(--quiet);
 }
@@ -172,7 +167,7 @@
   align-items: center;
   gap: 8px;
   padding: 4px 0;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -238,7 +233,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 2px 7px;
   font-family: var(--font-mono, monospace);
   font-size: 11px;
@@ -251,14 +246,14 @@
   font-size: 11px;
 }
 .agent-tool-state[data-tone='succeeded'] {
-  color: #39765b;
+  color: var(--success);
 }
 .agent-tool-activity[data-outcome='succeeded'] .agent-tool-state {
-  color: #39765b;
+  color: var(--success);
 }
 .agent-tool-activity[data-outcome='failed'] .agent-tool-state,
 .agent-tool-activity[data-outcome='operation_rejected'] .agent-tool-state {
-  color: #a54040;
+  color: var(--danger);
 }
 .agent-tool-facts {
   border-left: 1px solid var(--line);
@@ -291,7 +286,20 @@
   max-height: 360px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
+}
+/* The screenshot opens in the picture viewer; the button adds no frame of its own. */
+.agent-tool-screenshot-open {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.agent-tool-screenshot-open:hover img,
+.agent-tool-screenshot-open:focus-visible img {
+  border-color: var(--accent);
 }
 .agent-tool-facts ul {
   list-style: none;
@@ -326,6 +334,18 @@
   color: var(--accent-strong);
 }
 
+/* A file a lookup found or a search matched, in its line of the expanded row: text, not a chip. */
+.agent-detail-file {
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-detail-file.agent-file-link:hover {
+  text-decoration: underline;
+}
+
 /* 查看终端 under the call that opened the model's terminal, in line with its title
    (the leading icon is 16px, then the row's 8px gap). */
 .agent-tool-terminal {
@@ -354,7 +374,7 @@
 .agent-process summary:focus-visible {
   outline: 2px solid var(--muted);
   outline-offset: 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 @media (prefers-reduced-motion: reduce) {
   .agent-turn-spinner {
@@ -377,7 +397,7 @@
   background-image: linear-gradient(
     105deg,
     currentColor 0 40%,
-    color-mix(in srgb, currentColor 30%, #fff) 50%,
+    color-mix(in srgb, currentColor 30%, var(--surface)) 50%,
     currentColor 60% 100%
   );
   background-size: 300% 100%;
@@ -426,7 +446,7 @@
   margin: 0 0 8px 13px;
   padding: 3px 10px 3px 8px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--muted);
   font-size: 12px;

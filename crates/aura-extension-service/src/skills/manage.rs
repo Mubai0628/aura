@@ -1,13 +1,17 @@
-//! Settings → Skill: list, preview, trust, untrust, switch, import and remove. Every change
-//! names the `skills.json` revision it was made against; trust is given only at the fingerprint
-//! the user was shown. Importing copies a folder, or unpacks a ZIP file, into Aura's own;
-//! nothing else is written.
+//! Settings → Skill: list, preview, trust, untrust, switch, pin, import and remove. Every change
+//! names the `skills.json` revision it was made against. A workspace's Skills are trusted once
+//! for the workspace; trust of one Skill alone is given only at the fingerprint the user was
+//! shown. Importing copies a folder, or unpacks a ZIP file, into Aura's own; nothing else is
+//! written.
+use super::instructions::{self, PINNED_LIMIT_TOKENS};
 use super::runtime::{LocatedSkill, SkillRuntime};
 use aura_config::SettingsFacadeError;
 use aura_core_base::{append_core_log, recycle};
+use aura_domain_common::SkillInstanceId;
 use aura_skills::{
     SkillChangeRequest, SkillImportRequest, SkillListRequest, SkillPreview, SkillRegistryView,
-    SkillRequest, SkillSetEnabledRequest, SkillSetting, SkillSource, SkillTrustRequest, skill_id,
+    SkillRequest, SkillSetEnabledRequest, SkillSetPinnedRequest, SkillSetting, SkillSource,
+    SkillTrustRequest, SkillWorkspaceTrustRequest, skill_id,
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -63,6 +67,11 @@ impl SkillContext {
                     s.trusted_fingerprint = None;
                 })?
             }
+            "agent.skills.trust_workspace" | "agent.skills.untrust_workspace" => {
+                let request: SkillWorkspaceTrustRequest = serde_json::from_value(params)?;
+                let trust = method == "agent.skills.trust_workspace";
+                serde_json::to_value(self.trust_workspace(&request, trust)?)?
+            }
             "agent.skills.set_enabled" => {
                 let request: SkillSetEnabledRequest = serde_json::from_value(params)?;
                 let located = self.runtime.locate(request.id, request.workspace_id)?;
@@ -86,6 +95,9 @@ impl SkillContext {
                     s.enabled = request.enabled;
                 })?
             }
+            "agent.skills.set_pinned" => {
+                serde_json::to_value(self.set_pinned(&serde_json::from_value(params)?)?)?
+            }
             "agent.skills.import" => {
                 serde_json::to_value(self.import(serde_json::from_value(params)?)?)?
             }
@@ -103,20 +115,90 @@ impl SkillContext {
         let (registry, roots, skills) = self.runtime.list(workspace)?;
         Ok(SkillRegistryView {
             revision: registry.revision,
+            pinned_tokens: instructions::pinned_tokens(&skills),
+            pinned_limit: PINNED_LIMIT_TOKENS,
             skills: skills.into_iter().map(|skill| skill.view).collect(),
             roots,
             issue: registry.issue,
+            workspace_trusted: workspace
+                .is_some_and(|id| registry.trusted_workspaces.contains(&id)),
         })
     }
 
     fn write(&self, expected_revision: u64, skills: &[SkillSetting]) -> anyhow::Result<()> {
-        match self.runtime.settings().replace_skill_registry(expected_revision, skills) {
-            Ok(_) => Ok(()),
-            Err(SettingsFacadeError::RevisionConflict { .. }) => {
-                anyhow::bail!("skills.revision_changed: Skill 设置已被修改，请刷新后再操作")
-            }
-            Err(error) => Err(error.into()),
+        written(self.runtime.settings().replace_skill_registry(expected_revision, skills))
+    }
+
+    /// Pins a usable Skill while the pinned Skills sent now and it fit in the limit together, or
+    /// unpins one. Pins apply from the next turn.
+    fn set_pinned(&self, request: &SkillSetPinnedRequest) -> anyhow::Result<SkillRegistryView> {
+        let (registry, _, skills) = self.runtime.list(request.workspace_id)?;
+        anyhow::ensure!(
+            registry.issue.is_none(),
+            "skills.registry_unavailable: {}",
+            registry.issue.clone().unwrap_or_default()
+        );
+        let skill = skills.iter().find(|skill| skill.view.id == request.id).ok_or_else(|| {
+            anyhow::anyhow!("skills.not_found: 这个 Skill 不在列表里（文件夹可能已移走），请刷新")
+        })?;
+        if request.pinned && !skill.view.pinned {
+            let text = instructions::pinned_text(skill).ok_or_else(|| {
+                anyhow::anyhow!("skills.not_ready: 这个 Skill 现在不能用，不能固定加载")
+            })?;
+            let (used, size) = (instructions::pinned_tokens(&skills), instructions::tokens(&text));
+            anyhow::ensure!(
+                used + size <= PINNED_LIMIT_TOKENS,
+                "skills.pin_limit: 固定加载的 Skill 合计不能超过 {PINNED_LIMIT_TOKENS} token（已固定约 {used}，这个约 {size}），请先取消别的固定加载"
+            );
         }
+        written(self.runtime.settings().update_skill_choices(request.expected_revision, |c| {
+            c.pinned.retain(|id| *id != request.id);
+            if request.pinned {
+                c.pinned.push(request.id);
+            }
+        }))?;
+        self.view(request.workspace_id)
+    }
+
+    /// Drops a removed Skill's choices and its pin.
+    fn forget(&self, expected_revision: u64, id: SkillInstanceId) -> anyhow::Result<()> {
+        written(self.runtime.settings().update_skill_choices(expected_revision, |choices| {
+            choices.skills.retain(|skill| skill.id != id);
+            choices.pinned.retain(|pinned| *pinned != id);
+        }))
+    }
+
+    /// Trusts, or stops trusting, every Skill in one workspace's folders. Withdrawing also clears
+    /// a trust given earlier to one of its Skills alone, so none of them stays offered.
+    fn trust_workspace(
+        &self,
+        request: &SkillWorkspaceTrustRequest,
+        trust: bool,
+    ) -> anyhow::Result<SkillRegistryView> {
+        let workspace = request.workspace_id;
+        self.runtime.workspace_root(workspace)?;
+        let registry = self.runtime.settings().skill_registry();
+        anyhow::ensure!(
+            registry.issue.is_none(),
+            "skills.registry_unavailable: {}",
+            registry.issue.clone().unwrap_or_default()
+        );
+        written(self.runtime.settings().update_skill_choices(
+            request.expected_revision,
+            |choices| {
+                choices.trusted_workspaces.retain(|id| *id != workspace);
+                if trust {
+                    choices.trusted_workspaces.push(workspace);
+                    return;
+                }
+                for skill in &mut choices.skills {
+                    if skill.source.in_workspace() && skill.workspace_id == Some(workspace) {
+                        skill.trusted_fingerprint = None;
+                    }
+                }
+            },
+        ))?;
+        self.view(Some(workspace))
     }
 
     /// Saves one Skill's choices, starting from its saved ones or its source's defaults.
@@ -152,8 +234,9 @@ impl SkillContext {
         Ok(serde_json::to_value(self.view(workspace)?)?)
     }
 
-    /// Copies a Skill folder, or unpacks a ZIP file, into Aura's own folder, switched on and not
-    /// trusted yet. The copy must have exactly the content that was checked.
+    /// Copies a Skill folder, or unpacks a ZIP file, into Aura's own folder, switched on; the
+    /// user chose it, so it needs no trust. The copy must have exactly the content that was
+    /// checked.
     fn import(&self, request: SkillImportRequest) -> anyhow::Result<SkillRegistryView> {
         let registry = self.runtime.settings().skill_registry();
         anyhow::ensure!(
@@ -186,13 +269,17 @@ impl SkillContext {
     }
 
     /// Removes a Skill. Aura's own copy is deleted outright; a Skill in the user's or a
-    /// workspace's `.agents` folder goes to the Recycle Bin, because it may be the only copy and
-    /// other tools read that folder too. A plugin's Skill goes only with its plugin.
+    /// workspace's `.agents` or `.claude` folder goes to the Recycle Bin, because it may be the
+    /// only copy and other tools read that folder too. A plugin's Skill goes only with its plugin.
     fn remove(&self, request: SkillChangeRequest) -> anyhow::Result<SkillRegistryView> {
         let located = self.runtime.locate(request.id, request.workspace_id)?;
         from_plugin(&located.view)?;
+        anyhow::ensure!(
+            located.view.source != SkillSource::AuraBuiltIn,
+            "skills.not_removable: Aura 自带的 Skill 不能删除；不想用可以停用"
+        );
         let users_folder =
-            matches!(located.view.source, SkillSource::AgentGlobal | SkillSource::Workspace);
+            !matches!(located.view.source, SkillSource::AuraStore | SkillSource::Plugin);
         anyhow::ensure!(
             located.view.source == SkillSource::AuraStore || users_folder,
             "skills.not_removable: 这个 Skill 不能在这里删除，请在它的文件夹里处理"
@@ -219,9 +306,7 @@ impl SkillContext {
                     "skills.remove_busy: 这个 Skill 的文件夹正被其他程序使用（例如资源管理器或编辑器打开着它或里面的文件），关闭后再删除；Skill 没有改变（{error}）"
                 ),
             }
-            let mut skills = registry.skills;
-            skills.retain(|skill| skill.id != request.id);
-            self.write(request.expected_revision, &skills)?;
+            self.forget(request.expected_revision, request.id)?;
             return self.view(request.workspace_id);
         }
         let store = self.runtime.store_root();
@@ -242,10 +327,19 @@ impl SkillContext {
                 serde_json::json!({"directory": trash.display().to_string(), "error": error.to_string()}),
             );
         }
-        let mut skills = registry.skills;
-        skills.retain(|skill| skill.id != request.id);
-        self.write(request.expected_revision, &skills)?;
+        self.forget(request.expected_revision, request.id)?;
         self.view(request.workspace_id)
+    }
+}
+
+/// A concurrent change to `skills.json` is the user's to reread, never overwritten.
+fn written(result: Result<u64, SettingsFacadeError>) -> anyhow::Result<()> {
+    match result {
+        Ok(_) => Ok(()),
+        Err(SettingsFacadeError::RevisionConflict { .. }) => {
+            anyhow::bail!("skills.revision_changed: Skill 设置已被修改，请刷新后再操作")
+        }
+        Err(error) => Err(error.into()),
     }
 }
 

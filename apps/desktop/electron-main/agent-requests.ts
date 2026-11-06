@@ -30,7 +30,8 @@ const RUN_STOP_COMMANDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Work whose size the user chose — a folder to add, a plugin or Skill to read and copy — runs in
+ * Work whose size the user chose — a folder to add, a plugin or Skill to read and copy, a plugin
+ * to export — runs in
  * Core for as long as it takes, up to Core's own 120 s bound for workspace commands. Main waits a
  * little longer, so slow work ends as its real result instead of as unconfirmed.
  */
@@ -40,6 +41,8 @@ const LONG_WORK_COMMANDS: ReadonlySet<string> = new Set([
   'workspace.restore',
   'agent.plugins.preview',
   'agent.plugins.import',
+  'agent.plugins.add_development',
+  'agent.plugins.export',
   'agent.skills.preview',
   'agent.skills.import',
 ]);

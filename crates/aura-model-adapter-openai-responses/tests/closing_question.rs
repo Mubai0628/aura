@@ -147,6 +147,7 @@ fn body(request: &LogicalModelRequest, snapshot: &ModelExecutionSnapshot) -> Val
             operation_context: &operation,
             compatibility_removals: &BTreeSet::new(),
             applied_output_token_field_alias: None,
+            session_id: None,
         })
         .expect("compile Responses request");
     serde_json::from_slice(&plan.body).expect("request JSON")
@@ -214,7 +215,9 @@ fn exchange(snapshot: &mut ModelExecutionSnapshot) -> Vec<LogicalConversationIte
                 reuse_domain,
                 model_name: snapshot.model_name.clone(),
                 data: ProviderHistoryData::Responses {
-                    reasoning_items: vec![json!({"type":"reasoning","id":"rs_1","summary":[]})],
+                    reasoning_items: vec![
+                        json!({"type":"reasoning","id":"rs_1","summary":[],"encrypted_content":"opaque"}),
+                    ],
                 },
             }),
         },
@@ -242,7 +245,15 @@ fn the_question_is_a_user_message_after_the_steps_input_and_names_no_tool_choice
         assert_eq!(now.len(), before.len() + 1, "{now:?}");
         assert_eq!(&now[..before.len()], before.as_slice(), "the step's input, unchanged: {url}");
         assert_eq!(now[before.len()], question(), "{url}");
-        for field in ["instructions", "tools", "prompt_cache_key", "model", "max_output_tokens"] {
+        for field in [
+            "instructions",
+            "tools",
+            "prompt_cache_key",
+            "model",
+            "max_output_tokens",
+            "store",
+            "include",
+        ] {
             assert_eq!(compaction.get(field), sent.get(field), "{field} for {url}");
         }
         assert!(compaction.get("tool_choice").is_none(), "{url}: {compaction}");
@@ -263,11 +274,17 @@ fn after_tool_calls_the_answer_and_a_result_for_each_call_follow_the_question() 
         let sent = body(&again, &follow);
         let now = input(&sent);
         assert_eq!(&now[..before.len()], before.as_slice(), "the step's input, unchanged: {url}");
+        // OpenAI's API keeps nothing of a request, so its reasoning goes back without its id.
+        let reasoning = if url.contains("openai") {
+            json!({"type":"reasoning","summary":[],"encrypted_content":"opaque"})
+        } else {
+            json!({"type":"reasoning","id":"rs_1","summary":[],"encrypted_content":"opaque"})
+        };
         assert_eq!(
             &now[before.len()..],
             [
                 question(),
-                json!({"type":"reasoning","id":"rs_1","summary":[]}),
+                reasoning,
                 json!({"type":"function_call","call_id":"call_closing","name":wire,
                     "arguments":ARGUMENTS}),
                 json!({"type":"function_call_output","call_id":"call_closing","output":RESULT}),

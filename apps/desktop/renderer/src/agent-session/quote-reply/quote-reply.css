@@ -1,0 +1,113 @@
+/* Replying to a passage of the conversation: the 回复 button beside the selection, the card it
+   opens, and the mark the quoted passage keeps while the card holds the focus. Both sit in the top
+   layer; Floating places them. */
+.quote-reply-offer,
+.quote-reply-card {
+  position: fixed;
+  inset: auto;
+  z-index: 70;
+  margin: 0;
+  color: var(--ink);
+}
+
+/* Only the button shows: the box around it has no frame of its own. */
+.quote-reply-offer {
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+.quote-reply-offer .button {
+  gap: 5px;
+}
+
+/* A white box with a hard frame and a hard shadow, as the composer's own menus. */
+.quote-reply-card {
+  display: grid;
+  gap: 6px;
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 10px;
+  overflow: visible;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-popover);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.quote-reply-card:has(textarea:focus) {
+  border-color: var(--ink);
+}
+
+/* A few lines of the quote; the rest is cut with an ellipsis. */
+.quote-reply-quote {
+  display: -webkit-box;
+  margin: 0;
+  padding: 0 0 0 8px;
+  overflow: hidden;
+  border-left: 2px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.quote-reply-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* One line to start; it grows with the lines typed, then scrolls. */
+.quote-reply-row textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 26px;
+  max-height: 128px;
+  padding: 3px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  field-sizing: content;
+  line-height: 1.5;
+  resize: none;
+}
+
+/* The card is the frame; the box draws no focus mark of its own. */
+.quote-reply-row textarea:focus-visible {
+  box-shadow: none;
+}
+
+.quote-reply-row textarea::placeholder {
+  color: var(--quiet);
+  opacity: 1;
+}
+
+.quote-reply-confirm {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+}
+
+.quote-reply-confirm:hover,
+.quote-reply-confirm:focus-visible {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+/* The quoted passage, in the selection's own colours. */
+::highlight(aura-quote-reply) {
+  color: var(--ink);
+  background-color: var(--pixel-shadow);
+}

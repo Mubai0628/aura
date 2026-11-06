@@ -150,10 +150,10 @@ impl Purger {
 
     async fn purge_execution(&self, session: SessionId) -> anyhow::Result<()> {
         self.purge_rows(Target::Session(session)).await?;
-        // The zip entries opened for the Session's 文件 tab.
+        // The zip entries opened for the Session's 文件 tab and its messages' captures.
         let broker = Arc::clone(&self.broker);
         tokio::task::spawn_blocking(move || {
-            crate::agent_application::attachment_entries::forget_entries(&broker, session)
+            crate::agent_application::attachment_entries::forget_kept_files(&broker, session)
         })
         .await??;
         Ok(())

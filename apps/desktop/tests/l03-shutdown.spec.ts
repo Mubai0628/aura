@@ -68,7 +68,9 @@ for (const mode of ['escape', 'stream'] as const) {
       let closed = false;
       try {
         const page = await app.firstWindow();
-        await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+        await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+          timeout: 60_000,
+        });
         const spawnedCore = await corePid(root);
         core = spawnedCore;
         const compatibility = await page.evaluate(async () => {

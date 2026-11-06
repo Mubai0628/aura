@@ -12,7 +12,7 @@
   gap: 6px;
   padding: 3px 4px 3px 9px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   background: var(--accent-soft);
 }
@@ -23,7 +23,7 @@
   width: 20px;
   height: 20px;
   padding: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
 }
 
@@ -52,7 +52,7 @@
   display: grid;
   width: 100%;
   padding: 6px 8px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   text-align: left;
   background: transparent;
 }

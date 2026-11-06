@@ -55,7 +55,7 @@ export function NotificationSettings() {
         {SWITCHES.map(({ kind, label }) => (
           <label className="browser-settings-toggle" key={kind}>
             <ToggleSwitch
-              checked={preferences?.[kind] ?? false}
+              checked={preferences?.[kind]}
               disabled={preferences === undefined}
               label={label}
               onCheckedChange={(checked) =>

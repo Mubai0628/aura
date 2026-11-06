@@ -1,5 +1,7 @@
 //! `aura-plugin.toml`, and what both layouts come to: a name that is the plugin's identity, a
-//! version, description and author to show, and the limits its processes run under.
+//! version, description and author to show, the limits its processes run under and, from
+//! version 2, what the plugin declares besides (`declarations`).
+use crate::declarations::{DeclaredFiles, OptionFile, PanelFile, PluginDeclarations, ServiceFile};
 use crate::views::PluginLimits;
 use serde::Deserialize;
 use std::ops::RangeInclusive;
@@ -33,6 +35,8 @@ pub struct PluginManifest {
     pub author: Option<String>,
     pub homepage: Option<String>,
     pub limits: PluginLimits,
+    /// Empty for version 1 and for a Claude Code plugin.
+    pub declared: PluginDeclarations,
 }
 
 #[derive(Deserialize)]
@@ -49,6 +53,16 @@ struct AuraManifestFile {
     homepage: Option<String>,
     #[serde(default)]
     limits: Option<LimitsFile>,
+    #[serde(default)]
+    capabilities: Option<Vec<String>>,
+    #[serde(default)]
+    panel: Option<PanelFile>,
+    #[serde(default)]
+    service: Option<ServiceFile>,
+    #[serde(default)]
+    settings: Option<Vec<OptionFile>>,
+    #[serde(default)]
+    channels: Option<Vec<crate::channels::ChannelFile>>,
 }
 
 #[derive(Deserialize)]
@@ -68,20 +82,37 @@ pub fn valid_plugin_name(name: &str) -> bool {
         && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-/// `aura-plugin.toml`, or every reason it cannot be used.
-pub(crate) fn parse_aura_manifest(text: &str) -> Result<PluginManifest, Vec<String>> {
+/// `aura-plugin.toml`, or every reason it cannot be used. `fill` puts the plugin folder in place
+/// of `${PLUGIN_ROOT}`.
+pub(crate) fn parse_aura_manifest(
+    text: &str,
+    fill: &dyn Fn(&str) -> String,
+) -> Result<PluginManifest, Vec<String>> {
     if text.len() > MAX_MANIFEST_BYTES {
         return Err(vec![format!("{AURA_MANIFEST} 超过 {MAX_MANIFEST_BYTES} 字节")]);
     }
     let file: AuraManifestFile =
         toml::from_str(text).map_err(|error| vec![format!("{AURA_MANIFEST} 无法解析：{error}")])?;
     let mut problems = Vec::new();
-    if file.schema_version != 1 {
+    if !(1..=2).contains(&file.schema_version) {
         problems.push(format!(
-            "schema_version 是 {}；这个版本的 Aura 只认 1，请更新 Aura",
+            "schema_version 是 {}；这个版本的 Aura 只认 1 和 2，请更新 Aura",
             file.schema_version
         ));
     }
+    let declared = DeclaredFiles {
+        capabilities: file.capabilities,
+        panel: file.panel,
+        service: file.service,
+        settings: file.settings,
+        channels: file.channels,
+    };
+    if file.schema_version == 1 && declared.any() {
+        problems.push(
+            "capabilities、panel、service、settings 和 channels 要写 schema_version = 2".into(),
+        );
+    }
+    let declared = crate::declarations::check(declared, fill, &mut problems);
     let mut limits = PluginLimits::default();
     if let Some(declared) = file.limits {
         if let Some(memory) = declared.memory_mb {
@@ -114,6 +145,7 @@ pub(crate) fn parse_aura_manifest(text: &str) -> Result<PluginManifest, Vec<Stri
         author: file.author,
         homepage: file.homepage,
         limits,
+        declared,
     });
     problems.extend(check(&manifest));
     if problems.is_empty() { Ok(manifest) } else { Err(problems) }

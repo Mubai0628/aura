@@ -20,8 +20,11 @@ test('Launcher target shell reaches Core Ready over the secure Named Pipe', asyn
     await expect(window.getByRole('button', { name: '选择文件夹创建工作区' })).toBeVisible();
     await expect(window.getByRole('region', { name: '消息编辑器' })).toHaveCount(0);
     await expect(window.locator('.app-topbar')).toHaveCount(0);
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
-    await expect(window.getByText('本地运行 · 无需登录')).toBeVisible();
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    // The sidebar's foot holds 设置 and nothing else.
+    await expect(window.locator('.sidebar-footer > *')).toHaveCount(1);
     await expectSecureSurface(window);
     const snapshot = await window.evaluate(() => {
       const rendererGlobal = globalThis as typeof globalThis & { aura: RendererAura };
@@ -86,7 +89,9 @@ test('Core crash enters read-only recovery and restarts to Ready', async () => {
   const application = await launchAura('crash-after-handshake');
   try {
     const window = await application.firstWindow();
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 12_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 12_000,
+    });
     await expect
       .poll(async () => {
         const log = await readMainLog(application);
@@ -111,7 +116,9 @@ test('Projection revision gap reloads the authoritative snapshot', async () => {
   const application = await launchAura('projection-revision-gap');
   try {
     const window = await application.firstWindow();
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
     const snapshot = await window.evaluate(() => {
       const rendererGlobal = globalThis as typeof globalThis & { aura: RendererAura };
       return rendererGlobal.aura.v1.getCoreHealth();
@@ -143,7 +150,9 @@ test('Named Pipe disconnect reconnects to the same Core instance', async () => {
         });
       });
     });
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
     await expect
       .poll(
         () =>
@@ -165,7 +174,9 @@ test('Named Pipe disconnect reconnects to the same Core instance', async () => {
         { timeout: 8_000 },
       )
       .toBe(true);
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 8_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 8_000,
+    });
     const after = await window.evaluate(() => {
       const rendererGlobal = globalThis as typeof globalThis & { aura: RendererAura };
       return rendererGlobal.aura.v1.getCoreHealth();
@@ -206,7 +217,9 @@ test('Renderer crash rebuilds the page without restarting Core', async () => {
   const application = await launchAura();
   try {
     const firstWindow = await application.firstWindow();
-    await expect(firstWindow.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
+    await expect(firstWindow.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
     const before = await firstWindow.evaluate(() => {
       const rendererGlobal = globalThis as typeof globalThis & { aura: RendererAura };
       return rendererGlobal.aura.v1.getCoreHealth();
@@ -217,7 +230,9 @@ test('Renderer crash rebuilds the page without restarting Core', async () => {
       BrowserWindow.getAllWindows()[0]?.webContents.forcefullyCrashRenderer();
     });
     const rebuiltWindow = await rebuiltWindowPromise;
-    await expect(rebuiltWindow.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 10_000 });
+    await expect(rebuiltWindow.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 10_000,
+    });
     const after = await rebuiltWindow.evaluate(() => {
       const rendererGlobal = globalThis as typeof globalThis & { aura: RendererAura };
       return rendererGlobal.aura.v1.getCoreHealth();

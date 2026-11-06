@@ -78,7 +78,7 @@ for (const kind of ['uncaught_exception', 'unhandled_rejection'] as const) {
           const alert = page.getByRole('alert').filter({ hasText: 'Aura 主进程发生错误' });
           await expect(alert).toBeVisible({ timeout: 8_000 });
           await expect(alert).toContainText('日志');
-          await expect(page.getByText('Aura Core 已就绪')).toBeVisible();
+          await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible();
           if (kind === 'uncaught_exception')
             await page.screenshot({
               path: test.info().outputPath('main-error.png'),

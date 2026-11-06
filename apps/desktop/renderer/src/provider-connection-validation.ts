@@ -1,4 +1,10 @@
-import type { EndpointAuthScheme, ModelApiFormat } from '@aura/contracts/generated';
+import type {
+  EndpointAuthScheme,
+  ModelApiFormat,
+  ProviderPresetParameterView,
+} from '@aura/contracts/generated';
+
+import { parameterValueIsValid } from './provider-connection/base-url-template';
 
 export type EndpointEditorField =
   | 'api_format'
@@ -13,7 +19,8 @@ export type EndpointEditorField =
   | 'max_parallel_model_requests'
   | 'models_path'
   | 'stream_idle_ms'
-  | 'total_ms';
+  | 'total_ms'
+  | `parameter:${string}`;
 
 export interface EndpointEditorValidationIssue {
   field: EndpointEditorField;
@@ -33,8 +40,12 @@ interface EndpointEditorValidationInput {
   hasLocalProvider: boolean;
   maxParallelRequests: number;
   modelsPath: string;
+  /** The values given for `urlParameters`, by name. */
+  parameterValues?: Readonly<Record<string, string>>;
   streamIdleMs: number;
   totalMs: number | '';
+  /** The values of the user's own the chosen address takes. */
+  urlParameters?: readonly ProviderPresetParameterView[];
 }
 
 export const customModelsPathIssue = (
@@ -60,8 +71,10 @@ export const endpointEditorValidationIssues = ({
   hasLocalProvider,
   maxParallelRequests,
   modelsPath,
+  parameterValues = {},
   streamIdleMs,
   totalMs,
+  urlParameters = [],
 }: EndpointEditorValidationInput): EndpointEditorValidationIssue[] => {
   const issues: EndpointEditorValidationIssue[] = [];
   if (!hasLocalProvider) {
@@ -90,6 +103,25 @@ export const endpointEditorValidationIssues = ({
   }
   if (baseUrl.trim().length === 0) {
     issues.push({ field: 'base_url', message: '请输入 Base URL' });
+  }
+  for (const parameter of urlParameters) {
+    const value = Object.hasOwn(parameterValues, parameter.name)
+      ? (parameterValues[parameter.name] ?? '')
+      : '';
+    if (value.length === 0) {
+      issues.push({
+        field: `parameter:${parameter.name}`,
+        message: `请输入${parameter.display_name}`,
+      });
+    } else if (!parameterValueIsValid(parameter.kind, value)) {
+      issues.push({
+        field: `parameter:${parameter.name}`,
+        message:
+          parameter.kind === 'domain_label'
+            ? `${parameter.display_name}只能含小写字母、数字和中间的连字符，最长 63 个字符`
+            : `${parameter.display_name}只能含字母、数字和 - . _ ~，最长 128 个字符`,
+      });
+    }
   }
   const pathIssue = customModelsPathIssue(discoveryMode, modelsPath);
   if (pathIssue !== undefined) {

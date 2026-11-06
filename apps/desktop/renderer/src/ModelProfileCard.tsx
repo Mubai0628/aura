@@ -14,6 +14,7 @@ import {
   RequestedModelAvailability,
 } from './model-availability/RequestedModelAvailability';
 import { useModelAvailability } from './model-availability/use-model-availability';
+import { isProfileReady, profileStatusLabel } from './model-profile-status';
 import './model-availability/availability.css';
 
 export function ModelProfileCard({
@@ -166,24 +167,8 @@ export function ModelProfileCard({
   );
 }
 
-const profileStatusLabel = (profile: ModelProfileConfig): string => {
-  if (!profile.enabled) return '已停用';
-  if (
-    profile.request_defaults.max_output_tokens === null ||
-    profile.request_defaults.max_output_tokens === undefined
-  ) {
-    if (
-      profile.catalog?.snapshot.output_limit_tokens === null ||
-      profile.catalog?.snapshot.output_limit_tokens === undefined
-    ) {
-      return '需配置输出上限';
-    }
-  }
-  return '已配置';
-};
-
 const profileStatusClass = (profile: ModelProfileConfig): string =>
-  profileStatusLabel(profile) === '已配置' ? 'status-ready' : 'status-warning';
+  isProfileReady(profile) ? 'status-ready' : 'status-warning';
 
 const availabilityPrerequisite = (
   endpoint: ModelEndpointConfig,

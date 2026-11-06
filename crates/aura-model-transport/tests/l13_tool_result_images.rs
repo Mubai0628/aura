@@ -83,6 +83,7 @@ fn fixture(api_format: ModelApiFormat) -> Fixture {
             reasoning_effort: None,
             reasoning_by_effort: false,
             image_input: true,
+            speed_mode: None,
         },
         historical_tool_call_wire_bindings: vec![ProviderToolCallWireBinding {
             tool_call_id: call_id,
@@ -230,6 +231,7 @@ fn compile(
         operation_context: &operation_context,
         compatibility_removals: &std::collections::BTreeSet::new(),
         applied_output_token_field_alias: None,
+        session_id: None,
     };
     let plan = match snapshot.api_format {
         ModelApiFormat::OpenAiChatCompletions => {

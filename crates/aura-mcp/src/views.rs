@@ -201,3 +201,39 @@ pub struct McpSignInBegun {
 pub struct McpSignOutRequest {
     pub id: String,
 }
+
+/// The resources a conversation's message may refer to with "@".
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct McpResourceListRequest {
+    /// The conversation whose own instances of the servers list them.
+    pub session_id: aura_domain_common::SessionId,
+}
+
+/// One resource of a ready server that offers resources.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+pub struct McpResourceView {
+    pub server_id: String,
+    /// The server as Settings → MCP names it.
+    pub server_name: String,
+    pub uri: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+}
+
+/// A server that offers resources but could not list them now.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+pub struct McpResourceProblem {
+    pub server_id: String,
+    pub server_name: String,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+pub struct McpResourceList {
+    pub resources: Vec<McpResourceView>,
+    pub problems: Vec<McpResourceProblem>,
+}

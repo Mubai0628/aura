@@ -1,0 +1,41 @@
+[package]
+name = "aura-plugin-session"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+aura-agent-application = { path = "../aura-agent-application" }
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-context-domain = { path = "../aura-context-domain" }
+aura-core-base = { path = "../aura-core-base" }
+aura-core-broker = { path = "../aura-core-broker" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-execution-contract = { path = "../aura-execution-contract" }
+aura-extension-service = { path = "../aura-extension-service" }
+aura-ipc = { path = "../aura-ipc" }
+aura-persistence = { path = "../aura-persistence" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-plugin-host = { path = "../aura-plugin-host" }
+aura-plugins = { path = "../aura-plugins" }
+aura-projection-contract = { path = "../aura-projection-contract" }
+aura-security-contract = { path = "../aura-security-contract" }
+aura-security-service = { path = "../aura-security-service" }
+aura-tool-projection = { path = "../aura-tool-projection" }
+aura-workspace-domain = { path = "../aura-workspace-domain" }
+blake3.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-config = { path = "../aura-config" }
+aura-skills = { path = "../aura-skills" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

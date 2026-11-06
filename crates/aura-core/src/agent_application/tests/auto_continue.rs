@@ -11,7 +11,7 @@ use std::time::Duration;
 
 /// Runs `work` on a runtime of its own and then drops that runtime without any graceful stop,
 /// as a Core that crashed or was ended leaves its stores.
-async fn crashed<T: Send + 'static>(
+pub(in crate::agent_application::tests) async fn crashed<T: Send + 'static>(
     work: impl FnOnce() -> std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>
     + Send
     + 'static,
@@ -52,12 +52,15 @@ async fn cut_off_with_a_queued_message(
                 &runtime,
                 "agent.submit",
                 json!(AgentSubmitRequest {
+                    computer_mode: None,
                     session_id: start.turn.session_id,
                     text: "Then the queued request".into(),
                     destination: AgentInputLane::NextTurn,
                     skill_ids: Vec::new(),
                     reasoning_effort: None,
+                    speed_mode: None,
                     attachments: Vec::new(),
+                    references: Vec::new(),
                 }),
             )
             .await;
@@ -201,6 +204,38 @@ async fn after_aura_was_closed_only_the_users_continue_continues_and_the_queue_w
     )
     .await;
     assert!(stale.get("error").is_some(), "{stale}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_continuing_turn_is_sent_where_the_cut_off_turn_stopped() {
+    let host = Arc::new(crate::r03_tests::Fixture::new());
+    let provider = Arc::new(Provider::scenario(Scenario::RecoveredSession).await);
+    let (session_id, cut) = cut_off_with_a_queued_message(&host, &provider).await;
+    let runtime = host.start().await;
+    bind_model(&runtime, session_id, cut).await;
+    crate::r03_tests::success(
+        &runtime,
+        "agent.continue",
+        json!(AgentContinueRequest { session_id, turn_task_id: cut }),
+    )
+    .await;
+    let seen = completed_turns(&runtime, session_id, 2).await;
+
+    let requests = provider.requests.lock().expect("requests").clone();
+    let messages = requests[1]["messages"].as_array().expect("messages").clone();
+    let text = |message: &Value| match &message["content"] {
+        Value::String(text) => text.clone(),
+        other => other.to_string(),
+    };
+    let message = messages
+        .iter()
+        .position(|message| message["role"] == "user" && text(message).contains(&said(&seen[0])))
+        .expect("the cut-off turn's message");
+    let note = &messages[message + 1];
+    assert_eq!(note["role"], "assistant", "the note follows the cut-off message: {messages:?}");
+    assert!(text(note).contains("Aura restarted"), "{note}");
+    let next = &messages[message + 2];
+    assert_eq!((next["role"].as_str(), text(next).as_str()), (Some("user"), "继续"), "{next}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

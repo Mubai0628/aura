@@ -2,6 +2,7 @@ import type { ModelProjectionChange, ModelProjectionRouteRequest } from '../../s
 import { modelProjectionRouteKey } from '../../shared/projection-validation';
 import { useCallback, useSyncExternalStore } from 'react';
 import { ownProjectionCompatibilityRoute } from './projection-compatibility-store';
+import { SubscriptionRetries } from './projection-retries';
 
 type ProjectionListener = () => void;
 
@@ -14,7 +15,33 @@ interface ProjectionRouteEntry {
 const routes = new Map<string, ProjectionRouteEntry>();
 const cachedChanges = new Map<string, ModelProjectionChange>();
 const cachedErrors = new Map<string, string>();
+const retries = new SubscriptionRetries();
 let stopListening: (() => void) | undefined;
+
+/** Asks Main for an entry's route. A refusal is shown until the route is asked again and holds. */
+const ask = (key: string, entry: ProjectionRouteEntry): void => {
+  const notify = () => {
+    for (const listener of entry.listeners) listener();
+  };
+  const fail = (message: string) => {
+    if (routes.get(key) !== entry) return;
+    cachedErrors.set(key, message);
+    notify();
+    retries.failed(key, () => ask(key, entry));
+  };
+  void window.aura.v1
+    .subscribeModelProjection(entry.route)
+    .then((result) => {
+      if (!result.ok) {
+        fail(result.error.message);
+        return;
+      }
+      if (routes.get(key) !== entry) return;
+      retries.settled(key);
+      if (cachedErrors.delete(key)) notify();
+    })
+    .catch(() => fail('模型配置读取失败，请检查连接后重新打开会话。'));
+};
 
 const isNewerProjection = (
   current: ModelProjectionChange | undefined,
@@ -69,18 +96,7 @@ export const subscribeScopedModelProjection = (
     cachedErrors.delete(key);
     entry.listeners.add(listener);
     ensureProjectionListener();
-    const currentEntry = entry;
-    const fail = (message: string) => {
-      if (routes.get(key) !== currentEntry) return;
-      cachedErrors.set(key, message);
-      for (const notify of currentEntry.listeners) notify();
-    };
-    void window.aura.v1
-      .subscribeModelProjection(route)
-      .then((result) => {
-        if (!result.ok) fail(result.error.message);
-      })
-      .catch(() => fail('模型配置读取失败，请检查连接后重新打开会话。'));
+    ask(key, entry);
   }
   entry.listeners.add(listener);
 
@@ -93,6 +109,7 @@ export const subscribeScopedModelProjection = (
     current.listeners.delete(listener);
     if (current.listeners.size !== 0) return;
     routes.delete(key);
+    retries.settled(key);
     current.stopCompatibility();
     void window.aura.v1.unsubscribeModelProjection(current.route).then((result) => {
       if (!result.ok) {
@@ -132,6 +149,7 @@ export const useScopedModelProjection = <Kind extends ModelProjectionKind>(
 export const resetScopedModelProjectionStoreForTests = () => {
   for (const entry of routes.values()) entry.stopCompatibility();
   routes.clear();
+  retries.reset();
   cachedChanges.clear();
   cachedErrors.clear();
   stopListening?.();

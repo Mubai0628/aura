@@ -6,6 +6,10 @@ use aura_backend_api::{BackendFuture, ExecutionBackend};
 use aura_execution_contract::*;
 use aura_security_contract::BackendClass;
 
+/// Why a dispatch is refused when the domain facts it was prepared on no longer allow it. Nothing
+/// was claimed or run, so the command can be prepared again.
+pub const FACTS_CHANGED: &str = "prepared domain facts changed";
+
 pub trait BrokerPort: Send + Sync {
     /// Re-resolve domain facts, including final path/file identities. Called
     /// both during preparation and immediately before the durable claim.
@@ -77,9 +81,7 @@ impl<P: BrokerPort> ExecutionBackend for CoreBroker<P> {
                     .still_prepared(&request.operation, &request.plan.prepared.preparation)
                     .await?
             {
-                return Err(BackendError::DispatchRejected {
-                    reason: "prepared domain facts changed".into(),
-                });
+                return Err(BackendError::DispatchRejected { reason: FACTS_CHANGED.into() });
             }
             self.port.claim(&dispatch).await?;
             // Never re-enter a domain after claim, even if it panics, disappears

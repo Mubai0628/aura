@@ -23,6 +23,7 @@ import { parseUserCommand } from './commands.js';
 import { DevToolsWindows, type DevToolsHostWindow, type DevToolsPage } from './devtools-window.js';
 import { modelPages } from './model-pages.js';
 import { pagePicture, type PicturedContents } from './page-picture.js';
+import { pageText, type TextContents } from './page-text.js';
 import { BrowserPages, type PageView, type PageViews } from './pages.js';
 import { BROWSER_PARTITION, guardProfile, type ProfileSession } from './profile.js';
 import { parsedRules } from './site-rules.js';
@@ -196,6 +197,14 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
             pages.contents(sessionId, pageId) as unknown as PicturedContents | undefined,
           ),
         };
+      case 'text': {
+        const text = await pageText(
+          pages.contents(sessionId, pageId) as unknown as TextContents | undefined,
+        );
+        return text === undefined
+          ? { ok: false, message: '这个页面已关闭或读不到' }
+          : { ok: true, text };
+      }
       case 'navigate': {
         const refused = pages.navigate(sessionId, pageId, command.input);
         return refused === undefined ? { ok: true } : { ok: false, message: refused };

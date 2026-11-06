@@ -31,7 +31,8 @@ pub enum WebError {
     AccessDenied,
     #[error("web.bot_challenge")]
     BotChallenge,
-    #[error("web.http_failed:{0}")]
+    /// The first line is the model's to read: the status the server answered and what it means.
+    #[error("web.http_failed: the server answered HTTP {0}; {reason}", reason = http_reason(*.0))]
     Http(u16),
     #[error("web.rendering_unavailable")]
     RenderingUnavailable,
@@ -39,6 +40,16 @@ pub enum WebError {
     UnsupportedMediaType,
     #[error("web.search_surface_changed")]
     SearchSurfaceChanged,
+}
+
+/// What a failed HTTP status tells the one who asked for the page.
+fn http_reason(status: u16) -> &'static str {
+    match status {
+        404 | 410 => "there is no page at this address; check the address, or search for the page",
+        429 => "the site is limiting requests; wait before asking it again",
+        500..=599 => "the site failed to answer; try again later or use another source",
+        _ => "the site refused the request; check the address",
+    }
 }
 
 pub fn normalize_url(value: &str) -> Result<Url, WebError> {

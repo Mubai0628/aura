@@ -186,6 +186,38 @@ test('a zip in the workspace, and a file a message names, are asked of Core in t
     expect(await files.handle(asked, wrong)).toEqual({ ok: false, message: '无效的附件请求' });
 });
 
+test('a file a call’s row names is asked of Core by that call', async () => {
+  const video = join(base, 'demo.mp4');
+  await writeFile(video, 'not decoded here');
+  const files = new AttachmentFiles(new WorkspaceMedia());
+  const asked = core(video, 16);
+  const mentioned_in = { kind: 'tool_call', tool_call_id: 'tcl_01M5PF3QWJN5S3P0JFPVBSFY3R' };
+  const named = {
+    action: 'file_manager',
+    session_id,
+    mentioned_path: 'D:\\视频\\demo.mp4',
+    mentioned_in,
+  };
+  expect(await files.handle(asked, named)).toMatchObject({ ok: true, kind: 'opened' });
+  expect(asked.requestWithBudget).toHaveBeenLastCalledWith(
+    'agent.files.mentioned',
+    { session_id, path: 'D:\\视频\\demo.mp4', mentioned_in },
+    15_000,
+  );
+  expect(shell.showItemInFolder).toHaveBeenCalledWith(video);
+  for (const wrong of [
+    {
+      ...named,
+      mentioned_in: { kind: 'tool_call', tool_call_id: 'stp_01M5PF3QWJN5S3P0JFPVBSFY3R' },
+    },
+    {
+      ...named,
+      mentioned_in: { ...mentioned_in, model_step_id: 'stp_01M5PF3QWJN5S3P0JFPVBSFY3R' },
+    },
+  ])
+    expect(await files.handle(asked, wrong)).toEqual({ ok: false, message: '无效的附件请求' });
+});
+
 test('a file the user picked is viewed where it is, and only once the preload said it was picked', async () => {
   const picked = join(base, '课程设计.zip');
   await writeFile(picked, 'PK');

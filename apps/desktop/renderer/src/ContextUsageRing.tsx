@@ -1,10 +1,10 @@
 import type { ContextUsageSummaryView } from '@aura/contracts/generated';
-import type { CSSProperties } from 'react';
 import { useId, useRef } from 'react';
 import type { InspectionSource } from './agent-session/useLatestInspection';
 import { PixelBar } from './inspector/PixelBar';
 import { pixelCells } from './inspector/pixel-cells';
 import { ToolIcon } from './tool-icon';
+import { PixelRing } from './ui/PixelRing';
 import { useDismissablePopover } from './useDismissablePopover';
 import './inspector/pixel-inspector.css';
 import './context-usage.css';
@@ -17,7 +17,7 @@ const count = (value: number) =>
 const share = (part: number, whole: number) => `${((part / Math.max(1, whole)) * 100).toFixed(2)}%`;
 
 /**
- * The context the conversation's requests use, as a ring in the composer; opened, each kind of use is a row of squares in the inspector's colours, as much of the window as
+ * The context the conversation's requests use, as a ring of squares in the composer; opened, each kind of use is a row of squares in the inspector's colours, as much of the window as
  * it takes, and the last row is the whole use.
  */
 export function ContextUsageRing({
@@ -77,8 +77,9 @@ export function ContextUsageRing({
           aria-valuemax={100}
           aria-valuenow={Number((ratio * 100).toFixed(2))}
           aria-valuetext={label}
-          style={{ '--context-angle': `${ratio * 360}deg` } as CSSProperties}
-        />
+        >
+          <PixelRing share={ratio} />
+        </span>
       </button>
       {open && (
         <section className="context-pixel" id={id} aria-label="上下文占用详情">

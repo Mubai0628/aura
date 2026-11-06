@@ -87,6 +87,15 @@ pub enum ResolvedCapability {
     /// A call to a trusted external extension. Aura does not
     /// infer what it does: ReadOnly asks per server per turn, the other modes do not ask.
     ExternalExtensionCall,
+    /// Adds a workspace folder to Aura's plugin list as a plugin in development. Nothing it
+    /// brings is offered until the user trusts it on the plugin page, so the modes that may
+    /// change things allow it without asking; ReadOnly refuses it.
+    PluginDevelopmentInstall,
+    /// Reading a program's windows on the user's desktop: its elements and screenshots of it.
+    DesktopRead,
+    /// Acting on that program: on its elements, with the pointer and keyboard, on its windows,
+    /// and opening it.
+    DesktopInput,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

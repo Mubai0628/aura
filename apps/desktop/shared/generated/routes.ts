@@ -84,6 +84,16 @@ import type {
   CommandDirectoryOpened,
   CommandDirectoryRequest,
   CommandSetEnabledRequest,
+  ComputerAlwaysAllowRequest,
+  ComputerCatalogRequest,
+  ComputerCatalogResult,
+  ComputerControlSettingsSnapshot,
+  ComputerControlSettingsUpdate,
+  ComputerControllingResult,
+  ComputerIconsRequest,
+  ComputerIconsResult,
+  ComputerSessionRequest,
+  ComputerStopRequest,
   ConfigRecoveryApplyRequest,
   ConfigRecoveryPlanRequest,
   ContextBrokerReadRequest,
@@ -173,6 +183,8 @@ import type {
   McpPreviewRequest,
   McpRefreshRequest,
   McpRegistryView,
+  McpResourceList,
+  McpResourceListRequest,
   McpSaveRequest,
   McpSecretSetRequest,
   McpSecretSetResult,
@@ -217,6 +229,8 @@ import type {
   ModelCompatibilityGetRequest,
   ModelCompatibilityResetRequest,
   ModelCompatibilityResetResult,
+  ModelCredentialCleanupRetryRequest,
+  ModelCredentialCleanupRetryResult,
   ModelDefaultSetRequest,
   ModelDeletionMutationResult,
   ModelDiscoveryCancelRequest,
@@ -232,6 +246,8 @@ import type {
   ModelEndpointReplaceCredentialRequest,
   ModelEndpointUpdateRequest,
   ModelProfileApplyCatalogUpdateRequest,
+  ModelProfileCatalogEntriesRequest,
+  ModelProfileCatalogEntriesView,
   ModelProfileCreateFromCatalogRequest,
   ModelProfileCreateManualRequest,
   ModelProfileDeleteRequest,
@@ -269,17 +285,44 @@ import type {
   PermissionDefaults,
   PermissionGrant,
   PluginChangeRequest,
+  PluginCommandRunRequest,
+  PluginConfigureRequest,
+  PluginDevelopmentRequest,
   PluginDirectoryOpened,
+  PluginExportRequest,
+  PluginExportToRequest,
+  PluginExported,
   PluginImportRequest,
   PluginListRequest,
+  PluginNotice,
+  PluginNoticeRequest,
+  PluginPanelLogRequest,
+  PluginPanelLogged,
   PluginPreview,
   PluginRegistryView,
   PluginRequest,
+  PluginSecretSetRequest,
+  PluginSecretSetResult,
   PluginSelectArchiveRequest,
   PluginSelectDirectoryRequest,
   PluginSelectedArchive,
   PluginSelectedDirectory,
+  PluginSessionEvents,
+  PluginSessionEventsRequest,
+  PluginSessionPanel,
+  PluginSessionRequest,
+  PluginSessionSendRequest,
+  PluginSessionSent,
+  PluginSessionState,
+  PluginSessionStopped,
   PluginSetEnabledRequest,
+  PluginSettingSetRequest,
+  PluginSettingValues,
+  PluginSettingsRequest,
+  PluginStatus,
+  PluginStatusRequest,
+  PluginTheme,
+  PluginThemeRequest,
   PluginTrustRequest,
   PrepareEditorLifecycleTransition,
   PrepareQuarantineReleaseInput,
@@ -333,7 +376,9 @@ import type {
   SkillSelectedArchive,
   SkillSelectedDirectory,
   SkillSetEnabledRequest,
+  SkillSetPinnedRequest,
   SkillTrustRequest,
+  SkillWorkspaceTrustRequest,
   TerminalControlRequestV1,
   TerminalListV1,
   TerminalOutputBatchV1,
@@ -682,6 +727,7 @@ export type P05MainParams = {
   'models.catalog.provider.get': ModelCatalogProviderGetRequest;
   'models.compatibility.get': ModelCompatibilityGetRequest;
   'models.compatibility.reset': ModelCompatibilityResetRequest;
+  'models.credential_cleanup.retry': ModelCredentialCleanupRetryRequest;
   'models.context_window.clear_user_override': ContextWindowClearUserOverrideRequest;
   'models.context_window.correct': ContextWindowCorrectRequest;
   'models.context_window.reset_runtime_correction': ContextWindowResetRuntimeCorrectionRequest;
@@ -698,6 +744,7 @@ export type P05MainParams = {
   'models.profile.create_manual': ModelProfileCreateManualRequest;
   'models.profile.create_from_catalog': ModelProfileCreateFromCatalogRequest;
   'models.profile.apply_catalog_update': ModelProfileApplyCatalogUpdateRequest;
+  'models.profile.catalog_entries': ModelProfileCatalogEntriesRequest;
   'models.profile.delete': ModelProfileDeleteRequest;
   'models.profile.set_subagent_availability': ModelProfileSetSubagentAvailabilityRequest;
   'models.profile.test_availability': ModelAvailabilityTestStartRequest;
@@ -719,6 +766,7 @@ export type P05MainResult = {
   'models.catalog.provider.get': ProviderCatalogModelPage;
   'models.compatibility.get': EndpointCompatibilitySnapshot;
   'models.compatibility.reset': ModelCompatibilityResetResult;
+  'models.credential_cleanup.retry': ModelCredentialCleanupRetryResult;
   'models.context_window.clear_user_override': ContextWindowMutationResult;
   'models.context_window.correct': ContextWindowMutationResult;
   'models.context_window.reset_runtime_correction': ContextWindowMutationResult;
@@ -735,6 +783,7 @@ export type P05MainResult = {
   'models.profile.create_manual': ModelProfileMutationResult;
   'models.profile.create_from_catalog': ModelProfileMutationResult;
   'models.profile.apply_catalog_update': ModelProfileMutationResult;
+  'models.profile.catalog_entries': ModelProfileCatalogEntriesView;
   'models.profile.delete': ModelDeletionMutationResult;
   'models.profile.set_subagent_availability': ModelProfileMutationResult;
   'models.profile.test_availability': ModelAvailabilityTestStartAccepted;
@@ -758,6 +807,7 @@ export type P05CoreParams = {
   'models.catalog.provider.get': ModelCatalogProviderGetRequest;
   'models.compatibility.get': ModelCompatibilityGetRequest;
   'models.compatibility.reset': ModelCompatibilityResetRequest;
+  'models.credential_cleanup.retry': ModelCredentialCleanupRetryRequest;
   'models.context_window.clear_user_override': ContextWindowClearUserOverrideRequest;
   'models.context_window.correct': ContextWindowCorrectRequest;
   'models.context_window.reset_runtime_correction': ContextWindowResetRuntimeCorrectionRequest;
@@ -774,6 +824,7 @@ export type P05CoreParams = {
   'models.profile.create_manual': ModelProfileCreateManualRequest;
   'models.profile.create_from_catalog': ModelProfileCreateFromCatalogRequest;
   'models.profile.apply_catalog_update': ModelProfileApplyCatalogUpdateRequest;
+  'models.profile.catalog_entries': ModelProfileCatalogEntriesRequest;
   'models.profile.delete': ModelProfileDeleteRequest;
   'models.profile.set_subagent_availability': ModelProfileSetSubagentAvailabilityRequest;
   'models.profile.test_availability': ModelAvailabilityTestStartRequest;
@@ -796,6 +847,7 @@ export type P05CoreResult = {
   'models.catalog.provider.get': ProviderCatalogModelPage;
   'models.compatibility.get': EndpointCompatibilitySnapshot;
   'models.compatibility.reset': ModelCompatibilityResetResult;
+  'models.credential_cleanup.retry': ModelCredentialCleanupRetryResult;
   'models.context_window.clear_user_override': ContextWindowMutationResult;
   'models.context_window.correct': ContextWindowMutationResult;
   'models.context_window.reset_runtime_correction': ContextWindowMutationResult;
@@ -812,6 +864,7 @@ export type P05CoreResult = {
   'models.profile.create_manual': ModelProfileMutationResult;
   'models.profile.create_from_catalog': ModelProfileMutationResult;
   'models.profile.apply_catalog_update': ModelProfileMutationResult;
+  'models.profile.catalog_entries': ModelProfileCatalogEntriesView;
   'models.profile.delete': ModelDeletionMutationResult;
   'models.profile.set_subagent_availability': ModelProfileMutationResult;
   'models.profile.test_availability': ModelAvailabilityTestStartAccepted;
@@ -941,6 +994,7 @@ export type AgentMainParams = {
   'agent.hooks.move': HookMoveRequest;
   'agent.hooks.select_directory': HookSelectDirectoryRequest;
   'agent.mcp.list': McpListRequest;
+  'agent.mcp.resources': McpResourceListRequest;
   'agent.mcp.preview': McpPreviewRequest;
   'agent.mcp.describe': McpDescribeRequest;
   'agent.mcp.save': McpSaveRequest;
@@ -961,14 +1015,22 @@ export type AgentMainParams = {
   'agent.plugins.set_enabled': PluginSetEnabledRequest;
   'agent.plugins.discard_update': PluginChangeRequest;
   'agent.plugins.uninstall': PluginChangeRequest;
+  'agent.plugins.add_development': PluginDevelopmentRequest;
   'agent.plugins.select_directory': PluginSelectDirectoryRequest;
   'agent.plugins.select_archive': PluginSelectArchiveRequest;
   'agent.plugins.open_directory': PluginRequest;
+  'agent.plugins.theme': PluginThemeRequest;
+  'agent.plugins.export': PluginExportRequest;
+  'agent.plugins.configure': PluginConfigureRequest;
+  'agent.plugins.secret.set': PluginSecretSetRequest;
   'agent.skills.list': SkillListRequest;
   'agent.skills.preview': SkillRequest;
   'agent.skills.trust': SkillTrustRequest;
   'agent.skills.untrust': SkillChangeRequest;
+  'agent.skills.trust_workspace': SkillWorkspaceTrustRequest;
+  'agent.skills.untrust_workspace': SkillWorkspaceTrustRequest;
   'agent.skills.set_enabled': SkillSetEnabledRequest;
+  'agent.skills.set_pinned': SkillSetPinnedRequest;
   'agent.skills.import': SkillImportRequest;
   'agent.skills.remove': SkillChangeRequest;
   'agent.skills.select_directory': SkillSelectDirectoryRequest;
@@ -999,6 +1061,14 @@ export type AgentMainParams = {
   'chrome.shares': ChromeSessionRequest;
   'chrome.assist.finish': ChromeSessionRequest;
   'chrome.extension.open_folder': EmptyToolInput;
+  'computer.settings.get': EmptyToolInput;
+  'computer.settings.update': ComputerControlSettingsUpdate;
+  'computer.catalog': ComputerCatalogRequest;
+  'computer.icons': ComputerIconsRequest;
+  'computer.controlling': ComputerSessionRequest;
+  'computer.stop': ComputerStopRequest;
+  'computer.give_back': ComputerSessionRequest;
+  'computer.always_allow': ComputerAlwaysAllowRequest;
   'agent.attachments.text': AttachmentTextRequest;
 };
 export type AgentMainResult = {
@@ -1054,6 +1124,7 @@ export type AgentMainResult = {
   'agent.hooks.move': HookRegistryView;
   'agent.hooks.select_directory': HookSelectedDirectory;
   'agent.mcp.list': McpRegistryView;
+  'agent.mcp.resources': McpResourceList;
   'agent.mcp.preview': McpPreview;
   'agent.mcp.describe': McpServerDetail;
   'agent.mcp.save': McpRegistryView;
@@ -1074,14 +1145,22 @@ export type AgentMainResult = {
   'agent.plugins.set_enabled': PluginRegistryView;
   'agent.plugins.discard_update': PluginRegistryView;
   'agent.plugins.uninstall': PluginRegistryView;
+  'agent.plugins.add_development': PluginRegistryView;
   'agent.plugins.select_directory': PluginSelectedDirectory;
   'agent.plugins.select_archive': PluginSelectedArchive;
   'agent.plugins.open_directory': PluginDirectoryOpened;
+  'agent.plugins.theme': PluginTheme;
+  'agent.plugins.export': PluginExported;
+  'agent.plugins.configure': PluginRegistryView;
+  'agent.plugins.secret.set': PluginSecretSetResult;
   'agent.skills.list': SkillRegistryView;
   'agent.skills.preview': SkillPreview;
   'agent.skills.trust': SkillRegistryView;
   'agent.skills.untrust': SkillRegistryView;
+  'agent.skills.trust_workspace': SkillRegistryView;
+  'agent.skills.untrust_workspace': SkillRegistryView;
   'agent.skills.set_enabled': SkillRegistryView;
+  'agent.skills.set_pinned': SkillRegistryView;
   'agent.skills.import': SkillRegistryView;
   'agent.skills.remove': SkillRegistryView;
   'agent.skills.select_directory': SkillSelectedDirectory;
@@ -1112,6 +1191,14 @@ export type AgentMainResult = {
   'chrome.shares': ChromeSessionShares;
   'chrome.assist.finish': ChromeSessionShares;
   'chrome.extension.open_folder': ChromeExtensionFolder;
+  'computer.settings.get': ComputerControlSettingsSnapshot;
+  'computer.settings.update': ComputerControlSettingsSnapshot;
+  'computer.catalog': ComputerCatalogResult;
+  'computer.icons': ComputerIconsResult;
+  'computer.controlling': ComputerControllingResult;
+  'computer.stop': ComputerControllingResult;
+  'computer.give_back': ComputerControllingResult;
+  'computer.always_allow': ComputerControlSettingsSnapshot;
   'agent.attachments.text': AttachmentText;
 };
 export type AgentMainCommand = keyof AgentMainParams;
@@ -1230,6 +1317,7 @@ export type AgentCoreParams = {
   'agent.hooks.remove': HookPathRequest;
   'agent.hooks.move': HookMoveRequest;
   'agent.mcp.list': McpListRequest;
+  'agent.mcp.resources': McpResourceListRequest;
   'agent.mcp.preview': McpPreviewRequest;
   'agent.mcp.describe': McpDescribeRequest;
   'agent.mcp.save': McpSaveRequest;
@@ -1245,16 +1333,35 @@ export type AgentCoreParams = {
   'agent.plugins.list': PluginListRequest;
   'agent.plugins.preview': PluginRequest;
   'agent.plugins.import': PluginImportRequest;
+  'agent.plugins.add_development': PluginDevelopmentRequest;
   'agent.plugins.trust': PluginTrustRequest;
   'agent.plugins.untrust': PluginChangeRequest;
   'agent.plugins.set_enabled': PluginSetEnabledRequest;
   'agent.plugins.discard_update': PluginChangeRequest;
   'agent.plugins.uninstall': PluginChangeRequest;
+  'agent.plugins.theme': PluginThemeRequest;
+  'agent.plugins.export': PluginExportToRequest;
+  'agent.plugins.configure': PluginConfigureRequest;
+  'agent.plugins.secret.set': PluginSecretSetRequest;
+  'agent.plugin_session.state': PluginSessionRequest;
+  'agent.plugin_session.events': PluginSessionEventsRequest;
+  'agent.plugin_session.send': PluginSessionSendRequest;
+  'agent.plugin_session.run': PluginCommandRunRequest;
+  'agent.plugin_session.stop': PluginSessionRequest;
+  'agent.plugin_session.settings': PluginSettingsRequest;
+  'agent.plugin_session.set_setting': PluginSettingSetRequest;
+  'agent.plugin_session.panel': PluginSessionRequest;
+  'agent.plugin_session.log': PluginPanelLogRequest;
+  'agent.plugin_session.notify': PluginNoticeRequest;
+  'agent.plugin_session.status': PluginStatusRequest;
   'agent.skills.list': SkillListRequest;
   'agent.skills.preview': SkillRequest;
   'agent.skills.trust': SkillTrustRequest;
   'agent.skills.untrust': SkillChangeRequest;
+  'agent.skills.trust_workspace': SkillWorkspaceTrustRequest;
+  'agent.skills.untrust_workspace': SkillWorkspaceTrustRequest;
   'agent.skills.set_enabled': SkillSetEnabledRequest;
+  'agent.skills.set_pinned': SkillSetPinnedRequest;
   'agent.skills.import': SkillImportRequest;
   'agent.skills.remove': SkillChangeRequest;
   'terminal.user.control': TerminalControlRequestV1;
@@ -1282,6 +1389,14 @@ export type AgentCoreParams = {
   'chrome.stop': ChromeSessionRequest;
   'chrome.shares': ChromeSessionRequest;
   'chrome.assist.finish': ChromeSessionRequest;
+  'computer.settings.get': EmptyToolInput;
+  'computer.settings.update': ComputerControlSettingsUpdate;
+  'computer.catalog': ComputerCatalogRequest;
+  'computer.icons': ComputerIconsRequest;
+  'computer.controlling': ComputerSessionRequest;
+  'computer.stop': ComputerStopRequest;
+  'computer.give_back': ComputerSessionRequest;
+  'computer.always_allow': ComputerAlwaysAllowRequest;
   'media.host.read': MediaHostReadRequestV1;
   'media.host.result': MediaHostResultV1;
   'agent.attachments.text': AttachmentTextRequest;
@@ -1337,6 +1452,7 @@ export type AgentCoreResult = {
   'agent.hooks.remove': HookRegistryView;
   'agent.hooks.move': HookRegistryView;
   'agent.mcp.list': McpRegistryView;
+  'agent.mcp.resources': McpResourceList;
   'agent.mcp.preview': McpPreview;
   'agent.mcp.describe': McpServerDetail;
   'agent.mcp.save': McpRegistryView;
@@ -1352,16 +1468,35 @@ export type AgentCoreResult = {
   'agent.plugins.list': PluginRegistryView;
   'agent.plugins.preview': PluginPreview;
   'agent.plugins.import': PluginRegistryView;
+  'agent.plugins.add_development': PluginRegistryView;
   'agent.plugins.trust': PluginRegistryView;
   'agent.plugins.untrust': PluginRegistryView;
   'agent.plugins.set_enabled': PluginRegistryView;
   'agent.plugins.discard_update': PluginRegistryView;
   'agent.plugins.uninstall': PluginRegistryView;
+  'agent.plugins.theme': PluginTheme;
+  'agent.plugins.export': PluginExported;
+  'agent.plugins.configure': PluginRegistryView;
+  'agent.plugins.secret.set': PluginSecretSetResult;
+  'agent.plugin_session.state': PluginSessionState;
+  'agent.plugin_session.events': PluginSessionEvents;
+  'agent.plugin_session.send': PluginSessionSent;
+  'agent.plugin_session.run': PluginSessionSent;
+  'agent.plugin_session.stop': PluginSessionStopped;
+  'agent.plugin_session.settings': PluginSettingValues;
+  'agent.plugin_session.set_setting': PluginSettingValues;
+  'agent.plugin_session.panel': PluginSessionPanel;
+  'agent.plugin_session.log': PluginPanelLogged;
+  'agent.plugin_session.notify': PluginNotice;
+  'agent.plugin_session.status': PluginStatus;
   'agent.skills.list': SkillRegistryView;
   'agent.skills.preview': SkillPreview;
   'agent.skills.trust': SkillRegistryView;
   'agent.skills.untrust': SkillRegistryView;
+  'agent.skills.trust_workspace': SkillRegistryView;
+  'agent.skills.untrust_workspace': SkillRegistryView;
   'agent.skills.set_enabled': SkillRegistryView;
+  'agent.skills.set_pinned': SkillRegistryView;
   'agent.skills.import': SkillRegistryView;
   'agent.skills.remove': SkillRegistryView;
   'terminal.user.control': TerminalViewV1;
@@ -1389,6 +1524,14 @@ export type AgentCoreResult = {
   'chrome.stop': ChromeSessionShares;
   'chrome.shares': ChromeSessionShares;
   'chrome.assist.finish': ChromeSessionShares;
+  'computer.settings.get': ComputerControlSettingsSnapshot;
+  'computer.settings.update': ComputerControlSettingsSnapshot;
+  'computer.catalog': ComputerCatalogResult;
+  'computer.icons': ComputerIconsResult;
+  'computer.controlling': ComputerControllingResult;
+  'computer.stop': ComputerControllingResult;
+  'computer.give_back': ComputerControllingResult;
+  'computer.always_allow': ComputerControlSettingsSnapshot;
   'media.host.read': MediaHostReadResultV1;
   'media.host.result': MediaHostResultAck;
   'agent.attachments.text': AttachmentText;
@@ -2322,6 +2465,17 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'models.credential_cleanup.retry': {
+    method: 'models.credential_cleanup.retry',
+    owner: 'model',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ModelCredentialCleanupRetryRequest',
+    response_type: 'ModelCredentialCleanupRetryResult',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'models.context_window.clear_user_override': {
     method: 'models.context_window.clear_user_override',
     owner: 'model',
@@ -2495,6 +2649,17 @@ export const MAIN_ROUTES = {
     request_type: 'ModelProfileApplyCatalogUpdateRequest',
     response_type: 'ModelProfileMutationResult',
     idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'models.profile.catalog_entries': {
+    method: 'models.profile.catalog_entries',
+    owner: 'model',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ModelProfileCatalogEntriesRequest',
+    response_type: 'ModelProfileCatalogEntriesView',
+    idempotency: 'read_only',
     cancellation: 'none',
     test_only: false,
   },
@@ -3202,6 +3367,17 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.mcp.resources': {
+    method: 'agent.mcp.resources',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'McpResourceListRequest',
+    response_type: 'McpResourceList',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.mcp.preview': {
     method: 'agent.mcp.preview',
     owner: 'agent',
@@ -3422,6 +3598,17 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.plugins.add_development': {
+    method: 'agent.plugins.add_development',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'PluginDevelopmentRequest',
+    response_type: 'PluginRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.plugins.select_directory': {
     method: 'agent.plugins.select_directory',
     owner: 'agent',
@@ -3453,6 +3640,50 @@ export const MAIN_ROUTES = {
     response_type: 'PluginDirectoryOpened',
     idempotency: 'command_invocation',
     cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugins.theme': {
+    method: 'agent.plugins.theme',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'PluginThemeRequest',
+    response_type: 'PluginTheme',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugins.export': {
+    method: 'agent.plugins.export',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'PluginExportRequest',
+    response_type: 'PluginExported',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugins.configure': {
+    method: 'agent.plugins.configure',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'PluginConfigureRequest',
+    response_type: 'PluginRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugins.secret.set': {
+    method: 'agent.plugins.secret.set',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'secret_input',
+    request_type: 'PluginSecretSetRequest',
+    response_type: 'PluginSecretSetResult',
+    idempotency: 'command_invocation',
+    cancellation: 'request_ledger',
     test_only: false,
   },
   'agent.skills.list': {
@@ -3499,12 +3730,45 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.skills.trust_workspace': {
+    method: 'agent.skills.trust_workspace',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'SkillWorkspaceTrustRequest',
+    response_type: 'SkillRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.skills.untrust_workspace': {
+    method: 'agent.skills.untrust_workspace',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'SkillWorkspaceTrustRequest',
+    response_type: 'SkillRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.skills.set_enabled': {
     method: 'agent.skills.set_enabled',
     owner: 'agent',
     surface: 'main',
     auth: 'trusted_renderer',
     request_type: 'SkillSetEnabledRequest',
+    response_type: 'SkillRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.skills.set_pinned': {
+    method: 'agent.skills.set_pinned',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'SkillSetPinnedRequest',
     response_type: 'SkillRegistryView',
     idempotency: 'command_invocation',
     cancellation: 'none',
@@ -4445,6 +4709,94 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'computer.settings.get': {
+    method: 'computer.settings.get',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'ComputerControlSettingsSnapshot',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.settings.update': {
+    method: 'computer.settings.update',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ComputerControlSettingsUpdate',
+    response_type: 'ComputerControlSettingsSnapshot',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.catalog': {
+    method: 'computer.catalog',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ComputerCatalogRequest',
+    response_type: 'ComputerCatalogResult',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.icons': {
+    method: 'computer.icons',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ComputerIconsRequest',
+    response_type: 'ComputerIconsResult',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.controlling': {
+    method: 'computer.controlling',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ComputerSessionRequest',
+    response_type: 'ComputerControllingResult',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.stop': {
+    method: 'computer.stop',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ComputerStopRequest',
+    response_type: 'ComputerControllingResult',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.give_back': {
+    method: 'computer.give_back',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ComputerSessionRequest',
+    response_type: 'ComputerControllingResult',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.always_allow': {
+    method: 'computer.always_allow',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ComputerAlwaysAllowRequest',
+    response_type: 'ComputerControlSettingsSnapshot',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.attachments.text': {
     method: 'agent.attachments.text',
     owner: 'agent',
@@ -5299,6 +5651,17 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'models.credential_cleanup.retry': {
+    method: 'models.credential_cleanup.retry',
+    owner: 'model',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ModelCredentialCleanupRetryRequest',
+    response_type: 'ModelCredentialCleanupRetryResult',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'models.context_window.clear_user_override': {
     method: 'models.context_window.clear_user_override',
     owner: 'model',
@@ -5472,6 +5835,17 @@ export const CORE_ROUTES = {
     request_type: 'ModelProfileApplyCatalogUpdateRequest',
     response_type: 'ModelProfileMutationResult',
     idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'models.profile.catalog_entries': {
+    method: 'models.profile.catalog_entries',
+    owner: 'model',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ModelProfileCatalogEntriesRequest',
+    response_type: 'ModelProfileCatalogEntriesView',
+    idempotency: 'read_only',
     cancellation: 'none',
     test_only: false,
   },
@@ -6124,6 +6498,17 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.mcp.resources': {
+    method: 'agent.mcp.resources',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'McpResourceListRequest',
+    response_type: 'McpResourceList',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.mcp.preview': {
     method: 'agent.mcp.preview',
     owner: 'agent',
@@ -6289,6 +6674,17 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.plugins.add_development': {
+    method: 'agent.plugins.add_development',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginDevelopmentRequest',
+    response_type: 'PluginRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.plugins.trust': {
     method: 'agent.plugins.trust',
     owner: 'agent',
@@ -6344,6 +6740,171 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.plugins.theme': {
+    method: 'agent.plugins.theme',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginThemeRequest',
+    response_type: 'PluginTheme',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugins.export': {
+    method: 'agent.plugins.export',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginExportToRequest',
+    response_type: 'PluginExported',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugins.configure': {
+    method: 'agent.plugins.configure',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginConfigureRequest',
+    response_type: 'PluginRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugins.secret.set': {
+    method: 'agent.plugins.secret.set',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'secret_input',
+    request_type: 'PluginSecretSetRequest',
+    response_type: 'PluginSecretSetResult',
+    idempotency: 'command_invocation',
+    cancellation: 'request_ledger',
+    test_only: false,
+  },
+  'agent.plugin_session.state': {
+    method: 'agent.plugin_session.state',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginSessionRequest',
+    response_type: 'PluginSessionState',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.events': {
+    method: 'agent.plugin_session.events',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginSessionEventsRequest',
+    response_type: 'PluginSessionEvents',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.send': {
+    method: 'agent.plugin_session.send',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginSessionSendRequest',
+    response_type: 'PluginSessionSent',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.run': {
+    method: 'agent.plugin_session.run',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginCommandRunRequest',
+    response_type: 'PluginSessionSent',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.stop': {
+    method: 'agent.plugin_session.stop',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginSessionRequest',
+    response_type: 'PluginSessionStopped',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.settings': {
+    method: 'agent.plugin_session.settings',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginSettingsRequest',
+    response_type: 'PluginSettingValues',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.set_setting': {
+    method: 'agent.plugin_session.set_setting',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginSettingSetRequest',
+    response_type: 'PluginSettingValues',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.panel': {
+    method: 'agent.plugin_session.panel',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginSessionRequest',
+    response_type: 'PluginSessionPanel',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.log': {
+    method: 'agent.plugin_session.log',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginPanelLogRequest',
+    response_type: 'PluginPanelLogged',
+    idempotency: 'transient_input',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.notify': {
+    method: 'agent.plugin_session.notify',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginNoticeRequest',
+    response_type: 'PluginNotice',
+    idempotency: 'transient_input',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.plugin_session.status': {
+    method: 'agent.plugin_session.status',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PluginStatusRequest',
+    response_type: 'PluginStatus',
+    idempotency: 'transient_input',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.skills.list': {
     method: 'agent.skills.list',
     owner: 'agent',
@@ -6388,12 +6949,45 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.skills.trust_workspace': {
+    method: 'agent.skills.trust_workspace',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'SkillWorkspaceTrustRequest',
+    response_type: 'SkillRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.skills.untrust_workspace': {
+    method: 'agent.skills.untrust_workspace',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'SkillWorkspaceTrustRequest',
+    response_type: 'SkillRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.skills.set_enabled': {
     method: 'agent.skills.set_enabled',
     owner: 'agent',
     surface: 'core',
     auth: 'authenticated_main',
     request_type: 'SkillSetEnabledRequest',
+    response_type: 'SkillRegistryView',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.skills.set_pinned': {
+    method: 'agent.skills.set_pinned',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'SkillSetPinnedRequest',
     response_type: 'SkillRegistryView',
     idempotency: 'command_invocation',
     cancellation: 'none',
@@ -7301,6 +7895,94 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'computer.settings.get': {
+    method: 'computer.settings.get',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'ComputerControlSettingsSnapshot',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.settings.update': {
+    method: 'computer.settings.update',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ComputerControlSettingsUpdate',
+    response_type: 'ComputerControlSettingsSnapshot',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.catalog': {
+    method: 'computer.catalog',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ComputerCatalogRequest',
+    response_type: 'ComputerCatalogResult',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.icons': {
+    method: 'computer.icons',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ComputerIconsRequest',
+    response_type: 'ComputerIconsResult',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.controlling': {
+    method: 'computer.controlling',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ComputerSessionRequest',
+    response_type: 'ComputerControllingResult',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.stop': {
+    method: 'computer.stop',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ComputerStopRequest',
+    response_type: 'ComputerControllingResult',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.give_back': {
+    method: 'computer.give_back',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ComputerSessionRequest',
+    response_type: 'ComputerControllingResult',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'computer.always_allow': {
+    method: 'computer.always_allow',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ComputerAlwaysAllowRequest',
+    response_type: 'ComputerControlSettingsSnapshot',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'media.host.read': {
     method: 'media.host.read',
     owner: 'agent',
@@ -7373,4 +8055,4 @@ export function coreRoute(method: string) {
     ? CORE_ROUTES[method as keyof typeof CORE_ROUTES]
     : undefined;
 }
-export const ROUTE_COUNTS = { main: 266, core: 264 } as const;
+export const ROUTE_COUNTS = { main: 285, core: 294 } as const;

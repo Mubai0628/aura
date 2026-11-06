@@ -19,6 +19,7 @@ import {
   type EndpointEditorValidationIssue,
   endpointEditorValidationIssues,
 } from '../provider-connection-validation';
+import { catalogSuggestion } from './catalog-suggestion';
 import {
   DEFAULT_TIMEOUTS,
   type DiscoveryModeChoice,
@@ -28,7 +29,10 @@ import {
   presetMatchesEndpoint,
 } from './endpoint-draft';
 import { endpointFieldIssueFromIpc } from './endpoint-errors';
+import { ALL_ROUTES_VARIANT, byModelVariants, missingVariants } from './model-routes';
 import { notifyCredentialFailure, notifyDeletion, notifyFailure } from './notices';
+import { createRouteConnections } from './route-connections';
+import { useRouteParameters } from './route-parameters';
 
 export interface ProviderConnectionDialogProps {
   onClose: () => void;
@@ -73,6 +77,7 @@ export function useProviderConnection({
   const [maxParallelRequests, setMaxParallelRequests] = useState(2);
   const [selectedPresetVariantId, setSelectedPresetVariantId] = useState('');
   const [baseUrlSuggestionActive, setBaseUrlSuggestionActive] = useState(false);
+  const [protocolSuggestionActive, setProtocolSuggestionActive] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion>();
   const [showValidationErrors, setShowValidationErrors] = useState(false);
@@ -130,10 +135,21 @@ export function useProviderConnection({
     provider.connectionDefaults?.source === 'aura_preset'
       ? provider.connectionDefaults.variants
       : [];
-  const modelsDevBaseUrlSuggestion =
-    provider.connectionDefaults?.source === 'models_dev_api_suggestion'
-      ? provider.connectionDefaults.base_url
-      : undefined;
+  const routeVariants = byModelVariants(provider.connectionDefaults);
+  const unconnectedVariants = missingVariants(routeVariants, provider.endpoints);
+  const allRoutesSelected =
+    selectedPresetVariantId === ALL_ROUTES_VARIANT && unconnectedVariants.length > 0;
+  const selectedPreset = allRoutesSelected
+    ? undefined
+    : presetVariants.find((variant) => variant.variant_id === selectedPresetVariantId);
+  const {
+    effectiveBaseUrl,
+    filledVariants,
+    parameterValues,
+    readParameterValues,
+    setUrlParameterValue,
+    urlParameters,
+  } = useRouteParameters({ allRoutesSelected, baseUrl, selectedPreset, unconnectedVariants });
 
   const setFieldElement =
     (field: EndpointEditorField) =>
@@ -197,17 +213,22 @@ export function useProviderConnection({
     if (endpoint === undefined) {
       const preset = presetVariants.find((variant) => variant.recommended) ?? presetVariants[0];
       setEditorTarget('new');
-      if (preset === undefined) {
+      readParameterValues();
+      if (unconnectedVariants.length > 0) {
+        selectAllRoutes();
+      } else if (preset === undefined) {
+        const suggestion = catalogSuggestion(provider.connectionDefaults);
         setSelectedPresetVariantId('');
-        setApiFormat('');
-        setAuthScheme('none');
-        setBaseUrl(modelsDevBaseUrlSuggestion ?? '');
+        setApiFormat(suggestion.apiFormat);
+        setAuthScheme(suggestion.authScheme);
+        setBaseUrl(suggestion.baseUrl);
         setConnectionName('');
         setDiscoveryMode('automatic');
         setModelsPath('');
-        setChatInstructionRole('');
-        setChatOutputTokenField('');
-        setBaseUrlSuggestionActive(modelsDevBaseUrlSuggestion !== undefined);
+        setChatInstructionRole(suggestion.chatInstructionRole);
+        setChatOutputTokenField(suggestion.chatOutputTokenField);
+        setBaseUrlSuggestionActive(suggestion.addressSuggested);
+        setProtocolSuggestionActive(suggestion.protocolSuggested);
       } else {
         applyPresetVariant(preset);
         setConnectionName(preset.display_name);
@@ -228,7 +249,9 @@ export function useProviderConnection({
     );
     setEditorTarget(endpoint.id);
     setSelectedPresetVariantId(matchingPreset?.variant_id ?? '');
+    readParameterValues(matchingPreset, endpoint);
     setBaseUrlSuggestionActive(false);
+    setProtocolSuggestionActive(false);
     setApiFormat(endpoint.api_format);
     setAuthScheme(endpoint.auth_scheme);
     setBaseUrl(endpoint.base_url);
@@ -253,6 +276,7 @@ export function useProviderConnection({
   const applyPresetVariant = (preset: ProviderPresetVariantView) => {
     setSelectedPresetVariantId(preset.variant_id);
     setBaseUrlSuggestionActive(false);
+    setProtocolSuggestionActive(false);
     setApiFormat(preset.api_format);
     setAuthScheme(preset.auth_scheme);
     setBaseUrl(preset.base_url);
@@ -262,6 +286,24 @@ export function useProviderConnection({
     );
     setChatInstructionRole(preset.chat_instruction_role ?? '');
     setChatOutputTokenField(preset.chat_output_token_field ?? '');
+  };
+
+  /** Every variant still to connect: the hidden fields hold the first one's values, and saving
+   *  makes one connection of each. */
+  const selectAllRoutes = () => {
+    const first = unconnectedVariants[0];
+    if (first === undefined) return;
+    applyPresetVariant(first);
+    setSelectedPresetVariantId(ALL_ROUTES_VARIANT);
+    setConnectionName(provider.name);
+  };
+
+  /** Leaving a preset whose address takes values keeps the address they make. */
+  const choosePresetVariantId = (variantId: string) => {
+    if (variantId !== selectedPresetVariantId && selectedPreset !== undefined) {
+      setBaseUrl(effectiveBaseUrl);
+    }
+    setSelectedPresetVariantId(variantId);
   };
 
   const addCatalogProvider = async () => {
@@ -425,7 +467,7 @@ export function useProviderConnection({
   const editorValidationIssues = endpointEditorValidationIssues({
     apiFormat,
     authScheme,
-    baseUrl,
+    baseUrl: effectiveBaseUrl,
     chatInstructionRole,
     chatOutputTokenField,
     connectMs,
@@ -435,8 +477,10 @@ export function useProviderConnection({
     hasLocalProvider: provider.localProvider !== undefined,
     maxParallelRequests,
     modelsPath,
+    parameterValues,
     streamIdleMs,
     totalMs,
+    urlParameters,
   });
   const localIssueByField = new Map(
     editorValidationIssues.map((issue) => [issue.field, issue.message] as const),
@@ -496,7 +540,7 @@ export function useProviderConnection({
               : null,
           api_format: apiFormat,
           auth_scheme: authScheme,
-          base_url: baseUrl,
+          base_url: effectiveBaseUrl,
           chat_instruction_role:
             apiFormat === 'open_ai_chat_completions' && chatInstructionRole !== ''
               ? chatInstructionRole
@@ -533,6 +577,10 @@ export function useProviderConnection({
     setServerFieldErrors({});
     if (editorValidationIssues.length > 0 || commonEndpointFields === undefined) {
       showIssues(editorValidationIssues);
+      return;
+    }
+    if (existingEndpoint === undefined && allRoutesSelected) {
+      await saveRouteConnections(commonEndpointFields);
       return;
     }
     setBusy(true);
@@ -598,6 +646,48 @@ export function useProviderConnection({
       }
       await finishEndpointSave(result.value.value.display_name, result.value.value.id);
     }
+  };
+
+  const saveRouteConnections = async (
+    fields: Pick<ModelEndpointCreateRequest, 'max_parallel_model_requests' | 'timeouts'>,
+  ) => {
+    const localProvider = provider.localProvider;
+    if (localProvider === undefined) return;
+    const variants = filledVariants();
+    if (variants === undefined) return;
+    setBusy(true);
+    const secret = secretInputRef.current?.takeBytes();
+    let result;
+    try {
+      result = await createRouteConnections({
+        expectedRevision: settings.models_revision,
+        maxParallelModelRequests: fields.max_parallel_model_requests,
+        providerId: localProvider.id,
+        secret,
+        timeouts: fields.timeouts,
+        variants,
+      });
+    } finally {
+      secret?.fill(0);
+    }
+    setBusy(false);
+    if (result.created.length > 0) await onSaved();
+    if (result.failure !== undefined) {
+      notifyFailure(
+        onNotify,
+        `${result.failure.variant.display_name} 未保存`,
+        'model-endpoint-save',
+        result.failure.error,
+      );
+      return;
+    }
+    onNotify({
+      dedupeKey: `model-endpoints-saved:${localProvider.id}:${result.created.join(',')}`,
+      message: `${result.created.join('、')} 已写入 Core 模型配置。`,
+      title: 'Endpoint 已保存',
+      tone: 'success',
+    });
+    setEditorTarget(undefined);
   };
 
   const finishEndpointSave = async (displayName: string, endpointKey: string) => {
@@ -761,9 +851,15 @@ export function useProviderConnection({
     maxParallelRequests,
     setMaxParallelRequests,
     selectedPresetVariantId,
-    setSelectedPresetVariantId,
+    setSelectedPresetVariantId: choosePresetVariantId,
+    parameterValues,
+    urlParameters,
+    effectiveBaseUrl,
+    setUrlParameterValue,
     baseUrlSuggestionActive,
     setBaseUrlSuggestionActive,
+    protocolSuggestionActive,
+    setProtocolSuggestionActive,
     busy,
     setBusy,
     pendingDeletion,
@@ -795,7 +891,10 @@ export function useProviderConnection({
     existingEndpointId,
     writesDisabled,
     presetVariants,
-    modelsDevBaseUrlSuggestion,
+    routeVariants,
+    unconnectedVariants,
+    allRoutesSelected,
+    selectAllRoutes,
     setFieldElement,
     clearServerFieldError,
     resetEditorValidation,

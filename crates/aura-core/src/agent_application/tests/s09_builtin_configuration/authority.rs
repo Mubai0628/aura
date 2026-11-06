@@ -123,6 +123,7 @@ pub(super) async fn run_text(
             runtime,
             "agent.start",
             json!(AgentStartRequest {
+                computer_mode: None,
                 session_id: session,
                 model_profile_id: model,
                 text: "Give a short answer without tools.".into(),
@@ -131,7 +132,9 @@ pub(super) async fn run_text(
                 explicit_backend_id: None,
                 skill_ids: Vec::new(),
                 reasoning_effort: None,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             }),
         )
         .await,

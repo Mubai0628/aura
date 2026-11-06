@@ -15,6 +15,9 @@ pub struct McpServerFacts {
     pub name: String,
     pub version: String,
     pub instructions: Option<String>,
+    /// It said it offers resources; a record from before resources were read says no.
+    #[serde(default)]
+    pub resources: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

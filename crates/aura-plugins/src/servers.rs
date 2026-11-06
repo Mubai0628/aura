@@ -162,7 +162,7 @@ pub fn server_id(plugin: &str, name: &str) -> String {
 
 /// Puts the plugin folder in place of `variable`; a value that starts with it gets Windows
 /// separators.
-fn fill(value: &str, variable: &str, root: &str) -> String {
+pub(crate) fn fill(value: &str, variable: &str, root: &str) -> String {
     let filled = value.replace(variable, root);
     match filled.strip_prefix(root) {
         Some(rest) if value.starts_with(variable) => format!("{root}{}", rest.replace('/', "\\")),

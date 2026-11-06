@@ -19,6 +19,16 @@ let prepareRenderer: ((record: TerminalRecord) => void) | undefined;
 export const configureTerminalRenderer = (prepare: (record: TerminalRecord) => void) => {
   prepareRenderer = prepare;
 };
+let readText: ((id: string, lines: number) => Promise<string | undefined>) | undefined;
+/** How a terminal's text is read: by its renderer, which knows what it shows. */
+export const configureTerminalText = (
+  read: (id: string, lines: number) => Promise<string | undefined>,
+) => {
+  readText = read;
+};
+/** What a terminal shows, its last `lines` lines; none for a terminal this window does not show. */
+export const terminalText = (id: string, lines: number): Promise<string | undefined> =>
+  readText?.(id, lines) ?? Promise.resolve(undefined);
 const publish = () => {
   snapshot = [...records.values()];
   for (const listener of listeners) listener();

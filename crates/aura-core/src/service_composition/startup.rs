@@ -1,6 +1,7 @@
 use crate::*;
 use aura_chrome_service::chrome_control;
 use aura_core_base::sync_boundary;
+use aura_desktop_service::DesktopControl;
 use aura_extension_service::{plugins, skills};
 
 #[cfg(feature = "p08-contract-driver")]
@@ -486,6 +487,9 @@ pub(crate) async fn initialize_services_at(
     if let Some(execution) = &agent_execution_for_state {
         let _ = execution.plugins.set(Arc::clone(&plugins));
     }
+    let runtime = tokio::runtime::Handle::current();
+    let plugin_services =
+        aura_plugin_session::PluginServices::start(Arc::clone(&plugins), &runtime);
     // Chrome control opens its pipe only when the user turned it on.
     let chrome = Arc::new(chrome_control::ChromeControl::new(
         chrome_control::ChromeControlOptions::for_installation(
@@ -502,6 +506,11 @@ pub(crate) async fn initialize_services_at(
         let _ = execution.chrome.set(Arc::clone(&chrome));
     }
     chrome.start();
+    // Computer control starts its host only when a call needs it.
+    if let Some(execution) = &agent_execution_for_state {
+        let desktop = paths.local_root.join("desktop");
+        let _ = execution.desktop.set(DesktopControl::beside_core(Arc::clone(&settings), desktop));
+    }
     let mut services = RuntimeServices {
         packages,
         broker,
@@ -543,6 +552,7 @@ pub(crate) async fn initialize_services_at(
         mcp,
         skills,
         plugins,
+        plugin_services,
         chrome,
         config_degradation,
         config_recovery,
@@ -571,6 +581,14 @@ pub(crate) async fn initialize_services_at(
     // recovery could only clear records, and a capability whose slot is still vacant would
     // be reported available on the strength of a deleted marker.
     attach_dependent_rebuilder(&mut services, Arc::clone(&startup_ledger));
+    // A plugin's background service starts Agent work behind the same gate as the routes.
+    let (agent, recovery) = (Arc::clone(&services.agent), services.config_recovery());
+    services.plugin_services.attach(Arc::new(move |starts_work| {
+        match recovery.agent_work_blocker() {
+            Some((_, reason)) if starts_work => Err(anyhow::anyhow!(reason)),
+            _ => agent.get().ok_or_else(|| MissingCapability::AgentExecution.refusal()),
+        }
+    }));
     // Finish a conversation deletion or a Workspace removal an earlier run did not.
     crate::session_lifecycle::Purger::of(&services).spawn_resume();
     Ok(services)

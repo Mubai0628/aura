@@ -1,0 +1,21 @@
+schema_version = 2
+name = "fake-chat"
+version = "0.1.0"
+description = "接本机的假聊天平台，用来试渠道"
+capabilities = ["session.read", "session.send", "session.control"]
+
+[service]
+command = "python"
+arguments = ["${PLUGIN_ROOT}/service/main.py"]
+network = ["127.0.0.1"]
+
+[[channels]]
+id = "fake-main"
+platform = "other"
+title = "假聊天"
+
+[[settings]]
+key = "address"
+title = "假平台的地址"
+required = true
+description = "例如 http://127.0.0.1:8765"

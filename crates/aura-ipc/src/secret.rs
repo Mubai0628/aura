@@ -25,6 +25,8 @@ pub enum SecretInputOperation {
     TerminalSensitiveInput,
     /// One MCP server's secret.
     McpSecretSet,
+    /// One of a plugin's secret settings.
+    PluginSecretSet,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -229,6 +231,7 @@ const fn operation_discriminant(operation: SecretInputOperation) -> u8 {
         SecretInputOperation::ToolsCredentialRotate => 5,
         SecretInputOperation::TerminalSensitiveInput => 6,
         SecretInputOperation::McpSecretSet => 7,
+        SecretInputOperation::PluginSecretSet => 8,
     }
 }
 
@@ -254,6 +257,7 @@ fn parse_operation(value: u8) -> Result<SecretInputOperation, SecretInputDecodeE
         5 => Ok(SecretInputOperation::ToolsCredentialRotate),
         6 => Ok(SecretInputOperation::TerminalSensitiveInput),
         7 => Ok(SecretInputOperation::McpSecretSet),
+        8 => Ok(SecretInputOperation::PluginSecretSet),
         _ => Err(SecretInputDecodeError),
     }
 }

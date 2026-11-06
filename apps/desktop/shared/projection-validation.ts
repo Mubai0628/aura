@@ -12,6 +12,7 @@ import { isWorkspaceFilesPayload } from './projection-validation/workspace.js';
 import { isCoreHealthPayload } from './projection-validation/core-health.js';
 import { isPromptInspectorProjection } from './projection-validation/prompt-inspector.js';
 import { projectionPayloadMatchesScope } from './projection-validation/model-scope.js';
+import { areModelSpeedModes } from './projection-validation/model-speed-modes.js';
 import type { ProjectionChange, ProjectionUnsubscribeRequest } from '@aura/contracts/generated';
 
 import {
@@ -204,11 +205,12 @@ const isModelProjectionPayload = (kind: unknown, payload: unknown): boolean => {
             'models_revision',
             'registry',
           ],
-          ['default_model_profile_id', 'reasoning_efforts'],
+          ['default_model_profile_id', 'reasoning_efforts', 'speed_modes'],
         ) &&
         (payload.reasoning_efforts === undefined ||
           (Array.isArray(payload.reasoning_efforts) &&
             payload.reasoning_efforts.every(isModelReasoningEfforts))) &&
+        areModelSpeedModes(payload.speed_modes) &&
         isRevision(payload.aura_revision) &&
         isRevision(payload.models_revision) &&
         Array.isArray(payload.active_credentials) &&

@@ -36,6 +36,7 @@ aura-extension-service = { path = "../aura-extension-service" }
 aura-git-service = { path = "../aura-git-service" }
 aura-hooks = { path = "../aura-hooks" }
 aura-memory = { path = "../aura-memory" }
+aura-message-references = { path = "../aura-message-references" }
 aura-model-adapter-anthropic = { path = "../aura-model-adapter-anthropic" }
 aura-model-adapter-openai-chat = { path = "../aura-model-adapter-openai-chat" }
 aura-model-adapter-openai-responses = { path = "../aura-model-adapter-openai-responses" }

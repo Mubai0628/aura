@@ -492,7 +492,7 @@ impl FsToolService {
             crate::mutation::parse_patch(&prepared.text).map_err(ExternalWriteError::refused)?;
         crate::mutation::refuse_create_or_delete(&patch).map_err(ExternalWriteError::refused)?;
         let encoded =
-            crate::mutation::patched_bytes(&relative_path, &state, &patch, prepared.unplaced)
+            crate::mutation::patched_bytes(&relative_path, &state, &patch, &prepared.starts)
                 .map_err(ExternalWriteError::refused)?;
         let (encoding, line_ending) =
             crate::mutation::write_encoding(&relative_path, &state, None, None)

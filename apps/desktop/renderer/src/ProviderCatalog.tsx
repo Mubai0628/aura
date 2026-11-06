@@ -5,11 +5,11 @@ import type { ProviderCatalogItem } from './model-settings-types';
 import { ProviderIcon } from './ProviderIcon';
 
 interface ProviderCatalogProps {
-  catalogLabel: string;
+  /** The models.dev catalog could not be read and has no copy to show. */
+  catalogUnavailable?: boolean;
   onAddCustom: () => void;
   onConfigure: (provider: ProviderCatalogItem) => void;
   onSelect: (provider: ProviderCatalogItem) => void;
-  onRefresh: () => void;
   providers: readonly ProviderCatalogItem[];
   selectedProviderId: string | undefined;
   writeUnavailableReason?: string | undefined;
@@ -20,11 +20,10 @@ const GRID_GAP = 10;
 const COLLAPSED_ROWS = 3;
 
 export function ProviderCatalog({
-  catalogLabel,
+  catalogUnavailable = false,
   onAddCustom,
   onConfigure,
   onSelect,
-  onRefresh,
   providers,
   selectedProviderId,
   writeUnavailableReason,
@@ -39,19 +38,7 @@ export function ProviderCatalog({
   );
 
   return (
-    <section aria-labelledby="provider-catalog-heading" className="provider-catalog">
-      <div className="section-heading-row">
-        <div>
-          <h3 id="provider-catalog-heading">Provider</h3>
-        </div>
-        <span className="provider-catalog-status">
-          {catalogLabel}
-          <button aria-label="刷新 models.dev 目录" onClick={onRefresh} type="button">
-            <AppIcon name="refresh" size={14} />
-          </button>
-        </span>
-      </div>
-
+    <section aria-label="Provider" className="provider-catalog">
       <ProviderGroup
         addCustom={onAddCustom}
         onConfigure={onConfigure}
@@ -67,6 +54,7 @@ export function ProviderCatalog({
         onConfigure={onConfigure}
         selectedProviderId={selectedProviderId}
         title="未配置目录"
+        unavailable={catalogUnavailable}
         onSelect={onSelect}
       />
     </section>
@@ -80,6 +68,7 @@ function ProviderGroup({
   providers,
   selectedProviderId,
   title,
+  unavailable = false,
   writeUnavailableReason,
 }: {
   addCustom?: () => void;
@@ -88,6 +77,7 @@ function ProviderGroup({
   providers: readonly ProviderCatalogItem[];
   selectedProviderId: string | undefined;
   title: string;
+  unavailable?: boolean;
   writeUnavailableReason?: string | undefined;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -141,6 +131,11 @@ function ProviderGroup({
         {addCustom === undefined ? null : (
           <AddProviderCard onAdd={addCustom} reason={writeUnavailableReason} />
         )}
+        {unavailable && providers.length === 0 ? (
+          <p className="provider-group-empty" role="status">
+            models.dev 目录暂不可用
+          </p>
+        ) : null}
         {canCollapse ? (
           <button
             aria-expanded={expanded}

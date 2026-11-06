@@ -350,6 +350,7 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
                 .start(
                     CommandInvocationId::new(),
                     AgentStartRequest {
+                        computer_mode: None,
                         session_id: session,
                         model_profile_id: model,
                         text: "dependent write while the store is locked".into(),
@@ -358,7 +359,9 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
                         explicit_backend_id: None,
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                 )
                 .await;
@@ -435,6 +438,7 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
     let after = runtime.block_on(agent.start(
         CommandInvocationId::new(),
         AgentStartRequest {
+            computer_mode: None,
             session_id: fresh_session,
             model_profile_id: sessions.model_b,
             text: "legitimate work after the store recovered".into(),
@@ -443,7 +447,9 @@ fn b2_an_unavailable_store_degrades_dependent_writes_and_clears_without_a_restar
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         },
     ));
     let after = after.expect("new legitimate work must be served without a restart");

@@ -321,6 +321,33 @@ pub fn resolve(
             grant_revision: Revision::INITIAL,
         });
     }
+    // A program answered for the session: the session counts it as authorized from now on.
+    if choice == ApprovalDecisionKind::AllowSession
+        && aura_security_contract::built_in_computer(
+            &operation.content.source,
+            &operation.content.action_kind,
+            &operation.content.capabilities,
+            &operation.content.resources,
+        )
+        && let Some(app_id) = operation.content.resources.iter().find_map(|resource| match resource
+        {
+            aura_security_contract::ResourceDescriptor::DesktopApp {
+                app_id,
+                authorized: false,
+            } => Some(app_id.clone()),
+            _ => None,
+        })
+        && let Some(session_id) = identity.session_id
+    {
+        scope.desktop_app_consent = Some(aura_security_contract::DesktopAppConsentRef {
+            approval_id: id,
+            session_id,
+            principal_id: identity.principal_id,
+            app_id,
+            approved_operation_fingerprint: operation.fingerprint.clone(),
+            grant_revision: Revision::INITIAL,
+        });
+    }
     let grant_id = consent.as_ref().map_or_else(PermissionGrantId::new, |value| value.grant_id);
     crate::network_consents::attach(&mut scope, operation, id, grant_id)?;
     let expires_at = if scope.file_consent.is_some()
@@ -329,6 +356,7 @@ pub fn resolve(
         || scope.mcp_consent.is_some()
         || scope.chrome_consent.is_some()
         || scope.chrome_site_consent.is_some()
+        || scope.desktop_app_consent.is_some()
     {
         None
     } else {

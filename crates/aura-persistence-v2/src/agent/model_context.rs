@@ -1,5 +1,6 @@
 //! Exact model history read model. Raw streams and private diagnostics never
-//! enter the conversation. Tool calls are visible only with their sealed group.
+//! enter the conversation. Tool calls are visible only with their sealed group;
+//! a stopped turn ends with a note of where it stopped (`cut_off`).
 use super::{history, session, turns};
 use crate::tool::call_name::from_frozen_output as call_name;
 use aura_agent_domain::*;
@@ -9,6 +10,7 @@ use aura_model_domain::*;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact, record};
 use rusqlite::Connection;
 mod continuation;
+mod cut_off;
 
 pub struct ModelHistory {
     pub items: Vec<LogicalConversationItem>,
@@ -88,8 +90,9 @@ pub fn history_for_model(
     })
 }
 /// One turn's history, as the model is sent it: its user messages, then each completed step's
-/// response with its tool results. `current_run` is the run being prepared, whose unpaired tool
-/// group is a conflict; an earlier interrupted group is left out.
+/// response with its tool results, and for a stopped turn the note of where it stopped.
+/// `current_run` is the run being prepared, whose unpaired tool group is a conflict; an earlier
+/// interrupted group is named in that note instead.
 pub(crate) fn turn_items(
     db: &Connection,
     previous: &TurnTask,
@@ -113,6 +116,7 @@ pub(crate) fn turn_items(
     );
     let user_messages = session::ordered_messages(db, previous.session_id, user_ids)?;
     let mut answers = user_messages.into_iter().peekable();
+    let mut unfinished = None;
     for step in steps(db, previous.agent_run_id)? {
         while answers.peek().is_some_and(|u| u.at <= step.created_at) {
             let u = answers.next().ok_or(Error::Conflict)?;
@@ -146,10 +150,32 @@ pub(crate) fn turn_items(
                 .find(|g| g.tool_batch_id == batch_id && g.model_step_id == step.model_step_id)
             else {
                 // A prior interrupted response is not a valid paired history
-                // group. Its unresolved operations remain in recovery facts.
+                // group. Its unresolved operations remain in recovery facts, and
+                // the note the stopped turn ends with names its calls.
                 if current_run == Some(previous.agent_run_id) {
                     return Err(Error::Conflict);
                 }
+                let calls = made
+                    .iter()
+                    .map(|call| {
+                        Ok(cut_off::UnfinishedCall {
+                            id: call.tool_call_id,
+                            name: call_name(call, &evidence, &output)?,
+                            arguments: history_tool_call_arguments_v1(
+                                &output
+                                    .tool_calls
+                                    .iter()
+                                    .find(|c| c.tool_call_id == call.tool_call_id)
+                                    .ok_or(Error::Conflict)?
+                                    .arguments_json,
+                            ),
+                        })
+                    })
+                    .collect::<StoreResult<_>>()?;
+                unfinished = Some(cut_off::Unfinished {
+                    text: step_text(db, step.model_step_id, &output)?,
+                    calls,
+                });
                 continue;
             };
             let batch = crate::tool::execution::batch(db, batch_id)?;
@@ -207,11 +233,7 @@ pub(crate) fn turn_items(
         } else if !normalized.is_empty() {
             return Err(Error::Conflict);
         }
-        // A `model.after_call` Hook may have changed what later steps see of this one.
-        let text = match crate::hooks::step_text_override(db, step.model_step_id)? {
-            Some(text) => text,
-            None => history::visible_text(&output),
-        };
+        let text = step_text(db, step.model_step_id, &output)?;
         let content = (!text.is_empty()).then_some(text);
         if content.is_none() && normalized.is_empty() {
             continue;
@@ -273,7 +295,19 @@ pub(crate) fn turn_items(
             content: u.text,
         });
     }
+    items.extend(cut_off::note(db, previous, unfinished)?);
     Ok(())
+}
+/// A step's visible text as later steps see it: a `model.after_call` Hook may have changed it.
+fn step_text(
+    db: &Connection,
+    step: ModelStepId,
+    output: &NormalizedModelOutput,
+) -> StoreResult<String> {
+    Ok(match crate::hooks::step_text_override(db, step)? {
+        Some(text) => text,
+        None => history::visible_text(output),
+    })
 }
 /// The name of the tool `admitted` ran: the request's own name for it, or - for a call made through
 /// `tools.call` - its name in the step's registry catalog.

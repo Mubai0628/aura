@@ -96,7 +96,10 @@ pub struct FsListResult {
 #[serde(deny_unknown_fields)]
 pub struct FsFindPathsRequest {
     pub workspace_id: WorkspaceId,
-    pub session_id: SessionId,
+    /// The conversation searching; none from a new conversation's composer, which has none yet.
+    /// The search does not depend on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
     pub query: String,
     pub limit: u32,
 }

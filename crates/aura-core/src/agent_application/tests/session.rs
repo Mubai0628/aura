@@ -152,12 +152,15 @@ async fn unnamed_session_first_send_starts_and_mirrors_the_first_title() {
         &runtime,
         "agent.submit",
         json!(AgentSubmitRequest {
+            computer_mode: None,
             session_id: session,
             text: "你目前都能做什么".into(),
             destination: AgentInputLane::NextTurn,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

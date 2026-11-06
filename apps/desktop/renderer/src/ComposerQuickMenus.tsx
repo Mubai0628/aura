@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { ModelPicker } from './ModelPicker';
 import { SessionReasoningPicker } from './ReasoningPicker';
+import { SessionSpeedPicker } from './SpeedPicker';
 import { userMessage } from './agent-session/user-message';
 import { AppIcon } from './app-icons';
 import { useDismissablePopover } from './useDismissablePopover';
@@ -154,6 +155,7 @@ export function ModelQuickSelector({
         levels: model.reasoning_efforts ?? [],
         level: model.reasoning_effort ?? undefined,
       },
+      speedModes: model.speed_modes ?? [],
       ...(!model.execution_readiness.is_executable
         ? {
             disabledReason: userMessage(
@@ -179,12 +181,19 @@ export function ModelQuickSelector({
         {...(openSignal === undefined ? {} : { openSignal })}
       />
       {selected ? (
-        <SessionReasoningPicker
-          fallback={selected.reasoning?.level}
-          levels={selected.reasoning?.levels ?? []}
-          modelProfileId={selected.id}
-          sessionId={projection?.session_id ?? ''}
-        />
+        <>
+          <SessionReasoningPicker
+            fallback={selected.reasoning?.level}
+            levels={selected.reasoning?.levels ?? []}
+            modelProfileId={selected.id}
+            sessionId={projection?.session_id ?? ''}
+          />
+          <SessionSpeedPicker
+            modelProfileId={selected.id}
+            modes={selected.speedModes ?? []}
+            sessionId={projection?.session_id ?? ''}
+          />
+        </>
       ) : null}
     </>
   );

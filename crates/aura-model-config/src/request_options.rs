@@ -20,5 +20,8 @@ pub(crate) fn resolve(
         }),
         reasoning_by_effort: aura_model_domain::reasoning_by_effort(catalog),
         image_input: aura_model_domain::takes_images(defaults, catalog),
+        // A turn sets the speed mode its conversation chose; every other request goes in the
+        // standard mode.
+        speed_mode: None,
     }
 }

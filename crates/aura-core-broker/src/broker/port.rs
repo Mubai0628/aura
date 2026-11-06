@@ -12,6 +12,7 @@ use aura_core_base::{
     command_settlement::{self, CommandSettlements},
     ipc_session,
 };
+use aura_domain_common::SecurityOperationId;
 use aura_execution_contract::*;
 use aura_runtime_contract::IpcErrorEnvelope;
 use serde_json::Value;
@@ -38,6 +39,7 @@ use std::{future::Future, sync::Arc, sync::Mutex};
 /// wait reached; the tail keeps the invocation. See `broker/completion.rs` for why.
 pub struct CallPort<'a, F, T> {
     pub journal: Arc<BrokerJournal>,
+    /// The handler, given the Operation of the attempt that runs it.
     pub call: Mutex<Option<F>>,
     pub inspect: super::OwnedInspect,
     pub evidence: super::OwnedEvidence<T>,
@@ -102,7 +104,7 @@ where
 /// dropped with this future.
 impl<F, Fut, T> BrokerPort for CallPort<'_, F, T>
 where
-    F: FnOnce() -> Fut + Send + 'static,
+    F: FnOnce(SecurityOperationId) -> Fut + Send + 'static,
     Fut: Future<Output = Result<T, IpcErrorEnvelope>> + Send + 'static,
     T: DispatchOutcome + Send + Sync + 'static,
 {
@@ -177,6 +179,7 @@ where
             let subject = self.subject.clone();
             let published = Arc::clone(&self.output);
             let work_attempt = attempt.clone();
+            let operation_id = request.operation.operation_id;
             let task_ticket = ticket.clone();
             // The handler and both post-execution steps belong to this bounded owner. An IPC
             // shutdown may abort this waiter; it cannot abort or discard already admitted work.
@@ -184,7 +187,9 @@ where
             let mut work = tokio::spawn(async move {
                 let task =
                     command_settlement::SettlementTask::new(settlements.clone(), task_ticket);
-                let output = ipc_session::with_resource_wait_handler(resource_wait, call()).await;
+                let output =
+                    ipc_session::with_resource_wait_handler(resource_wait, call(operation_id))
+                        .await;
                 let shared = Arc::new(output);
                 let tail = PostExecution::new(
                     owners,

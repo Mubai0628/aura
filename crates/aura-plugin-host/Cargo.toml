@@ -1,0 +1,23 @@
+[package]
+name = "aura-plugin-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+aura-agent-domain = { path = "../aura-agent-domain" }
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-plugins = { path = "../aura-plugins" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

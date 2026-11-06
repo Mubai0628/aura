@@ -16,7 +16,7 @@ use aura_permission_domain::CoreRequestGrant;
 use aura_security_contract::NetworkCallerKind;
 use time::Duration;
 
-use crate::{CatalogError, parse_models_dev_catalog};
+use crate::{CATALOG_PARSER_REVISION, CatalogError, parse_models_dev_catalog};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct CatalogConditionalRequest {
@@ -319,7 +319,9 @@ where
         };
         let state =
             cached.snapshot.as_ref().map_or(ProviderCatalogState::Unavailable, |snapshot| {
-                if is_stale(snapshot.last_successful_refresh_at, UtcTimestamp::now()) {
+                if is_stale(snapshot.last_successful_refresh_at, UtcTimestamp::now())
+                    || read_by_older_parser(snapshot)
+                {
                     ProviderCatalogState::Stale
                 } else {
                     ProviderCatalogState::Fresh
@@ -402,6 +404,7 @@ where
             status
                 .last_successful_refresh_at
                 .is_none_or(|last_successful| is_stale(last_successful, now))
+                || status.snapshot.as_ref().is_some_and(read_by_older_parser)
         })
     }
 
@@ -473,14 +476,18 @@ where
         self.commit_refresh(self.fetch_refresh().await)
     }
 
+    /// The cached validators, unless the cached snapshot is to be read again: then the whole
+    /// catalog is asked for.
     fn conditional(&self) -> Result<CatalogConditionalRequest, CatalogError> {
         let status = self.status.read().map_err(|_| CatalogError::LockPoisoned)?;
+        let Some(snapshot) =
+            status.snapshot.as_ref().filter(|snapshot| !read_by_older_parser(snapshot))
+        else {
+            return Ok(CatalogConditionalRequest::default());
+        };
         Ok(CatalogConditionalRequest {
-            etag: status.snapshot.as_ref().and_then(|snapshot| snapshot.etag.clone()),
-            last_modified: status
-                .snapshot
-                .as_ref()
-                .and_then(|snapshot| snapshot.last_modified.clone()),
+            etag: snapshot.etag.clone(),
+            last_modified: snapshot.last_modified.clone(),
         })
     }
 
@@ -520,6 +527,7 @@ where
                 let content_hash = ContentHash::blake3(&response.body);
                 if let Some(mut snapshot) = self.current_snapshot()
                     && snapshot.catalog_content_hash == content_hash
+                    && !read_by_older_parser(&snapshot)
                 {
                     snapshot.checked_at = now;
                     snapshot.last_successful_refresh_at = now;
@@ -552,6 +560,7 @@ where
                     raw_artifact_id: ArtifactId::new(),
                     provider_order,
                     providers,
+                    parser_revision: CATALOG_PARSER_REVISION,
                 };
                 self.cache.persist_success(&response.body, snapshot)
             }
@@ -589,6 +598,12 @@ where
     fn current_snapshot(&self) -> Option<ProviderCatalogSnapshot> {
         ProviderCatalogService::current_snapshot(self)
     }
+}
+
+/// Whether the snapshot's providers were read by an older parser, one that left out what this
+/// one reads.
+fn read_by_older_parser(snapshot: &ProviderCatalogSnapshot) -> bool {
+    snapshot.parser_revision < CATALOG_PARSER_REVISION
 }
 
 fn is_stale(last_successful_refresh_at: UtcTimestamp, now: UtcTimestamp) -> bool {

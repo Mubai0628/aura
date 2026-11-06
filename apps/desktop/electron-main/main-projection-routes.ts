@@ -36,12 +36,15 @@ export function createProjectionRoutes(deps: ProjectionRouteState) {
     const supervisor = deps.supervisor();
     const key = modelProjectionRouteKey(route);
     const owned = modelProjectionRoutesByWebContents.get(webContentsId) ?? new Set<string>();
-    if (owned.has(key)) return;
     const existing = modelProjectionRoutes.get(key);
     if (existing !== undefined) {
       existing.owners.add(webContentsId);
       owned.add(key);
       modelProjectionRoutesByWebContents.set(webContentsId, owned);
+      // Held already: for an earlier page of this window, whose request came in after that page
+      // began to go away, or for another window. Core is asked again and answers with the route's
+      // current state, which the page that asked has not had.
+      await supervisor?.subscribeModelProjection(route);
       return;
     }
 
@@ -61,9 +64,12 @@ export function createProjectionRoutes(deps: ProjectionRouteState) {
     try {
       await supervisor.subscribeModelProjection(route);
     } catch (error) {
-      modelProjectionRoutes.delete(key);
+      // Only what this subscription registered: the window may have let go of the route and
+      // taken it again since.
+      if (modelProjectionRoutes.get(key) === registered) modelProjectionRoutes.delete(key);
       owned.delete(key);
-      if (owned.size === 0) modelProjectionRoutesByWebContents.delete(webContentsId);
+      if (owned.size === 0 && modelProjectionRoutesByWebContents.get(webContentsId) === owned)
+        modelProjectionRoutesByWebContents.delete(webContentsId);
       throw error;
     }
   };
@@ -85,22 +91,35 @@ export function createProjectionRoutes(deps: ProjectionRouteState) {
     await supervisor?.unsubscribeModelProjection(existing.route);
   };
 
+  /**
+   * A window's page lets go of all its model routes at once, before Core has answered any
+   * release: a page that loads in the same window then takes each route afresh, and Core answers
+   * that subscription with the route's current state.
+   */
   const releaseModelProjectionRoutes = async (webContentsId: number): Promise<void> => {
-    const keys = [...(modelProjectionRoutesByWebContents.get(webContentsId) ?? [])];
+    const keys = modelProjectionRoutesByWebContents.get(webContentsId) ?? new Set<string>();
+    modelProjectionRoutesByWebContents.delete(webContentsId);
+    const unowned: { key: string; route: ModelProjectionRouteRequest }[] = [];
     for (const key of keys) {
-      const route = modelProjectionRoutes.get(key)?.route;
-      if (route !== undefined) {
+      const existing = modelProjectionRoutes.get(key);
+      if (existing === undefined || !existing.owners.delete(webContentsId)) continue;
+      if (existing.owners.size !== 0) continue;
+      modelProjectionRoutes.delete(key);
+      unowned.push({ key, route: existing.route });
+    }
+    const supervisor = deps.supervisor();
+    await Promise.all(
+      unowned.map(async ({ key, route }) => {
         try {
-          await unsubscribeModelProjectionRoute(webContentsId, route);
+          await supervisor?.unsubscribeModelProjection(route);
         } catch (error) {
           await appendMainLog('model_projection_unsubscribe_failed', {
             message: error instanceof Error ? error.message : String(error),
             route: key,
           }).catch(() => undefined);
         }
-      }
-    }
-    modelProjectionRoutesByWebContents.delete(webContentsId);
+      }),
+    );
   };
 
   const subscribeToolProjectionRoute = async (
@@ -110,12 +129,13 @@ export function createProjectionRoutes(deps: ProjectionRouteState) {
     const supervisor = deps.supervisor();
     const key = toolProjectionRouteKey(route);
     const owned = toolProjectionRoutesByWebContents.get(webContentsId) ?? new Set<string>();
-    if (owned.has(key)) return;
     const existing = toolProjectionRoutes.get(key);
     if (existing !== undefined) {
       existing.owners.add(webContentsId);
       owned.add(key);
       toolProjectionRoutesByWebContents.set(webContentsId, owned);
+      // As a model route held already: asked again for its current state.
+      await supervisor?.subscribeToolProjection(route);
       return;
     }
 
@@ -130,9 +150,10 @@ export function createProjectionRoutes(deps: ProjectionRouteState) {
     try {
       await supervisor.subscribeToolProjection(route);
     } catch (error) {
-      toolProjectionRoutes.delete(key);
+      if (toolProjectionRoutes.get(key) === registered) toolProjectionRoutes.delete(key);
       owned.delete(key);
-      if (owned.size === 0) toolProjectionRoutesByWebContents.delete(webContentsId);
+      if (owned.size === 0 && toolProjectionRoutesByWebContents.get(webContentsId) === owned)
+        toolProjectionRoutesByWebContents.delete(webContentsId);
       throw error;
     }
   };
@@ -154,22 +175,39 @@ export function createProjectionRoutes(deps: ProjectionRouteState) {
     await supervisor?.unsubscribeToolProjection(existing.route);
   };
 
+  /** As the model routes: all at once, before Core has answered any release. */
   const releaseToolProjectionRoutes = async (webContentsId: number): Promise<void> => {
-    const keys = [...(toolProjectionRoutesByWebContents.get(webContentsId) ?? [])];
+    const keys = toolProjectionRoutesByWebContents.get(webContentsId) ?? new Set<string>();
+    toolProjectionRoutesByWebContents.delete(webContentsId);
+    const unowned: { key: string; route: ToolProjectionRouteRequest }[] = [];
     for (const key of keys) {
-      const route = toolProjectionRoutes.get(key)?.route;
-      if (route !== undefined) {
+      const existing = toolProjectionRoutes.get(key);
+      if (existing === undefined || !existing.owners.delete(webContentsId)) continue;
+      if (existing.owners.size !== 0) continue;
+      toolProjectionRoutes.delete(key);
+      unowned.push({ key, route: existing.route });
+    }
+    const supervisor = deps.supervisor();
+    await Promise.all(
+      unowned.map(async ({ key, route }) => {
         try {
-          await unsubscribeToolProjectionRoute(webContentsId, route);
+          await supervisor?.unsubscribeToolProjection(route);
         } catch (error) {
           await appendMainLog('tool_projection_unsubscribe_failed', {
             message: error instanceof Error ? error.message : String(error),
             route: key,
           }).catch(() => undefined);
         }
-      }
-    }
-    toolProjectionRoutesByWebContents.delete(webContentsId);
+      }),
+    );
+  };
+
+  /** A window's page went away: it loads again, or its renderer or its window is gone. */
+  const releasePage = async (webContentsId: number): Promise<void> => {
+    await Promise.all([
+      releaseModelProjectionRoutes(webContentsId),
+      releaseToolProjectionRoutes(webContentsId),
+    ]);
   };
   return {
     subscribeModelProjectionRoute,
@@ -178,5 +216,6 @@ export function createProjectionRoutes(deps: ProjectionRouteState) {
     subscribeToolProjectionRoute,
     unsubscribeToolProjectionRoute,
     releaseToolProjectionRoutes,
+    releasePage,
   };
 }

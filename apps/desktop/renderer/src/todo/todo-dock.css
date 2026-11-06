@@ -61,7 +61,7 @@
   height: 2px;
   margin: 0;
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--surface-muted);
 }
 
@@ -146,8 +146,8 @@
   width: 14px;
   height: 14px;
   place-items: center;
-  border: 1.5px solid var(--line-strong);
-  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-round);
   color: var(--surface);
   background: var(--surface);
 }
@@ -174,12 +174,12 @@
 
 .todo-mark.is-in_progress::after {
   position: absolute;
-  inset: -1.5px;
-  border: 1.5px solid transparent;
+  inset: -1px;
+  border: 1px solid transparent;
   border-top-color: var(--success);
   border-right-color: var(--success);
-  border-radius: 50%;
-  animation: todo-turn 0.9s linear infinite;
+  border-radius: var(--radius-round);
+  animation: todo-turn 0.8s steps(4) infinite;
   content: '';
 }
 

@@ -8,6 +8,7 @@ import { useState } from 'react';
 import * as Collapsible from '@radix-ui/react-collapsible';
 
 import { AppIcon } from './app-icons';
+import { CatalogEntryChoice } from './CatalogEntryChoice';
 import { ModalDialog } from './ModalDialog';
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import './model-dialogs.css';
@@ -15,6 +16,8 @@ import type { NotificationInput } from './notification-center-store';
 import { userMessage } from './agent-session/user-message';
 import { MODEL_FAILURE_FALLBACK } from './provider-connection/notices';
 import { REASONING_LABELS, levelToSend } from './reasoning-effort';
+import { speedModesOf } from './speed-mode';
+import { HelpTip } from './ui/HelpTip';
 import './styles/model-picker.css';
 
 interface ModelProfileDialogProps {
@@ -76,15 +79,16 @@ export function ModelProfileDialog({
   );
   // The levels the model offers can be listed here, for a
   // model the catalog does not know or knows wrongly; once changed, the list is the profile's own.
-  const listedLevels = profile?.request_defaults.reasoning_efforts ?? null;
-  const [offered, setOffered] = useState<ReasoningEffort[]>(listedLevels ?? reasoningLevels);
-  const [ownList, setOwnList] = useState(listedLevels !== null);
+  // Until then it follows Core's, which a newly chosen catalog entry changes.
+  const [ownList, setOwnList] = useState<ReasoningEffort[] | null>(
+    profile?.request_defaults.reasoning_efforts ?? null,
+  );
+  const offered = ownList ?? reasoningLevels;
   const toggleLevel = (level: ReasoningEffort) => {
     const next = offered.includes(level)
       ? offered.filter((each) => each !== level)
       : ALL_LEVELS.filter((each) => each === level || offered.includes(each));
-    setOwnList(true);
-    setOffered(next);
+    setOwnList(next);
     if (reasoningEffort !== null && !next.includes(reasoningEffort)) setReasoningEffort(null);
   };
   // Whether the model is sent images (the browser's screenshots). Unset sends them, unless the catalog knows the model takes none.
@@ -94,6 +98,12 @@ export function ModelProfileDialog({
   const catalogImages = !(
     profile?.catalog?.match_state === 'matched' &&
     !profile.catalog.snapshot.input_modalities.includes('image')
+  );
+  // Whether a conversation may choose, in the composer, the speed modes the model's catalog
+  // entry offers; shown only for a model whose entry offers any.
+  const speedModes = speedModesOf(settings, profile?.id);
+  const [allowSpeed, setAllowSpeed] = useState(
+    profile?.request_defaults.allow_speed_modes ?? false,
   );
   const [enabled, setEnabled] = useState(profile?.enabled ?? true);
   const [busy, setBusy] = useState(false);
@@ -134,8 +144,11 @@ export function ModelProfileDialog({
               temperature: temperature === '' ? null : temperature,
               top_p: topP === '' ? null : topP,
               reasoning_effort: reasoningEffort,
-              ...(ownList ? { reasoning_efforts: offered } : {}),
+              ...(ownList === null ? {} : { reasoning_efforts: ownList }),
               image_input: imageInput,
+              allow_speed_modes: allowSpeed,
+              // A mode the profile named before each turn chose its own goes with the save.
+              speed_mode: null,
             },
           });
     if (!result.ok) {
@@ -254,6 +267,15 @@ export function ModelProfileDialog({
             <span>显示名称</span>
             <input onChange={(event) => setDisplayName(event.target.value)} value={displayName} />
           </label>
+          {profile === undefined ? null : (
+            <CatalogEntryChoice
+              disabled={busy || writeUnavailableReason !== undefined}
+              onNotify={onNotify}
+              onSaved={onSaved}
+              profile={profile}
+              settings={settings}
+            />
+          )}
           <label>
             <span>上下文窗口 Tokens</span>
             <input
@@ -370,6 +392,20 @@ export function ModelProfileDialog({
                   ))}
                 </div>
               </div>
+              {speedModes === undefined ? null : (
+                <div className="span-two profile-enabled-row">
+                  <div className="profile-row-title">
+                    <strong>允许使用快速模式</strong>
+                    <HelpTip label="快速模式" text="请确保你的提供商支持该模式" />
+                  </div>
+                  <ToggleSwitch
+                    label="允许使用快速模式"
+                    checked={allowSpeed}
+                    disabled={busy || writeUnavailableReason !== undefined}
+                    onCheckedChange={setAllowSpeed}
+                  />
+                </div>
+              )}
               <div className="span-two profile-enabled-row">
                 <div>
                   <strong>用于会话模型选择</strong>

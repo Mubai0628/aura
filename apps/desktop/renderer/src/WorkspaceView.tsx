@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppIcon } from './app-icons';
 import { CoreWaitingNotice } from './core-waiting';
 import type { SessionNavigationItem, WorkspaceNavigationItem } from './app-shell-types';
+import { otherConversations } from './composer-references/conversations';
 import { Conversation } from './agent-session/Conversation';
 import { ActivityNoteStack } from './ActivityNoteStack';
 import { keepSidebarRatio } from './activity/sidebar-ratio';
@@ -20,11 +21,14 @@ import { ContextRemediation } from './agent-session/ContextRemediation';
 import { QueryForm } from './agent-session/query/QueryForm';
 import { SensitiveInputPanel } from './terminal/SensitiveInputPanel';
 import { stopFailureMessage, stopStillEnding, userMessage } from './agent-session/user-message';
+import { StoppingRunContext } from './agent-session/stopping';
 import { rememberFirstTitle } from './agent-session/session-titles';
 import type { SessionModelBinding } from '@aura/contracts/generated';
 import { ApprovalPanel } from './agent-session/ApprovalPanel';
 import { BrowserAssist } from './browser/BrowserAssist';
 import { ChromeSessionStrip } from './chrome/ChromeSessionStrip';
+import { ComputerControlling } from './computer/ComputerControlling';
+import { desktopState, useComputerControlling } from './computer/useComputerControlling';
 import './agent-session/agent-session.css';
 import { useModelProjectionError, useScopedModelProjection } from './model-projection-store';
 import type { NotificationInput } from './notification-center-store';
@@ -121,6 +125,10 @@ export function WorkspaceView({
   const [toolCompletion, setToolCompletion] = useState('');
   const latestInspection = useLatestInspection(agent.projection);
   const active = agent.projection?.active;
+  /** The run a 停止 was asked for; `waiting` until Core has answered. */
+  const [stopRequest, setStopRequest] = useState<{ run: string; waiting: boolean }>();
+  /** The active run while its 停止 is under way; nothing once that run has ended. */
+  const stopping = active && stopRequest?.run === active.run.agent_run_id ? stopRequest : undefined;
   const [rightSidebarResponsive, setRightSidebarResponsive] = useState(
     DEFAULT_RIGHT_SIDEBAR_RESPONSIVE_STATE,
   );
@@ -159,6 +167,12 @@ export function WorkspaceView({
         : rawSelector,
     [rawSelector, confirmedBinding, selectedSession.id],
   );
+  const controlling = useComputerControlling(demoMode ? undefined : selectedSession.id, {
+    activeTurn: active?.turn.turn_task_id,
+    modelId: modelSelector?.selected_model_profile_id ?? undefined,
+    onChanged: agent.refresh,
+  });
+  const desktop = desktopState(controlling.apps);
   // A file action that did not happen (copy a path, open a file, show it) says so.
   const notifyFileProblem = useCallback(
     (problem: string) =>
@@ -171,20 +185,30 @@ export function WorkspaceView({
     [publishNotification],
   );
   const stop = async () => {
-    if (!active) return;
+    if (!active || stopping?.waiting) return;
+    const run = active.run.agent_run_id;
+    // Core answers once the run has really stopped; the page says so from the click on.
+    setStopRequest({ run, waiting: true });
     try {
       const result = await window.aura.v1.cancelAgentRun({
         session_id: selectedSession.id,
-        agent_run_id: active.run.agent_run_id,
+        agent_run_id: run,
       });
-      if (!result.ok)
+      // A stop whose last step is still ending stays one and may be asked again; any other
+      // refusal means the run did not stop.
+      setStopRequest(
+        result.ok || stopStillEnding(result.error) ? { run, waiting: false } : undefined,
+      );
+      if (!result.ok) {
         publishNotification({
           dedupeKey: `agent-stop:${active.run.agent_run_id}`,
           title: stopStillEnding(result.error) ? '正在停止' : '停止未确认',
           message: stopFailureMessage(result.error),
           tone: stopStillEnding(result.error) ? 'warning' : 'danger',
         });
+      }
     } catch {
+      setStopRequest(undefined);
       publishNotification({
         dedupeKey: `agent-stop:${active.run.agent_run_id}`,
         title: '停止未确认',
@@ -351,7 +375,11 @@ export function WorkspaceView({
       rightPanelWidth={rightPanelWidth}
       rightSidebarVisible={rightSidebarVisible}
     >
-      <ConversationAttachments key={selectedSession.id} className="conversation-workspace">
+      <ConversationAttachments
+        key={selectedSession.id}
+        className="conversation-workspace"
+        draftKey={selectedSession.id}
+      >
         <header className="conversation-header">
           <h2>{selectedSession.title || '新会话'}</h2>
           <div className="conversation-header-actions">
@@ -397,24 +425,26 @@ export function WorkspaceView({
 
             <div className="conversation-column" ref={conversationColumnRef}>
               <FileLinkContext.Provider value={fileLinks}>
-                <Conversation
-                  sessionId={selectedSession.id}
-                  onToolCompleted={setToolCompletion}
-                  projection={agent.projection}
-                  loading={agent.loading}
-                  error={agent.error}
-                  viewportRef={conversationViewportRef}
-                  onChanged={agent.refresh}
-                  loadOlder={agent.loadOlder}
-                  loadTurnOlder={agent.loadTurnOlder}
-                  title={selectedSession.title}
-                  onBranched={
-                    onOpenSession && !demoMode
-                      ? (made) => void onOpenSession(made.session_id, false)
-                      : undefined
-                  }
-                  onOpenSession={onOpenSession ? (id) => onOpenSession(id, true) : undefined}
-                />
+                <StoppingRunContext.Provider value={stopping?.run}>
+                  <Conversation
+                    sessionId={selectedSession.id}
+                    onToolCompleted={setToolCompletion}
+                    projection={agent.projection}
+                    loading={agent.loading}
+                    error={agent.error}
+                    viewportRef={conversationViewportRef}
+                    onChanged={agent.refresh}
+                    loadOlder={agent.loadOlder}
+                    loadTurnOlder={agent.loadTurnOlder}
+                    title={selectedSession.title}
+                    onBranched={
+                      onOpenSession && !demoMode
+                        ? (made) => void onOpenSession(made.session_id, false)
+                        : undefined
+                    }
+                    onOpenSession={onOpenSession ? (id) => onOpenSession(id, true) : undefined}
+                  />
+                </StoppingRunContext.Provider>
               </FileLinkContext.Provider>
             </div>
           </div>
@@ -425,6 +455,10 @@ export function WorkspaceView({
               conversationColumnRef={conversationColumnRef}
               viewportRef={conversationCanvasRef}
               entrySlot={activitySlot}
+              computer={<ComputerControlling controlling={controlling} />}
+              controlling={desktop.controlled}
+              takenOver={desktop.takenOver}
+              childDesktop={controlling.apps.some((app) => app.mode === 'child_session')}
               goal={
                 <GoalDock
                   goal={
@@ -568,6 +602,7 @@ export function WorkspaceView({
                 queuePending={(agent.projection?.inbox.messages.length ?? 0) > 0}
                 onChanged={agent.refresh}
                 onStop={stop}
+                stopping={stopping?.waiting ?? false}
                 demoMode={demoMode}
                 modelSelector={modelSelector}
                 modelSelectorError={selectorError}
@@ -587,6 +622,10 @@ export function WorkspaceView({
                 onOpenSettings={onOpenSettings}
                 onOpenPanel={openRightPanel}
                 fileScope={workspaceId ? fileLinks : undefined}
+                conversations={otherConversations(
+                  workspaces?.find((workspace) => workspace.id === workspaceId)?.sessions,
+                  selectedSession.id,
+                )}
               />
             </div>
           </div>

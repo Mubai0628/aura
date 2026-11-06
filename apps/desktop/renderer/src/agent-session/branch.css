@@ -50,7 +50,7 @@
 .agent-branch-source {
   padding: 1px 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--accent);
   font-size: 12px;
@@ -77,12 +77,11 @@
 
 .agent-branch-spinner {
   flex: none;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0 25%, currentColor 100%);
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-  animation: aura-tool-spin 0.9s linear infinite;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  mask: var(--pixel-spinner) 0 0 / 128px 16px no-repeat;
+  animation: pixel-spin 800ms steps(8) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -101,7 +100,7 @@
   margin: 4px auto 14px;
   padding: 5px 12px;
   border: 1px dashed var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   font-size: 12px;
 }

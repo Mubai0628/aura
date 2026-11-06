@@ -43,9 +43,9 @@
 }
 
 .button-danger {
-  color: #8a3838 !important;
-  border-color: #e1bbbb !important;
-  background: #fff8f8 !important;
+  color: var(--danger) !important;
+  border-color: var(--danger-line) !important;
+  background: var(--surface) !important;
 }
 
 .isolation-surface .security-facts {
@@ -62,8 +62,8 @@
   gap: 2px;
   padding: 9px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fafbfa;
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
 .host-actions {
@@ -73,10 +73,10 @@
 .host-preparation-plan {
   padding: 11px 12px;
   margin-top: 14px;
-  border: 1px solid #dfd2b9;
-  border-radius: 8px;
-  color: #655435;
-  background: #faf6ed;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  background: var(--warning-soft);
   font-size: 11px;
 }
 
@@ -89,7 +89,7 @@
 }
 
 .plan-expiry {
-  color: #7b6d54;
+  color: var(--warning);
   font-variant-numeric: tabular-nums;
 }
 

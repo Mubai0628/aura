@@ -5,9 +5,11 @@ import { PermissionDefaultsCard } from './security/PermissionDefaultsCard';
 import './security/security-ui.css';
 
 export function SecuritySettings({
+  coreReady,
   security,
   onNotify,
 }: {
+  coreReady: boolean;
   security: ReturnType<typeof useSecurityControl>;
   onNotify: (notification: NotificationInput) => void;
 }) {
@@ -19,7 +21,7 @@ export function SecuritySettings({
         </div>
       </div>
       <div className="security-settings-grid">
-        <PermissionDefaultsCard onNotify={onNotify} />
+        <PermissionDefaultsCard coreReady={coreReady} onNotify={onNotify} />
         <HostPreparationPanel security={security} />
       </div>
     </div>

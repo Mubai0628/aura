@@ -4,8 +4,9 @@ use aura_domain_common::ProviderId;
 use aura_model_domain::{
     ModelCatalogProviderGetRequest, ModelProviderSource, ModelRegistryConfig,
     ProviderCatalogCardView, ProviderCatalogConfigurationClass,
-    ProviderCatalogConnectionDefaultsView, ProviderCatalogEntry, ProviderCatalogModelPage,
-    ProviderCatalogModelView, ProviderCatalogStatus, ProviderCatalogSummaryView, ProviderIconRef,
+    ProviderCatalogConnectionDefaultsView, ProviderCatalogEntry, ProviderCatalogModelEntry,
+    ProviderCatalogModelPage, ProviderCatalogModelRouteView, ProviderCatalogModelView,
+    ProviderCatalogStatus, ProviderCatalogSummaryView, ProviderIconRef,
 };
 
 use crate::CatalogError;
@@ -18,6 +19,15 @@ pub trait ProviderConfigurationPolicy {
         _entry: &ProviderCatalogEntry,
     ) -> Option<ProviderCatalogConnectionDefaultsView> {
         None
+    }
+
+    /// Which of the Provider's preset variants `model` goes by.
+    fn model_route_for(
+        &self,
+        _entry: &ProviderCatalogEntry,
+        _model: &ProviderCatalogModelEntry,
+    ) -> ProviderCatalogModelRouteView {
+        ProviderCatalogModelRouteView::Any
     }
 }
 
@@ -72,7 +82,7 @@ pub fn project_provider_cards(
                 display_name: entry.display_name.clone(),
                 icon_ref: icons.get(&entry.catalog_provider_id).cloned(),
                 fallback_initial: fallback_initial(&entry.display_name, &entry.catalog_provider_id),
-                catalog_model_count: u32::try_from(entry.models.len()).unwrap_or(u32::MAX),
+                catalog_model_count: chat_model_count(entry),
                 configuration_class: policy.class_for(entry),
                 connection_defaults: policy.connection_defaults_for(entry),
                 local_provider_id,
@@ -113,6 +123,7 @@ pub fn project_provider_model_page(
     let mut models = entry
         .models
         .values()
+        .filter(|model| model.is_chat())
         .filter(|model| {
             query.as_ref().is_none_or(|query| {
                 model.catalog_model_id.to_lowercase().contains(query)
@@ -139,9 +150,11 @@ pub fn project_provider_model_page(
         .map(|model| {
             let model = (*model).clone();
             let bytes = serde_json::to_vec(&model)?;
+            let route = policy.model_route_for(entry, &model);
             Ok(ProviderCatalogModelView {
                 catalog_object_hash: aura_domain_common::ContentHash::blake3(&bytes),
                 model,
+                route,
             })
         })
         .collect::<Result<Vec<_>, serde_json::Error>>()?;
@@ -156,7 +169,7 @@ pub fn project_provider_model_page(
             display_name: entry.display_name.clone(),
             icon_ref: icons.get(&entry.catalog_provider_id).cloned(),
             fallback_initial: fallback_initial(&entry.display_name, &entry.catalog_provider_id),
-            catalog_model_count: u32::try_from(entry.models.len()).unwrap_or(u32::MAX),
+            catalog_model_count: chat_model_count(entry),
             configuration_class: policy.class_for(entry),
             connection_defaults: policy.connection_defaults_for(entry),
             local_provider_id,
@@ -164,6 +177,11 @@ pub fn project_provider_model_page(
         models: page,
         next_model_id,
     })
+}
+
+/// The provider's models a chat can use; the page lists only these.
+fn chat_model_count(entry: &ProviderCatalogEntry) -> u32 {
+    u32::try_from(entry.models.values().filter(|model| model.is_chat()).count()).unwrap_or(u32::MAX)
 }
 
 fn local_provider_id(

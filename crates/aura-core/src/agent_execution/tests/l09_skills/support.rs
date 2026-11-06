@@ -3,20 +3,16 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 /// The built-in tools the test sessions expose.
-pub(super) const NAMES: &[&str] = &[
-    "skills.search",
-    "skills.describe",
-    "skills.load",
-    "skills.unload",
-    "skills.list_loaded",
-    "skills.read_resource",
-    "fs.write",
-    "normal.complete",
-];
+pub(super) const NAMES: &[&str] = &["skills.search", "skills.load", "fs.write", "normal.complete"];
 
 /// The user's `.agents\skills` in the tests' TEMP stand-in for the profile.
 pub(super) fn agents(f: &Fixture) -> PathBuf {
     f.settings_facade().paths().local_root.join("test-profile").join(".agents").join("skills")
+}
+
+/// The user's `.claude\skills` in the same stand-in.
+pub(super) fn claude(f: &Fixture) -> PathBuf {
+    f.settings_facade().paths().local_root.join("test-profile").join(".claude").join("skills")
 }
 
 pub(super) fn write(path: &Path, text: &str) {
@@ -41,8 +37,12 @@ pub(super) async fn route(f: &Fixture, method: &str, params: Value) -> Value {
     crate::r03_tests::success(&f.runtime, method, params).await
 }
 
-/// Trusts exactly the listed content (switching the Skill on) and returns its id.
-pub(super) async fn trust(f: &Fixture, workspace: Option<WorkspaceId>, relative: &str) -> String {
+/// The listed Skill whose folder is `relative`, and the listing.
+pub(super) async fn view(
+    f: &Fixture,
+    workspace: Option<WorkspaceId>,
+    relative: &str,
+) -> (Value, Value) {
     let list = route(f, "agent.skills.list", json!({"workspace_id": workspace})).await;
     let view = list["skills"]
         .as_array()
@@ -51,13 +51,23 @@ pub(super) async fn trust(f: &Fixture, workspace: Option<WorkspaceId>, relative:
         .find(|skill| skill["relative"] == relative)
         .cloned()
         .unwrap_or_else(|| panic!("{relative} listed: {list}"));
+    (view, list)
+}
+
+/// Switches a Skill on or off through the real Settings route.
+pub(super) async fn set_enabled(
+    f: &Fixture,
+    workspace: Option<WorkspaceId>,
+    relative: &str,
+    enabled: bool,
+) {
+    let (view, list) = view(f, workspace, relative).await;
     route(
         f,
-        "agent.skills.trust",
-        json!({"id": view["id"], "workspace_id": workspace, "expected_fingerprint": view["fingerprint"], "expected_revision": list["revision"]}),
+        "agent.skills.set_enabled",
+        json!({"id": view["id"], "workspace_id": workspace, "enabled": enabled, "expected_revision": list["revision"]}),
     )
     .await;
-    view["id"].as_str().expect("id").to_owned()
 }
 
 /// Runs one call to its result and moves the turn on.
@@ -89,18 +99,4 @@ pub(super) fn refusal(result: &ToolResultV1) -> String {
         | ToolResultOutcomeV1::NotExecuted { error: Some(error), .. } => error.message.to_string(),
         other => panic!("the call was not refused: {other:?}"),
     }
-}
-
-/// What the next step's task state would hold for this turn's loaded Skills.
-pub(super) fn context(f: &Fixture) -> Vec<Result<String, &'static str>> {
-    let runtime = f.service().agent_execution_required().skills.get().expect("skills").clone();
-    let loaded = {
-        let store = f.service().broker.lock().expect("journal");
-        aura_persistence_v2::agent::skills::loaded(store.database.connection(), f.turn.agent_run_id)
-            .expect("loaded set")
-    };
-    crate::agent_execution::skill_tools::for_context(&runtime, f.turn.workspace_id, &loaded)
-        .into_iter()
-        .map(|item| item.body)
-        .collect()
 }

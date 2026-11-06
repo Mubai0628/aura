@@ -7,6 +7,7 @@
 #[serde(deny_unknown_fields)]
 pub struct EmptyToolInput {}
 mod activity;
+pub use aura_domain_common::ComputerMode;
 mod application;
 mod attachment_files;
 mod attachments;
@@ -24,10 +25,14 @@ mod lineage;
 pub mod media;
 mod mode_episode;
 mod opening;
+mod plugin_session;
+mod plugin_tools;
 mod query_reply;
 mod reasoning;
 mod reconciliation;
+mod references;
 mod skill_tools;
+mod speed;
 mod work;
 pub use activity::*;
 pub use application::*;
@@ -47,10 +52,14 @@ pub use lineage::*;
 pub use media::*;
 pub use mode_episode::*;
 pub use opening::*;
+pub use plugin_session::*;
+pub use plugin_tools::*;
 pub use query_reply::*;
 pub use reasoning::*;
 pub use reconciliation::*;
+pub use references::*;
 pub use skill_tools::*;
+pub use speed::*;
 pub use work::*;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]

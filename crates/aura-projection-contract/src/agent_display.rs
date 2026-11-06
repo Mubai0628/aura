@@ -139,6 +139,9 @@ pub struct AgentToolInputView {
 #[serde(deny_unknown_fields)]
 pub struct AgentTurnView {
     pub turn: TurnTask,
+    /// The desktop recorded for this turn; changing the composer does not change history.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub computer_mode: Option<aura_agent_domain::ComputerMode>,
     pub user_messages: Vec<AgentUserMessageView>,
     pub assistant_messages: Vec<AgentAssistantView>,
     pub next_messages: Option<AgentTurnHistoryCursor>,

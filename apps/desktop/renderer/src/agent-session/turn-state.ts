@@ -7,9 +7,11 @@ export function turnStatus(
   item: AgentTurnView,
   calls: ReadonlyMap<string, AgentToolActivityEntry>,
   awaitingContext: boolean,
+  stopping = false,
 ) {
-  if (awaitingContext) return '等待处理上下文';
   const state = item.turn.state.state;
+  if (stopping && !terminalTurn(state)) return '正在停止';
+  if (awaitingContext) return '等待处理上下文';
   if (state === 'completed') return '已完成';
   if (state === 'cancelled') return '已停止';
   if (state === 'failed' || state === 'recovery_required') return '任务中断';

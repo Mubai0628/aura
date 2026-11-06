@@ -78,6 +78,8 @@ fn endpoint_and_profile(api_format: ModelApiFormat) -> (ModelEndpointConfig, Mod
             reasoning_effort: None,
             reasoning_efforts: None,
             image_input: None,
+            allow_speed_modes: false,
+            speed_mode: None,
         },
         created_at: now,
         updated_at: now,

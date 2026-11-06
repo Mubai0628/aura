@@ -68,7 +68,7 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
-  background: #f5f6f3;
+  background: var(--pane);
 }
 
 .sidebar-heading {
@@ -82,12 +82,11 @@
 }
 
 .demo-chip,
-.draft-state,
-.mock-inline-note {
+.draft-state {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 650;
   line-height: 1;
@@ -95,10 +94,9 @@
 }
 
 .demo-chip,
-.draft-state,
-.mock-inline-note {
+.draft-state {
   padding: 4px 7px;
-  color: #765729;
+  color: var(--warning);
   background: var(--sand-soft);
 }
 
@@ -117,7 +115,7 @@
   grid-template-columns: 26px minmax(0, 1fr) 28px 28px;
   align-items: center;
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .workspace-row.is-active {
@@ -141,13 +139,13 @@
 .icon-button {
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
 }
 
 .icon-button:hover,
 .tree-toggle:hover {
   color: var(--ink);
-  background: #e7e9e6;
+  background: var(--surface-selected);
 }
 
 .workspace-select {
@@ -170,8 +168,8 @@
 .workspace-select .workspace-index-badge {
   flex: none;
   padding: 3px 6px;
-  border-radius: 999px;
-  color: #765729;
+  border-radius: var(--radius-pill);
+  color: var(--warning);
   background: var(--sand-soft);
   font-size: 11px;
   font-weight: 650;
@@ -190,10 +188,10 @@
   max-width: 280px;
   padding: 8px 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 8px 22px rgba(37, 43, 39, 0.12);
+  box-shadow: var(--shadow-sm);
   font-size: 12px;
   line-height: 1.5;
   pointer-events: none;
@@ -221,69 +219,68 @@
   min-height: 34px;
   gap: 7px;
   padding: 6px 8px;
-  border-radius: 7px;
-  color: #505751;
+  border-radius: var(--radius-md);
+  color: var(--muted);
   text-align: left;
   background: transparent;
 }
 
-.session-row:hover,
+.session-row:hover {
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+
+/* The open conversation is a white tile lifted off the pane. */
 .session-row.is-active {
   color: var(--ink);
-  background: #e9ebe8;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    2px 2px 0 var(--pixel-shadow);
 }
 
 .session-state {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #a6aaa7;
+  width: 4px;
+  height: 4px;
+  margin: 1px;
+  border-radius: var(--radius-round);
+  background: var(--idle-dot);
 }
 
 .session-state.state-active,
 .session-state.state-running,
 .session-state.state-ready {
-  background: #5a9667;
+  background: var(--success-dot);
 }
 .session-state.state-paused {
-  background: #b38848;
+  background: var(--warning-dot);
 }
 
-/* A conversation whose turn really runs turns a small ring in place of its
-   dot; one waiting for the user (an approval, a question) is a steady amber dot. */
+/* A conversation whose turn really runs shows a larger square that blinks in place of its dot;
+   one waiting for the user (an approval, a question) is a steady amber square. */
 .session-state.is-running {
-  position: relative;
-  width: 10px;
-  height: 10px;
-  margin: -2px;
-  border: 1.5px solid rgba(59, 118, 87, 0.22);
-  background: transparent;
-}
-
-.session-state.is-running::after {
-  position: absolute;
-  inset: -1.5px;
-  border: 1.5px solid transparent;
-  border-top-color: var(--success);
-  border-right-color: var(--success);
-  border-radius: 50%;
-  animation: session-running 0.9s linear infinite;
-  content: '';
+  width: 6px;
+  height: 6px;
+  margin: 0;
+  background: var(--success-dot);
+  animation: session-running 1s steps(1, end) infinite;
 }
 
 .session-state.is-waiting {
-  background: #c08a3e;
-  box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.16);
+  width: 6px;
+  height: 6px;
+  margin: 0;
+  background: var(--warning-dot);
 }
 
 @keyframes session-running {
-  to {
-    transform: rotate(360deg);
+  50% {
+    opacity: 0.25;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .session-state.is-running::after {
+  .session-state.is-running {
     animation: none;
   }
 }
@@ -306,8 +303,8 @@
   min-height: 38px;
   gap: 9px;
   padding: 8px 10px;
-  border-radius: 8px;
-  color: #4e554f;
+  border-radius: var(--radius-md);
+  color: var(--muted);
   text-align: left;
   background: transparent;
 }
@@ -318,32 +315,11 @@
   background: var(--surface-selected);
 }
 
-.local-only-note {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 10px 0;
-  margin: 0;
-  color: var(--quiet);
-  font-size: 11px;
-}
-
-.core-footer-status {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 10px 0;
-  margin: 0;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.core-footer-status > span:first-child,
 .settings-core-status > span:first-child {
   width: 7px;
   height: 7px;
   flex: 0 0 auto;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: currentColor;
 }
 

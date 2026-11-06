@@ -4,7 +4,7 @@ use std::{
 };
 
 use aura_domain_common::ToolCallId;
-use aura_domain_common::{ArtifactId, TransportAttemptId};
+use aura_domain_common::{ArtifactId, SessionId, TransportAttemptId};
 use aura_model_domain::{
     ChatOutputTokenFieldAlias, EndpointAuthScheme, LogicalConversationItem, LogicalModelRequest,
     ModelAdapterIdentity, ModelApiFormat, ModelEndpointConfig, ModelExecutionSnapshot,
@@ -20,6 +20,7 @@ use thiserror::Error;
 use url::Url;
 
 use crate::ProviderStreamFrame;
+use crate::provider_routing::routing_headers;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProviderRequestPlan {
@@ -46,6 +47,8 @@ pub struct ModelRequestCompilationInput<'a> {
     pub operation_context: &'a TransportOperationContext,
     pub compatibility_removals: &'a BTreeSet<String>,
     pub applied_output_token_field_alias: Option<&'a ChatOutputTokenFieldAlias>,
+    /// The conversation the request belongs to, for gateways that route by it.
+    pub session_id: Option<SessionId>,
 }
 
 /// Frozen P05 model-availability probe prompt.
@@ -446,9 +449,10 @@ pub fn provider_tool_name_bindings(
 pub fn build_provider_request_plan(
     input: ModelRequestCompilationInput<'_>,
     body: Vec<u8>,
-    headers: Vec<NonSecretProviderHeader>,
+    mut headers: Vec<NonSecretProviderHeader>,
     tool_name_bindings: Vec<ProviderToolNameBinding>,
 ) -> Result<ProviderRequestPlan, ModelAdapterError> {
+    crate::speed_mode::add_speed_mode_headers(input.snapshot, &mut headers);
     build_provider_request_plan_for_target(ProviderRequestPlanParts {
         method: "POST",
         resolved_request_url: &input.snapshot.resolved_request_url,
@@ -467,6 +471,7 @@ pub fn build_provider_request_plan(
             .snapshot
             .historical_tool_call_wire_bindings
             .clone(),
+        session_id: input.session_id,
     })
 }
 
@@ -488,6 +493,7 @@ pub fn build_generation_probe_request_plan(
         tool_registry_snapshot_ref: None,
         tool_name_bindings: Vec::new(),
         historical_tool_call_wire_bindings: Vec::new(),
+        session_id: None,
     })
 }
 
@@ -550,6 +556,7 @@ pub fn build_model_discovery_request_plan(
         tool_registry_snapshot_ref: None,
         tool_name_bindings: Vec::new(),
         historical_tool_call_wire_bindings: Vec::new(),
+        session_id: None,
     })
 }
 
@@ -566,6 +573,7 @@ struct ProviderRequestPlanParts<'a> {
     tool_registry_snapshot_ref: Option<aura_tool_contract::ToolRegistrySnapshotRef>,
     tool_name_bindings: Vec<ProviderToolNameBinding>,
     historical_tool_call_wire_bindings: Vec<ProviderToolCallWireBinding>,
+    session_id: Option<SessionId>,
 }
 
 fn build_provider_request_plan_for_target(
@@ -584,6 +592,7 @@ fn build_provider_request_plan_for_target(
         tool_registry_snapshot_ref,
         tool_name_bindings,
         historical_tool_call_wire_bindings,
+        session_id,
     } = parts;
     if headers.iter().any(|header| header.name.eq_ignore_ascii_case("accept-encoding")) {
         return Err(ModelAdapterError::invalid_request(
@@ -618,6 +627,8 @@ fn build_provider_request_plan_for_target(
             "provider request URL has no host",
         )
     })?;
+    let rules = aura_provider_profile::request_rules(&request_url, api_format);
+    headers.extend(routing_headers(&rules, session_id, operation_context));
     let port = request_url.port_or_known_default().ok_or_else(|| {
         ModelAdapterError::invalid_request(
             "model_request.target_invalid",

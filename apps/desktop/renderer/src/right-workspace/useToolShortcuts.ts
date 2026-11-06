@@ -7,13 +7,11 @@ export const TOOL_SHORTCUTS: Partial<Record<ToolKind, string>> = {
   terminal: 'Ctrl+`',
   browser: 'Ctrl+T',
   files: 'Ctrl+P',
-  chat: 'Ctrl+Alt+S',
 };
 
 function toolFor(event: KeyboardEvent): ToolKind | undefined {
   const key = event.key.toLowerCase();
   if (event.shiftKey && !event.altKey) return key === 'g' ? 'review' : undefined;
-  if (event.altKey && !event.shiftKey) return key === 's' ? 'chat' : undefined;
   if (event.altKey || event.shiftKey) return undefined;
   if (event.code === 'Backquote' || key === '`') return 'terminal';
   return key === 'p' ? 'files' : key === 't' ? 'browser' : undefined;

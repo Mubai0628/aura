@@ -134,7 +134,7 @@ impl P05Services {
                     prepared_bundle: Box::new(prepared.prepared_bundle.ok_or(
                         ModelConfigError::InternalInvariant("successful trial lacks bundle"),
                     )?),
-                    expected_models_revision: Revision::new(current.revision),
+                    expected_models_revision: Revision::new(prepared.previous.revision),
                     reserved_models_revision: Some(prepared.candidate_revision),
                     expected_aura_revision: None,
                     reserved_aura_revision: None,

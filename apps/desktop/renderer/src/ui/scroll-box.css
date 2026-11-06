@@ -4,7 +4,7 @@
   max-height: min(360px, 46vh);
   overflow: auto;
   border: 1px dashed transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .scroll-box[data-overflowing='true'] {

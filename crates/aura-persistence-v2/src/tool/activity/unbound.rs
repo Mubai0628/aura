@@ -41,5 +41,6 @@ pub(super) fn project(
         shell_query_available: false,
         permission_mode: None,
         permission_revision: None,
+        remote_decision: None,
     })
 }

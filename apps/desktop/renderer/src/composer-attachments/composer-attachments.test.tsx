@@ -8,6 +8,7 @@ import { resetComposerDraftsForTests } from '../agent-session/composer-drafts';
 import { MessageAttachments } from './MessageAttachments';
 import { ConversationAttachments } from './ConversationAttachments';
 import { MAX_TEXT_BYTES, fileKind, readAttachment, typeLabel } from './attachment-files';
+import { resetPictureReadsForTests } from './picture-reads';
 
 // Pictures go in a row of
 // thumbnails and files in cards with their type's icon, name, type and size; they are sent with
@@ -29,6 +30,7 @@ const encoder = async (file: File) => ({
 });
 
 beforeEach(() => {
+  resetPictureReadsForTests();
   localStorage.clear();
   resetComposerDraftsForTests();
   submit.mockReset().mockResolvedValue({ ok: true, value: {} });
@@ -63,11 +65,19 @@ afterEach(() => {
 });
 
 function renderComposer() {
-  render(
-    <ConversationAttachments>
+  render(conversation());
+}
+
+/**
+ * A conversation's column; with `draftKey`, what its composer holds is kept for that key. Without
+ * `remount`, another conversation is shown in the same composer.
+ */
+function conversation(draftKey?: string, remount = true) {
+  return (
+    <ConversationAttachments key={remount ? draftKey : undefined} draftKey={draftKey}>
       <div aria-label="消息列表" />
       <ResizableComposer
-        sessionId="session"
+        sessionId={draftKey ?? 'session'}
         workspaceId="workspace"
         queuePending={false}
         onChanged={vi.fn()}
@@ -84,9 +94,49 @@ function renderComposer() {
         permissionMode="workspace_read_write"
         promptInspector={undefined}
       />
-    </ConversationAttachments>,
+    </ConversationAttachments>
   );
 }
+
+test('a pasted picture is still there after leaving the conversation and coming back', async () => {
+  const user = userEvent.setup();
+  const { rerender, unmount } = render(conversation('session'));
+  fireEvent.paste(screen.getByLabelText('输入消息'), {
+    clipboardData: { files: [new File([PNG], 'image.png', { type: 'image/png' })] },
+  });
+  expect(await screen.findByRole('img', { name: 'image.png' })).toBeTruthy();
+  // Another conversation's composer holds nothing of it.
+  rerender(conversation('other'));
+  expect(screen.queryByRole('img', { name: 'image.png' })).toBeNull();
+  // The settings page in between unmounts every conversation.
+  unmount();
+  render(conversation('session'));
+  expect(await screen.findByRole('img', { name: 'image.png' })).toBeTruthy();
+  // Once sent it is gone, also after coming back.
+  await user.click(screen.getByRole('button', { name: '发送消息' }));
+  await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+  cleanup();
+  render(conversation('session'));
+  expect(screen.queryByRole('img', { name: 'image.png' })).toBeNull();
+});
+
+test('a composer that shows another conversation adds to that conversation’s own pictures', async () => {
+  const paste = (name: string) =>
+    fireEvent.paste(screen.getByLabelText('输入消息'), {
+      clipboardData: { files: [new File([PNG], name, { type: 'image/png' })] },
+    });
+  const { rerender } = render(conversation('first', false));
+  paste('first.png');
+  expect(await screen.findByRole('img', { name: 'first.png' })).toBeTruthy();
+  rerender(conversation('second', false));
+  expect(screen.queryByRole('img', { name: 'first.png' })).toBeNull();
+  paste('second.png');
+  expect(await screen.findByRole('img', { name: 'second.png' })).toBeTruthy();
+  expect(screen.queryByRole('img', { name: 'first.png' })).toBeNull();
+  rerender(conversation('first', false));
+  expect(await screen.findByRole('img', { name: 'first.png' })).toBeTruthy();
+  expect(screen.queryByRole('img', { name: 'second.png' })).toBeNull();
+});
 
 test('a file is read as a picture, a text file with its contents, or a file by its place', async () => {
   const picture = await readAttachment(

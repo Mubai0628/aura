@@ -29,12 +29,13 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
             .into_iter()
             .chain(compile(&input.request.closing_exchange)?);
         let state = message("developer", &layout.current);
-        // At OpenAI's cache the task's current state goes before the conversation: it kept a
-        // turn's steps only as far as the instructions while a few hundred tokens or more followed
-        // the conversation, and as far as the last step once nothing did; the state changes rarely
-        // within a turn, so each step's input begins with the one before. Elsewhere the state stays
-        // after the conversation, where DeepSeek cached nearly every step.
-        let history = if aura_model_transport::reaches_openai_cache(input.snapshot) {
+        // Where the request's profile asks for it - at OpenAI's cache - the task's current state
+        // goes before the conversation: OpenAI kept a turn's steps only as far as the instructions
+        // while a few hundred tokens or more followed the conversation, and as far as the last step
+        // once nothing did; the state changes rarely within a turn, so each step's input begins
+        // with the one before. Elsewhere the state stays after the conversation, where DeepSeek
+        // cached nearly every step.
+        let history = if aura_model_transport::state_before_conversation(input.snapshot) {
             std::iter::once(state).chain(conversation).chain(closing).collect::<Vec<_>>()
         } else {
             conversation.into_iter().chain(std::iter::once(state)).chain(closing).collect()
@@ -42,9 +43,9 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));
         if let Some(key) =
-            aura_model_transport::prompt_cache_key(input.snapshot, input.request, &layout)
+            aura_model_transport::routing_key_field(input.snapshot, input.request, &layout)
         {
-            body.insert("prompt_cache_key".to_owned(), Value::String(key));
+            body.insert(key.name, Value::String(key.value));
         }
         body.insert("instructions".to_owned(), Value::String(layout.stable));
         body.insert("input".to_owned(), Value::Array(history));
@@ -53,6 +54,12 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
             Value::from(input.snapshot.request_options.effective_max_output_tokens),
         );
         body.insert("stream".to_owned(), Value::Bool(true));
+        if aura_model_transport::store_off(input.snapshot) {
+            body.insert("store".to_owned(), Value::Bool(false));
+        }
+        if aura_model_transport::encrypted_reasoning(input.snapshot) {
+            body.insert("include".to_owned(), json!(["reasoning.encrypted_content"]));
+        }
         body.insert(
             "text".to_owned(),
             json!({"format": responses_output_format(&input.request.output_request.format)}),
@@ -67,6 +74,7 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         if let Some(level) = input.snapshot.request_options.reasoning_effort {
             body.insert("reasoning".to_owned(), json!({"effort": level.openai_name()}));
         }
+        body.extend(aura_model_transport::speed_mode_fields(input.snapshot));
         if !input.request.tool_schema_set.tools.is_empty() {
             let provider_tools =
                 aura_model_transport::ordered_tool_bindings(input.request, &tool_name_bindings)

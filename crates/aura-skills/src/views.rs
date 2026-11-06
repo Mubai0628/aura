@@ -13,12 +13,19 @@ use serde::{Deserialize, Serialize};
 pub enum SkillSource {
     /// Imported into Aura's own Skill folder.
     AuraStore,
+    /// Comes with Aura: written from Aura's own copy into a folder of Aura's at each start.
+    #[serde(rename = "aura_builtin")]
+    AuraBuiltIn,
     /// `%USERPROFILE%\.agents\skills`, shared with other agents.
     AgentGlobal,
     /// `<workspace>\.agents\skills`.
     Workspace,
     /// In an installed plugin; trusted and switched with the plugin.
     Plugin,
+    /// `%USERPROFILE%\.claude\skills`, shared with Claude Code.
+    ClaudeGlobal,
+    /// `<workspace>\.claude\skills`.
+    ClaudeWorkspace,
 }
 
 impl SkillSource {
@@ -26,10 +33,26 @@ impl SkillSource {
     pub const fn key(self) -> &'static str {
         match self {
             Self::AuraStore => "aura_store",
+            Self::AuraBuiltIn => "aura_builtin",
             Self::AgentGlobal => "agent_global",
             Self::Workspace => "workspace",
             Self::Plugin => "plugin",
+            Self::ClaudeGlobal => "claude_global",
+            Self::ClaudeWorkspace => "claude_workspace",
         }
+    }
+
+    /// A folder of the selected workspace, which may hold someone else's repository: its Skills
+    /// wait until the user trusts that workspace's Skills once.
+    #[must_use]
+    pub const fn in_workspace(self) -> bool {
+        matches!(self, Self::Workspace | Self::ClaudeWorkspace)
+    }
+
+    /// One of the user's own folders, or Aura's: its Skills are usable as found.
+    #[must_use]
+    pub const fn users_own(self) -> bool {
+        matches!(self, Self::AuraStore | Self::AuraBuiltIn | Self::AgentGlobal | Self::ClaudeGlobal)
     }
 }
 
@@ -37,10 +60,12 @@ impl SkillSource {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillState {
-    /// Switched off. A Skill found outside Aura is off until the user switches it on.
+    /// Switched off by the user.
     Disabled,
+    /// A workspace's Skill before the user trusts that workspace's Skills.
     NotTrusted,
-    /// The content changed since the user trusted it; it is not offered until trusted again.
+    /// Trusted alone at a fingerprint, in a workspace not trusted as a whole, and changed since;
+    /// it is not offered until trusted again.
     ContentChanged,
     Ready,
     /// `SKILL.md` is missing or not usable; see `problems`.
@@ -98,6 +123,16 @@ pub struct SkillView {
     pub problems: Vec<String>,
     pub file_count: u32,
     pub bytes: u64,
+    /// Pinned by the user: its instructions go whole into every request where it is usable.
+    #[serde(default)]
+    pub pinned: bool,
+    /// Pinned and usable, but past the limit beside the pinned Skills before it in name order, so
+    /// it is not sent now.
+    #[serde(default)]
+    pub pinned_left_out: bool,
+    /// About how many tokens it takes pinned; 0 unless it is pinned and usable.
+    #[serde(default)]
+    pub pin_tokens: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -114,6 +149,14 @@ pub struct SkillRegistryView {
     pub roots: Vec<SkillRootView>,
     /// Why saved choices cannot be used now (then nothing is offered to the model).
     pub issue: Option<String>,
+    /// Whether the user trusted the listed workspace's Skills; false when no workspace is listed.
+    #[serde(default)]
+    pub workspace_trusted: bool,
+    /// About how many tokens the pinned Skills sent now take together, and the most they may.
+    #[serde(default)]
+    pub pinned_tokens: u64,
+    #[serde(default)]
+    pub pinned_limit: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -152,6 +195,14 @@ pub struct SkillTrustRequest {
     pub expected_revision: u64,
 }
 
+/// Trust, or stop trusting, every Skill in one workspace's `.agents\skills` and `.claude\skills`.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SkillWorkspaceTrustRequest {
+    pub workspace_id: WorkspaceId,
+    pub expected_revision: u64,
+}
+
 /// Untrust a Skill, or remove one from Aura's own folder.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -159,6 +210,17 @@ pub struct SkillChangeRequest {
     pub id: SkillInstanceId,
     #[serde(default)]
     pub workspace_id: Option<WorkspaceId>,
+    pub expected_revision: u64,
+}
+
+/// Pin a usable Skill into every request, within the shared limit, or unpin it.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SkillSetPinnedRequest {
+    pub id: SkillInstanceId,
+    #[serde(default)]
+    pub workspace_id: Option<WorkspaceId>,
+    pub pinned: bool,
     pub expected_revision: u64,
 }
 

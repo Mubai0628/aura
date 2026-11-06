@@ -1,16 +1,16 @@
 import { hash } from '../ocean/mosaic';
 import { Rain, depthAt, seeded, surface, type View } from './rain';
 
-/** The water from calm to churned; a crest is drawn in the accent. */
+/** The water from calm to churned; a crest is drawn in ink. */
 const WATER = ' .·-~=+*#%';
 /** What the water shows before it settles, in its first half second. */
 const NOISE = '01<>/\\|{}[]*+=~';
 const LETTERS = 'ABCDEFGHJKMNPRSTUVWXYZ';
 export const NAME = 'AURA';
-const CREST = '#4f9a80';
-const INK = '#242724';
+const CREST = '#1c1c1b';
+const INK = '#1c1c1b';
 /** A thin rim of the screen's own white around each letter of the name, so it reads over the rain. */
-const RIM = '#fafbf9';
+const RIM = '#ffffff';
 const MONO = "'JetBrains Mono Variable', 'Cascadia Mono', Consolas, monospace";
 const SIZE = 11;
 const LINE = 1.15;
@@ -39,7 +39,7 @@ function mix(a: string, b: string, t: number): string {
   return `rgb(${from.map((v, i) => Math.round(v + (to[i]! - v) * t)).join(',')})`;
 }
 /** Shallow to deep. */
-const LAKE = Array.from({ length: 8 }, (_, i) => mix('#c9d8d3', '#2f524c', i / 7));
+const LAKE = Array.from({ length: 8 }, (_, i) => mix('#d6d6d2', '#2a2a28', i / 7));
 
 export interface RainLake {
   /** Fits the canvas to its box. */

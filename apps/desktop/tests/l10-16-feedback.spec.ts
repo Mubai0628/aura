@@ -152,7 +152,9 @@ test('L10.16 rain at startup, sharks in an empty conversation, the Todo card, a 
       .toBeGreaterThanOrEqual(400);
     await page.screenshot({ path: info.outputPath('startup-rain.png') });
     await expect(page.locator('#aura-splash')).toHaveCount(0, { timeout: 30_000 });
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
 
     const setup = await armReadOnlyWrite(page, workspace, model.url, {
       title: 'L10.16',
@@ -199,7 +201,9 @@ test('L10.16 rain at startup, sharks in an empty conversation, the Todo card, a 
     await card.getByRole('button', { name: '关闭清单' }).click();
     await expect(card).toHaveCount(0);
     await page.reload();
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
     await first.click();
     await expect(page.getByRole('textbox', { name: '输入消息' })).toBeVisible();
     // Not in the page at all, whether the card around it is open or waiting behind its entry.

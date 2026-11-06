@@ -70,6 +70,7 @@ fn snapshot() -> ModelExecutionSnapshot {
             reasoning_effort: None,
             reasoning_by_effort: false,
             image_input: false,
+            speed_mode: None,
         },
         historical_tool_call_wire_bindings: Vec::new(),
         credential_id: None,
@@ -188,6 +189,7 @@ fn compiled_plan(
             operation_context: &operation_context,
             compatibility_removals: &BTreeSet::new(),
             applied_output_token_field_alias: None,
+            session_id: None,
         })
         .expect("compile Responses request");
     plan.request_evidence.adapter =

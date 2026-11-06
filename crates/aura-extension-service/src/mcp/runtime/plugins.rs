@@ -93,6 +93,8 @@ impl McpRuntime {
                 secrets.insert(secret.secret_id);
                 servers.insert(secret.server.clone());
             }
+            // The plugin's own secret settings, given to its background service.
+            secrets.extend(plugin.values.secrets.values().copied());
             servers.extend(plugin.trusted_parts.servers.keys().cloned());
             for (id, changed) in &plugin.changes.servers {
                 secrets.extend(changed.transport.secret_ids());

@@ -3,6 +3,8 @@ use aura_agent_execution::agent_execution;
 use aura_tool_contract::{ToolRegistrySnapshotV1, ToolSettingsSnapshotV1};
 use aura_tool_domain::ToolEphemeralLoadRecordV1;
 
+const CHILD_SESSION: &str = "Computer control works in the 小窗, a separate Windows session the user watches beside Aura. Shell and terminal commands still run on the user's own desktop: a program or page they open appears there, not in the 小窗. Open programs with computer.open and work in them with the computer tools, even where a command would be quicker; to show a page, open the browser with computer.open and enter the address in it. Aura refuses a script that would open a page, a browser or a folder window.";
+
 pub(super) type FrozenFacts = (
     TurnTask,
     AgentRun,
@@ -24,6 +26,7 @@ impl AgentApplication {
         permission: &PermissionSnapshot,
         step: &ModelStep,
         at: UtcTimestamp,
+        computer: bool,
     ) -> anyhow::Result<FrozenFacts> {
         Ok({
             // Boundary: this is ONE contiguous synchronous critical section - it holds the
@@ -62,7 +65,7 @@ impl AgentApplication {
                         history.items.pop();
                     }
                     let (registry, loads, tool_settings, package_tools) =
-                        app.prepare_registry(db, &turn, &permission, at)?;
+                        app.prepare_registry(db, &turn, &permission, at, computer)?;
                     let (revision, hash) = checkpoint::current_state(db, turn.turn_task_id)?;
                     let session_state = session::load(db, turn.session_id)?;
                     let lineages = session_state
@@ -95,7 +98,7 @@ impl AgentApplication {
                             "required": true,
                             "instruction": "This Plan or Goal was interrupted or paused. Before any other work, call mode.disposition. continue keeps that mode and, for Goal, ends the pause without resetting usage. skip marks the episode skipped and this turn stays Normal. If intent is unclear, call query.user_question. Do not infer the decision from keywords or from this reminder."
                         }));
-                    let state = serde_json::json!({
+                    let mut state = serde_json::json!({
                         "turn":turn,"run":run,"session":session_state,"todo":work::todo(db,turn.turn_task_id)?,
                         "query":work::query(db,turn.turn_task_id)?,"goal":if turn.mode==AgentTaskMode::Goal {Some(work::goal(db,turn.turn_task_id)?)}else{None},
                         "related_source":aura_persistence_v2::agent::related::context(db,turn.turn_task_id)?,
@@ -108,6 +111,17 @@ impl AgentApplication {
                         "protocol_completion_reminder":protocol_completion,
                         "state_revision":revision,"state_hash":hash,"registry_snapshot_ref":registry.snapshot_ref,"permission_mode":permission.mode,"continuation":step.continuation
                     });
+                    // The tools' own descriptions send a model to the command line first; in the
+                    // 小窗 that opens things on the user's desktop instead.
+                    if computer
+                        && aura_persistence_v2::agent::application::computer_mode(db, run_id)?
+                            .is_some_and(|mode| !mode.is_foreground())
+                    {
+                        state["computer_control"] = serde_json::json!({
+                            "desktop": "child_session",
+                            "instruction": CHILD_SESSION,
+                        });
+                    }
                     Ok((
                         turn, run, bundle, prompt, settings, history, registry, loads,
                         tool_settings, package_tools, state,

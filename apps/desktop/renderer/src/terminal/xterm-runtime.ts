@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import {
   attachTerminalConsumer,
   configureTerminalRenderer,
+  configureTerminalText,
   terminalApi,
   terminalFailure,
   type TerminalRecord,
@@ -13,6 +14,7 @@ import { CONPTY, conptyResizer, type HeldOutput } from './conpty-resize';
 import { applyRepaint, repaintComplete } from './conpty-align';
 import { terminalPalette, terminalTheme } from './terminal-colors';
 import { VtColorConverter } from './vt-colors';
+import { bufferText } from './buffer-text';
 import '@xterm/xterm/css/xterm.css';
 
 interface Engine {
@@ -196,6 +198,13 @@ export function terminalEngine(record: TerminalRecord): Engine {
 }
 configureTerminalRenderer((record) => {
   terminalEngine(record);
+});
+// Read once everything received so far is on its screen.
+configureTerminalText(async (id, lines) => {
+  const engine = engines.get(id);
+  if (!engine) return undefined;
+  await engine.drain();
+  return bufferText(engine.terminal.buffer.active, lines);
 });
 export function disposeTerminalEngine(id: string) {
   engines.get(id)?.dispose();

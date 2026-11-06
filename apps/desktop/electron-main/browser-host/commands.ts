@@ -17,6 +17,7 @@ const PLAIN = new Set([
   'assist-decline',
   'devtools',
   'picture',
+  'text',
 ]);
 const MAX_INPUT = 4096;
 const MAX_EDGE = 20_000;

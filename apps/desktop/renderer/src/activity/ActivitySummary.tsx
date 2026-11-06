@@ -7,6 +7,8 @@ import './activity-summary.css';
 export interface ActivitySummaryProps {
   /** The conversation's mode and its controls, shown with its state. */
   children?: ReactNode;
+  /** The programs the model is controlling now, right after the conversation's own part. */
+  computer?: ReactNode;
   /** The conversation's Goal, after the conversation's own part. */
   goal?: ReactNode;
   /** The model's task list, after the conversation's own part. */
@@ -58,6 +60,7 @@ function Changes({ changes }: { changes: ChangeSummary | undefined }) {
  */
 export function ActivitySummary({
   children,
+  computer,
   goal,
   todo,
   workspaceId,
@@ -83,6 +86,7 @@ export function ActivitySummary({
         </div>
         {children}
       </section>
+      {computer}
       {goal}
       {todo}
       <section aria-label="未提交改动" className="activity-section">

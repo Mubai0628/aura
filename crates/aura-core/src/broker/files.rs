@@ -41,10 +41,12 @@ pub(crate) async fn dispatch_files(
     let operation =
         super::operation(&request.method, &request.params, request.id, capabilities, resources)
             .map_err(|e| super::error_envelope(request.id, e))?;
-    // The broker runs each real pre/post read on its existing bounded owner. Keep only the
-    // first preparation for observation; never substitute it for the post-execution evidence.
-    let prepared: Arc<std::sync::OnceLock<Value>> = Arc::new(std::sync::OnceLock::new());
-    let inspect: super::OwnedInspect = {
+    // The broker runs each real pre/post read on its existing bounded owner. Keep the latest
+    // preparation, which is the one of the attempt that runs, for observation; the
+    // post-execution evidence reads the facts again and never records them here.
+    let prepared: Arc<std::sync::Mutex<Option<Value>>> = Arc::default();
+    let attempt: Arc<std::sync::OnceLock<aura_domain_common::SecurityOperationId>> = Arc::default();
+    let read_facts: super::OwnedInspect = {
         // The workspace/buffer capability is a real dependency of this
         // broker route, so it is refused with a stable code when its configuration
         // domain is damaged.
@@ -54,10 +56,14 @@ pub(crate) async fn dispatch_files(
         let fs = Arc::clone(&p03.fs);
         let runtime = Arc::clone(&p03.workspace);
         let paths = paths.clone();
-        let prepared = Arc::clone(&prepared);
+        Arc::new(move || facts(&fs, &runtime, workspace, session, &paths))
+    };
+    let inspect: super::OwnedInspect = {
+        let (read, prepared) = (Arc::clone(&read_facts), Arc::clone(&prepared));
         Arc::new(move || {
-            let value = facts(&fs, &runtime, workspace, session, &paths)?;
-            let _ = prepared.set(value.clone());
+            let value = read()?;
+            *prepared.lock().map_err(|_| anyhow::anyhow!("file preparation lock"))? =
+                Some(value.clone());
             Ok(value)
         })
     };
@@ -73,9 +79,12 @@ pub(crate) async fn dispatch_files(
     let observer = services.activity_observer.clone();
     let activity_method = request.method.clone();
     let activity_paths = paths.clone();
+    let activity_attempt = Arc::clone(&attempt);
     let activity_publisher: aura_fs_tools::FileExecutionObserver = Arc::new(move |requests| {
         let mut subject = activity_subject.clone();
-        subject.targets = verified_targets_of(&activity_paths, prepared.get());
+        subject.operation_id = activity_attempt.get().copied().unwrap_or(subject.operation_id);
+        let prepared = prepared.lock().map(|value| value.clone()).unwrap_or_default();
+        subject.targets = verified_targets_of(&activity_paths, prepared.as_ref());
         let mut record = agent_activity::main_record(&subject, &activity_method);
         if !requests.is_empty() {
             record.resources = agent_activity::resources::project(requests);
@@ -85,7 +94,7 @@ pub(crate) async fn dispatch_files(
         observer.observe(index.publish(record));
         Box::new(agent_activity::AgentActivityGuard::new(index.clone(), id, generation))
     });
-    let evidence_inspect = Arc::clone(&inspect);
+    let evidence_inspect = read_facts;
     let evidence_persistence = Arc::clone(&services.persistence);
     let event_method = request.method.clone();
     let event_id = request.id;
@@ -162,9 +171,11 @@ pub(crate) async fn dispatch_files(
         operation,
         request.command_invocation_id.map_or_else(|| request.id.to_string(), |id| id.to_string()),
         request.command_invocation_id,
+        on_changed_facts(&request.method),
         inspect,
         evidence,
-        move || async move {
+        move |operation_id| async move {
+            let _ = attempt.set(operation_id);
             // Recheck live permission revisions after preparation and before
             // entering the existing secure-path transaction implementation.
             if mutation {
@@ -242,6 +253,19 @@ pub(crate) async fn dispatch_files(
         },
     );
     outcome
+}
+
+/// A read, or a save of text the user wrote, is prepared again when its file changed before it
+/// started: each save carries the version it expects, which the save itself checks on the latest
+/// file. Every other workspace change is refused as before.
+pub(super) fn on_changed_facts(method: &str) -> super::OnChangedFacts {
+    use aura_ipc::method::{BUFFER_SAVE, FS_APPLY_PATCH, FS_WRITE_FILE};
+    let save = matches!(method, FS_WRITE_FILE | FS_APPLY_PATCH | BUFFER_SAVE);
+    if save || !P04Services::gates_authenticated_main_workspace_mutation(method) {
+        super::OnChangedFacts::Retry
+    } else {
+        super::OnChangedFacts::Refuse
+    }
 }
 
 type ReadScope = (WorkspaceId, SessionId, Vec<WorkspacePath>, Vec<ResolvedCapability>);

@@ -19,7 +19,7 @@
 .chrome-strip-badge {
   padding: 1px 8px;
   border: 1px solid var(--warning-line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--warning);
   background: var(--warning-soft);
   white-space: nowrap;

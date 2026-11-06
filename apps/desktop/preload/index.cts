@@ -253,6 +253,8 @@ const api: AuraApiV1 = Object.freeze({
     invokeP05('models.profile.create_from_catalog', request),
   applyModelProfileCatalogUpdate: (request: P05MainParams['models.profile.apply_catalog_update']) =>
     invokeP05('models.profile.apply_catalog_update', request),
+  getModelProfileCatalogEntries: (request: P05MainParams['models.profile.catalog_entries']) =>
+    invokeP05('models.profile.catalog_entries', request),
   editWorkspaceBuffer: (request: P03MainParams['workspace.buffer.edit']) =>
     invokeP03('workspace.buffer.edit', request),
   exportArtifact: (request: P04MainParams['artifact.export']) =>
@@ -444,6 +446,8 @@ const api: AuraApiV1 = Object.freeze({
   resetModelRuntimeContextWindow: (
     request: P05MainParams['models.context_window.reset_runtime_correction'],
   ) => invokeP05('models.context_window.reset_runtime_correction', request),
+  retryModelCredentialCleanup: (request: P05MainParams['models.credential_cleanup.retry']) =>
+    invokeP05('models.credential_cleanup.retry', request),
   prepareHostPreparation: (request: P04MainParams['security.host_preparation.prepare']) =>
     invokeP04('security.host_preparation.prepare', request),
   prepareQuarantineRelease: (request: P04MainParams['security.quarantine.prepare_release']) =>

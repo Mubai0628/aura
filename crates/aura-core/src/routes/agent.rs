@@ -13,6 +13,7 @@ pub(crate) async fn dispatch(
             anyhow::bail!("core.recovery_required");
         };
         services.commands()?.set_terminal_publisher(queue.clone())?;
+        services.plugin_services.set_publisher(queue.clone());
         // The browser host is Main; its commands go out on this connection.
         if let Ok(agent) = services.agent() {
             agent.browser().set_publisher(queue.clone());
@@ -143,6 +144,13 @@ pub(crate) async fn dispatch(
             )
             .await;
         }
+        // 设置 → 电脑操控 and a conversation's 正在操控. They start nothing a model can reach.
+        if request.method.starts_with("computer.") {
+            let (method, params) = (request.method.as_str(), request.params.clone());
+            let execution = Arc::clone(&services.agent()?.execution);
+            let command = request.command_invocation_id;
+            return agent_execution::computer_route(&execution, method, params, command).await;
+        }
         // A new conversation from one finished turn of this one.
         if request.method == "agent.session.branch" {
             return crate::session_branch::dispatch(services, request).await;
@@ -199,77 +207,41 @@ pub(crate) async fn dispatch(
         }
         // Settings → Hook. Nothing here runs a Hook; package reads run off the reactor.
         if request.method.starts_with("agent.hooks.") {
-            if aura_ipc::routes::side_effecting(&request.method) {
-                anyhow::ensure!(
-                    request.command_invocation_id.is_some(),
-                    "ipc.command_invocation_id_required"
-                );
-            }
             let context =
                 hooks::HookContext::of(&services._settings, &services.broker, &services.plugins);
-            let (method, params) = (request.method.clone(), request.params.clone());
-            return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
-                .await
-                .map_err(|error| anyhow::anyhow!("hooks.interrupted: {error}"))?;
+            return off_reactor(request, "hooks", move |m, p| context.dispatch(m, p)).await;
         }
         // Settings → MCP. Nothing here calls a server's tool; refresh and trust start a
         // server to list its tools, off the reactor.
         if request.method.starts_with("agent.mcp.") {
-            if aura_ipc::routes::side_effecting(&request.method) {
-                anyhow::ensure!(
-                    request.command_invocation_id.is_some(),
-                    "ipc.command_invocation_id_required"
-                );
-            }
             let context = crate::mcp::McpContext::new(Arc::clone(&services.mcp));
-            let (method, params) = (request.method.clone(), request.params.clone());
-            return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
-                .await
-                .map_err(|error| anyhow::anyhow!("mcp.interrupted: {error}"))?;
+            return off_reactor(request, "mcp", move |m, p| context.dispatch(m, p)).await;
         }
         // Settings → Skill. Reading folders and importing a copy run off the reactor.
         if request.method.starts_with("agent.skills.") {
-            if aura_ipc::routes::side_effecting(&request.method) {
-                anyhow::ensure!(
-                    request.command_invocation_id.is_some(),
-                    "ipc.command_invocation_id_required"
-                );
-            }
             let context = skills::SkillContext::new(Arc::clone(&services.skills));
-            let (method, params) = (request.method.clone(), request.params.clone());
-            return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
-                .await
-                .map_err(|error| anyhow::anyhow!("skills.interrupted: {error}"))?;
+            return off_reactor(request, "skills", move |m, p| context.dispatch(m, p)).await;
         }
         // Settings → 插件. Reading plugin folders and importing a copy run off the reactor;
         // nothing here runs anything a plugin brings.
         if request.method.starts_with("agent.plugins.") {
-            if aura_ipc::routes::side_effecting(&request.method) {
-                anyhow::ensure!(
-                    request.command_invocation_id.is_some(),
-                    "ipc.command_invocation_id_required"
-                );
-            }
             let context = plugins::PluginContext::new(Arc::clone(&services.plugins));
-            let (method, params) = (request.method.clone(), request.params.clone());
-            return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
-                .await
-                .map_err(|error| anyhow::anyhow!("plugins.interrupted: {error}"))?;
+            return off_reactor(request, "plugins", move |m, p| context.dispatch(m, p)).await;
+        }
+        // A plugin acting through Main: reading a conversation, stopping its turn, its panel, its
+        // notices, status entry and settings. A message or command starts work: it waits below.
+        if request.method.starts_with("agent.plugin_session.")
+            && !aura_plugin_session::starts_work(&request.method)
+        {
+            return aura_plugin_session::PluginSessions::new(agent, Arc::clone(&services.plugins))
+                .dispatch(&request.method, request.command_invocation_id, request.params.clone())
+                .await;
         }
         // The user's command menu and settings. Nothing here starts a task; the
         // directory reads run off the reactor.
         if request.method.starts_with("agent.commands.") {
-            if aura_ipc::routes::side_effecting(&request.method) {
-                anyhow::ensure!(
-                    request.command_invocation_id.is_some(),
-                    "ipc.command_invocation_id_required"
-                );
-            }
             let context = crate::slash_commands::CommandContext::of(services);
-            let (method, params) = (request.method.clone(), request.params.clone());
-            return tokio::task::spawn_blocking(move || context.dispatch(&method, params))
-                .await
-                .map_err(|error| anyhow::anyhow!("commands.interrupted: {error}"))?;
+            return off_reactor(request, "commands", move |m, p| context.dispatch(m, p)).await;
         }
         if matches!(
             request.method.as_str(),
@@ -376,6 +348,11 @@ pub(crate) async fn dispatch(
                     )
                     .await?,
             )?);
+        }
+        if aura_plugin_session::starts_work(&request.method) {
+            return aura_plugin_session::PluginSessions::new(agent, Arc::clone(&services.plugins))
+                .dispatch(&request.method, request.command_invocation_id, request.params.clone())
+                .await;
         }
         if request.method == "agent.sessions.activity" {
             let asked: aura_agent_domain::AgentSessionsActivityRequest =
@@ -551,4 +528,22 @@ pub(crate) async fn dispatch(
     };
     send_recorded_response(state, queue, request, response).await?;
     Ok(terminal)
+}
+
+/// A settings page's call, off the reactor: its folder reads and copies block. A call that
+/// changes something carries its command invocation.
+async fn off_reactor<F>(request: &JsonRpcRequest, area: &str, dispatch: F) -> Result<Value>
+where
+    F: FnOnce(&str, Value) -> Result<Value> + Send + 'static,
+{
+    if aura_ipc::routes::side_effecting(&request.method) {
+        anyhow::ensure!(
+            request.command_invocation_id.is_some(),
+            "ipc.command_invocation_id_required"
+        );
+    }
+    let (method, params) = (request.method.clone(), request.params.clone());
+    tokio::task::spawn_blocking(move || dispatch(&method, params))
+        .await
+        .map_err(|error| anyhow::anyhow!("{area}.interrupted: {error}"))?
 }

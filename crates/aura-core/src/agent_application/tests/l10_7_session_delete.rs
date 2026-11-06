@@ -39,6 +39,7 @@ async fn run(runtime: &crate::RuntimeState, session: SessionId, model: ModelProf
         runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!("{text}: write the result file and finish"),
@@ -47,7 +48,9 @@ async fn run(runtime: &crate::RuntimeState, session: SessionId, model: ModelProf
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

@@ -46,6 +46,13 @@ pub struct AgentUserMessageView {
     /// what the user typed; the model read them with the message ([`message_with_attachments`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<AgentMessageAttachment>,
+    /// What the message referred to when it was sent; the model read it after the message's
+    /// text ([`message_with_references`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub references: Vec<MessageReferenceView>,
+    /// Who sent it, when the user did not type it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sender: Option<MessageSender>,
 }
 
 /// A history poll's view of one completion report: where it lives, how long it is,

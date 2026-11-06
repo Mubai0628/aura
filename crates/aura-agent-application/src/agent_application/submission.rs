@@ -10,6 +10,16 @@ impl AgentApplication {
     ) -> anyhow::Result<AgentRunProjection> {
         self.start_input(command, input, None, None).await
     }
+    /// Starts a turn as [`Self::start`] does, its message marked as `sender`'s.
+    pub async fn start_sent(
+        self: &Arc<Self>,
+        command: CommandInvocationId,
+        input: AgentStartRequest,
+        sender: Option<MessageSender>,
+    ) -> anyhow::Result<AgentRunProjection> {
+        let purpose = AgentTaskPurpose::Conversation;
+        self.start_purpose(command, input, None, None, purpose, None, None, sender).await
+    }
     /// `/init`: a one-off workspace initialization task in an idle session. It runs as
     /// Normal with the session's permission mode and model, and its user message is the
     /// command with the user's note, exactly as the transcript shows it.
@@ -18,9 +28,19 @@ impl AgentApplication {
         command: CommandInvocationId,
         input: AgentInitStartRequest,
     ) -> anyhow::Result<AgentRunProjection> {
+        self.start_init_sent(command, input, None).await
+    }
+    /// `/init` as [`Self::start_init`] starts it, its message marked as `sender`'s.
+    pub async fn start_init_sent(
+        self: &Arc<Self>,
+        command: CommandInvocationId,
+        input: AgentInitStartRequest,
+        sender: Option<MessageSender>,
+    ) -> anyhow::Result<AgentRunProjection> {
         let note = input.text.trim();
         let text = if note.is_empty() { "/init".to_owned() } else { format!("/init\n\n{note}") };
         let request = AgentStartRequest {
+            computer_mode: input.computer_mode,
             session_id: input.session_id,
             model_profile_id: input.model_profile_id,
             text,
@@ -29,7 +49,9 @@ impl AgentApplication {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         };
         self.start_purpose(
             command,
@@ -39,6 +61,7 @@ impl AgentApplication {
             AgentTaskPurpose::WorkspaceInit,
             None,
             None,
+            sender,
         )
         .await
     }
@@ -51,10 +74,20 @@ impl AgentApplication {
         command: CommandInvocationId,
         input: AgentCompactionStartRequest,
     ) -> anyhow::Result<AgentRunProjection> {
+        self.start_compaction_sent(command, input, None).await
+    }
+    /// `/compact` as [`Self::start_compaction`] starts it, its message marked as `sender`'s.
+    pub async fn start_compaction_sent(
+        self: &Arc<Self>,
+        command: CommandInvocationId,
+        input: AgentCompactionStartRequest,
+        sender: Option<MessageSender>,
+    ) -> anyhow::Result<AgentRunProjection> {
         let focus = input.focus.as_deref().map(str::trim).filter(|note| !note.is_empty());
         let text =
             focus.map_or_else(|| "/compact".to_owned(), |note| format!("/compact\n\n{note}"));
         let request = AgentStartRequest {
+            computer_mode: input.computer_mode,
             session_id: input.session_id,
             model_profile_id: input.model_profile_id,
             text,
@@ -63,7 +96,9 @@ impl AgentApplication {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         };
         let focus = focus.map(str::to_owned);
         self.start_purpose(
@@ -74,6 +109,7 @@ impl AgentApplication {
             AgentTaskPurpose::Compaction,
             Some(focus),
             None,
+            sender,
         )
         .await
     }
@@ -92,6 +128,7 @@ impl AgentApplication {
             AgentTaskPurpose::Conversation,
             None,
             None,
+            None,
         )
         .await
     }
@@ -107,7 +144,20 @@ impl AgentApplication {
         compaction: Option<Option<String>>,
         // A "继续" for a turn a restart cut off: it goes ahead of the queue.
         continuation: Option<super::continuation::Continuation>,
+        // Who sent the turn's message when the user did not type it.
+        sender: Option<MessageSender>,
     ) -> anyhow::Result<AgentRunProjection> {
+        // A turn whose request names no desktop uses the one the settings choose, kept for the
+        // whole turn; the user's own desktop is what no choice already means.
+        let mut input = input;
+        if input.computer_mode.is_none() {
+            input.computer_mode = self
+                .execution
+                .desktop
+                .get()
+                .map(|desktop| desktop.settings().settings.mode)
+                .filter(|mode| !mode.is_foreground());
+        }
         // A command is compared by its receipt, which holds its attachments' digests.
         let existing = input.receipt();
         let previous = self
@@ -121,10 +171,16 @@ impl AgentApplication {
                 .status(&AgentRunRequest { session_id: input.session_id, agent_run_id: run })
                 .await?);
         }
+        // A queued root was checked when it was queued: its words may be blank beside its
+        // attachments or references, which it keeps itself.
         anyhow::ensure!(
-            (!input.text.trim().is_empty() || !input.attachments.is_empty())
+            (inbox.is_some()
+                || !input.text.trim().is_empty()
+                || !input.attachments.is_empty()
+                || !input.references.is_empty())
                 && input.text.len() <= 256 * 1024
-                && (inbox.is_none() || input.attachments.is_empty())
+                && (inbox.is_none()
+                    || (input.attachments.is_empty() && input.references.is_empty()))
                 && (input.mode == AgentTaskMode::Goal || input.goal_budget.is_none())
                 && input
                     .explicit_backend_id
@@ -165,9 +221,29 @@ impl AgentApplication {
                 &input.attachments,
             )
             .await?;
+        // A queued message's Skills were checked and written out when it was sent; a direct
+        // start checks them and writes them out now.
+        let direct = match &inbox {
+            Some(_) => agent_execution::skill_tools::ChosenSkills::default(),
+            None => self.selected_skills(Some(session.workspace_id), &input.skill_ids).await?,
+        };
+        // So are its references; a direct start resolves them now.
+        let referred = match &inbox {
+            Some(_) => Vec::new(),
+            None => {
+                self.resolve_references(
+                    input.session_id,
+                    Some(session.workspace_id),
+                    &input.text,
+                    &input.references,
+                )
+                .await?
+            }
+        };
         let at = UtcTimestamp::now();
-        // The root message as it becomes part of the conversation, with what the user typed and
-        // the attachments recorded with it.
+        // The root message as it becomes part of the conversation: what the user typed, then its
+        // attachments, its references and the Skills chosen with it, recorded with how much the
+        // user typed.
         let (user, typed, attached) = if let Some(pending) = &inbox {
             let root = pending
                 .messages
@@ -175,7 +251,10 @@ impl AgentApplication {
                 .find(|m| m.destination == AgentInputLane::NextTurn)
                 .ok_or_else(|| anyhow::anyhow!("agent.queue_empty"))?
                 .clone();
-            let user = if root.attachments.is_empty() {
+            let user = if root.attachments.is_empty()
+                && root.skills.is_empty()
+                && root.references.is_empty()
+            {
                 root.freeze(input.session_id, at)?
             } else {
                 let (message, session) = (root.clone(), input.session_id);
@@ -191,7 +270,13 @@ impl AgentApplication {
             let user = OriginalUserMessage::new(
                 EventId::new(),
                 input.session_id,
-                aura_agent_domain::message_with_attachments(&input.text, &parts),
+                aura_agent_domain::message_with_skills(
+                    &aura_agent_domain::message_with_references(
+                        &aura_agent_domain::message_with_attachments(&input.text, &parts),
+                        &referred,
+                    ),
+                    &direct.texts,
+                ),
                 UserMessageOrigin::UserInput,
                 at,
             )?;
@@ -205,8 +290,7 @@ impl AgentApplication {
             at,
         )?;
         let tool_settings = self.settings.tool_settings_snapshot()?;
-        // A queued message's Skills were checked when it was sent; a direct start checks
-        // them now. Every message this turn takes in keeps its own choice for its history.
+        // Every message this turn takes in keeps its own choice for its history.
         let mut chosen: Vec<(EventId, Vec<LoadedSkillEntry>)> = match &inbox {
             Some(pending) => pending
                 .messages
@@ -214,20 +298,9 @@ impl AgentApplication {
                 .filter(|m| m.destination == AgentInputLane::NextTurn && !m.skills.is_empty())
                 .map(|m| (m.message_id, m.skills.clone()))
                 .collect(),
-            None => vec![(
-                user.event_id,
-                self.selected_skills(Some(session.workspace_id), &input.skill_ids).await?,
-            )],
+            None => vec![(user.event_id, direct.entries)],
         };
         chosen.retain(|(_, skills)| !skills.is_empty());
-        let mut loaded: Vec<LoadedSkillEntry> = Vec::new();
-        for skill in chosen.iter().flat_map(|(_, skills)| skills) {
-            if loaded.len() < agent_execution::skill_tools::MAX_LOADED
-                && !loaded.iter().any(|entry| entry.skill_id == skill.skill_id)
-            {
-                loaded.push(skill.clone());
-            }
-        }
         let workspace = workspace.clone();
         let session = session.clone();
         let owned = input.clone();
@@ -316,6 +389,15 @@ impl AgentApplication {
                             bundle.snapshot.id,
                             purpose,
                         )?;
+                        if let Some(sender) = &sender {
+                            aura_persistence_v2::agent::sender::set(
+                                tx,
+                                user.event_id,
+                                owned.session_id,
+                                sender,
+                                at,
+                            )?;
+                        }
                         // A queued root message's attachments were kept when it was queued
                         // (Ok); a started message's are kept now (Err holds them as prepared).
                         let kept = match &attached {
@@ -331,7 +413,16 @@ impl AgentApplication {
                             tx,
                             user.event_id,
                             &typed,
+                            &user.text,
                             &kept,
+                            at,
+                        )?;
+                        // A queued root's references were kept by its id when it was queued.
+                        aura_persistence_v2::agent::references::set(
+                            tx,
+                            user.event_id,
+                            owned.session_id,
+                            &referred,
                             at,
                         )?;
                         if let Some(rewrite) = &message_rewrite {
@@ -360,12 +451,6 @@ impl AgentApplication {
                         }
                         if let Some(continuation) = &continuation {
                             continuation.record(tx, &turn, at)?;
-                        }
-                        if !loaded.is_empty() {
-                            let run = turn.agent_run_id;
-                            let ids: Vec<_> = loaded.iter().map(|skill| skill.skill_id).collect();
-                            aura_persistence_v2::agent::skills::set_loaded(tx, run, &loaded, at)?;
-                            aura_persistence_v2::agent::skills::set_chosen(tx, run, &ids, at)?;
                         }
                         for (message, skills) in &chosen {
                             aura_persistence_v2::agent::skills::set_selected(

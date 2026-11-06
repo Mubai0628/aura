@@ -8,6 +8,11 @@ use serde::Deserialize;
 use serde_json::{Number, Value};
 
 use crate::CatalogError;
+use crate::model_details::{model_type, modes, price_tiers, reasoning_field, route};
+
+/// The version of what the parser reads from models.dev. A snapshot read by an older version is
+/// fetched whole and read again.
+pub const CATALOG_PARSER_REVISION: u32 = 1;
 
 #[derive(Deserialize)]
 struct RawProvider {
@@ -61,6 +66,12 @@ struct RawModel {
     status: Option<String>,
     #[serde(default)]
     cost: Option<RawCost>,
+    #[serde(default, rename = "type")]
+    model_type: Value,
+    #[serde(default)]
+    provider: Value,
+    #[serde(default)]
+    experimental: Value,
 }
 
 #[derive(Default, Deserialize)]
@@ -82,7 +93,7 @@ struct RawModalities {
 }
 
 #[derive(Deserialize)]
-struct RawCost {
+pub(crate) struct RawCost {
     #[serde(default)]
     input: Option<Number>,
     #[serde(default)]
@@ -91,6 +102,8 @@ struct RawCost {
     cache_read: Option<Number>,
     #[serde(default)]
     cache_write: Option<Number>,
+    #[serde(default)]
+    tiers: Value,
 }
 
 pub fn parse_models_dev_catalog(
@@ -116,6 +129,11 @@ pub fn parse_models_dev_catalog(
                         )));
                     }
                     let reasoning_options = reasoning_options(&model.reasoning_options)?;
+                    let price_tiers = model
+                        .cost
+                        .as_ref()
+                        .map(|cost| price_tiers(&cost.tiers))
+                        .unwrap_or_default();
                     let price = model.cost.map(provider_price).transpose()?;
                     Ok((
                         model_id.clone(),
@@ -145,6 +163,11 @@ pub fn parse_models_dev_catalog(
                             open_weights: model.open_weights,
                             status: model.status,
                             price,
+                            model_type: model_type(&model.model_type),
+                            route: route(&model.provider),
+                            reasoning_field: reasoning_field(&model.interleaved),
+                            price_tiers,
+                            modes: modes(&model.experimental),
                         },
                     ))
                 })
@@ -200,7 +223,7 @@ fn interleaved_capability(value: &Value) -> Option<bool> {
     }
 }
 
-fn provider_price(cost: RawCost) -> Result<ProviderCatalogPrice, CatalogError> {
+pub(crate) fn provider_price(cost: RawCost) -> Result<ProviderCatalogPrice, CatalogError> {
     Ok(ProviderCatalogPrice {
         currency: CatalogPriceCurrency::Usd,
         unit: CatalogPriceUnit::PerMillionTokens,

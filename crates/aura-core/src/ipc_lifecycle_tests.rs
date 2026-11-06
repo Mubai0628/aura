@@ -689,7 +689,7 @@ async fn a_saturated_queue_fails_every_reader_reply_path_without_waiting() {
         .begin(repeated, CorrelationId::new())
         .expect("the original command is already executing");
 
-    // Saturate the reserved P0 partition with reader answers.
+    // Saturate P0 with reader answers: its reservation and the overflow behind it.
     let queue = AsyncPriorityQueue::new();
     while try_send_json(&queue, QueuePriority::P0, &serde_json::json!({ "keep": true })).is_ok() {}
 

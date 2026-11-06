@@ -31,6 +31,14 @@
   font-size: 12px;
 }
 
+.provider-group-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 12px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .provider-group-divider {
   height: 1px;
   margin: 18px 0 0;
@@ -64,10 +72,10 @@
   gap: 8px;
   padding: 9px 11px;
   margin-top: 12px;
-  border: 1px solid #ddcda5;
-  border-radius: 9px;
-  color: #755b21;
-  background: #fffaf0;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  background: var(--warning-soft);
   font-size: 11px;
 }
 
@@ -83,7 +91,7 @@
   gap: 2px 10px;
   padding: 11px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   color: var(--ink);
   text-align: left;
   background: var(--surface);
@@ -127,7 +135,7 @@
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--quiet);
   background: transparent;
   transform: translateY(-50%);
@@ -136,17 +144,17 @@
 .provider-card-config:hover,
 .provider-card-config:focus-visible {
   color: var(--ink);
-  background: #e8eeea;
+  background: var(--surface-selected);
 }
 
 .provider-card:hover,
 .provider-card.is-selected {
-  border-color: #9eb4ad;
-  background: #f6f9f7;
+  border-color: var(--ink);
+  background: var(--surface-muted);
 }
 
 .provider-card.is-selected {
-  box-shadow: inset 0 0 0 1px #9eb4ad;
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 .provider-card.is-unavailable,
@@ -163,8 +171,8 @@
 }
 
 .provider-card.is-information-only .provider-mark {
-  color: #665f54;
-  background: #f0eee9;
+  color: var(--muted);
+  background: var(--surface-selected);
 }
 
 .provider-add-card {
@@ -181,8 +189,8 @@
   height: 38px;
   overflow: hidden;
   place-items: center;
-  border-radius: 9px;
-  color: #365b53;
+  border-radius: var(--radius-md);
+  color: var(--accent);
   background: var(--accent-soft);
   font-size: 11px;
   font-weight: 750;
@@ -268,7 +276,7 @@
 }
 
 .model-card[data-default] {
-  border-color: #b9cfc6;
+  border-color: var(--success-line);
 }
 
 .model-card-heading {
@@ -312,7 +320,7 @@
 .status-ready,
 .status-warning {
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11.5px;
   line-height: 1.6;
   white-space: nowrap;
@@ -324,13 +332,13 @@
 }
 
 .status-ready {
-  color: #35644a;
-  background: #e8f2eb;
+  color: var(--success);
+  background: var(--success-soft);
 }
 
 .status-warning {
-  color: #795820;
-  background: #f4ebd7;
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .model-card-facts {
@@ -388,25 +396,97 @@
   gap: 8px;
 }
 
-/* The row's buttons are padded for words; its 更多 icon keeps its whole square. */
+/* One strip: the search, the connection, the buttons and the 更多 square are all 32px tall with
+   the same border, so no control in the row stands out by its size. The connection's menu and the
+   buttons stand on the buttons' hard shadow; the search is a field, which shows that shadow only
+   while it is typed into. */
+.model-section-actions :is(.model-section-search, select, .button, .icon-button) {
+  box-sizing: border-box;
+  height: 32px;
+  min-height: 32px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+}
+.model-section-actions :is(select, .button, .icon-button) {
+  box-shadow: var(--shadow-xs);
+}
+.model-section-actions .model-section-search:focus-within {
+  border-color: var(--focus);
+  box-shadow: var(--focus-shadow);
+}
+
 .model-section-actions .icon-button {
   width: 32px;
   min-width: 32px;
-  height: 32px;
   padding: 0;
 }
 
+.model-section-actions .button.is-small {
+  padding: 0 12px;
+}
+
+/* The search box of the settings header at the size of this row: the icon, then the words. It
+   narrows before the row wraps. */
+.model-section-search {
+  display: inline-flex;
+  flex: 0 1 180px;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  padding: 0 8px;
+  color: var(--muted);
+}
+
+.model-section-search input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 12px;
+}
+
+/* Words, then the switch, like 连接 before its menu: a switch drawn as a switch, without a frame. */
+.model-section-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
 /* A provider's models — its name and how many, then the connection they use and the ways
-   to add one. */
+   to add one. The name and the count keep their line; when the toolbar no longer fits beside
+   them it moves, whole, to the line below instead of squeezing the name or breaking apart. */
+.provider-models-section > .section-heading-row {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 10px;
+}
+
+.provider-models-section .model-section-actions {
+  flex: 1 1 auto;
+}
+
 .model-section-title {
   display: flex;
+  flex: none;
   align-items: baseline;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .model-section-count {
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   background: var(--surface-muted);
   font-size: 12px;
@@ -423,7 +503,7 @@
 
 .model-endpoint-select select {
   max-width: 220px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .model-section-actions select,
@@ -433,19 +513,19 @@
   min-height: 32px;
   padding: 0 9px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   color: var(--ink);
   background: var(--surface);
 }
 
 .danger-button {
-  color: #9a352f !important;
-  border-color: #e1b9b5 !important;
-  background: #fffafa !important;
+  color: var(--danger) !important;
+  border-color: var(--danger-line) !important;
+  background: var(--surface) !important;
 }
 
 .danger-button:hover:not(:disabled) {
-  background: #fbeeed !important;
+  background: var(--surface-muted) !important;
 }
 
 .model-operation-status {
@@ -455,9 +535,9 @@
   gap: 8px 12px;
   padding: 10px 12px;
   margin: 10px 0;
-  border: 1px solid #d9e1dd;
-  border-radius: 9px;
-  background: #f7f9f8;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
 }
 
 .model-operation-status > div:first-child {
@@ -480,7 +560,7 @@
 .model-operation-cancellation-note {
   grid-column: 1 / -1;
   margin: 0;
-  color: #755b21;
+  color: var(--warning);
   font-size: 10px;
   line-height: 1.45;
 }
@@ -489,7 +569,7 @@
   min-height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 
@@ -507,19 +587,29 @@
   gap: 8px;
 }
 
+/* The sentence saying why a check failed or did not run needs the card's whole width. */
+.availability-checks > .is-wide {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}
+
 .availability-checks dt,
 .availability-checks dd {
   margin: 0;
   font-size: 9px;
 }
 
+.availability-checks dt {
+  flex: none;
+}
+
 .provider-error-summary {
   grid-column: 1 / -1;
   padding: 8px 9px;
-  border: 1px solid #e7c7c4;
-  border-radius: 7px;
-  color: #7e332e;
-  background: #fff7f6;
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 .provider-error-summary p {
@@ -542,10 +632,10 @@
   max-width: 260px;
   padding: 6px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 8px 22px rgba(37, 43, 39, 0.12);
+  box-shadow: var(--shadow-sm);
   font-size: 10px;
   opacity: 0;
   pointer-events: none;
@@ -565,5 +655,5 @@
   min-height: 180px;
   margin-top: 12px;
   border: 1px dashed var(--line-strong);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }

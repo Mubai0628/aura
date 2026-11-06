@@ -108,6 +108,13 @@ describe('ActivityNoteStack', () => {
     expect(activity?.style.width).toBe('300px');
   });
 
+  test('the compact activity entry names the child desktop', () => {
+    conversationRight = 900;
+    showCard(0.2, { controlling: 1, childDesktop: true });
+    expect(screen.getByRole('button', { name: /正在小窗中操控 1 个程序/u })).toBeTruthy();
+    expect(screen.getByText('小窗中操控')).toBeTruthy();
+  });
+
   test('a narrow window keeps a compact mode entry that expands the full card', async () => {
     conversationRight = 900;
     const { activity } = showCard();
@@ -161,6 +168,26 @@ describe('ActivityNoteStack', () => {
     closeTodo(todoListKey('trn_progress', '2'));
     showCard(0.2, { taskList: list });
     expect(screen.getByRole('button', { name: '展开近期活动（当前模式 Plan）' })).not.toBeNull();
+  });
+
+  test('the collapsed card says 操控中 while a program is controlled, and 你已接管 once none is', () => {
+    conversationRight = 900;
+    showCard(0.2, { controlling: 1, takenOver: true });
+    const controlled = screen.getByRole('button', {
+      name: '展开近期活动（当前模式 Plan，正在操控 1 个程序）',
+    });
+    expect(controlled.textContent).toContain('操控中');
+    expect(controlled.textContent).not.toContain('你已接管');
+    cleanup();
+    showCard(0.2, { controlling: 0, takenOver: true });
+    const taken = screen.getByRole('button', { name: '展开近期活动（当前模式 Plan，你已接管）' });
+    expect(taken.textContent).toContain('你已接管');
+    expect(taken.textContent).not.toContain('操控中');
+    cleanup();
+    showCard(0.2, { controlling: 0, takenOver: false });
+    const idle = screen.getByRole('button', { name: '展开近期活动（当前模式 Plan）' });
+    expect(idle.textContent).not.toContain('操控中');
+    expect(idle.textContent).not.toContain('你已接管');
   });
 
   test('wide sidebars start compact before any layout measurement', () => {

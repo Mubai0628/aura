@@ -143,7 +143,10 @@ impl AgentApplication {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: configured.request.reasoning_effort,
+            speed_mode: configured.request.speed_mode.clone(),
+            computer_mode: configured.request.computer_mode,
             attachments: Vec::new(),
+            references: Vec::new(),
         };
         let continuation = Continuation { after, automatic };
         self.start_purpose(
@@ -154,6 +157,7 @@ impl AgentApplication {
             AgentTaskPurpose::Conversation,
             None,
             Some(continuation),
+            None,
         )
         .await
     }

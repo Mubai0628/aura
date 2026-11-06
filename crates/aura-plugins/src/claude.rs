@@ -86,6 +86,7 @@ pub(crate) fn parse_plugin_json(
         author,
         homepage: text(fields.get("homepage")),
         limits: PluginLimits::default(),
+        declared: crate::declarations::PluginDeclarations::default(),
     });
     problems.extend(check(&manifest));
     let mut command_sources = vec!["commands".to_owned()];

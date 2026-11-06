@@ -1,8 +1,12 @@
-//! The newest screenshots of the built-in browser and of the user's Chrome
+//! The newest screenshots of the built-in browser, of the user's Chrome and of the user's desktop
 //! go to a model that takes images, each with the tool result it belongs to. They are read once
 //! per step; before each compilation pass only those whose results are still in the history, not
 //! cleared and not compacted away, are attached. A screenshot travels as its tool's result, on the
 //! same basis and in the same class as the result's text.
+//!
+//! A screenshot that leaves the request changes the request where its result is, so the prefix a
+//! provider cached ends there. Older screenshots therefore leave a batch at a time: one change of
+//! that part of the request per batch, not one per new screenshot.
 //!
 //! So do the pictures the user sent with a
 //! message, each with its message, as the user's own submission.
@@ -12,8 +16,16 @@ use aura_agent_domain::{MAX_MEDIA_FRAMES, MediaFramesResult};
 use aura_model_domain::{ModelAttachmentSnapshot, ResolvedModelAttachment};
 use aura_tool_contract::{ModelVisibleToolResultOutcomeV1, ModelVisibleToolSuccessPayloadV1};
 
-/// How many of the newest screenshots a request carries.
+/// How many of the newest screenshots a request carries at least.
 const SENT: usize = 3;
+/// How many older screenshots leave the request together.
+const BATCH: usize = 3;
+
+/// How many of `count` screenshots, the newest, a request carries: the newest [`SENT`], and the
+/// older ones until [`BATCH`] more have come.
+fn carried(count: usize) -> usize {
+    if count <= SENT { count } else { SENT + (count - SENT) % BATCH }
+}
 /// How many of the newest pictures sent with user messages a request carries.
 const PICTURES: usize = 20;
 
@@ -72,15 +84,14 @@ pub fn media_result(content: &str) -> Option<MediaFramesResult> {
 }
 
 /// Select whole result groups before reversing them: frames keep their requested order. A newer
-/// media result replaces the previous one even when it failed, is hidden, or has no images.
+/// media result replaces the previous one even when it failed, is hidden, or has no images. Every
+/// screenshot the model was shown counts, so how many are carried follows [`carried`].
 pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
+    // Newest first: each screenshot as its own group, and the latest media result's group.
     let mut groups = Vec::new();
-    let mut screenshots = 0;
+    let mut screenshots = Vec::new();
     let mut media_seen = false;
     for item in items.iter().rev() {
-        if screenshots == SENT && media_seen {
-            break;
-        }
         let LogicalConversationItem::ToolResult {
             source_event_id,
             tool_name,
@@ -112,16 +123,27 @@ pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
                     ));
                 }
             }
-        } else if matches!(tool_name.as_str(), "browser.screenshot" | "chrome.screenshot")
-            && !*is_error
-            && screenshots < SENT
+        } else if matches!(
+            tool_name.as_str(),
+            "browser.screenshot"
+                | "chrome.screenshot"
+                | "computer.screenshot"
+                | "computer.act"
+                | "computer.input"
+        ) && !*is_error
             && let Some(id) = serde_json::from_str::<serde_json::Value>(content)
                 .ok()
                 .as_ref()
                 .and_then(shown_screenshot)
         {
-            screenshots += 1;
-            let shown = if tool_name == "chrome.screenshot" { "Chrome" } else { "browser" };
+            let shown = if tool_name == "chrome.screenshot" {
+                "Chrome"
+            } else if tool_name.starts_with("computer.") {
+                "desktop"
+            } else {
+                "browser"
+            };
+            screenshots.push(groups.len());
             images.push((id, format!("{shown} screenshot")));
         }
         if !images.is_empty() {
@@ -137,7 +159,15 @@ pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
             );
         }
     }
-    groups.into_iter().rev().flatten().collect()
+    // The older screenshots beyond what is carried leave; the media result's group stays.
+    let left = screenshots.split_off(carried(screenshots.len()));
+    groups
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| left.binary_search(index).is_err())
+        .rev()
+        .flat_map(|(_, group)| group)
+        .collect()
 }
 
 impl AgentApplication {
@@ -343,3 +373,7 @@ pub(in crate::agent_application::context) fn current_messages(
         _ => Vec::new(),
     }
 }
+
+#[cfg(test)]
+#[path = "screenshots_tests.rs"]
+mod tests;

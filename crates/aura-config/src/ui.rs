@@ -27,12 +27,40 @@ impl DefaultTerminal {
     }
 }
 
+/// Whether the sea behind an empty conversation moves.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BackgroundMotion {
+    /// Still while Windows asks for less motion (animation effects off).
+    #[default]
+    System,
+    On,
+    Off,
+}
+impl BackgroundMotion {
+    fn key(self) -> Option<&'static str> {
+        match self {
+            Self::System => None,
+            Self::On => Some("on"),
+            Self::Off => Some("off"),
+        }
+    }
+    fn follows_system(&self) -> bool {
+        *self == Self::System
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UiSettings {
     /// The session's runtime readiness and tool execution record, for debugging (default off).
     pub show_debug_information: bool,
     pub default_terminal: DefaultTerminal,
+    /// The plugin whose theme the window uses; none is Aura's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_theme: Option<String>,
+    #[serde(default, skip_serializing_if = "BackgroundMotion::follows_system")]
+    pub background_motion: BackgroundMotion,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -52,7 +80,7 @@ pub(crate) fn settings_from_document(
     document: &ModuleConfigDocument,
 ) -> Result<UiSettings, ConfigValidationError> {
     // Fields this version does not use — a theme carried over by the V1 import, or a value another
-    // version wrote — are kept as written and ignored; only the two choices here are checked.
+    // version wrote — are kept as written and ignored; only the choices here are checked.
     let mut settings = UiSettings::default();
     if let Some(value) = document.values.get("show_debug_information") {
         settings.show_debug_information =
@@ -71,6 +99,29 @@ pub(crate) fn settings_from_document(
                     module: ConfigModule::Ui,
                     field: "default_terminal".into(),
                     expected: "\"power_shell\" or \"cmd\"",
+                });
+            }
+        };
+    }
+    if let Some(value) = document.values.get("plugin_theme") {
+        let name = value.as_str().filter(|name| aura_plugins::valid_plugin_name(name));
+        settings.plugin_theme = Some(name.map(str::to_owned).ok_or_else(|| {
+            ConfigValidationError::InvalidModuleFieldType {
+                module: ConfigModule::Ui,
+                field: "plugin_theme".into(),
+                expected: "a plugin's name",
+            }
+        })?);
+    }
+    if let Some(value) = document.values.get("background_motion") {
+        settings.background_motion = match value.as_str() {
+            Some("on") => BackgroundMotion::On,
+            Some("off") => BackgroundMotion::Off,
+            _ => {
+                return Err(ConfigValidationError::InvalidModuleFieldType {
+                    module: ConfigModule::Ui,
+                    field: "background_motion".into(),
+                    expected: "\"on\" or \"off\"",
                 });
             }
         };
@@ -113,6 +164,22 @@ impl SettingsFacade {
                 "default_terminal".into(),
                 Value::String(settings.default_terminal.key().into()),
             );
+            match &settings.plugin_theme {
+                Some(name) => {
+                    values.insert("plugin_theme".into(), Value::String(name.clone()));
+                }
+                None => {
+                    values.remove("plugin_theme");
+                }
+            }
+            match settings.background_motion.key() {
+                Some(key) => {
+                    values.insert("background_motion".into(), Value::String(key.into()));
+                }
+                None => {
+                    values.remove("background_motion");
+                }
+            }
         })
     }
 }

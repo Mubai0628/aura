@@ -66,6 +66,7 @@ impl ProviderRequestFactory for Request {
             operation_context: operation,
             compatibility_removals: removed,
             applied_output_token_field_alias: None,
+            session_id: self.identity.session_id,
         };
         match self.snapshot.api_format {
             ModelApiFormat::OpenAiChatCompletions => {

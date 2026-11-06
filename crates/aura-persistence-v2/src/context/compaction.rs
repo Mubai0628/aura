@@ -8,6 +8,11 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
+/// The journal record of a compaction starting (`running`) and ending (its final state), written
+/// in the transaction that changes its state and owned by the compaction, so the session's
+/// deletion takes it along. A plugin reads the conversation's compactions from it in order.
+pub const COMPACTION_STATE: &str = "context.compaction_state";
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Compaction {
     pub id: ContextProjectionSnapshotId,
@@ -97,6 +102,22 @@ pub fn begin(tx: &Transaction<'_>, value: &Compaction, sources: &[u8]) -> StoreR
     tx.execute(
         "INSERT INTO context_compactions VALUES(?1,?2,'running',1,?3)",
         params![value.id.to_string(), value.session_id.to_string(), record::encode(value)?],
+    )?;
+    told(tx, value, value.created_at)
+}
+
+fn told(tx: &Transaction<'_>, value: &Compaction, at: UtcTimestamp) -> StoreResult<()> {
+    event::append(
+        tx,
+        &event::EventDraft {
+            id: EventId::new(),
+            owner: &value.id.to_string(),
+            kind: COMPACTION_STATE,
+            version: 1,
+            payload: &serde_json::json!({"session_id": value.session_id, "state": value.state}),
+            at,
+        },
+        "context",
     )?;
     Ok(())
 }
@@ -298,7 +319,8 @@ pub fn finish_attempt(
             at,
         )?;
     }
-    save(tx, &old, &mut next)
+    save(tx, &old, &mut next)?;
+    if retry { Ok(()) } else { told(tx, &next, at) }
 }
 pub fn complete(
     tx: &Transaction<'_>,
@@ -344,6 +366,7 @@ pub fn complete(
     next.result_artifact_id = Some(artifact_id);
     next.state = "completed".into();
     save(tx, &old, &mut next)?;
+    told(tx, &next, at)?;
     super::manual_compaction::finish_linked(
         tx,
         &old,
@@ -390,6 +413,7 @@ pub fn complete_by_core(
     next.result_artifact_id = Some(artifact_id);
     next.state = "completed".into();
     save(tx, &old, &mut next)?;
+    told(tx, &next, at)?;
     compacted(tx, &old, at)
 }
 
@@ -432,6 +456,7 @@ pub fn interrupt_run(tx: &Transaction<'_>, run: AgentRunId, at: UtcTimestamp) ->
             a.terminal_at = Some(at);
         }
         save(tx, &old, &mut next)?;
+        told(tx, &next, at)?;
     }
     Ok(())
 }

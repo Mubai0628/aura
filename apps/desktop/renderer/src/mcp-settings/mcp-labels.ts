@@ -48,6 +48,17 @@ export const transportSummary = (config: McpServerConfig): string =>
     ? [config.transport.command, ...(config.transport.arguments ?? [])].join(' ')
     : config.transport.url;
 
+/** An untrusted or changed server is trusted first, never switched on as if it would run. */
+export const mcpNeedsTrust = (server: McpServerView) =>
+  server.state === 'not_trusted' || server.state === 'config_changed';
+
+export const mcpSwitchable = (server: McpServerView) =>
+  server.state === 'disabled' ||
+  (server.config.enabled && !mcpNeedsTrust(server) && server.state !== 'invalid');
+
+export const mcpTransport = (server: McpServerView) =>
+  `${server.config.transport.type === 'stdio' ? '本机程序：' : 'HTTP：'}${transportSummary(server.config)}`;
+
 /** How a server signs in, as trust covers it: where a secret goes or the OAuth client and
  * scopes, or a program's secret variable names. Never a secret. */
 export function authSummary(config: McpServerConfig): string | undefined {

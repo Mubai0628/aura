@@ -23,7 +23,18 @@
   margin-left: auto;
 }
 
-/* A plugin's server is labelled, and its secrets are entered in its row. */
+.mcp-details {
+  display: grid;
+  gap: 10px;
+}
+
+.mcp-details > p,
+.mcp-details > .settings-card-actions,
+.mcp-details > .mcp-plugin-secrets {
+  margin: 0;
+}
+
+/* A plugin's server is labelled, and its secrets are entered in its dialog. */
 .mcp-row-note {
   margin: 8px 0 0;
   color: var(--quiet);
@@ -52,9 +63,9 @@
   display: grid;
   gap: 10px;
   padding: 16px 18px;
-  border: 1px solid #c9dbd3;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
-  background: #f6faf8;
+  background: var(--surface-muted);
   animation: settings-panel-in var(--dur-base) var(--ease-out) both;
 }
 
@@ -86,7 +97,7 @@
 .mcp-form select:focus {
   border-color: var(--focus);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(46, 105, 115, 0.14);
+  box-shadow: var(--focus-shadow);
 }
 
 .mcp-form small {
@@ -125,7 +136,7 @@
   gap: 6px;
   padding: 5px 11px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   white-space: nowrap;
   cursor: pointer;

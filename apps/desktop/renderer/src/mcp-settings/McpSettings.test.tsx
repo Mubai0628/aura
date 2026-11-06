@@ -76,6 +76,11 @@ afterEach(cleanup);
 
 const rowOf = (name: string) =>
   screen.getByText(name, { selector: 'strong' }).closest('li') as HTMLElement;
+/** The server's dialog, opened with its row's 配置. */
+const details = async (name: string) => {
+  await userEvent.click(within(rowOf(name)).getByRole('button', { name: `配置 ${name}` }));
+  return screen.getByRole('dialog', { name });
+};
 
 test('lists servers with their state, and only a trusted server offers a switch', async () => {
   render(<McpSettings coreReady />);
@@ -97,6 +102,25 @@ test('lists servers with their state, and only a trusted server offers a switch'
   ).toBeTruthy();
 });
 
+test('a row is the server in one line; its dialog holds the rest and closes', async () => {
+  const user = userEvent.setup();
+  render(<McpSettings coreReady />);
+  await screen.findByText('files 服务器', { selector: 'strong' });
+  const row = rowOf('files 服务器');
+  expect(within(row).getByText('本机程序：C:\\Tools\\files.exe --stdio')).toBeTruthy();
+  expect(
+    within(row)
+      .getAllByRole('button')
+      .map((button) => button.textContent),
+  ).toEqual(['停用', '配置']);
+  const dialog = await details('files 服务器');
+  for (const name of ['测试连接', '工具与日志', '编辑', '撤销信任', '移除'])
+    expect(within(dialog).getByRole('button', { name })).toBeTruthy();
+  expect(within(dialog).getByText('可用 · 3 个工具')).toBeTruthy();
+  await user.click(within(dialog).getByRole('button', { name: '关闭' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
 test('trust shows what will run and trusts exactly the shown fingerprint', async () => {
   const user = userEvent.setup();
   api.trustMcpServer.mockResolvedValue(
@@ -105,7 +129,8 @@ test('trust shows what will run and trusts exactly the shown fingerprint', async
   render(<McpSettings coreReady />);
   await screen.findByText('fresh 服务器', { selector: 'strong' });
   await user.click(within(rowOf('fresh 服务器')).getByRole('button', { name: '查看并信任' }));
-  const dialog = screen.getByRole('alertdialog', { name: '信任 fresh 服务器' });
+  const shown = screen.getByRole('dialog', { name: 'fresh 服务器' });
+  const dialog = within(shown).getByRole('alertdialog', { name: '信任 fresh 服务器' });
   expect(dialog.textContent).toContain('C:\\Tools\\fresh.exe');
   expect(dialog.textContent).toContain('SHA-256 fresh-sha256');
   expect(dialog.textContent).toContain('参数：--stdio');
@@ -116,7 +141,8 @@ test('trust shows what will run and trusts exactly the shown fingerprint', async
     expected_fingerprint: 'fresh-fingerprint',
     expected_revision: 5,
   });
-  expect(await screen.findByText('已信任并启用 fresh 服务器，正在列出工具')).toBeTruthy();
+  expect(await within(shown).findByText('已信任并启用 fresh 服务器，正在列出工具')).toBeTruthy();
+  expect(within(shown).getByText('正在启动并列出工具…')).toBeTruthy();
   expect(within(rowOf('fresh 服务器')).getByText('正在启动并列出工具…')).toBeTruthy();
 });
 
@@ -168,13 +194,14 @@ test('adding a server checks it, saves it untrusted and never trusts it on save'
   expect(api.trustMcpServer).not.toHaveBeenCalled();
 });
 
-test('editing keeps the server ID and names the server it replaces', async () => {
+test('editing in the dialog keeps the server ID and names the server it replaces', async () => {
   const user = userEvent.setup();
   api.saveMcpServer.mockResolvedValue(registry(servers(), 6));
   render(<McpSettings coreReady />);
   await screen.findByText('files 服务器', { selector: 'strong' });
-  await user.click(within(rowOf('files 服务器')).getByRole('button', { name: '编辑' }));
-  const form = screen.getByRole('form', { name: '编辑 files 服务器' });
+  const dialog = await details('files 服务器');
+  await user.click(within(dialog).getByRole('button', { name: '编辑' }));
+  const form = within(dialog).getByRole('form', { name: '编辑 files 服务器' });
   expect(within(form).getByLabelText('服务器 ID')).toHaveProperty('disabled', true);
   const name = within(form).getByLabelText('显示名');
   await user.clear(name);
@@ -187,7 +214,10 @@ test('editing keeps the server ID and names the server it replaces', async () =>
       expected_revision: 5,
     }),
   );
-  expect(await screen.findByText('已保存 files')).toBeTruthy();
+  // Saved, the dialog shows the server again with the outcome.
+  expect(await within(dialog).findByText('已保存 files')).toBeTruthy();
+  expect(within(dialog).queryByRole('form')).toBeNull();
+  expect(within(dialog).getByRole('button', { name: '编辑' })).toBeTruthy();
 });
 
 test('switching, untrusting and removing name the shown revision; removal asks first', async () => {
@@ -204,10 +234,13 @@ test('switching, untrusting and removing name the shown revision; removal asks f
     enabled: false,
   });
   expect(await screen.findByText('已停用 files 服务器，正在运行的实例已停止')).toBeTruthy();
-  await user.click(within(rowOf('files 服务器')).getByRole('button', { name: '撤销信任' }));
+  const dialog = await details('files 服务器');
+  // The page's earlier outcome is not repeated in a dialog opened afterwards.
+  expect(within(dialog).queryByRole('status')).toBeNull();
+  await user.click(within(dialog).getByRole('button', { name: '撤销信任' }));
   expect(api.untrustMcpServer).toHaveBeenCalledWith({ id: 'files', expected_revision: 6 });
-  await user.click(within(rowOf('files 服务器')).getByRole('button', { name: '移除' }));
-  const confirm = screen.getByRole('alertdialog', { name: '移除 files 服务器' });
+  await user.click(within(dialog).getByRole('button', { name: '移除' }));
+  const confirm = within(dialog).getByRole('alertdialog', { name: '移除 files 服务器' });
   expect(confirm.textContent).toContain('程序文件不会被删除');
   expect(api.removeMcpServer).not.toHaveBeenCalled();
   await user.click(within(confirm).getByRole('button', { name: '移除' }));
@@ -215,6 +248,22 @@ test('switching, untrusting and removing name the shown revision; removal asks f
   await waitFor(() =>
     expect(screen.queryByText('files 服务器', { selector: 'strong' })).toBeNull(),
   );
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByRole('status').textContent).toBe('已移除 files 服务器');
+});
+
+test('a removed server’s dialog stays closed when the list has a server of that ID again', async () => {
+  const user = userEvent.setup();
+  // Added again at once: the list after the removal still has it.
+  api.removeMcpServer.mockResolvedValue(registry(servers(), 6));
+  render(<McpSettings coreReady />);
+  await screen.findByText('files 服务器', { selector: 'strong' });
+  const dialog = await details('files 服务器');
+  await user.click(within(dialog).getByRole('button', { name: '移除' }));
+  const confirm = within(dialog).getByRole('alertdialog', { name: '移除 files 服务器' });
+  await user.click(within(confirm).getByRole('button', { name: '移除' }));
+  expect(await screen.findByText('已移除 files 服务器')).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
 
 test("a refusal shows Core's sentence and reads the list again", async () => {
@@ -237,9 +286,10 @@ test('testing the connection lists the tools, and a failed start shows its error
   api.describeMcpServer.mockResolvedValue({ ok: true, value: detail(files) });
   render(<McpSettings coreReady />);
   await screen.findByText('files 服务器', { selector: 'strong' });
-  await user.click(within(rowOf('files 服务器')).getByRole('button', { name: '测试连接' }));
-  expect(await screen.findByText('files 服务器 连接成功，列出 1 个工具')).toBeTruthy();
-  const panel = await screen.findByRole('region', { name: 'files 服务器 的工具' });
+  const dialog = await details('files 服务器');
+  await user.click(within(dialog).getByRole('button', { name: '测试连接' }));
+  expect(await within(dialog).findByText('files 服务器 连接成功，列出 1 个工具')).toBeTruthy();
+  const panel = await within(dialog).findByRole('region', { name: 'files 服务器 的工具' });
   expect(within(panel).getByText('mcp.files.echo')).toBeTruthy();
 
   const failed = view('files', { state: 'failed', last_error: '服务器进程已退出（退出码 3）' });
@@ -251,9 +301,9 @@ test('testing the connection lists the tools, and a failed start shows its error
     ok: true,
     value: detail(failed, { tools: [], stderr: ['fixture: exiting at start'] }),
   });
-  await user.click(within(rowOf('files 服务器')).getByRole('button', { name: '测试连接' }));
+  await user.click(within(dialog).getByRole('button', { name: '测试连接' }));
   expect(
-    await screen.findByText('files 服务器 没有连接成功：服务器进程已退出（退出码 3）'),
+    await within(dialog).findByText('files 服务器 没有连接成功：服务器进程已退出（退出码 3）'),
   ).toBeTruthy();
 });
 
@@ -334,12 +384,13 @@ test('a plugin’s server the user changed says so, is switched here and gets it
     expected_revision: 5,
     enabled: false,
   });
-  await user.click(within(rowOf('kit-files 服务器')).getByRole('button', { name: '恢复插件默认' }));
+  const dialog = await details('kit-files 服务器');
+  await user.click(within(dialog).getByRole('button', { name: '恢复插件默认' }));
   expect(api.restoreMcpPluginDefault).toHaveBeenCalledWith({
     id: 'kit-files',
     expected_revision: 7,
   });
-  expect((await screen.findByRole('status')).textContent).toContain(
+  expect((await within(dialog).findByRole('status')).textContent).toContain(
     '已恢复 kit-files 服务器 的插件配置',
   );
   expect(within(rowOf('kit-files 服务器')).queryByText('已修改')).toBeNull();
@@ -367,14 +418,16 @@ test('a plugin’s server is edited here, trusted and removed with its plugin, a
   await screen.findByText('kit-files 服务器', { selector: 'strong' });
   const row = rowOf('kit-files 服务器');
   expect(within(row).getByText('插件 kit')).toBeTruthy();
-  expect(within(row).getByRole('button', { name: '编辑' })).toBeTruthy();
+  expect(within(row).getByText('密钥还没有设置：GITHUB_TOKEN')).toBeTruthy();
+  const dialog = await details('kit-files 服务器');
+  expect(within(dialog).getByRole('button', { name: '编辑' })).toBeTruthy();
   for (const name of ['移除', '撤销信任', '恢复插件默认'])
-    expect(within(row).queryByRole('button', { name })).toBeNull();
-  expect(within(row).queryByText('已修改')).toBeNull();
-  await user.type(within(row).getByLabelText('GITHUB_TOKEN'), 'token-value');
-  await user.click(within(row).getByRole('button', { name: '保存' }));
+    expect(within(dialog).queryByRole('button', { name })).toBeNull();
+  expect(within(dialog).queryByText('已修改')).toBeNull();
+  await user.type(within(dialog).getByLabelText('GITHUB_TOKEN'), 'token-value');
+  await user.click(within(dialog).getByRole('button', { name: '保存' }));
   const [request, bytes] = api.setMcpSecret.mock.calls[0] as [unknown, Uint8Array];
   expect(request).toEqual({ server_id: 'kit-files', secret_id: secretId });
   expect(bytes.length).toBe('token-value'.length);
-  expect((await screen.findByRole('status')).textContent).toContain('已保存 GITHUB_TOKEN');
+  expect((await within(dialog).findByRole('status')).textContent).toContain('已保存 GITHUB_TOKEN');
 });

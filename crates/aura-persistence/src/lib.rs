@@ -90,7 +90,7 @@ pub use legacy_configuration_transport::{
     HistoricalIntegrityDegradation, LEGACY_CONFIGURATION_TRANSPORT_MIGRATION_KEY,
 };
 pub use migration::{DatabaseOpenOptions, MigrationFaultPoint};
-pub use migration_check::store_migration_pending;
+pub use migration_check::{RECORDS_READABLE_SINCE, copy_before_start};
 pub use model::{
     CommittedProjection, DatabasePragmas, EventActor, MigrationRecoveryRequired,
     PersistentEventDraft,

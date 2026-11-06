@@ -99,7 +99,7 @@ const OPENED_ADDRESS: &str = "This script gave an address to Start-Process or st
 /// Whether a statement of the script hands an http(s) address to a command that opens it in the
 /// user's default program. Only the statement holding the address counts, so a server started on
 /// one line and fetched on the next is not taken for it.
-fn opens_address(script: &str) -> bool {
+pub fn opens_address(script: &str) -> bool {
     script.to_ascii_lowercase().split(['\n', ';', '|', '&']).any(|statement| {
         let Some(address) = statement.find("http://").or_else(|| statement.find("https://")) else {
             return false;

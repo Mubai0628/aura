@@ -36,10 +36,10 @@
   height: 40px;
   padding: 0 6px 0 14px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--quiet);
   background: var(--surface);
-  box-shadow: 0 6px 18px rgb(36 39 36 / 6%);
+  box-shadow: var(--shadow-xs);
 }
 
 .browser-home-address input {
@@ -56,7 +56,7 @@
 
 .browser-home-address .icon-button {
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
 }
 
 .browser-home-problem {
@@ -163,7 +163,7 @@
 }
 
 .art-card {
-  filter: drop-shadow(0 4px 8px rgb(36 39 36 / 8%));
+  filter: drop-shadow(3px 3px 0 var(--pixel-shadow));
 }
 
 .art-card-float {

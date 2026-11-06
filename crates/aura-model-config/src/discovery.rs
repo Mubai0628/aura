@@ -1,16 +1,18 @@
 use std::collections::BTreeSet;
 
 use aura_domain_common::{ContentHash, EndpointId, ModelProfileId, Revision, UtcTimestamp};
-use aura_model_catalog::{match_catalog_model, official_catalog_provider};
+use aura_model_catalog::match_catalog_model;
 use aura_model_domain::{
     AddManualModelInput, CatalogMatchState, DEFAULT_HISTORICAL_SNAPSHOT_MAX_TOKENS,
     DEFAULT_MODEL_CONTEXT_WINDOW_TOKENS, ManualModelCreateResult, ModelCatalogMetadata,
     ModelContextWindowConfig, ModelDiscoveryMergeResult, ModelDiscoveryProfileResult,
     ModelProfileConfig, ModelProfileDiscoveryState, ModelProfileOrigin, ModelProviderSource,
-    ModelRegistryConfig, ModelRequestDefaults, ProviderCatalogMatch, ProviderCatalogSnapshot,
+    ModelRegistryConfig, ModelRequestDefaults, ProviderCatalogMatch, ProviderCatalogMatchCandidate,
+    ProviderCatalogSnapshot,
 };
+use aura_provider_profile::{ModelRoute, connection_takes_model, route_for_catalog_model};
 
-use crate::{ModelConfigError, crud::normalize_model_notes};
+use crate::{ModelConfigError, catalog_choice::catalog_scope, crud::normalize_model_notes};
 
 pub fn merge_discovery_results(
     registry: &mut ModelRegistryConfig,
@@ -27,18 +29,13 @@ pub fn merge_discovery_results(
         .providers
         .get(&endpoint.provider_id)
         .ok_or(ModelConfigError::ProviderForEndpointNotFound(endpoint_id))?;
-    let catalog_provider_id = match &provider.source {
-        ModelProviderSource::ModelsDev { catalog_provider_id } => {
-            Some(catalog_provider_id.as_str())
-        }
-        // An unbound custom Provider whose Endpoint is a catalog Provider's own API matches
-        // against that Provider only.
-        ModelProviderSource::Custom { catalog_provider_id } => {
-            catalog_provider_id.as_deref().or_else(|| {
-                catalog.and_then(|snapshot| official_catalog_provider(snapshot, &endpoint.base_url))
-            })
-        }
-    };
+    let catalog_provider_id = catalog_scope(provider, &endpoint.base_url, catalog);
+    // A Provider whose models go by their own routes: a new model joins this connection only
+    // when it goes by its route, a model the catalog does not list going by the Provider's own.
+    let routed_provider = catalog
+        .zip(catalog_provider_id)
+        .and_then(|(snapshot, catalog_provider_id)| snapshot.providers.get(catalog_provider_id));
+    let (base_url, api_format) = (endpoint.base_url.clone(), endpoint.api_format);
     let existing_ids = endpoint.model_order.clone();
     let mut existing_by_name = existing_ids
         .iter()
@@ -75,6 +72,12 @@ pub fn merge_discovery_results(
                 .models
                 .get_mut(&model_profile_id)
                 .ok_or(ModelConfigError::ProfileNotFound(model_profile_id))?;
+            let enrichment = match (enrichment, catalog) {
+                (Some(found), Some(snapshot)) => {
+                    Some(keep_choice(found, model, snapshot, discovered_at)?)
+                }
+                (found, _) => found,
+            };
             let (match_state, needs_manual_confirmation) = if let Some(enrichment) = enrichment {
                 apply_enrichment(model, &enrichment);
                 (enrichment.match_state, enrichment.needs_manual_confirmation)
@@ -97,6 +100,23 @@ pub fn merge_discovery_results(
             continue;
         }
 
+        // The catalog says it is an image, embedding or other model that is not for chats.
+        if enrichment
+            .as_ref()
+            .and_then(|found| found.metadata.as_ref())
+            .is_some_and(|metadata| !metadata.snapshot.is_chat())
+        {
+            continue;
+        }
+        let model_route = enrichment
+            .as_ref()
+            .and_then(|found| found.metadata.as_ref())
+            .and_then(|metadata| metadata.snapshot.route.as_ref());
+        if routed_provider.is_some_and(|provider| {
+            !connection_takes_model(provider, model_route, &base_url, api_format)
+        }) {
+            continue;
+        }
         let model_profile_id = ModelProfileId::new();
         let enrichment = enrichment.unwrap_or_else(|| CatalogEnrichment::unmatched(None));
         let context_window =
@@ -268,6 +288,33 @@ pub fn create_model_from_catalog(
         }
     })?;
     validate_catalog_object_hash(catalog_model, expected_catalog_object_hash)?;
+    if !catalog_model.is_chat() {
+        return Err(ModelConfigError::CatalogModelNotChat {
+            catalog_provider_id: catalog_provider_id.to_owned(),
+            catalog_model_id: catalog_model_id.to_owned(),
+        });
+    }
+    let model_route = catalog_model.route.as_ref();
+    if !connection_takes_model(
+        catalog_provider,
+        model_route,
+        &endpoint.base_url,
+        endpoint.api_format,
+    ) {
+        return Err(match route_for_catalog_model(catalog_provider, model_route) {
+            ModelRoute::Route(route) => ModelConfigError::CatalogModelOnAnotherRoute {
+                catalog_provider_id: catalog_provider_id.to_owned(),
+                catalog_model_id: catalog_model_id.to_owned(),
+                route_id: route.route_id.clone(),
+            },
+            ModelRoute::Any | ModelRoute::Unsupported => {
+                ModelConfigError::CatalogModelRouteUnsupported {
+                    catalog_provider_id: catalog_provider_id.to_owned(),
+                    catalog_model_id: catalog_model_id.to_owned(),
+                }
+            }
+        });
+    }
     if endpoint.model_order.iter().any(|model_id| {
         registry
             .models
@@ -362,31 +409,45 @@ pub fn apply_catalog_update(
         expected_catalog_object_hash.clone(),
         updated_at,
     );
-    let changed = profile.catalog.as_ref() != Some(&next_catalog)
-        || profile.context.catalog_window_tokens != catalog_model.context_window_tokens;
-    if changed {
-        profile.catalog = Some(next_catalog);
-        profile.context.catalog_window_tokens = catalog_model.context_window_tokens;
+    relink(profile, next_catalog, updated_at);
+    Ok(())
+}
+
+/// Links `profile` to the catalog entry `next` describes, with the entry's context window.
+pub(crate) fn relink(
+    profile: &mut ModelProfileConfig,
+    next: ModelCatalogMetadata,
+    updated_at: UtcTimestamp,
+) {
+    let window = next.snapshot.context_window_tokens;
+    if profile.catalog.as_ref() != Some(&next) || profile.context.catalog_window_tokens != window {
+        profile.catalog = Some(next);
+        profile.context.catalog_window_tokens = window;
         profile.context.runtime_effective_window_tokens = profile
             .context
             .effective_window_tokens(profile.context.runtime_correction_basis.is_some());
         profile.updated_at = updated_at;
     }
-    Ok(())
 }
 
-fn validate_catalog_object_hash(
+/// The hash a catalog entry is listed and checked with.
+pub(crate) fn catalog_object_hash(
+    model: &aura_model_domain::ProviderCatalogModelEntry,
+) -> Result<ContentHash, ModelConfigError> {
+    Ok(ContentHash::blake3(&serde_json::to_vec(model)?))
+}
+
+pub(crate) fn validate_catalog_object_hash(
     model: &aura_model_domain::ProviderCatalogModelEntry,
     expected: &ContentHash,
 ) -> Result<(), ModelConfigError> {
-    let actual = ContentHash::blake3(&serde_json::to_vec(model)?);
-    if &actual != expected {
+    if &catalog_object_hash(model)? != expected {
         return Err(ModelConfigError::CatalogObjectHashMismatch);
     }
     Ok(())
 }
 
-fn catalog_metadata(
+pub(crate) fn catalog_metadata(
     catalog: &ProviderCatalogSnapshot,
     catalog_provider_id: &str,
     model: &aura_model_domain::ProviderCatalogModelEntry,
@@ -412,6 +473,8 @@ struct CatalogEnrichment {
     catalog_window_tokens: Option<u64>,
     match_state: CatalogMatchState,
     needs_manual_confirmation: bool,
+    /// The entries an ambiguous name matches.
+    candidates: Vec<ProviderCatalogMatchCandidate>,
 }
 
 impl CatalogEnrichment {
@@ -423,8 +486,61 @@ impl CatalogEnrichment {
             catalog_window_tokens: None,
             match_state: CatalogMatchState::Unmatched,
             needs_manual_confirmation: true,
+            candidates: Vec::new(),
         }
     }
+}
+
+/// An ambiguous name stays linked to the entry the user chose, while it is one of the name's
+/// entries; the link then follows the entry as the catalog now lists it.
+fn keep_choice(
+    found: CatalogEnrichment,
+    model: &ModelProfileConfig,
+    snapshot: &ProviderCatalogSnapshot,
+    matched_at: UtcTimestamp,
+) -> Result<CatalogEnrichment, ModelConfigError> {
+    match model.catalog.as_ref() {
+        Some(link)
+            if found.candidates.iter().any(|candidate| {
+                candidate.catalog_provider_id == link.catalog_provider_id
+                    && candidate.catalog_model_id == link.catalog_model_id
+            }) =>
+        {
+            matched(
+                snapshot,
+                link.catalog_provider_id.clone(),
+                link.catalog_model_id.clone(),
+                matched_at,
+            )
+        }
+        _ => Ok(found),
+    }
+}
+
+fn matched(
+    snapshot: &ProviderCatalogSnapshot,
+    catalog_provider_id: String,
+    catalog_model_id: String,
+    matched_at: UtcTimestamp,
+) -> Result<CatalogEnrichment, ModelConfigError> {
+    let model = &snapshot.providers[&catalog_provider_id].models[&catalog_model_id];
+    Ok(CatalogEnrichment {
+        display_name: Some(model.display_name.clone()),
+        metadata: Some(ModelCatalogMetadata {
+            catalog_provider_id,
+            catalog_model_id,
+            catalog_revision: snapshot.catalog_revision,
+            catalog_content_hash: snapshot.catalog_content_hash.clone(),
+            catalog_object_hash: catalog_object_hash(model)?,
+            snapshot: model.clone(),
+            matched_at: Some(matched_at),
+            match_state: CatalogMatchState::Matched,
+        }),
+        catalog_window_tokens: model.context_window_tokens,
+        match_state: CatalogMatchState::Matched,
+        needs_manual_confirmation: false,
+        candidates: Vec::new(),
+    })
 }
 
 fn resolve_catalog_enrichment(
@@ -435,24 +551,7 @@ fn resolve_catalog_enrichment(
 ) -> Result<CatalogEnrichment, ModelConfigError> {
     match match_catalog_model(snapshot, catalog_provider_id, provider_model_name) {
         ProviderCatalogMatch::Matched { catalog_provider_id, catalog_model_id } => {
-            let model = &snapshot.providers[&catalog_provider_id].models[&catalog_model_id];
-            let object_bytes = serde_json::to_vec(model)?;
-            Ok(CatalogEnrichment {
-                display_name: Some(model.display_name.clone()),
-                metadata: Some(ModelCatalogMetadata {
-                    catalog_provider_id,
-                    catalog_model_id,
-                    catalog_revision: snapshot.catalog_revision,
-                    catalog_content_hash: snapshot.catalog_content_hash.clone(),
-                    catalog_object_hash: aura_domain_common::ContentHash::blake3(&object_bytes),
-                    snapshot: model.clone(),
-                    matched_at: Some(matched_at),
-                    match_state: CatalogMatchState::Matched,
-                }),
-                catalog_window_tokens: model.context_window_tokens,
-                match_state: CatalogMatchState::Matched,
-                needs_manual_confirmation: false,
-            })
+            matched(snapshot, catalog_provider_id, catalog_model_id, matched_at)
         }
         ProviderCatalogMatch::Unmatched => {
             let mut enrichment = CatalogEnrichment::unmatched(catalog_provider_id);
@@ -461,12 +560,13 @@ fn resolve_catalog_enrichment(
             }
             Ok(enrichment)
         }
-        ProviderCatalogMatch::Ambiguous { .. } => Ok(CatalogEnrichment {
+        ProviderCatalogMatch::Ambiguous { candidates } => Ok(CatalogEnrichment {
             display_name: None,
             metadata: None,
             catalog_window_tokens: None,
             match_state: CatalogMatchState::Ambiguous,
             needs_manual_confirmation: true,
+            candidates,
         }),
     }
 }

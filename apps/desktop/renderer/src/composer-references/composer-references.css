@@ -1,0 +1,67 @@
+/* "@" references: the list above the composer and the line beside a sent message. */
+.composer-reference-menu {
+  left: 12px;
+  width: min(420px, calc(100% - 24px));
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.composer-reference-menu ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-reference-menu li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.composer-reference-menu li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-reference-menu li[aria-selected='true'] {
+  background: var(--surface-selected);
+}
+
+.message-references-line {
+  margin: 4px 0;
+  color: var(--quiet);
+  font-size: 11px;
+}
+
+.composer-reference-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 12px 0;
+}
+
+.composer-reference-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  background: var(--accent-soft);
+}
+
+.composer-reference-chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}

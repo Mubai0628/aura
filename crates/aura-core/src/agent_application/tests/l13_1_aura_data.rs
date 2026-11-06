@@ -31,6 +31,7 @@ async fn a_file_in_auras_own_data_asks_even_in_full_access() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -42,7 +43,9 @@ async fn a_file_in_auras_own_data_asks_even_in_full_access() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
+};
 
 use aura_config::{PreparedConfigBundle, SettingsFacade, SettingsFacadeError};
 use aura_domain_common::{
@@ -22,9 +26,59 @@ use thiserror::Error;
 
 use super::projection::{P05ProjectionBuilder, P05ProjectionError};
 use crate::p05_credential::{
-    CredentialChildPrePublishRecovery, CredentialDeleteChildOutcome, P05CredentialJournal,
-    P05CredentialJournalError,
+    CredentialChildPrePublishRecovery, CredentialCleanup, CredentialDeleteChildOutcome,
+    P05CredentialJournal, P05CredentialJournalError,
 };
+
+/// How long a write waits for another model-config journal to release the lease they share.
+const LEASE_WAIT: Duration = Duration::from_secs(2);
+const LEASE_RETRY: Duration = Duration::from_millis(20);
+
+/// Prepares a journal, waiting while another model-config journal still holds the lease. That
+/// journal already owns its config domains, so its remaining steps never wait for this caller.
+fn when_lease_free<T>(
+    mut prepare: impl FnMut() -> Result<T, PersistenceError>,
+) -> Result<T, PersistenceError> {
+    let deadline = Instant::now() + LEASE_WAIT;
+    loop {
+        match prepare() {
+            Err(PersistenceError::MutationLeaseConflict) if Instant::now() < deadline => {
+                thread::sleep(LEASE_RETRY);
+            }
+            result => return result,
+        }
+    }
+}
+
+/// The bundle a command reserved under its journal id before that journal exists.
+///
+/// The reservation claims config domains in memory only, and no durable record will finish or
+/// abort it until the journal with this id is prepared. Dropping the guard first ends it, so a
+/// command that fails, changes nothing or meets another request's journal for the same command
+/// leaves no domain claimed behind it.
+struct UnownedBundle<'a> {
+    settings: &'a SettingsFacade,
+    journal_id: MutationJournalId,
+    owned: bool,
+}
+
+impl<'a> UnownedBundle<'a> {
+    fn new(settings: &'a SettingsFacade, journal_id: MutationJournalId) -> Self {
+        Self { settings, journal_id, owned: false }
+    }
+
+    fn owned_by(mut self, journal_id: MutationJournalId) {
+        self.owned = journal_id == self.journal_id;
+    }
+}
+
+impl Drop for UnownedBundle<'_> {
+    fn drop(&mut self) {
+        if !self.owned {
+            let _ = self.settings.abort_unpublished_module_bundle(&self.journal_id.to_string());
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum ModelConfigJournalError {
@@ -146,6 +200,7 @@ impl ModelConfigJournalCoordinator {
         }
 
         let journal_id = MutationJournalId::new();
+        let unowned = UnownedBundle::new(&self.settings, journal_id);
         let mut plan = prepare(journal_id)?;
         if let ModelConfigCommandPlan::Publish { projection_drafts, .. } = &mut plan {
             self.complete_projection_drafts(projection_drafts)?;
@@ -188,12 +243,14 @@ impl ModelConfigJournalCoordinator {
             projection_drafts,
             success_result,
         };
-        let prepared =
-            self.persistence.prepare_model_config_mutation_journal(journal_id, payload)?;
+        let prepared = when_lease_free(|| {
+            self.persistence.prepare_model_config_mutation_journal(journal_id, payload.clone())
+        })?;
         let record = match prepared {
             PrepareModelConfigMutationJournalResult::Prepared(record)
             | PrepareModelConfigMutationJournalResult::Existing(record) => *record,
         };
+        unowned.owned_by(record.journal_id);
         self.resume(record)
     }
 
@@ -219,6 +276,7 @@ impl ModelConfigJournalCoordinator {
 
         let parent_journal_id = MutationJournalId::new();
         let credential_child_journal_id = MutationJournalId::new();
+        let unowned = UnownedBundle::new(&self.settings, parent_journal_id);
         let mut plan = prepare(parent_journal_id, credential_child_journal_id)?;
         self.complete_projection_drafts(&mut plan.projection_drafts)?;
         let payload = ModelConfigMutationJournalPayload {
@@ -242,21 +300,24 @@ impl ModelConfigJournalCoordinator {
             projection_drafts: plan.projection_drafts,
             success_result: plan.success_result,
         };
-        let pair = self.persistence.prepare_model_config_with_credential_journals(
-            parent_journal_id,
-            payload,
-            credential_child_journal_id,
-        )?;
+        let pair = when_lease_free(|| {
+            self.persistence.prepare_model_config_with_credential_journals(
+                parent_journal_id,
+                payload.clone(),
+                credential_child_journal_id,
+            )
+        })?;
         let pair = match pair {
             PrepareModelConfigCredentialJournalPairResult::Prepared(pair)
             | PrepareModelConfigCredentialJournalPairResult::Existing(pair) => pair,
         };
+        unowned.owned_by(pair.parent.journal_id);
         self.resume_with_credential(pair.parent, credential_journal, Some(secret))
     }
 
-    pub fn execute_with_credential_deletes<F>(
+    pub(crate) fn execute_with_credential_deletes<F>(
         &self,
-        credential_journal: &P05CredentialJournal,
+        credential_journal: &impl CredentialCleanup,
         command_invocation_id: CommandInvocationId,
         correlation_id: CorrelationId,
         prepare: F,
@@ -280,6 +341,7 @@ impl ModelConfigJournalCoordinator {
         }
 
         let parent_journal_id = MutationJournalId::new();
+        let unowned = UnownedBundle::new(&self.settings, parent_journal_id);
         let mut plan = prepare(parent_journal_id)?;
         self.complete_projection_drafts(&mut plan.projection_drafts)?;
         plan.credential_ids.sort();
@@ -317,31 +379,40 @@ impl ModelConfigJournalCoordinator {
             success_result: plan.success_result,
         };
         if payload.credential_children.is_empty() {
-            let prepared = self
-                .persistence
-                .prepare_model_config_mutation_journal(parent_journal_id, payload)?;
+            let prepared = when_lease_free(|| {
+                self.persistence
+                    .prepare_model_config_mutation_journal(parent_journal_id, payload.clone())
+            })?;
             let record = match prepared {
                 PrepareModelConfigMutationJournalResult::Prepared(record)
                 | PrepareModelConfigMutationJournalResult::Existing(record) => *record,
             };
+            unowned.owned_by(record.journal_id);
             return self.resume(record);
         }
-        let prepared = self.persistence.prepare_model_config_with_credential_delete_journals(
-            parent_journal_id,
-            payload,
-            plan.deletion_reason,
-        )?;
+        let prepared = when_lease_free(|| {
+            self.persistence.prepare_model_config_with_credential_delete_journals(
+                parent_journal_id,
+                payload.clone(),
+                plan.deletion_reason,
+            )
+        })?;
         let prepared = match prepared {
             PrepareModelConfigCredentialDeleteJournalsResult::Prepared(prepared)
             | PrepareModelConfigCredentialDeleteJournalsResult::Existing(prepared) => prepared,
         };
+        unowned.owned_by(prepared.parent.journal_id);
         self.resume_with_credential_deletes(prepared.parent, credential_journal)
     }
 
-    pub fn resume_with_credential_deletes(
+    /// Publishes a deletion, deletes its credentials once it is in effect, and completes it. A
+    /// credential Credential Manager still holds then keeps its own delete journal and lease, and
+    /// is retried in the background; the deletion does not wait for it under the model-config
+    /// lease.
+    pub(crate) fn resume_with_credential_deletes(
         &self,
         mut parent: ModelConfigMutationJournalRecord,
-        credential_journal: &P05CredentialJournal,
+        credential_journal: &impl CredentialCleanup,
     ) -> Result<ModelConfigCommandCompletion, ModelConfigJournalError> {
         if parent.payload.credential_child_phase()
             != Some(ModelConfigCredentialChildPhase::AfterConfigPublish)
@@ -349,10 +420,11 @@ impl ModelConfigJournalCoordinator {
             return Err(ModelConfigJournalError::CredentialChildRequiresDedicatedCoordinator);
         }
         if parent.state == ModelConfigMutationJournalState::Completed {
+            let pending = self.credential_children_open(&parent)?;
             return Ok(ModelConfigCommandCompletion {
                 success_result: with_credential_cleanup_pending(
                     parent.payload.success_result,
-                    false,
+                    pending,
                 ),
                 projection_changes: Vec::new(),
             });
@@ -483,21 +555,24 @@ impl ModelConfigJournalCoordinator {
                             projection_changes,
                         });
                     }
-                    if cleanup_pending {
-                        return Ok(ModelConfigCommandCompletion {
-                            success_result: with_credential_cleanup_pending(
-                                parent.payload.success_result,
-                                true,
-                            ),
-                            projection_changes,
-                        });
-                    }
+                    // The settings change is in effect: it completes and gives up the model-config
+                    // lease. A credential still there stays with its own delete journal.
                     parent = self.persistence.transition_model_config_mutation_journal(
                         parent.journal_id,
                         ModelConfigMutationJournalState::CleanupPending,
                         ModelConfigMutationJournalState::Completed,
                         None,
                     )?;
+                    if cleanup_pending {
+                        credential_journal.schedule_retry();
+                    }
+                    return Ok(ModelConfigCommandCompletion {
+                        success_result: with_credential_cleanup_pending(
+                            parent.payload.success_result,
+                            cleanup_pending,
+                        ),
+                        projection_changes,
+                    });
                 }
                 ModelConfigMutationJournalState::Completed => {
                     return Ok(ModelConfigCommandCompletion {
@@ -844,6 +919,32 @@ impl From<ModelConfigMetadataCommit> for ModelConfigCommandCompletion {
     }
 }
 
+impl ModelConfigJournalCoordinator {
+    /// Whether a credential this change deletes still has an open delete journal.
+    fn credential_children_open(
+        &self,
+        parent: &ModelConfigMutationJournalRecord,
+    ) -> Result<bool, ModelConfigJournalError> {
+        for child in &parent.payload.credential_children {
+            let open = self
+                .persistence
+                .credential_mutation_journal(child.child_journal_id)?
+                .is_some_and(|journal| {
+                    !matches!(
+                        journal.state,
+                        CredentialMutationJournalState::Completed
+                            | CredentialMutationJournalState::Aborted
+                            | CredentialMutationJournalState::ReconciliationRequired
+                    )
+                });
+            if open {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+}
+
 fn with_credential_cleanup_pending(mut result: Value, pending: bool) -> Value {
     if let Some(value) = result
         .as_object_mut()
@@ -856,189 +957,4 @@ fn with_credential_cleanup_pending(mut result: Value, pending: bool) -> Value {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{collections::BTreeMap, sync::Arc};
-
-    use aura_config::{AuraPaths, ConfigModule, ModuleConfigValidator, SettingsFacade};
-    use aura_domain_common::{
-        CommandInvocationId, CorrelationId, Revision, RuntimeInstanceId, UtcTimestamp,
-    };
-    use aura_model_config::{ModelConfigService, ModelConfigValidator, create_provider};
-    use aura_model_domain::{
-        CreateModelProviderInput, ModelProviderSource, ModelRegistryConfig, ModelSettingsProjection,
-    };
-    use aura_persistence::{
-        ModelConfigMutationJournalState, ModelProjectionDraft, PersistenceCoordinator,
-        PersistenceOptions, PersistenceStartup, PersistentEventDraft,
-    };
-    use serde_json::json;
-
-    use super::{ModelConfigCommandPlan, ModelConfigJournalCoordinator, ModelConfigJournalError};
-
-    struct Fixture {
-        _directory: tempfile::TempDir,
-        settings: Arc<SettingsFacade>,
-        persistence: Arc<PersistenceCoordinator>,
-        model_config: ModelConfigService,
-        coordinator: ModelConfigJournalCoordinator,
-    }
-
-    impl Fixture {
-        fn new() -> Self {
-            let directory = tempfile::tempdir().expect("temporary model config root");
-            let paths = AuraPaths::from_roots(
-                directory.path().join("roaming/Aura"),
-                directory.path().join("local/Aura"),
-            );
-            let validators = BTreeMap::<ConfigModule, Arc<dyn ModuleConfigValidator>>::from([(
-                ConfigModule::Models,
-                Arc::new(ModelConfigValidator) as Arc<dyn ModuleConfigValidator>,
-            )]);
-            let settings =
-                SettingsFacade::open_with_validators(paths, validators).expect("settings facade");
-            let persistence = match PersistenceCoordinator::start(PersistenceOptions::new(
-                directory.path().join("data/aura.db"),
-                directory.path().join("data/artifacts"),
-                RuntimeInstanceId::new(),
-            ))
-            .expect("start persistence")
-            {
-                PersistenceStartup::Ready(coordinator) => Arc::new(coordinator),
-                PersistenceStartup::RecoveryRequired(recovery) => {
-                    panic!("unexpected persistence recovery: {}", recovery.reason)
-                }
-            };
-            Self {
-                _directory: directory,
-                model_config: ModelConfigService::new(Arc::clone(&settings)),
-                coordinator: ModelConfigJournalCoordinator::new(
-                    Arc::clone(&persistence),
-                    Arc::clone(&settings),
-                ),
-                settings,
-                persistence,
-            }
-        }
-
-        fn model_settings_projection(
-            &self,
-            models_revision: Revision,
-            registry: ModelRegistryConfig,
-        ) -> ModelProjectionDraft {
-            ModelProjectionDraft::ModelSettings(ModelSettingsProjection {
-                models_revision,
-                aura_revision: Revision::new(
-                    self.settings
-                        .snapshot(ConfigModule::Aura)
-                        .expect("Aura config snapshot")
-                        .document
-                        .revision,
-                ),
-                registry,
-                default_model_profile_id: None,
-                active_credentials: Vec::new(),
-                dormant_credentials: Vec::new(),
-                reasoning_efforts: Default::default(),
-            })
-        }
-    }
-
-    #[test]
-    fn no_change_does_not_create_a_parent_journal() {
-        let fixture = Fixture::new();
-        let command_invocation_id = CommandInvocationId::new();
-        let result = fixture
-            .coordinator
-            .execute(command_invocation_id, CorrelationId::new(), |_| {
-                Ok(ModelConfigCommandPlan::NoChange {
-                    success_result: json!({"changed": false, "revision": "1"}),
-                })
-            })
-            .expect("complete no-op");
-
-        assert_eq!(result.success_result["changed"], false);
-        assert!(result.projection_changes.is_empty());
-        assert!(
-            fixture
-                .persistence
-                .model_config_mutation_journal_by_command(command_invocation_id)
-                .expect("query parent journal")
-                .is_none()
-        );
-        assert_eq!(fixture.model_config.snapshot().expect("models snapshot").revision, 1);
-    }
-
-    #[test]
-    fn publish_commits_metadata_activates_config_and_replays_idempotently() {
-        let fixture = Fixture::new();
-        let command_invocation_id = CommandInvocationId::new();
-        let correlation_id = CorrelationId::new();
-        let completion = fixture
-            .coordinator
-            .execute(command_invocation_id, correlation_id, |journal_id| {
-                let prepared =
-                    fixture.model_config.prepare_update(journal_id.to_string(), 1, |registry| {
-                        create_provider(
-                            registry,
-                            CreateModelProviderInput {
-                                display_name: "Example Provider".to_owned(),
-                                source: ModelProviderSource::Custom { catalog_provider_id: None },
-                            },
-                            UtcTimestamp::now(),
-                        )
-                    })?;
-                let provider_id = prepared.value;
-                let prepared_bundle = prepared
-                    .prepared_bundle
-                    .ok_or(ModelConfigJournalError::CredentialChildRequiresDedicatedCoordinator)?;
-                Ok(ModelConfigCommandPlan::Publish {
-                    prepared_bundle: Box::new(prepared_bundle),
-                    expected_models_revision: Revision::INITIAL,
-                    reserved_models_revision: Some(Revision::new(2)),
-                    expected_aura_revision: None,
-                    reserved_aura_revision: None,
-                    credential_slot_creations: Vec::new(),
-                    session_binding_clears: Vec::new(),
-                    metadata_events: vec![PersistentEventDraft::system(
-                        "ModelProviderCreated",
-                        correlation_id,
-                        json!({"provider_id": provider_id}),
-                    )],
-                    projection_drafts: vec![fixture.model_settings_projection(
-                        Revision::new(2),
-                        (*prepared.candidate_registry).clone(),
-                    )],
-                    success_result: json!({
-                        "changed": true,
-                        "revision": "2",
-                        "provider_id": provider_id,
-                    }),
-                })
-            })
-            .expect("commit model config parent journal");
-
-        assert_eq!(completion.success_result["changed"], true);
-        assert_eq!(completion.projection_changes.len(), 1);
-        assert_eq!(fixture.persistence.event_count().expect("event count"), 1);
-        let snapshot = fixture.model_config.snapshot().expect("activated models snapshot");
-        assert_eq!(snapshot.revision, 2);
-        assert_eq!(snapshot.registry.providers.len(), 1);
-        let journal = fixture
-            .persistence
-            .model_config_mutation_journal_by_command(command_invocation_id)
-            .expect("query parent journal")
-            .expect("parent journal exists");
-        assert_eq!(journal.state, ModelConfigMutationJournalState::Completed);
-
-        let replay = fixture
-            .coordinator
-            .execute(command_invocation_id, CorrelationId::new(), |_| {
-                panic!("idempotent replay must not prepare a second mutation")
-            })
-            .expect("replay committed command");
-        assert_eq!(replay.success_result, completion.success_result);
-        assert!(replay.projection_changes.is_empty());
-        assert_eq!(fixture.persistence.event_count().expect("event count"), 1);
-        assert_eq!(fixture.model_config.snapshot().expect("models snapshot").revision, 2);
-    }
-}
+mod tests;

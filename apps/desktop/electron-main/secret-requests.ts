@@ -79,11 +79,16 @@ export async function requestToolCredential<C extends ToolCredentialMainCommand>
   }
 }
 
-/** The Agent commands that take a secret: terminal input and an MCP server's secret. */
-export type AgentSecretCommand = 'terminal.user.sensitive.submit' | 'agent.mcp.secret.set';
+/**
+ * The Agent commands that take a secret: terminal input, an MCP server's secret and one of a
+ * plugin's secret settings.
+ */
+export type AgentSecretCommand =
+  'terminal.user.sensitive.submit' | 'agent.mcp.secret.set' | 'agent.plugins.secret.set';
 const AGENT_SECRET_OPERATION: Record<AgentSecretCommand, SecretInputOperation> = {
   'terminal.user.sensitive.submit': 'terminal_sensitive_input',
   'agent.mcp.secret.set': 'mcp_secret_set',
+  'agent.plugins.secret.set': 'plugin_secret_set',
 };
 
 export async function requestAgentSecret<C extends AgentSecretCommand>(

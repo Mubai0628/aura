@@ -9,9 +9,9 @@
   min-height: 30px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  color: #46504a;
-  background: #fafbfa;
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  background: var(--surface);
   font: inherit;
   font-size: 10px;
 }
@@ -66,7 +66,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 9px 0;
-  border-top: 1px solid #edf0ed;
+  border-top: 1px solid var(--line);
 }
 
 .tool-entity-list li > span:first-child {
@@ -80,7 +80,7 @@
 
 .tool-entity-list strong {
   overflow: hidden;
-  color: #38413b;
+  color: var(--ink);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -147,10 +147,10 @@
   gap: 8px;
   padding: 10px 12px;
   margin-top: 12px;
-  border: 1px solid #ead9b7;
-  border-radius: 8px;
-  color: #755a29;
-  background: #fffaf0;
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  background: var(--warning-soft);
   font-size: 10px;
 }
 

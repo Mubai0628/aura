@@ -1080,7 +1080,7 @@ impl P05Services {
             .and_then(|cached| cached.snapshot);
         let completion =
             self.config_journal.execute(command_invocation_id, correlation_id, |journal_id| {
-                let prepared = self.model_config.prepare_update(
+                let prepared = self.model_config.prepare_background_update(
                     journal_id.to_string(),
                     current.revision,
                     |registry| {
@@ -1198,7 +1198,7 @@ impl P05Services {
                     ))?;
                 Ok(ModelConfigCommandPlan::Publish {
                     prepared_bundle: Box::new(prepared_bundle),
-                    expected_models_revision: Revision::new(current.revision),
+                    expected_models_revision: Revision::new(prepared.previous.revision),
                     reserved_models_revision: Some(prepared.candidate_revision),
                     expected_aura_revision: None,
                     reserved_aura_revision: None,

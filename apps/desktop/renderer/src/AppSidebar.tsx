@@ -1,20 +1,18 @@
 import { useEffect, useState } from 'react';
 
 import { AppIcon } from './app-icons';
-import { WaitingLabel } from './core-waiting';
 import { WorkspaceIndexBadge } from './files/workspace-indexing';
 import { readExpandedWorkspaces, rememberExpandedWorkspaces } from './sidebar-expansion';
 import { WorkspaceActions } from './WorkspaceActions';
 import { SessionList } from './SessionList';
 import { SidebarItemMenu } from './SidebarItemMenu';
-import type { AppScreen, CoreStatusPresentation, WorkspaceNavigationItem } from './app-shell-types';
+import type { AppScreen, WorkspaceNavigationItem } from './app-shell-types';
 import type { NotificationInput } from './notification-center-store';
 import { useSessionActivity } from './session-activity';
 import { UpdateDot } from './app-updates/UpdateDot';
 
 interface AppSidebarProps {
   activeScreen: AppScreen;
-  coreStatus: CoreStatusPresentation;
   demoMode: boolean;
   onNotify: (notice: NotificationInput) => void;
   onOpenSettings: () => void;
@@ -28,7 +26,6 @@ interface AppSidebarProps {
 
 export function AppSidebar({
   activeScreen,
-  coreStatus,
   demoMode,
   onNotify,
   onOpenSettings,
@@ -144,20 +141,6 @@ export function AppSidebar({
           <span>设置</span>
           <UpdateDot />
         </button>
-        <p className={`core-footer-status state-${coreStatus.tone}`} title={coreStatus.detail}>
-          <span aria-hidden="true" />
-          <span>
-            {coreStatus.waitingSince ? (
-              <WaitingLabel text={coreStatus.label} since={coreStatus.waitingSince} />
-            ) : (
-              coreStatus.label
-            )}
-          </span>
-        </p>
-        <p className="local-only-note">
-          <AppIcon name="shield" size={14} />
-          <span>本地运行 · 无需登录</span>
-        </p>
       </div>
     </aside>
   );

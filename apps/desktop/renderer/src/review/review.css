@@ -109,7 +109,7 @@
   width: 100%;
   padding: 6px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
   background: transparent;
   font: inherit;
@@ -343,7 +343,7 @@
   width: 100%;
   padding: 3px 6px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
   background: transparent;
   font: inherit;
@@ -436,7 +436,7 @@
   min-width: 0;
   padding: 4px 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
   background: transparent;
   font: inherit;
@@ -460,7 +460,7 @@
 .review-tag {
   flex: none;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   background: var(--surface-muted);
   font-size: 11px;
@@ -565,18 +565,18 @@
 
 .diff-row.is-add .diff-word,
 .diff-text.is-add .diff-word {
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: #b9e0c3;
 }
 
 .diff-row.is-delete .diff-word,
 .diff-text.is-delete .diff-word {
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: #f3c3c0;
 }
 
 .review-match {
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   color: inherit;
   background: #f6e3a8;
 }

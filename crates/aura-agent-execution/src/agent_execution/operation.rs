@@ -314,6 +314,21 @@ impl AgentExecution {
                 )?
                 .resources
             }
+            H::ComputerOpen
+            | H::ComputerSnapshot
+            | H::ComputerScreenshot
+            | H::ComputerAct
+            | H::ComputerInput
+            | H::ComputerWindow => {
+                network = OperationNetwork::None;
+                self.resolve_computer(
+                    entry.handler,
+                    call.call.tool_call_id,
+                    &mut action,
+                    snapshot,
+                    id.turn_task_id,
+                )?
+            }
             H::Registry(handler) => {
                 let mut resources = vec![ResourceDescriptor::ToolRegistrySnapshot {
                     resource_fingerprint: canonical_sha256(&registry.snapshot_ref)?,

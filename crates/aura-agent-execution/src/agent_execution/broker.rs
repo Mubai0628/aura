@@ -325,6 +325,19 @@ impl BrokerPort for Port {
                 drop(lifetime);
                 return result;
             }
+            if request.operation.content.action_kind.starts_with("computer.")
+                && request.operation.content.action_kind != "computer.apps"
+            {
+                let lifetime = service
+                    .active_calls
+                    .retain_worker(call.validated.call.tool_call_id)
+                    .map_err(rejected)?;
+                let result = super::computer::invoke(service, call, request, start_lease)
+                    .await
+                    .map_err(rejected);
+                drop(lifetime);
+                return result;
+            }
             if request.operation.content.action_kind.starts_with("media.") {
                 let lifetime = service
                     .active_calls

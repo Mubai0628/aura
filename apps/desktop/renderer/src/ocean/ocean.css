@@ -21,8 +21,8 @@
   pointer-events: none;
   background: radial-gradient(
     ellipse 46% 42% at 50% 50%,
-    rgba(251, 251, 250, 0.94),
-    rgba(251, 251, 250, 0.62) 52%,
-    rgba(251, 251, 250, 0) 78%
+    rgba(255, 255, 255, 0.94),
+    rgba(255, 255, 255, 0.62) 52%,
+    rgba(255, 255, 255, 0) 78%
   );
 }

@@ -80,6 +80,7 @@ fn snapshot(api_format: ModelApiFormat) -> ModelExecutionSnapshot {
             reasoning_effort: None,
             reasoning_by_effort: false,
             image_input: false,
+            speed_mode: None,
         },
         historical_tool_call_wire_bindings: Vec::new(),
         credential_id: None,
@@ -248,6 +249,7 @@ fn compile(api_format: ModelApiFormat, tool_group: bool) -> (Vec<u8>, Vec<u8>) {
         operation_context: &operation_context,
         compatibility_removals: &std::collections::BTreeSet::new(),
         applied_output_token_field_alias: None,
+        session_id: None,
     };
     let plan = match api_format {
         ModelApiFormat::OpenAiChatCompletions => {

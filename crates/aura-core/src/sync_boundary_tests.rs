@@ -3240,6 +3240,7 @@ impl CatalogStack {
             raw_artifact_id: aura_domain_common::ArtifactId::new(),
             provider_order,
             providers,
+            parser_revision: aura_model_catalog::CATALOG_PARSER_REVISION,
         };
         aura_model_catalog::CatalogCache::persist_success(cache.as_ref(), S04_CATALOG_BODY, seeded)
             .expect("seed the stale real LKG");

@@ -281,3 +281,55 @@ test('a message being sent shows until the conversation has it', async () => {
   rerender(<Conversation {...props} projection={arrived} loading={false} />);
   await waitFor(() => expect(screen.queryByText('发送中')).toBeNull());
 });
+
+test("a chat's message says which plugin passed it in and who wrote it", () => {
+  const projection = {
+    session_id: 'session',
+    runtime_instance_id: 'runtime',
+    active: null,
+    turns: [
+      {
+        turn: {
+          mode: 'normal',
+          state: { state: 'completed', final_report: '在的' },
+          session_id: 'session',
+          turn_task_id: 'turn',
+          revision: '3',
+          root_user_event_id: 'event',
+        },
+        user_messages: [
+          {
+            event_id: 'event',
+            text: '你好，在吗？',
+            total_bytes: 18,
+            at: '2026-11-01T08:00:00Z',
+            origin: 'user',
+            sender: {
+              plugin: 'chat-bot',
+              from: {
+                channel: 'qq-main',
+                platform: 'qq',
+                chat: 'private',
+                user_id: 'friend',
+                user_name: '老王',
+              },
+            },
+          },
+        ],
+        assistant_messages: [],
+      },
+    ],
+  } as unknown as AgentSessionProjection;
+  render(
+    <Conversation
+      projection={projection}
+      viewportRef={{ current: null }}
+      onChanged={vi.fn()}
+      loading={false}
+      error={undefined}
+      loadOlder={vi.fn()}
+      loadTurnOlder={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('来自插件 chat-bot · QQ · 老王')).toBeTruthy();
+});

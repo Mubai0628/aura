@@ -35,7 +35,9 @@ test('S05 damaged save list requires explicit all-domain reset and preserves the
   try {
     app = await launch(root);
     let page = await app.firstWindow();
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 30_000,
+    });
     const namespace = await partition(root);
     await app.close();
     app = undefined;
@@ -86,7 +88,9 @@ test('S05 settings recovery uses the real authenticated Core and retains the fau
   try {
     app = await launch(root);
     let page = await app.firstWindow();
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 30_000,
+    });
     const namespace = await partition(root);
     const configuration = join(root, 'Roaming', 'Aura', 'namespaces', namespace, 'tools.json');
     await app.close();
@@ -100,7 +104,9 @@ test('S05 settings recovery uses the real authenticated Core and retains the fau
     await writeFile(configuration, damaged);
     app = await launch(root);
     page = await app.firstWindow();
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 30_000,
+    });
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.getByRole('button', { name: '设置', exact: true }).click();

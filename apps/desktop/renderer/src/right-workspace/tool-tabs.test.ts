@@ -2,7 +2,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { availableTools, resetToolTabsForTests, tabLabels, toolTabs } from './tool-tabs';
 
 // The right sidebar holds tabs. 终端、文件 open as many times as asked;
-// 审查、进程、浏览器（its pages are its own tabs）、侧边对话、提示词监测 open once, and once
+// 审查、进程、浏览器（its pages are its own tabs）、提示词监测 open once, and once
 // open they leave the "+" menu. A terminal the
 // model opened becomes a tab when the user asks to see it. Each conversation keeps its own tabs.
 
@@ -116,4 +116,20 @@ test('a link elsewhere shows the terminal and asks the window for the sidebar, u
   toolTabs.revealTerminal(A, 'trm_model');
   expect(revealed).toHaveBeenCalledTimes(1);
   expect(kinds(A)).toEqual(['review', 'terminal']);
+});
+
+// A plugin's panel opens once in a conversation and is named by its title, never numbered; it is
+// offered apart from the tools.
+test("a plugin's panel opens once per plugin, under the panel's title", () => {
+  toolTabs.open(A, 'review');
+  const usage = toolTabs.openPanel(A, 'usage-panel', '本会话用量');
+  toolTabs.openPanel(A, 'notes-panel', '笔记');
+  toolTabs.activate(A, toolTabs.get(A).tabs[0]!.id);
+  // Asked again it shows its tab, under the title the plugin gives it now.
+  expect(toolTabs.openPanel(A, 'usage-panel', '用量')).toBe(usage);
+  expect(active(A)?.id).toBe(usage);
+  expect(tabLabels(toolTabs.get(A)).map((tab) => tab.label)).toEqual(['审查', '用量', '笔记']);
+  expect(availableTools(toolTabs.get(A))).not.toContain('plugin-panel');
+  // Each conversation has its own.
+  expect(toolTabs.openPanel(B, 'usage-panel', '用量')).not.toBe(usage);
 });

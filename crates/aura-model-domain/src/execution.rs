@@ -29,6 +29,10 @@ pub struct ResolvedModelRequestOptions {
     /// The model is sent images, such as the browser's screenshots.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub image_input: bool,
+    /// The speed mode the request is sent with: the one its turn chose, when the model's settings
+    /// allow speed modes and its catalog entry offers that one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speed_mode: Option<crate::ModelSpeedMode>,
 }
 
 impl ResolvedModelRequestOptions {
@@ -41,6 +45,7 @@ impl ResolvedModelRequestOptions {
             reasoning_effort: None,
             reasoning_by_effort: false,
             image_input: false,
+            speed_mode: None,
         }
     }
 }

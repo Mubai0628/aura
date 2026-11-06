@@ -143,7 +143,7 @@ impl P05Services {
                     ))?;
                 Ok(ModelConfigCommandPlan::Publish {
                     prepared_bundle: Box::new(prepared_bundle),
-                    expected_models_revision: Revision::new(expected_revision.value()),
+                    expected_models_revision: Revision::new(prepared.previous.revision),
                     reserved_models_revision: Some(prepared.candidate_revision),
                     expected_aura_revision: None,
                     reserved_aura_revision: None,

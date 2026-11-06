@@ -10,7 +10,9 @@
 //! `--marker <file>` (appends one line per call, so a test can see what really ran),
 //! `--env-tool` (adds `env {name}`: whether the variable is set and its length, never its value),
 //! `--allocate-tool` (adds `allocate {mb}`: holds that many MiB, one at a time, and exits with
-//! code 7 the moment one cannot be had, as a server out of memory does).
+//! code 7 the moment one cannot be had, as a server out of memory does),
+//! `--resources` (offers two resources: the text `fixture://notes/readme` and the image
+//! `fixture://logo`).
 use serde_json::{Value, json};
 use std::{
     collections::HashSet,
@@ -49,6 +51,26 @@ fn tools(grown: bool, env_tool: bool, allocate_tool: bool) -> Value {
     Value::Array(list)
 }
 
+fn resources() -> Value {
+    json!([
+        {"uri": "fixture://notes/readme", "name": "readme", "title": "Fixture notes", "mimeType": "text/markdown"},
+        {"uri": "fixture://logo", "name": "logo", "mimeType": "image/png"},
+    ])
+}
+
+/// The contents of one resource, or none for an address the server does not have.
+fn resource(uri: &str) -> Option<Value> {
+    match uri {
+        "fixture://notes/readme" => Some(json!([{
+            "uri": uri, "mimeType": "text/markdown", "text": "# Fixture notes\nThe first line."
+        }])),
+        "fixture://logo" => {
+            Some(json!([{"uri": uri, "mimeType": "image/png", "blob": "iVBORw0KGgo="}]))
+        }
+        _ => None,
+    }
+}
+
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let flag = |name: &str| arguments.iter().any(|a| a == name);
@@ -79,11 +101,14 @@ fn main() {
                 if let Some(ms) = value("--initialize-delay-ms").and_then(|ms| ms.parse().ok()) {
                     std::thread::sleep(Duration::from_millis(ms));
                 }
-                let capabilities = if flag("--no-tools") {
+                let mut capabilities = if flag("--no-tools") {
                     json!({})
                 } else {
                     json!({"tools": {"listChanged": true}})
                 };
+                if flag("--resources") {
+                    capabilities["resources"] = json!({});
+                }
                 send(
                     &out,
                     &json!({"jsonrpc": "2.0", "id": id, "result": {
@@ -98,6 +123,24 @@ fn main() {
             ("tools/list", Some(id)) => {
                 let listed = tools(grown, flag("--env-tool"), flag("--allocate-tool"));
                 send(&out, &json!({"jsonrpc": "2.0", "id": id, "result": {"tools": listed}}));
+            }
+            ("resources/list", Some(id)) if flag("--resources") => send(
+                &out,
+                &json!({"jsonrpc": "2.0", "id": id, "result": {"resources": resources()}}),
+            ),
+            ("resources/read", Some(id)) if flag("--resources") => {
+                let uri = params["uri"].as_str().unwrap_or_default();
+                send(
+                    &out,
+                    &match resource(uri) {
+                        Some(contents) => {
+                            json!({"jsonrpc": "2.0", "id": id, "result": {"contents": contents}})
+                        }
+                        None => json!({"jsonrpc": "2.0", "id": id, "error": {
+                            "code": -32002, "message": format!("resource not found: {uri}")
+                        }}),
+                    },
+                );
             }
             ("notifications/cancelled", None) => {
                 if let Ok(mut set) = cancelled.lock() {

@@ -26,6 +26,7 @@ async fn an_addition_accepted_mid_turn_is_consumed_before_the_later_answer_compl
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: "Search the fixture token and report it".into(),
@@ -34,7 +35,9 @@ async fn an_addition_accepted_mid_turn_is_consumed_before_the_later_answer_compl
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -118,6 +121,7 @@ async fn a_frozen_text_answer_does_not_swallow_an_addition_the_next_answer_has_s
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: "请只用一句中文问候我。".into(),
@@ -126,7 +130,9 @@ async fn a_frozen_text_answer_does_not_swallow_an_addition_the_next_answer_has_s
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -175,6 +181,7 @@ async fn a_compacted_addition_continues_and_completes_after_its_text_is_removed(
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: "请只用一句中文问候我。".into(),
@@ -183,7 +190,9 @@ async fn a_compacted_addition_continues_and_completes_after_its_text_is_removed(
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

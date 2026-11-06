@@ -1,8 +1,10 @@
 //! An entry of a zip in the conversation's workspace opens as one outside
-//! it does; a file outside the workspace that a message names opens once that message is found to
-//! name it, and not otherwise.
+//! it does; a file outside the workspace that a message or a call's row names opens once that
+//! message or row is found to name it, and not otherwise.
 #![allow(clippy::unwrap_used)]
 use super::*;
+use aura_agent_domain::AgentStartRequest;
+use aura_domain_common::CommandInvocationId;
 use std::io::Write as _;
 
 async fn call(runtime: &crate::RuntimeState, method: &str, params: Value) -> Value {
@@ -134,6 +136,77 @@ async fn a_file_outside_the_workspace_opens_only_from_the_message_that_names_it(
         &runtime,
         "agent.files.mentioned",
         json!({"session_id": stranger, "path": named.display().to_string(), "mentioned_in": source}),
+    )
+    .await;
+    assert!(elsewhere.contains("agent.mentioned_file_not_mentioned"), "{elsewhere}");
+}
+
+#[tokio::test]
+async fn a_file_outside_the_workspace_opens_from_the_call_whose_row_names_it() {
+    let host = crate::r03_tests::Fixture::new();
+    let provider = Provider::scenario(Scenario::ExternalRead).await;
+    let (runtime, session, model) = prepare(&host, &provider).await;
+    let folder = host.root.path().join("外部");
+    std::fs::create_dir_all(&folder).unwrap();
+    let read = folder.join("demo.mp4");
+    std::fs::write(&read, format!("{}\n", provider_fixture::EXTERNAL_BODY_TOKEN)).unwrap();
+    let unread = folder.join("别的.mp4");
+    std::fs::write(&unread, b"not read").unwrap();
+    let agent = match &runtime.startup_mode {
+        crate::StartupMode::Ready(services) => services.agent_required(),
+        _ => panic!("ready"),
+    };
+    // The message names both files; the call reads one of them.
+    let request: AgentStartRequest = serde_json::from_value(json!({
+        "session_id": session, "model_profile_id": model, "mode": "normal", "goal_budget": null,
+        "text": format!("Read AURA_EXTERNAL_PATH={} and compare it with {}.", read.display(), unread.display()),
+        "attachments": [{"kind": "file", "path": read}]}))
+    .unwrap();
+    let started = agent.start(CommandInvocationId::new(), request).await.unwrap();
+    wait(
+        &runtime,
+        &AgentRunRequest { session_id: session, agent_run_id: started.run.agent_run_id },
+        |view| view.turn.state.terminal(),
+    )
+    .await;
+    let rows = call(
+        &runtime,
+        "agent.tool_activity",
+        json!({"session_id": session, "before_call_id": null, "limit": 10, "call_ids": null}),
+    )
+    .await;
+    let reading = rows["calls"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["summary"]["display_name"] == "fs.read")
+        .unwrap_or_else(|| panic!("the read has its row: {rows}"))["summary"]["tool_call_id"]
+        .clone();
+    let source = json!({"kind": "tool_call", "tool_call_id": reading});
+    let ask = |path: &std::path::Path| json!({"session_id": session, "path": path.display().to_string(), "mentioned_in": source});
+
+    let located = call(&runtime, "agent.files.mentioned", ask(&read)).await;
+    assert_eq!(
+        std::fs::canonicalize(located["path"].as_str().unwrap()).unwrap(),
+        std::fs::canonicalize(&read).unwrap()
+    );
+    // The message names this one; the call's row does not.
+    let unnamed = refused(&runtime, "agent.files.mentioned", ask(&unread)).await;
+    assert!(unnamed.contains("agent.mentioned_file_not_mentioned"), "{unnamed}");
+
+    // Another conversation cannot use this call as its own.
+    let root = host.root.path().join("other-workspace");
+    std::fs::create_dir(&root).unwrap();
+    let created =
+        call(&runtime, "workspace.create", json!({"selected_root": root, "display_name": "Other"}))
+            .await;
+    let workspace: aura_workspace_domain::WorkspaceSummary =
+        serde_json::from_value(created["workspace"].clone()).unwrap();
+    let stranger = create_session(&runtime, workspace.workspace_id, PermissionMode::ReadOnly).await;
+    let elsewhere = refused(
+        &runtime,
+        "agent.files.mentioned",
+        json!({"session_id": stranger, "path": read.display().to_string(), "mentioned_in": source}),
     )
     .await;
     assert!(elsewhere.contains("agent.mentioned_file_not_mentioned"), "{elsewhere}");

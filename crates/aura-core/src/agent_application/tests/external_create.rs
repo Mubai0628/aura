@@ -65,6 +65,7 @@ async fn an_authorized_external_file_is_created_through_the_model_loop() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -76,7 +77,9 @@ async fn an_authorized_external_file_is_created_through_the_model_loop() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -154,6 +157,7 @@ async fn an_external_create_without_a_grant_follows_the_policy() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -165,7 +169,9 @@ async fn an_external_create_without_a_grant_follows_the_policy() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

@@ -15,7 +15,7 @@ node scripts/release/release-key.mjs init --backup <移动存储上的文件夹>
 ```powershell
 $env:RUSTFLAGS = "-C target-feature=+crt-static -C link-arg=/Brepro"
 $env:AURA_PRODUCTION_RELEASE_BUILD = "1"
-node scripts/cargo-release.mjs build --release --locked -p aura-core -p aura-launcher -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper -p aura-setup -p aura-chrome-host
+node scripts/cargo-release.mjs build --release --locked -p aura-core -p aura-launcher -p aura-sandbox-host -p aura-egress-proxy -p aura-elevated-helper -p aura-setup -p aura-chrome-host -p aura-desktop-control
 corepack pnpm build
 corepack pnpm --filter @aura/desktop package:dir
 node scripts/release/build-release.mjs --version <x.y.z>
@@ -36,23 +36,28 @@ corepack pnpm --filter @aura/chrome-extension build
 
 新版本第一次启动前，启动器问新版本的 Core 哪些数据库要先复制：`aura-core --store-migration-check <数据目录> --replacing <被替换的版本>`。数据库要迁移，或者被替换的版本读不了新版本写入的记录时，都要复制；回到上一个版本时恢复这份复制（回退对话框会说明更新之后的改动会丢失）。
 
-存储的记录默认拒绝未知字段和取值。所以一个版本开始在执行数据库里存上一版会拒绝的字段或枚举值时，要把 `crates/aura-persistence-v2/src/record_compatibility.rs` 里的 `RECORDS_READABLE_SINCE` 改成这个版本号。0.1.8 起它是 `0.1.8`，因为粗估的 token 计数标为 `approximate`，0.1.7 读不了。发布前对照上一个发布提交，看 `scripts/architecture/contract-baseline.json` 的差异里有没有会存进数据库的类型。
+存储的记录默认拒绝未知字段和取值。所以一个版本开始存上一版会拒绝的字段或枚举值时，要把对应数据库的 `RECORDS_READABLE_SINCE` 改成这个版本号：执行数据库在 `crates/aura-persistence-v2/src/record_compatibility.rs`，存模型设置的 `aura.db` 在 `crates/aura-persistence/src/migration_check.rs`。0.1.8 起执行数据库是 `0.1.8`，因为粗估的 token 计数标为 `approximate`，0.1.7 读不了。0.2.0 起两个都是 `0.2.0`，0.1.12 读不了以下记录：
+
+- 执行数据库：批准范围里的电脑程序许可、请求选项里的速度、排队消息里的引用和桌面选择；
+- `aura.db`：允许速度模式的模型设置。
+
+发布前对照上一个发布提交，看 `scripts/architecture/contract-baseline.json` 的差异里有没有会存进数据库的类型。配置文件不经过这项复制，要看各模块自己的读法；例如界面设置，0.1.12 读到不认识的字段会照原样保留并忽略。
 
 ## 公开仓库
 
 开发仓库与公开仓库分开。每次发布从要发布的提交导出公开源码：
 
 ```powershell
-node scripts/release/export-public.mjs --out <新文件夹> --build
+node scripts/release/export-public.mjs --out <新文件夹>
 ```
 
-导出按 `scripts/release/public-tree.mjs` 选择文件，把 `public/` 下的文件放到对应位置，并检查：密钥（Aura 自己的扫描器）、本机路径与个人信息、超大文件、注释里的过程记录、指向未公开文件的引用、指向不存在文件的导入；`--build` 再把导出的目录当作新仓库安装、编译、跑检查和单元测试。任何一项不通过就不导出。
+导出按 `scripts/release/public-tree.mjs` 选择文件，把 `public/` 下的文件放到对应位置，并检查：密钥（Aura 自己的扫描器）、本机路径与个人信息、超大文件、注释里的过程记录、指向未公开文件的引用、指向不存在文件的导入。任何一项不通过就不导出。加 `--build` 会再把导出的目录当作新仓库安装、编译、跑检查和单元测试；发布时不在本机跑它（一次约 11 分钟，另占 11 GB），改由公开仓库的 CI 在 GitHub 的机器上做同样的检查（所有者 2026-10-31 决定）。
 
 ## 发布
 
-1. 在开发仓库运行 `cargo xtask check-all`，再从要构建的提交导出一次公开源码（不带 `--build`，约半分钟）。导出检查不通过时在构建前改好，公开的源码才能就是构建提交。
+1. 发布前不整跑测试（`cargo xtask check-all`、`pnpm check`）：改版本号会让每个 crate 重新编译，整跑一次要重新编译、链接全部测试程序，写盘太多（所有者 2026-10-31 决定）。各项改动沿用开发时已跑过的完整测试作证据；还要补的定向测试在改版本号之前跑，复用开发时的编译缓存。改版本号之后，构建提交上只跑它会影响的检查：`cargo xtask contracts --check`、`cargo xtask validate-manifests`、`corepack pnpm format:check`（也查更新记录）、`corepack pnpm manifests:check`、`node --test "scripts/release/*.test.mjs"`。没在构建提交上跑的测试写进发布记录。再从要构建的提交导出一次公开源码（不带 `--build`，约半分钟）。导出检查不通过时在构建前改好，公开的源码才能就是构建提交。
 2. 构建并安装测试，确认更新、回退、卸载正常。
-3. 导出公开源码，作为一次提交推送到公开仓库，打上版本标签。
+3. 导出公开源码，作为一次提交推送到公开仓库，打上版本标签。推送后看公开 CI 的结果；不通过时改好，经所有者同意再推一个后续提交，标签不动。
 4. 在 GitHub 建 Release，上传安装程序、更新包和 `SHA256SUMS`；说明取自 `CHANGELOG.md` 里这个版本的一节，包括已知限制。
 
 应用内的更新检查读取公开仓库的 Releases，找名为 `Aura-Update-<版本>-x64.aura-update` 的资产。

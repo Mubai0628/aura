@@ -222,7 +222,7 @@ export function AboutUpdates() {
       <section aria-label="更新偏好" className="settings-card update-setting-row">
         <h3>自动检查更新</h3>
         <ToggleSwitch
-          checked={state?.auto_check === true}
+          checked={state === undefined ? undefined : state.auto_check === true}
           disabled={blocked}
           label="自动检查更新"
           onCheckedChange={(enabled) => void send({ command: 'set_auto_check', enabled })}

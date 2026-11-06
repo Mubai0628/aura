@@ -50,6 +50,7 @@ pub(super) async fn external_read_within_non_recursive_grant(
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -61,7 +62,9 @@ pub(super) async fn external_read_within_non_recursive_grant(
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -125,6 +128,7 @@ pub(super) async fn external_read_asking_for_approval(mode: PermissionMode) -> S
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -136,7 +140,9 @@ pub(super) async fn external_read_asking_for_approval(mode: PermissionMode) -> S
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -203,6 +209,7 @@ pub(super) async fn external_read_outcome_for(mode: PermissionMode, granted: boo
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -214,7 +221,9 @@ pub(super) async fn external_read_outcome_for(mode: PermissionMode, granted: boo
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

@@ -91,7 +91,8 @@ async fn l13_3_media_images_carry_latest_twelve_frames_plus_three_screenshots_an
  {
     let (_root, _runtime, app) = fixture().await;
     let session = SessionId::new();
-    let browser = images(&app, session, 4);
+    // Six screenshots: the older three have just left together.
+    let browser = images(&app, session, 6);
     let old = images(&app, session, 2);
     let latest = images(&app, session, 12);
     let mut history = browser
@@ -125,6 +126,7 @@ async fn l13_3_media_images_carry_latest_twelve_frames_plus_three_screenshots_an
                     tx,
                     event,
                     "pictures",
+                    "pictures",
                     &kept,
                     UtcTimestamp::now(),
                 )?;
@@ -151,7 +153,7 @@ async fn l13_3_media_images_carry_latest_twelve_frames_plus_three_screenshots_an
     shots.attach(&mut request);
     let ids = request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>();
     assert_eq!(ids.len(), 35, "12 latest video frames, 3 screenshots, 20 user pictures");
-    assert_eq!(&ids[..3], &browser[1..]);
+    assert_eq!(&ids[..3], &browser[3..]);
     assert_eq!(&ids[3..15], latest.as_slice(), "frames stay in requested order");
     assert_eq!(&ids[15..], &user_ids[1..]);
     assert!(!ids.iter().any(|id| old.contains(id)), "previous media result is not carried");
@@ -282,12 +284,12 @@ fn l13_3_media_images_accept_only_the_named_tools_typed_success_payload() {
 }
 
 /// A screenshot of the user's Chrome shown to the model travels with its result like the built-in
-/// browser's, and counts toward the same newest three.
+/// browser's, and counts toward the same screenshots: the older ones leave three at a time.
 #[tokio::test]
 async fn l14_chrome_screenshots_travel_with_their_results_like_the_browsers() {
     let (_root, _runtime, app) = fixture().await;
     let session = SessionId::new();
-    let ids = images(&app, session, 4);
+    let ids = images(&app, session, 6);
     let history = ids
         .iter()
         .enumerate()
@@ -296,12 +298,15 @@ async fn l14_chrome_screenshots_travel_with_their_results_like_the_browsers() {
             result(tool, json!({"image_artifact_id": id, "shown_to_model": true}))
         })
         .collect::<Vec<_>>();
-    let shots = app
-        .screenshots(AgentRunId::new(), session, &history, &[], true)
-        .await
-        .expect("load context images");
-    let mut request = input(history);
-    shots.attach(&mut request);
-    let attached = request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>();
-    assert_eq!(attached, ids[1..], "the newest three, Chrome's included");
+    for (count, carried) in [(4, &ids[..4]), (6, &ids[3..])] {
+        let history = &history[..count];
+        let shots = app
+            .screenshots(AgentRunId::new(), session, history, &[], true)
+            .await
+            .expect("load context images");
+        let mut request = input(history.to_vec());
+        shots.attach(&mut request);
+        let attached = request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>();
+        assert_eq!(attached, carried, "{count} screenshots, Chrome's included");
+    }
 }

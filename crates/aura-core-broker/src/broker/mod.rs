@@ -1,11 +1,14 @@
 //! The execution ledger: `BrokerJournal`, the process's one V2 write authority, with its
-//! background store check; the owner of every dispatch's post-execution tail; and the port a
-//! Core Broker dispatch runs its steps through.
+//! background store check; the owner of every dispatch's post-execution tail; the port a
+//! Core Broker dispatch runs its steps through; and the run of one authenticated Main command.
 pub mod completion;
 pub mod journal;
 mod store_check;
 
 pub mod port;
+pub mod run;
+#[cfg(test)]
+mod run_tests;
 pub use journal::BrokerJournal;
 
 use aura_domain_common::Revision;
@@ -59,6 +62,7 @@ pub fn descriptor(runtime_instance_id: aura_domain_common::RuntimeInstanceId) ->
             PublicNetworkRead,
             OrdinaryNetwork,
             AgentTaskRead,
+            PluginDevelopmentInstall,
         ]
         .into(),
         guarantees: [

@@ -105,8 +105,10 @@ test('editing keeps the saved secret unless a new one is typed', async () => {
   });
   api.listMcpServers.mockResolvedValue(registry([view(signed)]));
   render(<McpSettings coreReady />);
-  await user.click(await screen.findByRole('button', { name: '编辑' }));
-  const form = screen.getByRole('form', { name: '编辑 web 服务器' });
+  await user.click(await screen.findByRole('button', { name: '配置 web 服务器' }));
+  const dialog = screen.getByRole('dialog', { name: 'web 服务器' });
+  await user.click(within(dialog).getByRole('button', { name: '编辑' }));
+  const form = within(dialog).getByRole('form', { name: '编辑 web 服务器' });
   expect((within(form).getByLabelText('密钥') as HTMLInputElement).placeholder).toContain('已设置');
   await user.click(within(form).getByRole('button', { name: '保存' }));
   expect(api.setMcpSecret).not.toHaveBeenCalled();

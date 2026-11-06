@@ -93,6 +93,7 @@ fn configure(store: &mut V2Store, f: &support::Fixture) {
                 f.turn.agent_run_id,
                 &application::RunConfiguration {
                     request: AgentStartRequest {
+                        computer_mode: None,
                         session_id: f.turn.session_id,
                         model_profile_id: ModelProfileId::new(),
                         text: "synthetic restart".into(),
@@ -101,7 +102,9 @@ fn configure(store: &mut V2Store, f: &support::Fixture) {
                         explicit_backend_id: None,
                         skill_ids: Vec::new(),
                         reasoning_effort: None,
+                        speed_mode: None,
                         attachments: Vec::new(),
+                        references: Vec::new(),
                     },
                     tool_settings: aura_tool_contract::ToolSettingsSnapshotV1::default(),
                     purpose: AgentTaskPurpose::Conversation,

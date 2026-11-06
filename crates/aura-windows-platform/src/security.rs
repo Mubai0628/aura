@@ -36,6 +36,13 @@ impl ObjectSecurityDescriptor {
         Self::from_sddl(&sddl)
     }
 
+    /// The same rights as [`Self::for_current_logon`], for the user in any of their logon
+    /// sessions: a child session is a logon of its own, which this logon's SID shuts out.
+    pub(crate) fn for_current_user() -> io::Result<Self> {
+        let user = current_user_sid_string()?;
+        Self::from_sddl(&sidecar_pipe_sddl(&user))
+    }
+
     #[cfg(feature = "restricted-user-runtime")]
     pub(crate) fn for_execution_account(account_sid: &str) -> io::Result<Self> {
         let valid = account_sid.strip_prefix("S-1-5-21-").is_some_and(|tail| {
@@ -176,7 +183,56 @@ pub(crate) fn verify_execution_job_owner(handle: HANDLE) -> io::Result<()> {
     result
 }
 
-fn current_logon_sid_string() -> io::Result<String> {
+/// The DACL of a kernel object, as SDDL: what the descriptors above produced.
+#[cfg(test)]
+pub(crate) fn kernel_object_dacl_sddl(handle: HANDLE) -> io::Result<String> {
+    use windows_sys::Win32::Security::{
+        Authorization::{
+            ConvertSecurityDescriptorToStringSecurityDescriptorW, GetSecurityInfo, SE_KERNEL_OBJECT,
+        },
+        DACL_SECURITY_INFORMATION,
+    };
+    let mut descriptor = ptr::null_mut();
+    // SAFETY: a valid kernel object handle and initialized output pointers.
+    let status = unsafe {
+        GetSecurityInfo(
+            handle,
+            SE_KERNEL_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            ptr::null_mut(),
+            &mut descriptor,
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::from_raw_os_error(status as i32));
+    }
+    let mut text: PWSTR = ptr::null_mut();
+    // SAFETY: the descriptor came from GetSecurityInfo and `text` is a writable output pointer.
+    let converted = unsafe {
+        ConvertSecurityDescriptorToStringSecurityDescriptorW(
+            descriptor,
+            SDDL_REVISION_1,
+            DACL_SECURITY_INFORMATION,
+            &mut text,
+            ptr::null_mut(),
+        )
+    };
+    let result =
+        if converted == 0 { Err(io::Error::last_os_error()) } else { wide_ptr_to_string(text) };
+    // SAFETY: Windows allocated both with LocalAlloc; `text` only when the conversion succeeded.
+    unsafe {
+        if !text.is_null() {
+            let _ = LocalFree(text.cast());
+        }
+        let _ = LocalFree(descriptor.cast());
+    }
+    result
+}
+
+pub(crate) fn current_logon_sid_string() -> io::Result<String> {
     let aligned = current_process_token_information(TokenLogonSid)?;
     // SAFETY: TokenLogonSid returns TOKEN_GROUPS with one valid SID entry for
     // the lifetime of `aligned`.

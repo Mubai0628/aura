@@ -1,14 +1,18 @@
 import { ChosenSkillsLine } from '../composer-skills/SkillChoice';
+import { MessageReferencesLine } from '../composer-references/MessageReferences';
+import { ProgramWords } from '../composer-references/MessagePrograms';
+import { referenceText } from '../composer-references/reference-text';
 import type { AgentInboxAction, AgentInboxProjection } from '@aura/contracts/generated';
 import { useState, type ReactNode } from 'react';
 import { AppIcon } from '../app-icons';
 import { MarkdownBlocks } from '../markdown-body';
 import { ToolIcon } from '../tool-icon';
+import { withoutQuoteMarks } from './quote-reply/quote-parts';
 import { userMessage } from './user-message';
 import './inbox.css';
 
 /** A queued message on one line: its words with the line breaks folded away. */
-const oneLine = (text: string) => text.replace(/\s+/gu, ' ').trim();
+const oneLine = (text: string) => withoutQuoteMarks(text).replace(/\s+/gu, ' ').trim();
 
 /** A small action of the queue: an icon, its name for screen readers and in the tooltip. */
 function QueueAction({
@@ -151,15 +155,20 @@ export function InboxPanel({
                       title={open ? '收起' : '展开全文'}
                       type="button"
                     >
-                      {[
-                        oneLine(message.text),
-                        // The pictures and files sent with it, by name.
-                        message.attachments?.length
-                          ? `附件 ${message.attachments.map((a) => a.name).join('、')}`
-                          : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
+                      <ProgramWords
+                        text={[
+                          oneLine(message.text),
+                          // The pictures and files sent with it, by name.
+                          message.attachments?.length
+                            ? `附件 ${message.attachments.map((a) => a.name).join('、')}`
+                            : '',
+                          message.references?.length
+                            ? `引用 ${message.references.map(referenceText).join('、')}`
+                            : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      />
                     </button>
                     <span className="agent-inbox-actions">
                       <QueueAction
@@ -205,7 +214,8 @@ export function InboxPanel({
               </div>
               {open && editing !== message.message_id ? (
                 <div className="agent-inbox-full">
-                  <MarkdownBlocks className="agent-message-text" text={message.text} />
+                  <MarkdownBlocks className="agent-message-text" programs text={message.text} />
+                  <MessageReferencesLine references={message.references} />
                   <ChosenSkillsLine skills={message.skills} />
                 </div>
               ) : null}

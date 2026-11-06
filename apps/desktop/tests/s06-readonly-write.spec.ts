@@ -102,7 +102,9 @@ test('S06 ReadOnly write asks, and the approved write really lands', async ({}, 
   try {
     const page = await app.firstWindow();
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
 
     // A real workspace on disk, a real session, and the real ReadOnly default.
     const setup = await page.evaluate(async (selectedRoot) => {
@@ -405,7 +407,9 @@ test('S06 a denied ReadOnly write leaves the workspace untouched', async ({}, in
   try {
     const page = await app.firstWindow();
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
 
     const armed = await page.evaluate(async (selectedRoot) => {
       const api = window.aura.v1;
@@ -629,7 +633,9 @@ test('S06 the rendered approval panel really answers the write', async ({}, info
   try {
     const page = await app.firstWindow();
     page.on('pageerror', (error) => pageErrors.push(error.message));
-    await expect(page.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 60_000,
+    });
 
     const armed = await armReadOnlyWrite(page, workspaceRoot, provider.url, {
       title: 'S06 panel click',

@@ -35,6 +35,7 @@ async fn an_ordinary_external_directory_is_searched_for_text_without_a_grant() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -46,7 +47,9 @@ async fn an_ordinary_external_directory_is_searched_for_text_without_a_grant() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -155,6 +158,7 @@ async fn an_external_text_search_root_is_searched_without_touching_the_workspace
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -166,7 +170,9 @@ async fn an_external_text_search_root_is_searched_without_touching_the_workspace
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

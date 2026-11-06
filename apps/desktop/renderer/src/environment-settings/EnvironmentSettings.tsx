@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { DefaultTerminal } from '@aura/contracts/generated';
+import type { BackgroundMotion, DefaultTerminal } from '@aura/contracts/generated';
 import { GitRuntimePanel } from './GitRuntimePanel';
+import { ThemeChoice } from './ThemeChoice';
 import { BUNDLED_POWERSHELL } from './bundled-shells';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
 import { useUiSettings } from '../ui-settings-store';
@@ -11,9 +12,15 @@ const TERMINALS: [DefaultTerminal, string][] = [
   ['cmd', 'CMD'],
 ];
 
+const MOTIONS: [BackgroundMotion, string][] = [
+  ['system', '跟随系统'],
+  ['on', '开启'],
+  ['off', '关闭'],
+];
+
 /** Settings → 环境: the local Git and the shells Aura runs, in one place.
- * The terminal a terminal tab opens, and the session's debugging
- * information, are chosen here. */
+ * The terminal a terminal tab opens, the window's theme, whether the sea behind an empty
+ * conversation moves and the session's debugging information are chosen here. */
 export function EnvironmentSettings() {
   const ui = useUiSettings();
   const [saving, setSaving] = useState(false);
@@ -62,10 +69,35 @@ export function EnvironmentSettings() {
           <dd className="environment-shell-detail">CMD 工具与终端使用</dd>
         </dl>
       </section>
+      <section aria-label="外观" className="settings-surface environment-theme">
+        <h3>外观</h3>
+        <ThemeChoice
+          chosen={ui.settings.plugin_theme}
+          disabled={!ready}
+          onChoose={(name) => void save({ plugin_theme: name })}
+        />
+        <div className="environment-choice">
+          <span id="environment-background-motion">背景动画</span>
+          <div role="radiogroup" aria-labelledby="environment-background-motion">
+            {MOTIONS.map(([value, label]) => (
+              <label key={value}>
+                <input
+                  type="radio"
+                  name="background-motion"
+                  checked={(ui.settings.background_motion ?? 'system') === value}
+                  disabled={!ready}
+                  onChange={() => void save({ background_motion: value })}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+      </section>
       <section aria-label="调试" className="settings-surface environment-debug">
         <label className="environment-toggle">
           <ToggleSwitch
-            checked={ui.settings.show_debug_information}
+            checked={ui.snapshot?.settings.show_debug_information}
             disabled={!ready}
             label="显示调试信息"
             onCheckedChange={(checked) => void save({ show_debug_information: checked })}

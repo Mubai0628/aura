@@ -6,6 +6,7 @@ export type SettingsSection =
   | 'tools'
   | 'environment'
   | 'browser'
+  | 'computer'
   | 'memory'
   | 'commands'
   | 'plugins'
@@ -21,8 +22,6 @@ export interface CoreStatusPresentation {
   tone: 'danger' | 'muted' | 'success' | 'warning';
   /** More about the status, on hover. */
   detail?: string;
-  /** Main has waited for Core's heartbeat since then; the status counts the wait. */
-  waitingSince?: string;
 }
 
 /** The kind of the right sidebar's open tab, or none. */

@@ -1,0 +1,67 @@
+[package]
+name = "aura-desktop-control"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "aura-desktop-host"
+path = "src/main.rs"
+
+# Aura's own test window for the tests of this crate and the end-to-end tests; never shipped.
+[[bin]]
+name = "aura-desktop-fixture"
+path = "src/bin/desktop_fixture/main.rs"
+test = false
+doc = false
+
+[dependencies]
+anyhow.workspace = true
+aura-desktop-domain = { path = "../aura-desktop-domain" }
+aura-desktop-pip = { path = "../aura-desktop-pip" }
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+windows = { version = "=0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging",
+    "Win32_Security",
+    "Win32_Storage_EnhancedStorage",
+    "Win32_Storage_Packaging_Appx",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_Registry",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_StationsAndDesktops",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# The second crate after aura-windows-platform that calls Windows itself: desktop control is
+# COM all through (UI Automation, the Shell's program list, image encoding), which windows-sys
+# does not cover. Every unsafe call of the host stays in `src/native`; the test window program,
+# never shipped, makes its own.
+[lints.rust]
+unsafe_code = "allow"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"

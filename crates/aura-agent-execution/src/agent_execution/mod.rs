@@ -12,9 +12,13 @@ pub use broker::CREATE_BEFORE_RECHECK;
 pub mod browser;
 mod chrome;
 pub use chrome::inspect_before_admission as inspect_chrome_calls;
+mod computer;
+pub use computer::prepare_before_admission as prepare_computer_calls;
+pub use computer::route as computer_route;
 mod command_tools;
 mod control;
 mod control_resources;
+pub mod conversations;
 mod deletion;
 mod dispatch;
 mod file_targets;
@@ -33,6 +37,7 @@ mod planning;
 pub mod protected_paths;
 mod recovery;
 pub(crate) use aura_core_base::recycle;
+mod plugin_tools;
 mod registry;
 mod registry_change;
 mod reservation;
@@ -136,6 +141,8 @@ pub struct AgentExecution {
     pub media: Arc<media::MediaBridge>,
     /// The user's own Chrome, through Aura's extension; set once at startup.
     pub chrome: std::sync::OnceLock<Arc<chrome_control::ChromeControl>>,
+    /// Programs on the user's own desktop, through Aura's desktop host; set once at startup.
+    pub desktop: std::sync::OnceLock<Arc<aura_desktop_service::DesktopControl>>,
 }
 
 #[cfg(any(test, feature = "test-hooks"))]
@@ -228,6 +235,7 @@ impl AgentExecution {
             browser: Arc::default(),
             media: Arc::default(),
             chrome: std::sync::OnceLock::new(),
+            desktop: std::sync::OnceLock::new(),
         })
     }
 

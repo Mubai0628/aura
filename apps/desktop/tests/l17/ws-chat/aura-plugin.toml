@@ -1,0 +1,21 @@
+schema_version = 2
+name = "ws-chat"
+version = "0.1.0"
+description = "接本机的 WebSocket 假平台，用来试渠道"
+capabilities = ["session.send", "status"]
+
+[service]
+command = "node"
+arguments = ["${PLUGIN_ROOT}/service/main.mjs"]
+network = ["127.0.0.1"]
+
+[[channels]]
+id = "ws-main"
+platform = "other"
+title = "WS 聊天"
+
+[[settings]]
+key = "address"
+title = "假平台的地址"
+required = true
+description = "例如 ws://127.0.0.1:8766/gateway"

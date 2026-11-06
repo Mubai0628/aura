@@ -14,7 +14,7 @@
 .agent-pending-dots i {
   width: 4px;
   height: 4px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: currentColor;
   animation: agent-pending-dot 1.2s var(--ease-in-out) infinite;
 }

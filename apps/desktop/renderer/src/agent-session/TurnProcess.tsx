@@ -1,5 +1,7 @@
-import { useTurnChoice } from './turn-choices';
+import { useContext } from 'react';
+import { sectionChoice, useTurnChoice, withSectionChoice } from './turn-choices';
 import type { AgentToolActivityEntry, AgentTurnView } from '@aura/contracts/generated';
+import { StoppingRunContext } from './stopping';
 import { MessageText } from './MessageText';
 import { ProcessSection } from './ProcessSection';
 import { UserCopy } from './ReplyActions';
@@ -34,6 +36,8 @@ export function TurnProcess({
   finalStepId?: string | undefined;
 }) {
   const turnId = item.turn.turn_task_id;
+  const stoppingRun = useContext(StoppingRunContext);
+  const stopping = stoppingRun !== undefined && stoppingRun === item.turn.agent_run_id;
   const [chosen, setChosen] = useTurnChoice<Record<string, boolean>>(`${turnId}:sections`, {});
   const [shown, setShown] = useTurnChoice<boolean | undefined>(`${turnId}:shown`, undefined);
   const terminal = terminalTurn(item.turn.state.state);
@@ -51,8 +55,10 @@ export function TurnProcess({
   const newest = blocks.findLastIndex((block) => block.kind === 'process');
   const render = (block: TimelineBlock, index: number) => {
     if (block.kind === 'process') {
+      const keys = block.parts.map((part) => part.key);
       const sectionOpen =
-        chosen[block.key] ?? (sectionFailed(block.parts, calls) || (!terminal && index === newest));
+        sectionChoice(chosen, keys) ??
+        (sectionFailed(block.parts, calls) || (!terminal && index === newest));
       return (
         <ProcessSection
           key={block.key}
@@ -61,7 +67,7 @@ export function TurnProcess({
           calls={calls}
           open={sectionOpen}
           terminal={terminal}
-          onToggle={() => setChosen({ ...chosen, [block.key]: !sectionOpen })}
+          onToggle={() => setChosen(withSectionChoice(chosen, keys, !sectionOpen))}
         />
       );
     }
@@ -125,7 +131,7 @@ export function TurnProcess({
     <div className="agent-process">
       <TurnStatus
         item={item}
-        label={turnStatus(item, calls, awaitingContext)}
+        label={turnStatus(item, calls, awaitingContext, stopping)}
         toggle={
           collapsible ? { open, onToggle: () => setShown(!open), controls: processId } : undefined
         }

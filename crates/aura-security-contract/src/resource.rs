@@ -164,6 +164,12 @@ pub enum ResourceDescriptor {
         origin: String,
         confirmed: bool,
     },
+    /// A program on the user's desktop, by its catalog ID. `authorized` is true while the
+    /// session may use it without asking.
+    DesktopApp {
+        app_id: String,
+        authorized: bool,
+    },
 }
 
 fn is_false(value: &bool) -> bool {

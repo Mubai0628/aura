@@ -2,12 +2,12 @@ import { useSyncExternalStore } from 'react';
 
 /**
  * The right sidebar holds tabs. 终端、文件 open as many times as asked;
- * 审查、进程、浏览器、侧边对话、提示词监测 open once, and once open they leave the "+" menu. A terminal the model opened
- * becomes a tab only when the user asks to see it. Each conversation keeps its own tabs while Aura
- * runs.
+ * 审查、进程、浏览器、提示词监测 open once, and once open they leave the "+" menu. A terminal the model opened
+ * becomes a tab only when the user asks to see it. A plugin's panel opens once per plugin. Each
+ * conversation keeps its own tabs while Aura runs.
  */
 export type ToolKind =
-  'review' | 'terminal' | 'process' | 'browser' | 'files' | 'chat' | 'prompt-inspector';
+  'review' | 'terminal' | 'process' | 'browser' | 'files' | 'prompt-inspector' | 'plugin-panel';
 
 export const TOOL_KINDS: readonly ToolKind[] = [
   'review',
@@ -15,16 +15,16 @@ export const TOOL_KINDS: readonly ToolKind[] = [
   'process',
   'browser',
   'files',
-  'chat',
   'prompt-inspector',
+  'plugin-panel',
 ];
 
 /**
- * What "+" and the empty sidebar offer.
+ * What "+" and the empty sidebar offer as tools; plugins' panels follow them, each by its title.
  * 提示词监测 still opens from the context meter, `/context` and a step's "检查此步骤".
  */
 export const MENU_TOOLS: readonly ToolKind[] = TOOL_KINDS.filter(
-  (kind) => kind !== 'prompt-inspector',
+  (kind) => kind !== 'prompt-inspector' && kind !== 'plugin-panel',
 );
 
 /** The tools that may be open more than once. */
@@ -36,8 +36,8 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   process: '进程',
   browser: '浏览器',
   files: '文件',
-  chat: '侧边对话',
   'prompt-inspector': '提示词监测',
+  'plugin-panel': '插件面板',
 };
 
 export interface ToolTab {
@@ -54,6 +54,9 @@ export interface ToolTab {
   /** The line asked for, and how many times it was asked: each request shows it again. */
   line?: number | undefined;
   shown?: number;
+  /** A panel tab's plugin, and the panel's title as the plugin names it. */
+  plugin?: string;
+  title?: string;
 }
 
 export interface SessionTabs {
@@ -104,6 +107,22 @@ class ToolTabStore {
     const open = current.tabs.find((tab) => tab.terminalId === terminalId);
     if (open) return this.activate(session, open.id);
     const tab: ToolTab = { id: `tab-${++this.#ids}`, kind: 'terminal', terminalId };
+    this.#put(session, { tabs: [...current.tabs, tab], active: tab.id });
+    return tab.id;
+  }
+
+  /** A plugin's panel: its one tab in the conversation, shown, under the panel's current title. */
+  openPanel(session: string, plugin: string, title: string): string {
+    const current = this.get(session);
+    const open = current.tabs.find((tab) => tab.kind === 'plugin-panel' && tab.plugin === plugin);
+    if (open) {
+      this.#put(session, {
+        tabs: current.tabs.map((tab) => (tab === open ? { ...tab, title } : tab)),
+        active: open.id,
+      });
+      return open.id;
+    }
+    const tab: ToolTab = { id: `tab-${++this.#ids}`, kind: 'plugin-panel', plugin, title };
     this.#put(session, { tabs: [...current.tabs, tab], active: tab.id });
     return tab.id;
   }
@@ -265,10 +284,11 @@ export function availableTools(state: SessionTabs): ToolKind[] {
 
 /**
  * Each tab with its label: terminals are numbered; 文件 pages when more than one is open. A 文件
- * page keeps its name whatever files are open in it.
+ * page keeps its name whatever files are open in it; a plugin's panel is named by its title.
  */
 export function tabLabels(state: SessionTabs): { tab: ToolTab; label: string }[] {
   return state.tabs.map((tab) => {
+    if (tab.kind === 'plugin-panel') return { tab, label: tab.title || TOOL_NAMES[tab.kind] };
     const name = TOOL_NAMES[tab.kind];
     const several = state.tabs.filter((other) => other.kind === tab.kind).length > 1;
     const numbered = tab.number !== undefined && (tab.kind === 'terminal' || several);

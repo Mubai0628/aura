@@ -34,7 +34,7 @@ use std::{
 };
 mod artifact_evidence;
 mod file_resources;
-mod permission_defaults;
+pub mod permission_defaults;
 mod publication_dispatch;
 use permission_defaults::permission_defaults_from_settings;
 #[cfg(any(test, feature = "test-hooks"))]

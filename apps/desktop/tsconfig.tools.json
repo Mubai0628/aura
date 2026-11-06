@@ -11,6 +11,7 @@
   "include": [
     "vite.config.ts",
     "vite.preload.config.ts",
+    "vite.panel-preload.config.ts",
     "vite.acceptance.config.ts",
     "vitest.config.ts",
     "playwright.config.ts",

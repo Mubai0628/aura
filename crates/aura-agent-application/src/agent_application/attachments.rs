@@ -2,15 +2,20 @@
 //! composer sends with a message, read and checked before the message is queued or started. A
 //! picture must be the PNG or JPEG it says it is, for a model that takes images. A selected file
 //! is classified by its checked native identity: workspace-relative, or one read-only external
-//! file authorized for this conversation when the message is accepted.
+//! file authorized for this conversation when the message is accepted. A capture of a terminal
+//! or a page is kept as a file of the conversation and attached the same way, and so is an MCP
+//! resource, read when the message is first accepted.
 use super::*;
 use aura_agent_domain::{AgentAttachmentDraft, AttachmentError, validate_attachment_drafts};
 use aura_persistence_v2::agent::attachments::PreparedAttachment;
 use aura_security_service::external_grants;
 use base64::Engine as _;
 mod acceptance;
+mod captures;
 mod files;
+mod mcp_resource;
 mod zip_listing;
+pub(super) use captures::forget as forget_captures;
 
 pub(super) struct PreparedAttachments {
     pub values: Vec<PreparedAttachment>,
@@ -86,6 +91,38 @@ impl AgentApplication {
                     if let Some(grant) = grant {
                         grants.push(grant);
                     }
+                    value
+                }
+                AgentAttachmentDraft::Capture { name, text } => {
+                    let journal = Arc::clone(&self.execution.journal);
+                    let external = Arc::clone(&self.execution.external_grants);
+                    let owner = captures::Owner { session, workspace, command, index };
+                    let (name, text) = (name.clone(), text.clone());
+                    let (value, grant) = tokio::task::spawn_blocking(move || {
+                        captures::keep(&journal, &external, owner, &name, &text)
+                    })
+                    .await??;
+                    grants.push(grant);
+                    value
+                }
+                AgentAttachmentDraft::McpResource { server_id, uri, name } => {
+                    let execution = Arc::clone(&self.execution);
+                    let owner = captures::Owner { session, workspace, command, index };
+                    let (server_id, uri, name) = (server_id.clone(), uri.clone(), name.clone());
+                    let (value, grant) = tokio::task::spawn_blocking(move || {
+                        let read =
+                            || mcp_resource::read(&execution, session, (&server_id, &uri, &name));
+                        let kept = mcp_resource::file_name(&name);
+                        captures::keep_read(
+                            &execution.journal,
+                            &execution.external_grants,
+                            owner,
+                            &kept,
+                            read,
+                        )
+                    })
+                    .await??;
+                    grants.push(grant);
                     value
                 }
             });

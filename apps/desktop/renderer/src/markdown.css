@@ -226,9 +226,9 @@
   margin: 8px 0;
   padding: 12px 14px;
   overflow-x: auto;
-  background: #f3f3f1;
-  border: 1px solid var(--line, #e3e3df);
-  border-radius: 8px;
+  background: var(--surface-hover);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
 }
 
 .markdown-body pre code,
@@ -253,8 +253,8 @@
    grey box a code block uses. */
 .markdown-body :not(pre) > code {
   padding: 1px 5px;
-  border-radius: 5px;
-  background: rgba(36, 39, 36, 0.06);
+  border-radius: var(--radius-sm);
+  background: rgba(28, 28, 27, 0.06);
   font-family: var(--font-mono, monospace);
   font-size: 0.88em;
 }
@@ -264,7 +264,7 @@
   display: inline;
   padding: 0;
   border: 0;
-  color: var(--accent-strong, #2f524c);
+  color: var(--accent-strong);
   background: none;
   font: inherit;
   text-align: inherit;
@@ -282,14 +282,14 @@
 }
 
 .markdown-file-link:focus-visible {
-  border-radius: 5px;
-  outline: 2px solid var(--focus, #2e6973);
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--focus);
   outline-offset: 1px;
 }
 
 .markdown-body [data-streamdown='table-wrapper'] {
   padding: 0;
-  background: var(--surface, #ffffff);
+  background: var(--surface);
 }
 
 .markdown-body table {
@@ -301,14 +301,14 @@
 .markdown-body th,
 .markdown-body td {
   padding: 7px 12px;
-  border-bottom: 1px solid var(--line, #e3e3df);
+  border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: top;
 }
 
 .markdown-body th {
-  color: var(--ink, #242724);
-  background: var(--surface-muted, #f4f5f2);
+  color: var(--ink);
+  background: var(--surface-muted);
   font-weight: 600;
 }
 
@@ -319,8 +319,8 @@
 .markdown-body blockquote {
   margin: 8px 0;
   padding: 2px 0 2px 14px;
-  border-left: 3px solid var(--line-strong, #d5d8d3);
-  color: var(--muted, #606761);
+  border-left: 3px solid var(--line-strong);
+  color: var(--muted);
 }
 
 .markdown-body :is(h1, h2, h3, h4) {
@@ -345,7 +345,7 @@
 .markdown-body hr {
   margin: 16px 0;
   border: 0;
-  border-top: 1px solid var(--line, #e3e3df);
+  border-top: 1px solid var(--line);
 }
 
 .markdown-body :is(ul, ol) {
@@ -358,9 +358,9 @@
 
 /* A web link in a conversation opens in the default browser. */
 .markdown-web-link {
-  color: #2f6d57;
+  color: var(--ink);
   text-decoration: underline;
-  text-decoration-color: rgba(47, 109, 87, 0.45);
+  text-decoration-color: var(--faint);
   text-underline-offset: 2px;
   cursor: pointer;
 }

@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aura-agent-domain = { path = "../aura-agent-domain" }
 aura-execution-contract = { path = "../aura-execution-contract" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-tool-contract = { path = "../aura-tool-contract" }

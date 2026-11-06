@@ -61,7 +61,7 @@
   flex: none;
   align-items: center;
   max-width: 180px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   color: var(--muted);
   transition:
     background var(--dur-fast) var(--ease-out),
@@ -113,7 +113,7 @@
   width: 18px;
   height: 18px;
   margin-right: 1px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   opacity: 0.5;
 }
 
@@ -127,4 +127,11 @@
   margin: 6px 11px 0;
   color: var(--danger);
   font-size: 12px;
+}
+
+/* Between the tools and the plugins' panels in "+" and the empty sidebar. */
+.tool-picker-separator {
+  height: 1px;
+  margin: 5px 9px;
+  background: var(--line);
 }

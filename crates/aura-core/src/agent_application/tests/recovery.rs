@@ -7,7 +7,7 @@ use std::time::Duration;
 
 /// Continuing the turns a restart cut off.
 #[path = "auto_continue.rs"]
-mod auto_continue;
+pub(in crate::agent_application::tests) mod auto_continue;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn interrupted_real_provider_and_compaction_are_terminal_without_replay() {
@@ -16,7 +16,7 @@ async fn interrupted_real_provider_and_compaction_are_terminal_without_replay() 
         let provider = Arc::new(Provider::scenario(scenario).await);
         let child_host = host.clone();
         let child_provider = provider.clone();
-        let (request, before) = tokio::task::spawn_blocking(move || {
+        let (request, before) = first_process(move || {
             let process = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
@@ -107,6 +107,23 @@ async fn interrupted_real_provider_and_compaction_are_terminal_without_replay() 
     }
 }
 
+/// Runs the process a restart cuts off on a thread of its own with an 8 MiB stack. A
+/// current-thread runtime polls Core's tasks on the thread that blocks on it, above that
+/// thread's own frames; in a debug build a held compaction then needs more than the 2 MiB of a
+/// blocking-pool thread.
+async fn first_process<T: Send + 'static>(
+    process: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, tokio::task::JoinError> {
+    tokio::task::spawn_blocking(move || {
+        let thread = std::thread::Builder::new()
+            .stack_size(8 << 20)
+            .spawn(process)
+            .expect("first process thread");
+        thread.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
+    .await
+}
+
 fn attempts(runtime: &crate::RuntimeState) -> Vec<TransportAttemptRecord> {
     let crate::StartupMode::Ready(s) = &runtime.startup_mode else { unreachable!() };
     let j = s.broker.lock().expect("persisted recovery fixture and evidence");
@@ -141,7 +158,7 @@ async fn unfinished_session_can_send_and_send_again_without_replaying_history() 
     let provider = Arc::new(Provider::scenario(Scenario::RecoveredSession).await);
     let child_host = host.clone();
     let child_provider = provider.clone();
-    let request = tokio::task::spawn_blocking(move || {
+    let request = first_process(move || {
         let process =
             tokio::runtime::Builder::new_current_thread().enable_all().build().expect("runtime");
         let request = process.block_on(async {
@@ -222,12 +239,15 @@ async fn submit_read_only(runtime: &crate::RuntimeState, session_id: SessionId) 
         runtime,
         "agent.submit",
         json!(AgentSubmitRequest {
+            computer_mode: None,
             session_id,
             text: "Continue the read-only answer".into(),
             destination: AgentInputLane::NextTurn,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

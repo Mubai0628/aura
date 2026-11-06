@@ -42,6 +42,7 @@ vi.mock('@xterm/addon-fit', () => ({ FitAddon: class {} }));
 vi.mock('./store', () => ({
   attachTerminalConsumer() {},
   configureTerminalRenderer() {},
+  configureTerminalText() {},
   terminalApi: () => ({ write: state.write }),
   terminalFailure: vi.fn(),
 }));

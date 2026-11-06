@@ -30,8 +30,13 @@ fn walk(folder: &Path, out: &mut Vec<PathBuf>) -> Result<()> {
 }
 
 /// Prints one JSON line per detection and a summary; text files only, binary files are skipped.
-pub(crate) fn scan_secrets(folder: Option<String>) -> Result<()> {
-    let root = PathBuf::from(folder.context("scan-secrets <folder>")?);
+/// One folder a call: a second one would otherwise go unscanned without a word.
+pub(crate) fn scan_secrets(folders: Vec<String>) -> Result<()> {
+    let root = match folders.as_slice() {
+        [folder] => PathBuf::from(folder),
+        [] => anyhow::bail!("scan-secrets <folder>"),
+        _ => anyhow::bail!("scan-secrets takes one folder a call; run it once for each folder"),
+    };
     let mut files = Vec::new();
     walk(&root, &mut files)?;
     files.sort();
@@ -60,4 +65,15 @@ pub(crate) fn scan_secrets(folder: Option<String>) -> Result<()> {
     }
     println!("{}", json!({ "scanned_files": scanned, "detections": found }));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_second_folder_is_refused_rather_than_left_unscanned() {
+        let error = super::scan_secrets(vec!["src".into(), "tests".into()]).expect_err("refused");
+        assert!(error.to_string().contains("one folder"), "{error}");
+        let error = super::scan_secrets(Vec::new()).expect_err("refused");
+        assert!(error.to_string().contains("scan-secrets <folder>"), "{error}");
+    }
 }

@@ -51,7 +51,7 @@
   background: var(--surface-muted);
   padding: 6px 16px;
   margin: 6px 0 6px auto;
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   font-size: 15px;
   line-height: 1.65;
   text-align: left;
@@ -87,7 +87,7 @@
   font-family: var(--font-serif);
   font-size: 14px;
   color: var(--muted);
-  border-left: 2px solid #ddd;
+  border-left: 2px solid var(--line-strong);
   padding-left: 14px;
 }
 .agent-reasoning .markdown-body {
@@ -108,7 +108,7 @@
   max-height: min(56vh, 480px);
   margin-bottom: 8px;
   overflow: hidden;
-  border: 1px solid #d3e0d9;
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-md);
@@ -122,13 +122,13 @@
   gap: 8px;
   padding: 9px 14px;
   border-bottom: 1px solid var(--line);
-  background: #f5f9f7;
+  background: var(--surface-muted);
 }
 .agent-approval-mark {
   display: grid;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   place-items: center;
   color: var(--accent-strong);
   background: var(--accent-soft);
@@ -162,6 +162,12 @@
   margin-bottom: 2px;
   color: var(--quiet);
   font-size: 11px;
+}
+.agent-approval-program strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
 }
 .agent-approval dl {
   display: grid;
@@ -232,7 +238,7 @@
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--line);
-  background: #fcfcfb;
+  background: var(--surface);
 }
 .agent-approval-loading {
   margin: 0;
@@ -257,7 +263,7 @@
 }
 .agent-result {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin: 8px 0;
   padding: 8px 12px;
 }
@@ -299,10 +305,10 @@
   min-height: 34px;
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   color: var(--ink);
   background: var(--surface);
-  box-shadow: 0 4px 12px rgba(37, 43, 39, 0.12);
+  box-shadow: var(--shadow-xs);
 }
 .agent-follow:hover {
   background: var(--surface-muted);
@@ -315,7 +321,7 @@
   width: 8px;
   height: 8px;
   border: 2px solid var(--surface);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--accent);
 }
 .agent-inspector {
@@ -350,7 +356,7 @@
   margin-bottom: 8px;
   overflow: auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 12px 16px;
   background: var(--surface);
   box-shadow: var(--shadow-md);
@@ -368,12 +374,12 @@
   gap: 7px;
   padding: 4px 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-muted);
   font-size: 12px;
 }
 .tool-chip-dot {
-  color: #8a8f8c;
+  color: var(--quiet);
 }
 .tool-chip-kind {
   color: var(--muted);
@@ -386,21 +392,23 @@
   font-size: 11px;
 }
 .tool-chip-success .tool-chip-dot {
-  color: #3f6b52;
+  color: var(--success);
 }
 .tool-chip-failed .tool-chip-dot {
-  color: #a3514b;
+  color: var(--danger);
 }
 .tool-chip-waiting .tool-chip-dot {
-  color: #8a6d3b;
+  color: var(--warning);
 }
 .tool-chip-running .tool-chip-dot {
-  color: #46626f;
+  color: var(--accent);
   animation: tool-call-pulse 1.4s ease-in-out infinite;
 }
+/* An identifier inside the chip's pixel words, so it keeps the reading face. */
 .tool-chip-identity {
   margin-left: 8px;
   color: var(--muted);
+  font-family: var(--font-ui);
   font-size: 10px;
 }
 .agent-result summary {
@@ -506,7 +514,7 @@
 .agent-continue button {
   padding: 2px 12px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   font-size: 12px;
 }

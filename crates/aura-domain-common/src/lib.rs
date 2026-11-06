@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 mod canonical_json;
+mod computer_mode;
 mod content_hash;
+mod conversation_handle;
 mod credential;
 mod display_path;
 mod error;
@@ -14,7 +16,9 @@ mod timestamp;
 mod version;
 
 pub use canonical_json::{CanonicalJsonError, canonical_json_v1, canonical_json_v1_sha256};
+pub use computer_mode::ComputerMode;
 pub use content_hash::{ContentHash, ContentHashAlgorithm, ContentHashError};
+pub use conversation_handle::ConversationHandle;
 pub use credential::{
     CredentialRef, CredentialRefParseError, CredentialRevision, CredentialRevisionError,
 };

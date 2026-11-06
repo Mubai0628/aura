@@ -1,0 +1,75 @@
+/* A long settings list as short rows; each item's whole configuration in its dialog. */
+.settings-card.settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 11px 14px;
+}
+
+.settings-row-main {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.settings-row-main > p {
+  margin: 0;
+}
+
+.settings-row-summary {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.modal-dialog.settings-item-dialog {
+  display: flex;
+  width: min(760px, calc(100vw - 48px));
+  flex-direction: column;
+}
+
+.settings-item-dialog .modal-header {
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px 12px;
+}
+
+.settings-item-dialog-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-item-dialog-heading h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.settings-item-dialog-body {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 20px 20px;
+}
+
+.settings-item-dialog-body > p {
+  margin: 0;
+}
+
+.settings-item-dialog-body > .settings-card-actions {
+  margin-top: 4px;
+}

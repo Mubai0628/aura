@@ -43,6 +43,11 @@ fn model(id: &str, context: u64, output: u64) -> (String, ProviderCatalogModelEn
         open_weights: None,
         status: None,
         price: None,
+        model_type: None,
+        route: None,
+        reasoning_field: None,
+        price_tiers: Vec::new(),
+        modes: std::collections::BTreeMap::new(),
     };
     (id.to_owned(), entry)
 }
@@ -75,6 +80,7 @@ fn catalog(providers: Vec<(String, ProviderCatalogEntry)>) -> ProviderCatalogSna
         raw_artifact_id: ArtifactId::new(),
         provider_order: providers.iter().map(|(id, _)| id.clone()).collect(),
         providers: providers.into_iter().collect(),
+        parser_revision: 0,
     }
 }
 

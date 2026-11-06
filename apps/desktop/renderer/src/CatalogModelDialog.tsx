@@ -10,6 +10,7 @@ import { AppIcon } from './app-icons';
 import { ModalDialog } from './ModalDialog';
 import type { NotificationInput } from './notification-center-store';
 import { userMessage } from './agent-session/user-message';
+import { byModelVariants, modelTarget } from './provider-connection/model-routes';
 import { MODEL_FAILURE_FALLBACK } from './provider-connection/notices';
 
 interface CatalogModelDialogProps {
@@ -49,6 +50,25 @@ export function CatalogModelDialog({
   const [creatingModelId, setCreatingModelId] = useState<string>();
   const [error, setError] = useState<string>();
   const titleId = `catalog-models-${catalogProviderId}`;
+  // A Provider whose models each go by their own route: a model goes to its route's connection.
+  const routeVariants = byModelVariants(page?.provider.connection_defaults);
+  const byModel = routeVariants.length > 0;
+  const rowTarget = (view: ProviderCatalogModelView) =>
+    byModel ? modelTarget(view.route, routeVariants, endpoints) : undefined;
+  const rowEndpointId = (view: ProviderCatalogModelView): string => {
+    if (!byModel) return endpointId;
+    const target = rowTarget(view);
+    return target?.kind === 'endpoint' ? target.endpoint.id : '';
+  };
+  // There, a model already on any of the Provider's connections is added, whatever that
+  // connection's route: one added before its route was known stays where it is.
+  const rowAddedTo = (view: ProviderCatalogModelView): ModelEndpointConfig | undefined => {
+    const id = view.model.catalog_model_id;
+    const targetId = rowEndpointId(view);
+    return endpoints.find(
+      (item) => (byModel || item.id === targetId) && modelAlreadyAdded(settings, item.id, id),
+    );
+  };
 
   const loadPage = useCallback(
     async (afterModelId: string | undefined, expectedCatalogRevision: string | null) => {
@@ -100,13 +120,14 @@ export function CatalogModelDialog({
   }, [catalogProviderId, query]);
 
   const createFromCatalog = async (view: ProviderCatalogModelView) => {
-    const endpoint = endpoints.find((item) => item.id === endpointId);
+    const targetId = rowEndpointId(view);
+    const endpoint = endpoints.find((item) => item.id === targetId);
     if (
       endpoint === undefined ||
       page === undefined ||
       creatingModelId !== undefined ||
       writeUnavailableReason !== undefined ||
-      modelAlreadyAdded(settings, endpoint.id, view.model.catalog_model_id)
+      rowAddedTo(view) !== undefined
     ) {
       return;
     }
@@ -168,7 +189,7 @@ export function CatalogModelDialog({
             <div className="catalog-model-readonly-note" role="note">
               当前只浏览目录信息；添加这个提供商并配置连接后才能添加模型。
             </div>
-          ) : (
+          ) : byModel ? null : (
             <label>
               <span>目标 Endpoint</span>
               <select
@@ -223,12 +244,22 @@ export function CatalogModelDialog({
         ) : (
           <div className="catalog-model-list">
             {models.map((view) => {
-              const added = modelAlreadyAdded(settings, endpointId, view.model.catalog_model_id);
+              const target = rowTarget(view);
+              const targetId = rowEndpointId(view);
+              const addedTo = rowAddedTo(view);
+              const added = addedTo !== undefined;
               return (
                 <article className="catalog-model-row" key={view.model.catalog_model_id}>
                   <div>
                     <strong>{view.model.display_name}</strong>
                     <small>{view.model.catalog_model_id}</small>
+                    {byModel && addedTo !== undefined ? (
+                      <small>{addedTo.display_name}</small>
+                    ) : target?.kind === 'endpoint' ? (
+                      <small>{target.endpoint.display_name}</small>
+                    ) : target?.kind === 'unconnected' ? (
+                      <small>{target.variant.display_name}</small>
+                    ) : null}
                     {view.model.description === null ||
                     view.model.description === undefined ? null : (
                       <p>{view.model.description}</p>
@@ -251,7 +282,7 @@ export function CatalogModelDialog({
                     <button
                       disabled={
                         added ||
-                        endpointId === '' ||
+                        targetId === '' ||
                         creatingModelId !== undefined ||
                         writeUnavailableReason !== undefined
                       }
@@ -260,11 +291,15 @@ export function CatalogModelDialog({
                     >
                       {added
                         ? '已添加'
-                        : endpointId === ''
+                        : endpoints.length === 0
                           ? '仅查看'
-                          : creatingModelId === view.model.catalog_model_id
-                            ? '添加中…'
-                            : '添加'}
+                          : target?.kind === 'unsupported'
+                            ? '不支持'
+                            : target?.kind === 'unconnected'
+                              ? '未连接'
+                              : creatingModelId === view.model.catalog_model_id
+                                ? '添加中…'
+                                : '添加'}
                     </button>
                     {writeUnavailableReason === undefined ? null : (
                       <span role="tooltip">{writeUnavailableReason}</span>

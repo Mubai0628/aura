@@ -4,4 +4,5 @@ mod binding;
 mod created_folders;
 pub(crate) mod native_scope;
 mod resolution;
+mod skill_folders;
 use super::*;

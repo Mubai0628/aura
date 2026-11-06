@@ -13,6 +13,7 @@ import type {
 import { resetScopedModelProjectionStoreForTests } from './model-projection-store';
 import { resetModelSettingsStoreForTests } from './model-settings-store';
 import { resetComposerDraftsForTests } from './agent-session/composer-drafts';
+import { resetPictureReadsForTests } from './composer-attachments/picture-reads';
 import { emptySessionGrantRoutes } from './security/session-grant-test-routes';
 
 /** The projections the App tests start from. */
@@ -327,6 +328,7 @@ export function installAppTestEnvironment() {
   beforeEach(() => {
     window.localStorage.clear();
     resetComposerDraftsForTests();
+    resetPictureReadsForTests();
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1_200);
     Object.defineProperty(window, 'aura', {
       configurable: true,
@@ -369,6 +371,7 @@ export function installAppTestEnvironment() {
             .mockResolvedValue({ ok: true, value: modelProviderCatalog }),
           getModelSettings: vi.fn().mockResolvedValue({ ok: true, value: modelSettingsProjection }),
           deleteModelEndpoint: vi.fn(),
+          retryModelCredentialCleanup: vi.fn(),
           updateModelEndpoint: vi.fn(),
           getWorkspaceSessions: vi
             .fn()

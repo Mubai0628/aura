@@ -1,54 +1,75 @@
 //! Stable wire prefixes without changing immutable instruction/source facts.
 use aura_domain_common::ContentHash;
 use aura_model_domain::{
-    LogicalInstructionKind, LogicalModelRequest, ModelApiFormat, ModelExecutionSnapshot,
-    ProviderToolNameBinding,
+    LogicalInstructionKind, LogicalModelRequest, ModelExecutionSnapshot, ProviderToolNameBinding,
 };
+use aura_provider_profile::{RequestRules, RoutingKey};
 use aura_tool_contract::ToolSchemaSnapshotV1;
 
-/// Whether the endpoint reaches OpenAI's own prompt cache: OpenAI's API itself, or a gateway on this
-/// computer (CLIProxyAPI and the like) in front of it. Another provider's endpoint is answered by
-/// that provider's cache, which may not know OpenAI's fields; DeepSeek's cached nearly every step
-/// with the request as it was.
-#[must_use]
-pub fn reaches_openai_cache(snapshot: &ModelExecutionSnapshot) -> bool {
-    url::Url::parse(&snapshot.resolved_request_url).is_ok_and(|url| match url.host() {
-        Some(url::Host::Domain(host)) => {
-            (url.scheme() == "https" && host == "api.openai.com") || host == "localhost"
-        }
-        Some(url::Host::Ipv4(address)) => address.is_loopback(),
-        Some(url::Host::Ipv6(address)) => address.is_loopback(),
-        None => false,
-    })
+/// What the profile of the request's host asks of the request beyond the protocol.
+fn profile_rules(snapshot: &ModelExecutionSnapshot) -> RequestRules {
+    url::Url::parse(&snapshot.resolved_request_url)
+        .map(|url| aura_provider_profile::request_rules(&url, snapshot.api_format))
+        .unwrap_or_default()
 }
 
-/// OpenAI's prompt cache sends the requests that share a key to the same cache, so the steps of one
-/// conversation, each the one before with more appended, find what the one before left. The key
-/// names the stable instructions and the conversation's first item, which stay the same from step
-/// to step until a compaction replaces the history. It goes to OpenAI and to a local gateway in
-/// front of it (through one without the key, a turn's steps were cached erratically); a Chat
-/// Completions endpoint is sent it only at OpenAI itself. Other endpoints may not know the field, a
-/// field a gateway does not know can fail every request, and the transport removes no field (its
-/// compatibility whitelist is empty).
+/// Whether the request's profile puts the task's current state before the conversation.
 #[must_use]
-pub fn prompt_cache_key(
+pub fn state_before_conversation(snapshot: &ModelExecutionSnapshot) -> bool {
+    profile_rules(snapshot).state_before_conversation
+}
+
+/// Whether the request's profile marks cache breakpoints in the body.
+#[must_use]
+pub fn cache_breakpoints(snapshot: &ModelExecutionSnapshot) -> bool {
+    profile_rules(snapshot).cache_breakpoints
+}
+
+/// Whether the request's profile asks the Provider to keep neither it nor its reply.
+#[must_use]
+pub fn store_off(snapshot: &ModelExecutionSnapshot) -> bool {
+    profile_rules(snapshot).store_off
+}
+
+/// Whether the request asks for the model's reasoning encrypted: where its profile does, for a
+/// model that reasons, as its catalog lists thinking levels or one is sent. A model that does not
+/// reason refuses the field.
+#[must_use]
+pub fn encrypted_reasoning(snapshot: &ModelExecutionSnapshot) -> bool {
+    let options = &snapshot.request_options;
+    profile_rules(snapshot).encrypted_reasoning
+        && (options.reasoning_by_effort || options.reasoning_effort.is_some())
+}
+
+/// A body field the Provider routes the steps of a conversation by.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RoutingKeyField {
+    pub name: String,
+    pub value: String,
+}
+
+/// The body field the request's profile routes a conversation's steps by, when it asks for one.
+/// The value names the stable instructions and the conversation's first item, which stay the same
+/// from step to step until a compaction replaces the history, so the steps of one conversation,
+/// each the one before with more appended, find what the one before left. A request whose profile
+/// asks for no field is sent none: a field a gateway does not know can fail every request, and the
+/// transport removes no field (its compatibility whitelist is empty).
+#[must_use]
+pub fn routing_key_field(
     snapshot: &ModelExecutionSnapshot,
     request: &LogicalModelRequest,
     layout: &InstructionLayout,
-) -> Option<String> {
-    let official = url::Url::parse(&snapshot.resolved_request_url)
-        .is_ok_and(|url| url.scheme() == "https" && url.host_str() == Some("api.openai.com"));
-    let responses = snapshot.api_format == ModelApiFormat::OpenAiResponses;
-    if !official && !(responses && reaches_openai_cache(snapshot)) {
+) -> Option<RoutingKeyField> {
+    let Some(RoutingKey::PromptPrefixField { name }) = profile_rules(snapshot).routing_key else {
         return None;
-    }
+    };
     let mut basis = layout.stable.as_bytes().to_vec();
     if let Some(first) = request.conversation_items.first() {
         basis.push(b'\n');
         basis.extend(serde_json::to_vec(first).ok()?);
     }
     let hash = ContentHash::sha256(&basis);
-    Some(format!("aura-{}", &hash.hex[..32]))
+    Some(RoutingKeyField { name, value: format!("aura-{}", &hash.hex[..32]) })
 }
 
 pub struct InstructionLayout {

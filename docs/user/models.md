@@ -7,6 +7,7 @@ Aura 不带模型，你需要接入自己的模型服务。在“设置 → 模�
 - 选一个服务类型（如 DeepSeek，或任何 OpenAI 兼容接口），填地址和 API Key。连接的接口格式可以选 OpenAI Responses、OpenAI Chat Completions 或 Anthropic Messages。API Key 只保存在 Windows 凭据管理器里，界面上不再显示原文，也不写进 Aura 的任何文件。
 - 一个服务下可以有多个连接（不同的 Key 或地址），可以指定默认连接。
 - 保存后，Aura 列出这个服务提供的模型；也可以手动添加模型。
+- 并非每个服务商都实测过，见[已知限制](limitations.md#已知限制)。
 
 ## 模型设置
 

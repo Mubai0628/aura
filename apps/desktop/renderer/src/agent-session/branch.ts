@@ -1,6 +1,7 @@
 import type { AgentSessionBranchResult } from '@aura/contracts/generated';
 import { readSessionModelSelector } from '../model-projection-store';
 import { copySessionReasoning } from '../reasoning-effort';
+import { copySessionSpeed } from '../speed-mode';
 
 /**
  * Makes a branch of a conversation at one finished turn, then gives it the conversation's
@@ -19,6 +20,7 @@ export async function branchFrom(
   if (!made.ok) throw made.error;
   // The branch keeps the conversation's thinking levels too.
   copySessionReasoning(sessionId, made.value.session_id);
+  copySessionSpeed(sessionId, made.value.session_id);
   await keepModel(sessionId, made.value.session_id);
   return made.value;
 }

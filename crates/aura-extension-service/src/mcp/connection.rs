@@ -318,6 +318,7 @@ impl Connection {
                 server_info: aura_mcp::ServerInfo::default(),
                 tools_supported: false,
                 tools_list_changed: false,
+                resources_supported: false,
                 instructions: None,
             },
         };

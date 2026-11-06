@@ -13,7 +13,9 @@ test('workspace sidebars resize, collapse, recover preferences, and never overla
   let application = await launchAura();
   try {
     let window = await application.firstWindow();
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
     const session = await createShellSession(application, window);
     await application.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.setContentSize(1_400, 800);

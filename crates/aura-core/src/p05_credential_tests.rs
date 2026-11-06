@@ -126,6 +126,7 @@ impl CredentialProjectionFactory for TestProjectionFactory {
                 active_credentials: vec![status.clone()],
                 dormant_credentials: Vec::new(),
                 reasoning_efforts: Default::default(),
+                speed_modes: Default::default(),
             }),
             ModelProjectionDraft::EndpointDetail(Box::new(EndpointDetailProjection {
                 endpoint_id: self.endpoint_id,

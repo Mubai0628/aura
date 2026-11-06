@@ -10,6 +10,7 @@ mod recovery_plan;
 mod recovery_publication;
 mod recovery_reset;
 mod reload;
+mod unpublished;
 mod validation;
 use validation::parse_and_validate;
 

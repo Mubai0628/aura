@@ -117,6 +117,17 @@ impl AgentApplication {
         command: CommandInvocationId,
         request: AgentSubmitRequest,
     ) -> anyhow::Result<AgentInboxProjection> {
+        Ok(self.submit_sent(command, request, None).await?.0)
+    }
+
+    /// Sends a message as [`Self::submit`] does, marked as `sender`'s when the user did not type
+    /// it, and says which message it queued: none when the command was sent before.
+    pub async fn submit_sent(
+        self: &Arc<Self>,
+        command: CommandInvocationId,
+        request: AgentSubmitRequest,
+        sender: Option<MessageSender>,
+    ) -> anyhow::Result<(AgentInboxProjection, Option<EventId>)> {
         self.ensure_session(request.session_id).await?;
         let repeated = request.clone();
         if self
@@ -126,7 +137,9 @@ impl AgentApplication {
             })
             .await?
         {
-            return self.inbox(AgentSessionRequest { session_id: request.session_id }).await;
+            let projection =
+                self.inbox(AgentSessionRequest { session_id: request.session_id }).await?;
+            return Ok((projection, None));
         }
         let lane = match request.destination {
             AgentInputLane::NextTurn => "next_turn",
@@ -135,9 +148,12 @@ impl AgentApplication {
         let workspace = self.session_workspace(request.session_id);
         let skills = self.selected_skills(workspace, &request.skill_ids).await?;
         anyhow::ensure!(
-            skills.is_empty() || matches!(request.destination, AgentInputLane::NextTurn),
+            skills.entries.is_empty() || matches!(request.destination, AgentInputLane::NextTurn),
             "agent.skills_need_new_turn: 选择的 Skill 只在开始新的一轮时使用"
         );
+        let references = self
+            .resolve_references(request.session_id, workspace, &request.text, &request.references)
+            .await?;
         // The pictures and files sent with the message, checked for the session's model.
         let model = self
             .execution
@@ -157,48 +173,63 @@ impl AgentApplication {
             self.accept_message(request.session_id, workspace, &request.text, lane).await?;
         let stored = request.clone();
         let repeated = request.clone();
-        self.accept_attachments(
-            "agent.inbox.submit",
-            request.session_id,
-            prepared.grants,
-            move |db| {
-                if inbox::submitted(db, command, &repeated)? {
-                    Ok(Some(inbox::load(db, repeated.session_id)?))
-                } else {
-                    Ok(None)
-                }
-            },
-            move |journal| {
-                journal.database.unit_of_work(|tx| {
-                    let at = UtcTimestamp::now();
-                    let projection =
-                        inbox::submit_message(tx, command, &stored, &skills, &prepared.values, at)?;
-                    if let (Some(rewrite), Some(message)) = (&rewrite, projection.messages.last()) {
-                        let subject = message.message_id.to_string();
-                        let event = aura_hooks::HookEvent::MessageBeforeAccept;
-                        if aura_persistence_v2::hooks::decision(tx, &subject, event)?.is_none() {
-                            aura_persistence_v2::hooks::save_decision(
-                                tx, &subject, event, rewrite, at,
-                            )?;
+        // The message this command queued; none when it was sent before.
+        let queued = self
+            .accept_attachments(
+                "agent.inbox.submit",
+                request.session_id,
+                prepared.grants,
+                move |db| Ok(inbox::submitted(db, command, &repeated)?.then_some(None)),
+                move |journal| {
+                    journal.database.unit_of_work(|tx| {
+                        let at = UtcTimestamp::now();
+                        let fresh = !inbox::submitted(tx, command, &stored)?;
+                        let projection = inbox::submit_prepared(
+                            tx,
+                            command,
+                            &stored,
+                            &inbox::PreparedMessage {
+                                skills: &skills.entries,
+                                skill_texts: &skills.texts,
+                                attachments: &prepared.values,
+                                references: &references,
+                                sender: sender.as_ref(),
+                            },
+                            at,
+                        )?;
+                        if let (Some(rewrite), Some(message)) =
+                            (&rewrite, projection.messages.last())
+                        {
+                            let subject = message.message_id.to_string();
+                            let event = aura_hooks::HookEvent::MessageBeforeAccept;
+                            if aura_persistence_v2::hooks::decision(tx, &subject, event)?.is_none()
+                            {
+                                aura_persistence_v2::hooks::save_decision(
+                                    tx, &subject, event, rewrite, at,
+                                )?;
+                            }
                         }
-                    }
-                    Ok::<_, aura_persistence_core::PersistenceCoreError>(projection)
-                })
-            },
-        )
-        .await?;
+                        Ok::<_, aura_persistence_core::PersistenceCoreError>(
+                            projection.messages.last().filter(|_| fresh).map(|m| m.message_id),
+                        )
+                    })
+                },
+            )
+            .await?;
         self.schedule_inbox(request.session_id).await?;
-        self.inbox(AgentSessionRequest { session_id: request.session_id }).await
+        let projection = self.inbox(AgentSessionRequest { session_id: request.session_id }).await?;
+        Ok((projection, queued))
     }
 
-    /// The Skills chosen in the composer, checked off the reactor (it reads folders).
+    /// The Skills chosen in the composer, checked and written out off the reactor (it reads
+    /// folders).
     pub(super) async fn selected_skills(
         &self,
         workspace: Option<WorkspaceId>,
         ids: &[SkillInstanceId],
-    ) -> anyhow::Result<Vec<LoadedSkillEntry>> {
+    ) -> anyhow::Result<agent_execution::skill_tools::ChosenSkills> {
         if ids.is_empty() {
-            return Ok(Vec::new());
+            return Ok(agent_execution::skill_tools::ChosenSkills::default());
         }
         let runtime = agent_execution::skill_tools::runtime(&self.execution)?;
         let ids = ids.to_vec();
@@ -286,6 +317,12 @@ impl AgentApplication {
             .start_input(
                 CommandInvocationId::from_bytes(first.message_id.to_bytes()),
                 AgentStartRequest {
+                    computer_mode: pending
+                        .messages
+                        .iter()
+                        .rev()
+                        .find(|message| message.destination == AgentInputLane::NextTurn)
+                        .and_then(|message| message.computer_mode),
                     session_id: id,
                     model_profile_id: profile,
                     text: first.text.clone(),
@@ -301,7 +338,9 @@ impl AgentApplication {
                         .filter(|m| m.destination == AgentInputLane::NextTurn)
                         .filter_map(|m| m.reasoning_effort)
                         .next_back(),
+                    speed_mode: super::context::preparation::speed::queued(&pending.messages),
                     attachments: Vec::new(),
+                    references: Vec::new(),
                 },
                 Some(pending),
                 None,

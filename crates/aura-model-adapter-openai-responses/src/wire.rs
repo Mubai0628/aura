@@ -23,14 +23,6 @@ pub(super) fn usage_from_response(
     })
 }
 
-pub(super) fn provider_stream_error(value: &Value) -> ModelAdapterError {
-    let error = value.get("error").unwrap_or(value);
-    ModelAdapterError::protocol(
-        string_at(error, &["code"]).unwrap_or("openai_responses_stream_error"),
-        string_at(error, &["message"]).unwrap_or("OpenAI Responses stream reported an error"),
-    )
-}
-
 pub(super) fn has_native_attachments(value: &Value) -> bool {
     match value {
         Value::Array(values) => values.iter().any(has_native_attachments),

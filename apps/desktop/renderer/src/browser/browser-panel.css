@@ -104,18 +104,12 @@
 
 .browser-tab-spinner {
   flex: none;
-  width: 11px;
-  height: 11px;
-  border: 1.5px solid var(--accent-soft);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: browser-tab-spin 0.8s linear infinite;
-}
-
-@keyframes browser-tab-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  background: currentColor;
+  mask: var(--pixel-spinner) 0 0 / 128px 16px no-repeat;
+  animation: pixel-spin 800ms steps(8) infinite;
 }
 
 .browser-tab-close {
@@ -211,7 +205,7 @@
   border-color: var(--accent);
   outline: none;
   background: var(--surface);
-  box-shadow: var(--focus-ring);
+  box-shadow: var(--focus-shadow);
 }
 
 .browser-control-button {
@@ -289,7 +283,7 @@
   align-items: center;
   gap: 7px;
   padding: 4px 10px;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent-strong);
   font-size: 12px;
 }
@@ -345,8 +339,8 @@
 .browser-agent-dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: #fff;
+  border-radius: var(--radius-round);
+  background: var(--surface);
   animation: browser-agent-dot 1s var(--ease-in-out) infinite alternate;
 }
 

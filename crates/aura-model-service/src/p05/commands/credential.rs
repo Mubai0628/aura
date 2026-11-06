@@ -7,10 +7,10 @@ use aura_domain_common::{
 use aura_ipc::{SecretInputOperation, SecretInputSlot};
 use aura_model_domain::{
     EndpointAuthScheme, EndpointCreatedWithCredentialResult, EndpointCredentialMutationResult,
-    EndpointCredentialState, EndpointCredentialStatus, ModelCredentialSlot,
-    ModelEndpointClearCredentialRequest, ModelEndpointConfigureCredentialRequest,
-    ModelEndpointCreateWithCredentialRequest, ModelEndpointCreatedPayload,
-    ModelEndpointReplaceCredentialRequest, model_ipc_method,
+    EndpointCredentialState, EndpointCredentialStatus, ModelCredentialCleanupRetryRequest,
+    ModelCredentialCleanupRetryResult, ModelCredentialSlot, ModelEndpointClearCredentialRequest,
+    ModelEndpointConfigureCredentialRequest, ModelEndpointCreateWithCredentialRequest,
+    ModelEndpointCreatedPayload, ModelEndpointReplaceCredentialRequest, model_ipc_method,
 };
 use aura_persistence::{
     CreateModelCredentialSlot, ModelCredentialWriteIntent, ModelProjectionDraft, PersistenceError,
@@ -21,11 +21,13 @@ use aura_windows_platform::SecretBytes;
 use serde_json::Value;
 use thiserror::Error;
 
-use super::{P05CommandDispatch, decode, encode, prepared_snapshot, user_event};
+use super::{
+    P05CommandDispatch, decode, encode, prepared_snapshot, require_command_id, user_event,
+};
 use crate::{
     p05::P05Services,
     p05::config_journal::{ModelConfigCredentialCommandPlan, ModelConfigJournalError},
-    p05_credential::{CredentialClearCompletion, P05CredentialJournalError},
+    p05_credential::{CredentialCleanup, CredentialClearCompletion, P05CredentialJournalError},
 };
 
 #[derive(Debug, Error)]
@@ -107,6 +109,32 @@ impl P05Services {
             }
         }
         Ok(())
+    }
+
+    /// Tries the credentials completed deletions left once more; while any is still there, the
+    /// background retry goes on.
+    pub(super) fn retry_credential_cleanup(
+        &self,
+        params: &Value,
+        command_invocation_id: Option<CommandInvocationId>,
+        correlation_id: CorrelationId,
+    ) -> Result<P05CommandDispatch, IpcErrorEnvelope> {
+        let _: ModelCredentialCleanupRetryRequest = decode(params, correlation_id)?;
+        require_command_id(command_invocation_id, correlation_id)?;
+        let retried = self.credential_journal.retry_pending_deletes().map_err(|error| {
+            credential_error(CredentialCommandError::Journal(error), correlation_id)
+        })?;
+        if retried.pending > 0 {
+            self.credential_journal.schedule_retry();
+        }
+        let result = ModelCredentialCleanupRetryResult {
+            changed: retried.removed > 0,
+            pending_credentials: u32::try_from(retried.pending).unwrap_or(u32::MAX),
+        };
+        Ok(P05CommandDispatch {
+            value: encode(result, correlation_id)?,
+            projection_changes: Vec::new(),
+        })
     }
 
     pub fn dispatch_secret_main_command(
@@ -419,7 +447,7 @@ impl P05Services {
                     )?;
                     Ok(ModelConfigCredentialCommandPlan {
                         prepared_bundle: Box::new(prepared_bundle),
-                        expected_models_revision: Revision::new(expected_revision.value()),
+                        expected_models_revision: Revision::new(prepared.previous.revision),
                         reserved_models_revision: prepared.candidate_revision,
                         credential_slot_creation: CreateModelCredentialSlot {
                             credential_id,

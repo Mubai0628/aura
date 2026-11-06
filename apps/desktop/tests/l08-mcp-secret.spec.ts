@@ -75,8 +75,10 @@ test('L08 B5 Credential Manager: an HTTP server signs in with a secret that neve
     await form.getByLabel('密钥', { exact: true }).fill(secret);
     await form.getByRole('button', { name: '保存' }).click();
     const list = settings.getByRole('list', { name: 'MCP 服务器' });
+    // The row's review opens the server's dialog with what trusting it covers.
     await list.getByRole('button', { name: '查看并信任' }).click();
-    await settings
+    const server = page.getByRole('dialog', { name: '测试密钥' });
+    await server
       .getByRole('alertdialog', { name: '信任 测试密钥' })
       .getByRole('button', { name: '信任并启用' })
       .click();
@@ -92,8 +94,8 @@ test('L08 B5 Credential Manager: an HTTP server signs in with a secret that neve
     expect(stored(secretId as string)).toBe(true);
     expect((await readFile(marker, 'utf8')).includes('unauthorized')).toBe(false);
     // Removing the server removes its secret from the Credential Manager.
-    await list.getByRole('button', { name: '移除' }).click();
-    await settings
+    await server.getByRole('button', { name: '移除' }).click();
+    await server
       .getByRole('alertdialog', { name: '移除 测试密钥' })
       .getByRole('button', { name: '移除' })
       .click();

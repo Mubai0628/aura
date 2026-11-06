@@ -3,7 +3,9 @@
 //! read back from where the message keeps it; an attached file outside the workspace is found
 //! again through its read-only authorization, for Main only.
 use crate::AgentMessageTextSource;
-use aura_domain_common::{ArtifactId, ExternalGrantId, SessionId};
+use aura_domain_common::{
+    ArtifactId, EventId, ExternalGrantId, ModelStepId, SessionId, ToolCallId, TurnTaskId,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -47,16 +49,47 @@ pub struct AttachmentEntryRequest {
     pub entry: String,
 }
 
-/// A file outside the workspace that a message of this conversation names by its full path.
-/// Core reads that message and finds the path in it before saying where the file is, so only a
-/// path the conversation shows can be opened; Aura's own data and the user's credential stores are
-/// not. For Main only.
+/// A file outside the workspace that this conversation names by its full path, in one of its
+/// messages or in the row of one of its calls. Core reads that message or that row and finds the
+/// path in it before saying where the file is, so only a path the conversation shows can be
+/// opened; Aura's own data and the user's credential stores are not. For Main only.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MentionedFileRequest {
     pub session_id: SessionId,
     pub path: String,
-    pub mentioned_in: AgentMessageTextSource,
+    pub mentioned_in: MentionedFileSource,
+}
+
+/// Where the conversation names a file: a message, or a call whose row shows the file (what it
+/// read, wrote, downloaded or opened).
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MentionedFileSource {
+    User { event_id: EventId },
+    Assistant { model_step_id: ModelStepId },
+    Reasoning { model_step_id: ModelStepId },
+    Completion { turn_task_id: TurnTaskId },
+    ToolCall { tool_call_id: ToolCallId },
+}
+
+impl MentionedFileSource {
+    /// The message that names the file; none for a call.
+    pub fn message(self) -> Option<AgentMessageTextSource> {
+        match self {
+            Self::User { event_id } => Some(AgentMessageTextSource::User { event_id }),
+            Self::Assistant { model_step_id } => {
+                Some(AgentMessageTextSource::Assistant { model_step_id })
+            }
+            Self::Reasoning { model_step_id } => {
+                Some(AgentMessageTextSource::Reasoning { model_step_id })
+            }
+            Self::Completion { turn_task_id } => {
+                Some(AgentMessageTextSource::Completion { turn_task_id })
+            }
+            Self::ToolCall { .. } => None,
+        }
+    }
 }
 
 /// Where the file is now, after Core opened it and found it is still the file that was attached.

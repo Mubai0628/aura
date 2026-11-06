@@ -15,6 +15,7 @@ use aura_projection_contract::ProjectionChange;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
+mod pending_deletes;
 use crate::{
     PersistenceCoordinator, PersistenceError, PersistentEventDraft,
     coordinator::{insert_event, to_sql_u64},

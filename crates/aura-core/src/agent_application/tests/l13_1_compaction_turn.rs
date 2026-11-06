@@ -15,6 +15,7 @@ async fn start_compaction(
         runtime,
         "agent.compaction.start",
         json!(AgentCompactionStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             focus: focus.map(str::to_owned),

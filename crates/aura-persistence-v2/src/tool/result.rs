@@ -248,6 +248,8 @@ fn execution_evidence(
                     | "agent-browser-v1"
                     // The user's Chrome: what failed, and whether the step may have run.
                     | "agent-chrome-v1"
+                    // So do the programs on the user's desktop.
+                    | "agent-computer-v1"
             )
         ))
         || result.outcome == ExecutionOutcome::Unknown
@@ -258,6 +260,7 @@ fn execution_evidence(
                         | "agent-package-tool-v1"
                         | "agent-mcp-tool-v1"
                         | "agent-chrome-v1"
+                        | "agent-computer-v1"
                 )
             ))
     .then(|| evidence["domain_journal"]["error"].as_str())
@@ -305,11 +308,13 @@ fn unreachable_target(code: &str) -> Option<(ToolNetworkErrorCode, bool)> {
     })
 }
 
-/// The first line of a DeepSeek web service refusal is Core's own sentence.
+/// The first line of a DeepSeek web service refusal is Core's own sentence, and so is the line of
+/// a status a site answered (the number and what it means).
 fn core_web_service_line(code: &str) -> bool {
     code.starts_with("web.deepseek_")
         || code == "web.service_connection_unusable"
         || code == "web.search_query_too_long"
+        || code == "web.http_failed"
 }
 
 fn proxy_explanation_for_the_model(line: &str) -> bool {
@@ -422,6 +427,7 @@ pub fn materialize(
             "agent-file-evidence-v2"
                 | "agent-task-effect-v1"
                 | "agent-chrome-v1"
+                | "agent-computer-v1"
                 | "agent-memory-vault-v1"
         )
     ) {
@@ -730,6 +736,11 @@ mod tests {
             model_safe_named_error(&oversized).expect("bounded"),
             "network.transport_failed"
         );
+        // A page that is not there (the web runtime's line): the model is told the status and
+        // what it means.
+        let missing = "web.http_failed: the server answered HTTP 404; there is no page at this \
+                       address; check the address, or search for the page";
+        assert_eq!(model_safe_named_error(missing), Some(missing));
     }
 
     #[test]

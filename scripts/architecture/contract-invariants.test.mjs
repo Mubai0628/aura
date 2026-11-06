@@ -23,6 +23,7 @@ const surfaces = (method) =>
 
 const SECRET_INPUTS = [
   'agent.mcp.secret.set',
+  'agent.plugins.secret.set',
   'models.endpoint.configure_credential',
   'models.endpoint.create_with_credential',
   'models.endpoint.replace_credential',
@@ -106,9 +107,11 @@ test('host results, attachment lookups and the exit notice reach Core from Main 
 test('Hook, MCP, Skill and plugin settings: reads stay reads, changes are commands, no model tool', () => {
   const reads = {
     'agent.hooks.': ['list', 'preview', 'invocations', 'select_directory'],
-    'agent.mcp.': ['list', 'preview', 'describe'],
+    // The resources of a server, listed for the composer's 「@」.
+    'agent.mcp.': ['list', 'preview', 'describe', 'resources'],
     'agent.skills.': ['list', 'preview', 'select_directory', 'select_archive'],
-    'agent.plugins.': ['list', 'preview', 'select_directory', 'select_archive'],
+    // A plugin's theme, read for the window.
+    'agent.plugins.': ['list', 'preview', 'select_directory', 'select_archive', 'theme'],
   };
   for (const [prefix, verbs] of Object.entries(reads)) {
     const owned = routes().filter((route) => route.method.startsWith(prefix));
@@ -123,11 +126,56 @@ test('Hook, MCP, Skill and plugin settings: reads stay reads, changes are comman
       );
     }
   }
-  // Trusting, enabling or importing these is never something the model can do.
-  for (const name of release()) {
+  // Trusting, enabling or importing these is never something the model can do. The model may
+  // check a plugin it writes, install it untrusted for development and read its logs: an untrusted
+  // plugin provides nothing until the user trusts it on the plugin page.
+  const pluginTools = ['plugins.dev_install', 'plugins.logs', 'plugins.validate'];
+  assert.deepEqual(
+    release()
+      .filter((name) => name.startsWith('plugins.'))
+      .sort(),
+    pluginTools,
+  );
+  for (const name of release().filter((name) => !pluginTools.includes(name))) {
     assert.ok(!/(^|\.)(hooks?|mcp|plugins?)(\.|$)/u.test(name), name);
     assert.ok(!/^skills\.(import|trust|untrust|set_enabled|uninstall)/u.test(name), name);
   }
+});
+
+test('computer control: its settings, Stop, giving back and the always-allowed list stay with the user', () => {
+  const reads = [
+    'computer.catalog',
+    'computer.controlling',
+    'computer.icons',
+    'computer.settings.get',
+  ];
+  const owned = routes().filter((route) => route.method.startsWith('computer.'));
+  assert.deepEqual(owned.map((route) => route.surface).sort(), [
+    ...Array(8).fill('core'),
+    ...Array(8).fill('main'),
+  ]);
+  for (const route of owned) {
+    assert.equal(
+      route.idempotency,
+      reads.includes(route.method) ? 'read_only' : 'command_invocation',
+      `${route.surface}:${route.method}`,
+    );
+  }
+  // The model reads and acts on programs; what it may reach is never its own call.
+  assert.deepEqual(
+    release()
+      .filter((name) => name.startsWith('computer.'))
+      .sort(),
+    [
+      'computer.act',
+      'computer.apps',
+      'computer.input',
+      'computer.open',
+      'computer.screenshot',
+      'computer.snapshot',
+      'computer.window',
+    ],
+  );
 });
 
 test('branching, archiving, deleting and restoring conversations are user commands', () => {

@@ -77,10 +77,12 @@ macro_rules! route {
 mod agent;
 mod agent_hooks;
 mod agent_mcp;
+mod agent_plugin_session;
 mod agent_plugins;
 mod agent_skills;
 mod browser;
 mod chrome;
+mod computer;
 mod git;
 mod media;
 mod memory;
@@ -103,6 +105,7 @@ pub fn registry() -> impl Iterator<Item = &'static RouteDescriptor> {
         .chain(agent_hooks::ROUTES)
         .chain(agent_mcp::ROUTES)
         .chain(agent_plugins::ROUTES)
+        .chain(agent_plugin_session::ROUTES)
         .chain(agent_skills::ROUTES)
         .chain(git::ROUTES)
         .chain(package::ROUTES)
@@ -114,6 +117,7 @@ pub fn registry() -> impl Iterator<Item = &'static RouteDescriptor> {
         .chain(ui::ROUTES)
         .chain(browser::ROUTES)
         .chain(chrome::ROUTES)
+        .chain(computer::ROUTES)
         .chain(media::ROUTES)
 }
 pub fn core_route(method: &str) -> Option<&'static RouteDescriptor> {
@@ -166,6 +170,11 @@ mod tests {
                 // never replayed; the command it answers is the tool call's own record.
                 ("Core".into(), "browser.host.result"),
                 ("Core".into(), "media.host.result"),
+                // A problem Main saw in a plugin's panel, kept in the plugin's log.
+                ("Core".into(), "agent.plugin_session.log"),
+                // A plugin's notice or status entry, checked before Main shows it once.
+                ("Core".into(), "agent.plugin_session.notify"),
+                ("Core".into(), "agent.plugin_session.status"),
             ]
             .into_iter()
             .collect()
@@ -179,7 +188,7 @@ mod tests {
     /// against the declarations, against the generated
     /// `resources/ipc/routes.v1.json` (301 entries = this registry minus the single
     /// test-only driver route) and against the generated preload bindings.
-    const MAIN_PER_MODULE: [(&str, usize); 19] = [
+    const MAIN_PER_MODULE: [(&str, usize); 21] = [
         // `agent.attachments.text` (ReadOnly, both surfaces), the preload's
         // `readAttachmentText`: the text of a text file one of the conversation's messages
         // carried, found by its artifact in that session. Where an outside attachment is now
@@ -194,6 +203,11 @@ mod tests {
         // Chrome does for Aura; a conversation's shared tabs and the user's "done" for a tab
         // handed to them. None of them reaches a page or a model.
         ("chrome", 8),
+        // Settings → 电脑操控: read and save the settings, the programs for the composer's 「@」 and
+        // their icons, a conversation's programs under control, the user's Stop and giving the
+        // desktop back after a takeover, and the approval card's 总是允许 (ReadOnly and
+        // CommandInvocation, both surfaces). None of them acts on the desktop or reaches a model.
+        ("computer", 8),
         ("memory", 10),
         // desktop-only user terminals: explicit Main/Core binding, no model authority.
         ("terminal", 7),
@@ -220,7 +234,14 @@ mod tests {
         // Adds `models.provider.set_connections` (CommandInvocation, both surfaces), the
         // preload's `setModelProviderConnections`: a provider's default and backup connections,
         // saved at the revision the settings page showed, like `models.provider.rename`.
-        ("model", 35),
+        // Adds `models.credential_cleanup.retry` (CommandInvocation, both surfaces), the preload's
+        // `retryModelCredentialCleanup`: the 重试 on a deletion's cleanup notice. It takes no ids
+        // and no secret, and deletes only credentials whose settings are already deleted.
+        // Adds `models.profile.catalog_entries` (ReadOnly, both surfaces), the preload's
+        // `getModelProfileCatalogEntries`: the catalog entries a model's name matches, which
+        // the model settings offer to link it to. It reads the catalog and the model settings
+        // only, and holds no secret.
+        ("model", 37),
         // Adds the read-only activity query on both audited surfaces.
         // It is in generated MAIN_ROUTES; Core retains authentication. The model
         // reaches it through Core tools without extending the fixed UI bridge.
@@ -266,18 +287,36 @@ mod tests {
         // OAuth sign-in and sign-out (Main opens the sign-in address in the browser itself).
         // Adds putting a plugin server's own configuration back (CommandInvocation, both
         // surfaces), the preload's `restoreMcpPluginDefault`. None of them calls a server's tool.
-        ("agent_mcp", 13),
+        // Adds `agent.mcp.resources` (ReadOnly, both surfaces), the preload's `listMcpResources`:
+        // a conversation's "@" list of the resources of its trusted, enabled and ready servers,
+        // read through that conversation's own instances (started as a tool call would).
+        ("agent_mcp", 14),
         // Settings → Skill: list and preview (ReadOnly); trust, untrust, enable, import and
         // remove (CommandInvocation; import copies a folder into Aura's own, remove deletes only
         // such a copy), and three Main-only routes: the folder and ZIP file pickers and opening
-        // a listed Skill's folder by its id. None of them loads a Skill for a task.
-        ("agent_skills", 10),
+        // a listed Skill's folder by its id. None of them loads a Skill for a task. Adds trusting
+        // and withdrawing trust of one workspace's Skills as a whole (CommandInvocation, both
+        // surfaces), the preload's `trustWorkspaceSkills` and `untrustWorkspaceSkills`, and
+        // pinning a Skill into every request (CommandInvocation, both surfaces), the preload's
+        // `setSkillPinned`.
+        ("agent_skills", 13),
         // Settings → 插件: list and preview (ReadOnly); import, trust, untrust, enable,
         // discard an update and uninstall (CommandInvocation; import copies a folder or unpacks
         // a ZIP file into Aura's own, uninstall deletes only such a copy), and three Main-only
         // routes: the folder and ZIP file pickers and opening an installed plugin's folder by
-        // its name. None of them runs anything a plugin brings.
-        ("agent_plugins", 11),
+        // its name. None of them runs anything a plugin brings. Adds installing a folder as a
+        // plugin in development (CommandInvocation, both surfaces): recorded where it is, never
+        // copied, and not trusted; the preload's `addDevelopmentPlugin`. Adds a ready plugin's
+        // theme (ReadOnly) and exporting a plugin as a ZIP file (CommandInvocation; the
+        // renderer names the plugin, Main asks where to save it and Core writes the file), the
+        // preload's `getPluginTheme` and `exportPlugin`. Adds what only the plugin page
+        // changes: the background service's switch, the plugin's own settings, its scope and
+        // allowlist (CommandInvocation), the preload's `configurePlugin`, and a secret
+        // setting's value on its own SecretInput frame, the preload's `setPluginSecret`.
+        ("agent_plugins", 16),
+        // A plugin's panel acting in its conversation: Main calls these for the panel's page,
+        // so none of them is on the renderer's surface.
+        ("agent_plugin_session", 0),
         // Adds the six tool-credential routes: list, outcome, clear and recover as
         // `TrustedRenderer`, create and rotate on the single-use `SecretInput` channel. All six
         // are bound by `preload/tool-credentials.ts`; the secret pair goes through its
@@ -334,7 +373,7 @@ mod tests {
     /// The Core surface holds the authoritative commands. These have no renderer
     /// entry: internal broker channels, the runtime ledger, host preparation,
     /// and lifecycle handshakes. Git reads use the authenticated Main bridge.
-    const CORE_ONLY: [&str; 23] = [
+    const CORE_ONLY: [&str; 34] = [
         "media.host.read",
         "media.host.result",
         // Where an attached file outside the workspace is now, for Main to stream or open
@@ -364,10 +403,23 @@ mod tests {
         "workspace.lifecycle.prepare",
         "workspace.lifecycle.prepare_delivered",
         "workspace.lifecycle.renderer_unavailable",
+        // Main calls these for a plugin's panel, naming the plugin and the conversation from the
+        // panel that called; the window and the panel's page never reach Core's surface.
+        "agent.plugin_session.state",
+        "agent.plugin_session.events",
+        "agent.plugin_session.send",
+        "agent.plugin_session.run",
+        "agent.plugin_session.stop",
+        "agent.plugin_session.settings",
+        "agent.plugin_session.set_setting",
+        "agent.plugin_session.panel",
+        "agent.plugin_session.log",
+        "agent.plugin_session.notify",
+        "agent.plugin_session.status",
     ];
 
     /// The closed credential and terminal input routes cannot carry values in JSON.
-    const SECRET_MAIN: [&str; 7] = [
+    const SECRET_MAIN: [&str; 8] = [
         "models.endpoint.configure_credential",
         "models.endpoint.create_with_credential",
         "models.endpoint.replace_credential",
@@ -375,6 +427,7 @@ mod tests {
         "tools.credential.rotate",
         "terminal.user.sensitive.submit",
         "agent.mcp.secret.set",
+        "agent.plugins.secret.set",
     ];
 
     #[test]
@@ -389,7 +442,9 @@ mod tests {
                         || (route.owner == RouteOwner::Agent
                             && matches!(
                                 route.method,
-                                "terminal.user.sensitive.submit" | "agent.mcp.secret.set"
+                                "terminal.user.sensitive.submit"
+                                    | "agent.mcp.secret.set"
+                                    | "agent.plugins.secret.set"
                             )),
                     "{} is outside the closed secret input surface",
                     route.method
@@ -404,10 +459,11 @@ mod tests {
         // to be accepted here on purpose. A stale count is how this inventory went
         // unnoticed before, so the per-module table is compared rather than the
         // total alone.
-        let modules: [(&str, &[RouteDescriptor]); 19] = [
+        let modules: [(&str, &[RouteDescriptor]); 21] = [
             ("media", media::ROUTES),
             ("browser", browser::ROUTES),
             ("chrome", chrome::ROUTES),
+            ("computer", computer::ROUTES),
             ("memory", memory::ROUTES),
             ("workspace", workspace::ROUTES),
             ("git", git::ROUTES),
@@ -418,6 +474,7 @@ mod tests {
             ("agent_hooks", agent_hooks::ROUTES),
             ("agent_mcp", agent_mcp::ROUTES),
             ("agent_plugins", agent_plugins::ROUTES),
+            ("agent_plugin_session", agent_plugin_session::ROUTES),
             ("agent_skills", agent_skills::ROUTES),
             ("tool", tool::ROUTES),
             ("runtime", runtime::ROUTES),

@@ -14,6 +14,8 @@ export interface ModelChoice {
   disabledReason?: string;
   /** The thinking levels the model offers and the one its profile names. */
   reasoning?: { levels: ReasoningEffort[]; level: ReasoningEffort | undefined } | undefined;
+  /** The speed modes a conversation can choose for the model; none until its settings allow them. */
+  speedModes?: readonly string[] | undefined;
 }
 export interface ModelPickerState {
   choices: ModelChoice[];

@@ -15,13 +15,13 @@ blake3.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 toml.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 junction.workspace = true
-tempfile.workspace = true
-zip.workspace = true
 
 [lints]
 workspace = true

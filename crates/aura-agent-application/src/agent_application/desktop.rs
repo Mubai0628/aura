@@ -154,6 +154,7 @@ impl AgentApplication {
         self.start_input(
             command,
             AgentStartRequest {
+                computer_mode: None,
                 session_id: input.session_id,
                 model_profile_id: profile,
                 text: start.text,
@@ -162,7 +163,9 @@ impl AgentApplication {
                 explicit_backend_id: None,
                 skill_ids: Vec::new(),
                 reasoning_effort: None,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             },
             None,
             Some(input),

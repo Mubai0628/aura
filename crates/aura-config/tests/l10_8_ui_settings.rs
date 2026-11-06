@@ -1,7 +1,9 @@
 //! The interface settings in 设置 → 环境 — whether the session shows its
 //! debugging information (default off) and which terminal a new terminal tab opens (default
 //! PowerShell 7).
-use aura_config::{AuraPaths, ConfigModule, DefaultTerminal, SettingsFacade, UiSettings};
+use aura_config::{
+    AuraPaths, BackgroundMotion, ConfigModule, DefaultTerminal, SettingsFacade, UiSettings,
+};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -21,7 +23,12 @@ fn defaults_hide_debugging_information_and_open_powershell() {
     let snapshot = facade.ui_settings();
     assert_eq!(
         snapshot.settings,
-        UiSettings { show_debug_information: false, default_terminal: DefaultTerminal::PowerShell }
+        UiSettings {
+            show_debug_information: false,
+            default_terminal: DefaultTerminal::PowerShell,
+            plugin_theme: None,
+            background_motion: BackgroundMotion::System,
+        }
     );
     assert_eq!(snapshot.revision, Some(1));
     assert!(snapshot.issue.is_none());
@@ -30,8 +37,11 @@ fn defaults_hide_debugging_information_and_open_powershell() {
 #[test]
 fn a_saved_choice_is_read_back_at_its_revision() {
     let (_temp, paths, facade) = facade();
-    let chosen =
-        UiSettings { show_debug_information: true, default_terminal: DefaultTerminal::Cmd };
+    let chosen = UiSettings {
+        show_debug_information: true,
+        default_terminal: DefaultTerminal::Cmd,
+        ..UiSettings::default()
+    };
     facade.update_ui_settings(1, &chosen).expect("save");
     assert_eq!(facade.ui_settings().settings, chosen);
     assert_eq!(facade.ui_settings().revision, Some(2));
@@ -46,9 +56,11 @@ fn a_saved_choice_is_read_back_at_its_revision() {
 #[test]
 fn bad_values_are_refused_before_they_are_published() {
     let (_temp, _paths, facade) = facade();
-    for (field, value) in
-        [("show_debug_information", json!("yes")), ("default_terminal", json!("bash"))]
-    {
+    for (field, value) in [
+        ("show_debug_information", json!("yes")),
+        ("default_terminal", json!("bash")),
+        ("background_motion", json!("fast")),
+    ] {
         assert!(
             facade
                 .update(ConfigModule::Ui, 1, |values| {
@@ -61,13 +73,46 @@ fn bad_values_are_refused_before_they_are_published() {
     }
 }
 
+/// The sea behind an empty conversation follows Windows' animation effects unless 开启 or 关闭 is
+/// chosen; following the system is the default and is not written to the file.
+#[test]
+fn the_background_motion_is_saved_read_back_and_left_out_while_it_follows_the_system() {
+    fn motion(facade: &SettingsFacade) -> serde_json::Value {
+        serde_json::to_value(facade.ui_settings().settings).expect("JSON")["background_motion"]
+            .clone()
+    }
+    fn chosen(motion: &str) -> UiSettings {
+        serde_json::from_value(json!({
+            "show_debug_information": false,
+            "default_terminal": "power_shell",
+            "background_motion": motion,
+        }))
+        .expect("a choice the page offers")
+    }
+    let (_temp, paths, facade) = facade();
+    assert_eq!(motion(&facade), serde_json::Value::Null);
+    facade.update_ui_settings(1, &chosen("on")).expect("save");
+    assert_eq!(motion(&facade), json!("on"));
+    facade.update_ui_settings(2, &chosen("off")).expect("save");
+    drop(facade);
+    let reopened = SettingsFacade::open(paths.clone()).expect("reopen");
+    assert_eq!(motion(&reopened), json!("off"));
+    reopened.update_ui_settings(3, &chosen("system")).expect("save");
+    assert_eq!(motion(&reopened), serde_json::Value::Null);
+    let written = std::fs::read_to_string(paths.config_path(ConfigModule::Ui)).expect("file");
+    assert!(!written.contains("background_motion"), "{written}");
+}
+
 #[test]
 fn a_damaged_file_at_startup_gives_back_the_last_valid_choice() {
     // Like other settings that cannot widen what runs, a damaged file is backed up into the
     // history and the last valid choice is served and written back.
     let (_temp, paths, facade) = facade();
-    let chosen =
-        UiSettings { show_debug_information: true, default_terminal: DefaultTerminal::Cmd };
+    let chosen = UiSettings {
+        show_debug_information: true,
+        default_terminal: DefaultTerminal::Cmd,
+        ..UiSettings::default()
+    };
     facade.update_ui_settings(1, &chosen).expect("save");
     drop(facade);
     std::fs::write(paths.config_path(ConfigModule::Ui), DAMAGED).expect("external edit");

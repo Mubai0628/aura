@@ -100,7 +100,7 @@ export function createOcean(
   };
 
   function drawWater(dt: number) {
-    ctx.strokeStyle = 'rgba(36, 39, 36, 0.045)';
+    ctx.strokeStyle = 'rgba(28, 28, 27, 0.045)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 0.5; x < width; x += CELL) {
@@ -122,7 +122,7 @@ export function createOcean(
         mote.y = height + 10;
         mote.x = random() * width;
       }
-      ctx.fillStyle = `rgba(120, 126, 121, ${mote.alpha})`;
+      ctx.fillStyle = `rgba(122, 122, 118, ${mote.alpha})`;
       for (let k = 0; k < mote.run; k++)
         ctx.fillText(
           mote.glyph,
@@ -151,7 +151,7 @@ export function createOcean(
       ripple.age += dt;
       const p = ripple.age / RIPPLE_SECONDS;
       const radius = 18 + p * 60;
-      ctx.strokeStyle = `rgba(63, 98, 92, ${0.32 * (1 - p)})`;
+      ctx.strokeStyle = `rgba(42, 42, 40, ${0.32 * (1 - p)})`;
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.ellipse(ripple.x, ripple.y, radius, radius * 0.5, 0, 0, TAU);

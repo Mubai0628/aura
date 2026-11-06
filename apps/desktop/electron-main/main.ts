@@ -48,6 +48,12 @@ import { dispatchMemoryCommand } from './memory-requests.js';
 import { agentRouteHandler } from './command-directory.js';
 import { refreshLoadedChromeExtension } from './chrome-extension-folder.js';
 import { installBrowserHost, type BrowserHost } from './browser-host/index.js';
+import {
+  installPluginPanels,
+  PANEL_SCHEME_PRIVILEGES,
+  type PluginPanelHost,
+} from './plugin-panels/index.js';
+import { installPluginUi } from './plugin-ui/index.js';
 
 import type {
   CoreHealthProjectionChange,
@@ -73,6 +79,7 @@ import {
 import { isToolActivityPageRequest } from '../shared/tool-projection-validation.js';
 import { CoreSupervisor } from './core-supervisor.js';
 import { AttachmentFiles } from './attachment-files.js';
+import { ProviderIconProtocol } from './provider-icon-protocol.js';
 import { installMessagePictures } from './message-pictures.js';
 import { bindEmbeddedHosts, createMediaHosts } from './embedded-hosts.js';
 import { prepareExitThenStop } from './core-exit.js';
@@ -116,6 +123,7 @@ protocol.registerSchemesAsPrivileged([
     privileges: { secure: true, standard: true, stream: true, supportFetchAPI: true },
     scheme: 'aura',
   },
+  PANEL_SCHEME_PRIVILEGES,
 ]);
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -155,8 +163,17 @@ let supervisor: CoreSupervisor | undefined;
 const { workspaceMedia, mediaHost } = createMediaHosts(() => mainWindow);
 // An attached file outside the workspace, for the 文件 tab and its menu.
 const attachmentFiles = new AttachmentFiles(workspaceMedia);
+const providerIcons = new ProviderIconProtocol((params) => {
+  if (supervisor === undefined) return Promise.reject(new Error(CORE_NOT_READY_MESSAGE));
+  return supervisor.requestP05('provider_icon.read', params);
+});
 let browserHost: BrowserHost | undefined;
+let pluginPanels: PluginPanelHost | undefined;
 let windowStateStore: WindowStateStore | undefined;
+const captureWindowState = (window: BrowserWindow | undefined): void => {
+  if (window === undefined || window.isDestroyed()) return;
+  windowStateStore?.capture(window, screen.getDisplayMatching(window.getBounds()));
+};
 let launcherReady: LauncherReadyReporter | undefined;
 let appUpdates: RegisteredAppUpdates | undefined;
 let notifications: RegisteredNotifications | undefined;
@@ -169,7 +186,11 @@ const mainDiagnostics = installMainDiagnostics({
   namespace: () => releaseContext?.namespaceObjectHash,
   contents: windowContents,
   trust: (event) => assertTrustedSender(event),
-  flush: () => Promise.all([windowStateStore?.flush(), coreExit]),
+  // After app.quit() the window is still open here; its close event only comes after this wait.
+  flush: () => {
+    captureWindowState(mainWindow);
+    return Promise.all([windowStateStore?.close(), coreExit]);
+  },
   exitCode: () => exitCode,
   stop: () => {
     const active = supervisor;
@@ -198,10 +219,9 @@ const currentSecurityProjections = new Map<
 const {
   subscribeModelProjectionRoute,
   unsubscribeModelProjectionRoute,
-  releaseModelProjectionRoutes,
   subscribeToolProjectionRoute,
   unsubscribeToolProjectionRoute,
-  releaseToolProjectionRoutes,
+  releasePage,
 } = createProjectionRoutes({
   supervisor: () => supervisor,
   appendMainLog: (event, fields) => appendMainLog(event, fields),
@@ -232,36 +252,8 @@ const registerProductionProtocol = (): void => {
     if (url.hostname !== 'app') return new Response('Not found', { status: 404 });
     const media = await workspaceMedia.serve(request);
     if (media !== undefined) return media;
-    const providerIcon = parseProviderIconPath(url.pathname);
-    if (providerIcon !== undefined) {
-      if (supervisor === undefined) return new Response('Not found', { status: 404 });
-      try {
-        const result = await supervisor.requestP05('provider_icon.read', {
-          artifact_id: providerIcon.artifactId,
-          content_hash: { algorithm: 'blake3', hex: providerIcon.contentHash },
-        });
-        const bytes = Buffer.from(result.png_base64, 'base64');
-        if (
-          bytes.byteLength !== result.byte_length ||
-          result.content_hash.algorithm !== 'blake3' ||
-          result.content_hash.hex !== providerIcon.contentHash ||
-          !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-        ) {
-          return new Response('Not found', { status: 404 });
-        }
-        return new Response(bytes, {
-          headers: {
-            'Cache-Control': 'private, max-age=86400, immutable',
-            'Content-Length': String(bytes.byteLength),
-            'Content-Type': 'image/png',
-            'X-Content-Type-Options': 'nosniff',
-          },
-          status: 200,
-        });
-      } catch {
-        return new Response('Not found', { status: 404 });
-      }
-    }
+    const providerIcon = await providerIcons.serve(url.pathname);
+    if (providerIcon !== undefined) return providerIcon;
     if (rendererDevelopmentUrl !== undefined) return new Response('Not found', { status: 404 });
     const decodedPath = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
     const candidate = resolve(rendererRoot, `.${decodedPath}`);
@@ -276,16 +268,6 @@ const registerProductionProtocol = (): void => {
   });
 };
 
-const parseProviderIconPath = (
-  pathname: string,
-): { artifactId: `art_${string}`; contentHash: string } | undefined => {
-  const match = /^\/provider-icon\/(art_[0-7][0-9A-HJKMNP-TV-Z]{25})\/([0-9a-f]{64})\.png$/u.exec(
-    pathname,
-  );
-  if (match?.[1] === undefined || match[2] === undefined) return undefined;
-  return { artifactId: match[1] as `art_${string}`, contentHash: match[2] };
-};
-
 const createMainWindow = async (): Promise<BrowserWindow> => {
   const restored = restoreWindowState(
     await windowStateStore?.read(),
@@ -294,7 +276,7 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
   );
   const window = new BrowserWindow({
     ...restored.bounds,
-    backgroundColor: '#f7f8fa',
+    backgroundColor: '#ffffff',
     minHeight: 540,
     minWidth: 800,
     show: false,
@@ -311,7 +293,8 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
   rendererInstances.set(webContentsId, createAuraId('rnd'));
   window.webContents.on('did-start-navigation', (details) => {
     if (!details.isMainFrame || details.isSameDocument) return;
-    void releaseModelProjectionRoutes(webContentsId);
+    pluginPanels?.reset();
+    void releasePage(webContentsId);
     const previous = rendererInstances.get(webContentsId);
     rendererInstances.set(webContentsId, createAuraId('rnd'));
     if (previous !== undefined && supervisor !== undefined) {
@@ -345,8 +328,7 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
     streamPorts.clear();
     const rendererInstanceId = rendererInstances.get(webContentsId);
     rendererInstances.delete(webContentsId);
-    void releaseModelProjectionRoutes(webContentsId);
-    void releaseToolProjectionRoutes(webContentsId);
+    void releasePage(webContentsId);
     if (rendererInstanceId !== undefined && supervisor !== undefined) {
       void notifyRendererUnavailable(rendererInstanceId);
     }
@@ -358,7 +340,7 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
     )
       return;
     rendererRecoveryInProgress = true;
-    windowStateStore?.capture(window, screen.getDisplayMatching(window.getBounds()));
+    captureWindowState(window);
     setTimeout(() => {
       void (windowStateStore?.flush() ?? Promise.resolve())
         .then(() => createMainWindow())
@@ -376,10 +358,7 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
         });
     }, 100);
   });
-  const capture = (): void => {
-    if (window.isDestroyed()) return;
-    windowStateStore?.capture(window, screen.getDisplayMatching(window.getBounds()));
-  };
+  const capture = (): void => captureWindowState(window);
   window.on('move', capture);
   window.on('resize', capture);
   window.on('maximize', capture);
@@ -390,7 +369,7 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
   window.on('closed', () => {
     const rendererInstanceId = rendererInstances.get(webContentsId);
     rendererInstances.delete(webContentsId);
-    void releaseModelProjectionRoutes(webContentsId);
+    void releasePage(webContentsId);
     if (
       !mainDiagnostics.isQuitting() &&
       rendererInstanceId !== undefined &&
@@ -729,6 +708,14 @@ const registerIpc = (): void => {
     core: () => supervisor,
     log: (event, fields) => void appendMainLog(event, fields),
   });
+  pluginPanels = installPluginPanels({
+    window: () => mainWindow,
+    assertTrustedSender,
+    core: () => supervisor,
+    preload: resolve(currentDirectory, '../preload/panel.cjs'),
+    ui: installPluginUi({ window: () => mainWindow, assertTrustedSender }),
+    log: (event, fields) => void appendMainLog(event, fields),
+  });
   ipcMain.handle(
     MODEL_SECRET_INVOKE_CHANNEL,
     async (event, request: unknown, rendererSecret: unknown) => {
@@ -900,7 +887,10 @@ app.whenReady().then(async () => {
       currentDirectory,
       executablePath: process.execPath,
     });
-    windowStateStore = new WindowStateStore(namespaceDataRoot(releaseContext));
+    windowStateStore = new WindowStateStore(
+      namespaceDataRoot(releaseContext),
+      (event, fields) => void appendMainLog(event, fields),
+    );
     void refreshLoadedChromeExtension(namespaceDataRoot(releaseContext), appendMainLog);
     notifications = startNotifications({
       namespace: releaseContext.manifest.bundle_namespace,

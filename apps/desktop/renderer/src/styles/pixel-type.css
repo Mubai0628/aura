@@ -1,0 +1,156 @@
+/* The interface's own words in the pixel face: titles, labels, buttons, menus, marks, keys and
+   numbers. The face is drawn on a 12px grid, so a title is 24px and everything else 12px, weight
+   400, without tracking. The user's words, the model's replies, names and paths, inputs and code
+   keep the reading faces. Loaded last (main.tsx), so these rules are the final word on the type of
+   the words they name.
+   Chromium on Windows draws text with ClearType's coloured fringes unless it paints the text into
+   a layer of its own; a filter that changes nothing gives these words such a layer, so their
+   single-pixel strokes get grey edges instead. A filter rather than opacity, so the elements' own
+   opacity rules (disabled, hidden until hover) still apply; none of them holds a positioned
+   descendant that a filter's containing block would move. */
+:is(
+  .new-session-welcome h1,
+  .settings-header h1,
+  .settings-content-heading h2,
+  .profile-dialog-heading h2,
+  .provider-dialog-title h2,
+  .confirmation-copy h2,
+  .sidebar-edit-dialog h2,
+  .maintenance-log-dialog .modal-header h2,
+  .settings-item-dialog-heading h2,
+  .settings-recovery h2
+) {
+  font-family: var(--font-pixel);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-transform: none;
+  filter: opacity(1);
+}
+
+:is(
+  /* Headings and labels */
+  .sidebar-heading,
+  .right-workspace-label,
+  .right-shortcuts > p,
+  .settings-navigation > p,
+  .new-session-welcome > span,
+  :where(.settings-page) h3,
+  .section-heading-row h3,
+  .tool-section-heading h3,
+  .activity-section-title,
+  .activity-heading,
+  .review-list-group,
+  .review-cards-group,
+  .model-menu-group > span,
+  .composer-popover > p,
+  .context-pixel-head,
+  .agent-plan-label,
+  .provider-group-heading h4,
+  .browser-site-list h4,
+  .computer-settings h4,
+  .hook-invocations-heading h4,
+  .plugin-preview h4,
+  .plugin-runtime h4,
+  .agent-tool-group h4,
+  .settings-form-grid label > span,
+  .secret-api-key-field > label > span,
+  .profile-fields label,
+  .reasoning-levels > legend,
+  .mcp-form label,
+  .mcp-form legend,
+  .sidebar-dialog-body label,
+  .sidebar-field-label,
+  .agent-tool-settings-controls label,
+  .update-facts dt,
+  .model-card-facts dt,
+  .model-card-facts dd,
+  .notification-copy strong,
+  .help-tip-bubble,
+  .disabled-action-wrapper [role='tooltip'],
+  /* Navigation, tabs, menus and buttons */
+  .settings-navigation button,
+  .tool-tab > button[role='tab'],
+  .tool-picker button,
+  .right-shortcuts button,
+  .sidebar-popover > button,
+  .context-menu button,
+  .context-menu-note,
+  .attachment-menu button,
+  .review-menu > button,
+  .review-compare-button,
+  .sidebar-dialog-actions button,
+  .connection-routing button,
+  .core-waiting-notice button,
+  .activity-stack button,
+  .agent-continue button,
+  .agent-tool-terminal button,
+  .agent-reasoning-collapse,
+  .agent-plan-implement,
+  .agent-process-toggle,
+  .browser-control-button,
+  .readiness-refresh,
+  .file-tree-note button,
+  .file-view-status button,
+  .file-view-more,
+  .review-card-note button,
+  .review-more-files,
+  .context-tools-actions button,
+  .profile-context-tools .context-tools-trigger,
+  .model-operation-status button,
+  .profile-fields .level-pill,
+  .profile-fields .level-segment,
+  .level-choice > span,
+  .model-section-filter > span,
+  /* Marks, states, keys and numbers */
+  kbd,
+  .composer-mode-chip,
+  .settings-tag,
+  .status-pill,
+  .status-default,
+  .status-ready,
+  .status-warning,
+  .model-section-count,
+  .tool-chip,
+  .tool-chip-state,
+  .agent-tool-state,
+  .agent-query-kind,
+  .agent-approval-kind,
+  .agent-query-index,
+  .agent-plan-step-id,
+  .context-pixel-badge,
+  .hook-row-order,
+  .review-tag,
+  .permission-default-current,
+  .projection-revision-badge,
+  .workspace-index-badge,
+  .demo-chip,
+  .draft-state,
+  .goal-status,
+  .goal-usage,
+  .todo-count,
+  .plugin-runtime-count,
+  .skill-pin-total,
+  .chrome-strip-count,
+  .settings-core-status,
+  .agent-turn-status [role='status'],
+  .agent-elapsed,
+  .agent-turn-summary,
+  .agent-query-countdown,
+  .message-meta time,
+  .browser-assist-time,
+  .activity-section li time
+) {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  filter: opacity(1);
+}
+
+/* A field takes the reading face even inside a label set in the pixel face. */
+:is(input, textarea, select) {
+  font-family: var(--font-ui);
+}

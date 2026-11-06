@@ -58,7 +58,7 @@ const DEVELOPMENT_ONLY = [
   /\bscripts\/s045bcdr\b/u,
 ];
 // Files that name a development-only path on purpose: a command that refuses to run without it.
-const NAMES_DEVELOPMENT_PATHS = new Set(['xtask/src/r06.rs']);
+const NAMES_DEVELOPMENT_PATHS = new Set(['xtask/src/r06.rs', 'scripts/l18/run-idle-test.ps1']);
 
 function parse(argv) {
   const options = { commit: 'HEAD', build: false, workingTree: false };
@@ -226,6 +226,9 @@ const INCLUDE_FILE = /include_(?:str|bytes)!\(\s*"([^"]+)"\s*\)/gu;
 const SCRIPT = new Set(['.ts', '.tsx', '.mjs', '.cjs', '.js']);
 // Recorded model-evaluation tasks: their graders import what the model under test writes.
 const RECORDED_TASKS = /^crates\/aura-tool-eval\/fixtures\//u;
+// Test plugins: the test copies the plugin SDK next to a plugin's service before it runs.
+const TEST_PLUGIN_SDK =
+  /^apps\/desktop\/tests\/l17\/[^/]+\/service\/[^/]+\.mjs: \.\/aura-plugin\.mjs$/u;
 // Made by the release process, not kept in the tree: the production release root.
 const MADE_AT_RELEASE = /^resources\/release-trust\/production\//u;
 
@@ -270,7 +273,8 @@ function checkImports(out, files) {
         ),
         ...['/index.ts', '/index.tsx', '/index.js'].map((x) => `${base}${x}`),
       ];
-      if (!candidates.some(exists)) findings.push(`${path}: ${specifier}`);
+      const finding = `${path}: ${specifier}`;
+      if (!candidates.some(exists) && !TEST_PLUGIN_SDK.test(finding)) findings.push(finding);
     }
   }
   return findings;

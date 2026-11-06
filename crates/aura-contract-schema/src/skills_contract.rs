@@ -12,8 +12,10 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
     generator.subschema_for::<SkillListRequest>();
     generator.subschema_for::<SkillRequest>();
     generator.subschema_for::<SkillTrustRequest>();
+    generator.subschema_for::<SkillWorkspaceTrustRequest>();
     generator.subschema_for::<SkillChangeRequest>();
     generator.subschema_for::<SkillSetEnabledRequest>();
+    generator.subschema_for::<SkillSetPinnedRequest>();
     generator.subschema_for::<SkillImportRequest>();
     generator.subschema_for::<SkillSelectDirectoryRequest>();
     generator.subschema_for::<SkillSelectedDirectory>();

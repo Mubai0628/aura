@@ -13,8 +13,15 @@ describe('P05 prerequisite desktop shell', () => {
 
     expect(container.querySelector('.app-topbar')).toBeNull();
     expect(await screen.findByRole('heading', { level: 2, name: '合成桌面会话' })).toBeTruthy();
-    await waitFor(() => expect(screen.getByText('Aura Core 已就绪')).toBeTruthy());
-    expect(screen.getByText('本地运行 · 无需登录')).toBeTruthy();
+    await waitFor(() =>
+      expect(container.querySelector('.app-shell')?.getAttribute('data-core-state')).toBe('ready'),
+    );
+    // The sidebar's foot holds 设置 and nothing else.
+    const foot = container.querySelector('.sidebar-footer');
+    expect(foot?.children).toHaveLength(1);
+    expect(foot?.textContent).toBe('设置');
+    expect(screen.queryByText('Aura Core 已就绪')).toBeNull();
+    expect(screen.queryByText('本地运行 · 无需登录')).toBeNull();
     expect(screen.queryByRole('button', { name: '登录' })).toBeNull();
     expect(await screen.findByRole('heading', { name: '开始一个新任务' })).toBeTruthy();
     expect(screen.queryByText(/不是 Core Projection/u)).toBeNull();

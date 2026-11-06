@@ -46,6 +46,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+/** The server's dialog, opened with its row's 配置; its sign-in is there. */
+const details = async () => {
+  const heading = await screen.findByText('web 服务器', { selector: 'strong' });
+  const row = heading.closest('li') as HTMLElement;
+  await userEvent.click(within(row).getByRole('button', { name: '配置 web 服务器' }));
+  return screen.getByRole('dialog', { name: 'web 服务器' });
+};
+
 test('a server that waits for a sign-in opens it and offers the link to copy', async () => {
   const user = userEvent.setup();
   api.listMcpServers.mockResolvedValue(registry([view({})]));
@@ -54,12 +62,13 @@ test('a server that waits for a sign-in opens it and offers the link to copy', a
     value: { authorization_url: ADDRESS, authorization_server: '127.0.0.1' },
   });
   render(<McpSettings coreReady />);
-  const group = await screen.findByRole('group', { name: 'web 服务器 的登录' });
+  const dialog = await details();
+  const group = within(dialog).getByRole('group', { name: 'web 服务器 的登录' });
   expect(group.textContent).toContain('需要在浏览器中登录');
   await user.click(within(group).getByRole('button', { name: '在浏览器中登录' }));
   expect(api.signInMcpServer).toHaveBeenCalledWith({ id: 'web' });
-  expect(await screen.findByText(/已在浏览器中打开 127\.0\.0\.1 的登录页面/u)).toBeTruthy();
-  expect(screen.getByText(ADDRESS, { selector: 'code' })).toBeTruthy();
+  expect(await within(dialog).findByText(/已在浏览器中打开 127\.0\.0\.1 的登录页面/u)).toBeTruthy();
+  expect(within(dialog).getByText(ADDRESS, { selector: 'code' })).toBeTruthy();
 });
 
 test('a signed-in server can sign out, and a failed sign-in says why', async () => {
@@ -75,11 +84,12 @@ test('a signed-in server can sign out, and a failed sign-in says why', async () 
   );
   api.signOutMcpServer.mockResolvedValue(registry([view({})]));
   render(<McpSettings coreReady />);
-  const group = await screen.findByRole('group', { name: 'web 服务器 的登录' });
+  const dialog = await details();
+  const group = within(dialog).getByRole('group', { name: 'web 服务器 的登录' });
   expect(group.textContent).toContain('已登录');
   await user.click(within(group).getByRole('button', { name: '退出登录' }));
   expect(api.signOutMcpServer).toHaveBeenCalledWith({ id: 'web' });
-  expect(await screen.findByText('已退出 web 服务器 的登录')).toBeTruthy();
+  expect(await within(dialog).findByText('已退出 web 服务器 的登录')).toBeTruthy();
   cleanup();
   api.listMcpServers.mockResolvedValue(
     registry([
@@ -94,7 +104,15 @@ test('a signed-in server can sign out, and a failed sign-in says why', async () 
     ]),
   );
   render(<McpSettings coreReady />);
-  expect(await screen.findByText(/上次登录没有完成：授权服务器拒绝了令牌请求/u)).toBeTruthy();
+  // The row says a sign-in is needed; the dialog says why the last one did not finish.
+  expect(
+    within(
+      (await screen.findByText('web 服务器', { selector: 'strong' })).closest('li')!,
+    ).getByText('需要登录'),
+  ).toBeTruthy();
+  expect(
+    within(await details()).getByText(/上次登录没有完成：授权服务器拒绝了令牌请求/u),
+  ).toBeTruthy();
 });
 
 test('the OAuth choice saves the sign-in way and no secret', async () => {

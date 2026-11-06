@@ -12,7 +12,9 @@ const bare = process.env.AURA_P05_BARE === '1';
 await runDiagnostic(bare ? 'p05-bare' : 'p05-sequence', async ({ dir, log }) => {
   const application = await launch({ dataRoot: join(dir, 'data') });
   const window = await application.firstWindow();
-  await window.getByText('Aura Core 已就绪').waitFor({ state: 'visible', timeout: 20000 });
+  await window
+    .locator('.app-shell[data-core-state="ready"]')
+    .waitFor({ state: 'visible', timeout: 20000 });
   log('core ready');
 
   const step = async (label, run) => {

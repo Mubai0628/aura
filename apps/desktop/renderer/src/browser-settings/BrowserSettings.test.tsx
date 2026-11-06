@@ -39,6 +39,19 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('设置 → 网络与浏览器', () => {
+  it('shows a switch as on or off only once its value is read', async () => {
+    let answer!: (reply: unknown) => void;
+    getSettings.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    render(<BrowserSettings coreReady />);
+    const browser = screen.getByRole('switch', { name: '启用内置浏览器' });
+    expect(browser.dataset.state).toBeUndefined();
+    answer({ ok: true, value: shown() });
+    await waitFor(() => expect(browser.dataset.state).toBe('checked'));
+    expect(screen.getByRole('switch', { name: '允许模型调试网页' }).dataset.state).toBe(
+      'unchecked',
+    );
+  });
+
   it('saves the switch and the site lists at the revision shown', async () => {
     const user = userEvent.setup();
     render(<BrowserSettings coreReady />);
@@ -119,5 +132,20 @@ describe('设置 → 网络与浏览器', () => {
     expect(
       screen.getByRole('switch', { name: '启用内置浏览器' }).getAttribute('aria-checked'),
     ).toBe('false');
+  });
+});
+
+describe('设置 → 网络与浏览器 after Core comes back', () => {
+  it('drops the read failure once the read made after reconnecting succeeds', async () => {
+    getSettings.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'ipc.transport_lost', message: 'Aura Core pipe I/O failed' },
+    });
+    const view = render(<BrowserSettings coreReady />);
+    await screen.findByText('浏览器设置读取失败，请重试。');
+    view.rerender(<BrowserSettings coreReady={false} />);
+    view.rerender(<BrowserSettings coreReady />);
+    await screen.findByText('docs.rs');
+    expect(screen.queryByText('浏览器设置读取失败，请重试。')).toBeNull();
   });
 });

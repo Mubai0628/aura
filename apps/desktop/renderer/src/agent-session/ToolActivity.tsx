@@ -4,11 +4,10 @@ import { toolStateIcon, toolTypeIcon } from '../tool-icon-map';
 import { BrowserScreenshot } from './BrowserScreenshot';
 import { useDisclosureOpen } from './disclosure-open';
 import { ModelTerminalLink } from './ModelTerminalLink';
-import { useFileLink } from '../files/file-links';
-import { fileMenuEntries } from '../files/file-menu';
 import { ScrollBox } from '../ui/ScrollBox';
-import { useContextMenu } from '../ui/useContextMenu';
+import { remoteDecisionText } from './remote-decision';
 import { callUnderWay, stateOf, toneOf } from './tool-call-tone';
+import { DetailLine, TargetLabel } from './ToolFileLinks';
 
 export function ToolActivity({
   entry,
@@ -43,46 +42,11 @@ function LeadingSlot({ kind }: { kind: ReturnType<typeof toolTypeIcon> }) {
   );
 }
 
-/** The model's file tools, whose target is the file they read or wrote. */
-const FILE_TOOLS = new Set(['fs.read', 'fs.write', 'fs.patch']);
-
-/** The file a file tool names opens in the right sidebar. */
-function TargetLabel({ tool, target }: { tool: string; target: string }) {
-  const link = useFileLink(target, { file: true });
-  const menu = useContextMenu();
-  if (!link || !FILE_TOOLS.has(tool))
-    return (
-      <span className="agent-file-label" title={target}>
-        {target}
-      </span>
-    );
-  const label = `打开 ${link.reference.path}`;
-  return (
-    <>
-      <button
-        aria-label={label}
-        className="agent-file-label agent-file-link"
-        // Inside a row that expands: open the file, not the row.
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          link.open();
-        }}
-        onContextMenu={(event) =>
-          menu.open(
-            event,
-            `${link.reference.path} 的操作`,
-            fileMenuEntries(link.scope, link.reference.path, 'conversation'),
-          )
-        }
-        title={label}
-        type="button"
-      >
-        {target}
-      </button>
-      {menu.menu}
-    </>
-  );
+/** What a call's screenshot shows, as its picture is named. */
+function screenshotName(tool: string): string {
+  if (tool.startsWith('computer.')) return '屏幕截图';
+  if (tool.startsWith('chrome.')) return 'Chrome 截图';
+  return '网页截图';
 }
 
 /** `open` is omitted when there is nothing to expand: no dead glyph at the end of the line. */
@@ -93,7 +57,11 @@ function ToolActivityBody({ entry, open }: { entry: AgentToolActivityEntry; open
     <span className="agent-tool-main">
       <span className="agent-tool-title">{entry.display.title}</span>
       {entry.display.target ? (
-        <TargetLabel tool={entry.summary.display_name} target={entry.display.target} />
+        <TargetLabel
+          call={entry.summary.tool_call_id}
+          target={entry.display.target}
+          tool={entry.summary.display_name}
+        />
       ) : null}
       <span className="agent-tool-state" data-tone={tone}>
         <ToolIcon name={toolStateIcon(tone)} size={14} />
@@ -106,6 +74,9 @@ function ToolActivityBody({ entry, open }: { entry: AgentToolActivityEntry; open
       )}
       {entry.display.summary ? (
         <span className="agent-tool-brief">{entry.display.summary}</span>
+      ) : null}
+      {entry.remote_decision ? (
+        <span className="agent-tool-brief">{remoteDecisionText(entry.remote_decision)}</span>
       ) : null}
     </span>
   );
@@ -129,13 +100,22 @@ function ExpandableToolActivity({ entry }: { entry: AgentToolActivityEntry }) {
       <div className="agent-tool-facts">
         {/* Drawn only once the row is opened. */}
         {open && entry.display.image ? (
-          <BrowserScreenshot artifactId={entry.display.image} />
+          <BrowserScreenshot
+            artifactId={entry.display.image}
+            name={screenshotName(entry.summary.display_name)}
+          />
         ) : null}
         {entry.display.details.length ? (
           <ScrollBox label={`${entry.display.title}的详情`}>
             <ul>
               {entry.display.details.map((line, index) => (
-                <li key={index}>{line}</li>
+                <li key={index}>
+                  <DetailLine
+                    call={entry.summary.tool_call_id}
+                    line={line}
+                    tool={entry.summary.display_name}
+                  />
+                </li>
               ))}
             </ul>
           </ScrollBox>

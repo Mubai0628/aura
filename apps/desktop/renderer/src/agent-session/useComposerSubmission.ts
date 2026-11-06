@@ -1,8 +1,16 @@
-import type { AgentAttachmentDraft, AgentTaskMode, GoalBudget } from '@aura/contracts/generated';
+import type {
+  AgentAttachmentDraft,
+  AgentMessageReference,
+  AgentTaskMode,
+  GoalBudget,
+} from '@aura/contracts/generated';
 import { useEffect, useRef, useState } from 'react';
 import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
 import { copySessionReasoning, sessionReasoning } from '../reasoning-effort';
+import { copySessionSpeed, sessionSpeed } from '../speed-mode';
 import { getComposerDraft, updateComposerDraft } from './composer-drafts';
+import { quotesOf, removeQuotes } from './quote-reply/quote-store';
+import { quotedMessage } from './quote-reply/quote-text';
 import { acceptSending, endSending, startSending } from './sending';
 import { userMessage } from './user-message';
 
@@ -67,24 +75,34 @@ export function useComposerSubmission(
   };
   /**
    * Sends the draft; `skillIds` are the Skills chosen for the turn it starts, `attachments` the
-   * pictures and files added to it. While a task runs the
-   * message waits in the queue for the next turn. Resolves
+   * pictures and files added to it, `references` what it refers to besides the paths in its
+   * words. While a task runs the message waits in the queue for the next turn. Resolves
    * true when the message was accepted, so the composer can clear its choices.
    */
   const send = async (
     skillIds: readonly string[] = [],
     attachments: readonly AgentAttachmentDraft[] = [],
+    references: readonly AgentMessageReference[] = [],
   ): Promise<boolean> => {
-    if (sending.current || needsReview || (!draft.trim() && !attachments.length)) return false;
+    // Passages replied to with 回复 go before the typed words, as Markdown quotes.
+    const quotes = quotesOf(sessionId);
+    const message = quotedMessage(quotes, draft);
+    if (
+      sending.current ||
+      needsReview ||
+      (!message.trim() && !attachments.length && !references.length)
+    )
+      return false;
     const skills = skillIds.length ? { skill_ids: [...skillIds] } : {};
     const attached = attachments.length ? { attachments: [...attachments] } : {};
+    const referred = references.length ? { references: [...references] } : {};
     sending.current = true;
     setBusy(true);
     setError(undefined);
     let requestStarted = false;
     // A message that starts a turn shows at once where the conversation will show it, and the
     // composer empties; if it is not accepted the text comes back. The saved draft keeps it
-    // until it is accepted.
+    // until it is accepted, and the quotes stay in their blocks.
     let shown: { text: string; files: string[] } | undefined;
     const showing = new Set<string>();
     const show = (key: string) => {
@@ -96,7 +114,7 @@ export function useComposerSubmission(
       showing.forEach(endSending);
       if (!shown) return;
       const typed = getComposerDraft(sessionId)?.text;
-      setDraft(typed && typed !== shown.text ? `${shown.text}\n${typed}` : shown.text);
+      setDraft(typed && typed !== draft ? `${draft}\n${typed}` : draft);
     };
     try {
       const special = !activeTurn && !queuePending && mode !== 'normal';
@@ -124,7 +142,7 @@ export function useComposerSubmission(
         return false;
       }
       if (!activeTurn && !queuePending) {
-        shown = { text: draft, files: attachments.map(attachmentName) };
+        shown = { text: message, files: attachments.map(attachmentName) };
         show(sessionId);
         updateDraft('');
       }
@@ -135,26 +153,34 @@ export function useComposerSubmission(
       copySessionReasoning(sessionId, targetSession);
       const level = model ? sessionReasoning(targetSession, model) : undefined;
       const reasoning = level ? { reasoning_effort: level } : {};
+      // So does its speed mode; Core sends it only when the model's settings allow speed modes.
+      copySessionSpeed(sessionId, targetSession);
+      const speed = model ? sessionSpeed(targetSession, model) : undefined;
+      const speedMode = speed ? { speed_mode: speed } : {};
       requestStarted = true;
       const result =
         special && model
           ? await window.aura.v1.startAgent({
               session_id: targetSession,
               model_profile_id: model,
-              text: draft,
+              text: message,
               mode,
               goal_budget: mode === 'goal' ? budget : null,
               ...skills,
               ...reasoning,
+              ...speedMode,
               ...attached,
+              ...referred,
             })
           : await window.aura.v1.submitAgentMessage({
               session_id: targetSession,
-              text: draft,
+              text: message,
               destination: { lane: 'next_turn' },
               ...skills,
               ...reasoning,
+              ...speedMode,
               ...attached,
+              ...referred,
             });
       if (!result.ok) {
         unshow();
@@ -165,8 +191,12 @@ export function useComposerSubmission(
       }
       const firstName =
         attachments[0]?.kind === 'file' ? attachments[0].path : attachments[0]?.name;
-      preparation?.accepted(targetSession, draft.trim() ? draft : (firstName ?? draft));
+      preparation?.accepted(targetSession, draft.trim() ? draft : (firstName ?? message));
       setDraft('');
+      removeQuotes(
+        sessionId,
+        quotes.map((quote) => quote.id),
+      );
       setMode('normal');
       showing.forEach((key) => (key === targetSession ? acceptSending(key) : endSending(key)));
       onChanged();

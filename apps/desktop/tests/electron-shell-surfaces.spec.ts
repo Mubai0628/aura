@@ -24,8 +24,11 @@ test('Core-backed shell exposes honest empty state and navigable tool and model 
       if (message.type() === 'error') consoleErrors.push(message.text());
     });
 
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
-    await expect(window.getByText('本地运行 · 无需登录')).toBeVisible();
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    // The sidebar's foot holds 设置 and nothing else.
+    await expect(window.locator('.sidebar-footer > *')).toHaveCount(1);
     await expect(window.getByRole('button', { name: '登录' })).toHaveCount(0);
     const session = await createShellSession(application, window);
     const sessionHeading = window.getByRole('heading', { level: 2, name: session.title });
@@ -317,14 +320,11 @@ test('Core-backed shell exposes honest empty state and navigable tool and model 
     });
     await expect(window.locator('.app-sidebar')).toHaveCount(0);
     await expect(window.locator('.conversation-workspace')).toHaveCount(0);
-    // Catalog networking is intentionally real in this shell test. CI may be
-    // online, offline, or restoring an LKG, so assert the authoritative state
-    // surface rather than coupling unrelated UI coverage to one network result.
-    await expect(
-      window.getByText(
-        /^models\.dev 目录 · (最新|缓存|正在加载|正在刷新|刷新失败，使用缓存|不可用)$/u,
-      ),
-    ).toBeVisible();
+    // Catalog networking is intentionally real in this shell test, so nothing here depends on
+    // the network's result: the catalog has no status line of its own, and refreshing it is the
+    // title row's button.
+    await expect(window.getByRole('button', { name: '刷新 models.dev 目录' })).toBeVisible();
+    await expect(window.getByText(/^models\.dev 目录 · /u)).toHaveCount(0);
     await expect(window.getByText('尚无已配置模型')).toBeVisible();
 
     await window.getByRole('button', { name: /添加提供商.*创建自定义 Provider/u }).click();
@@ -358,7 +358,9 @@ test('P04 security control plane uses the light theme and keeps Host Preparation
     const pageErrors: string[] = [];
     window.on('pageerror', (error) => pageErrors.push(error.message));
 
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
     const created = await window.evaluate(async (selectedRoot) => {
       const rendererGlobal = globalThis as typeof globalThis & { aura: RendererAura };
       return rendererGlobal.aura.v1.createWorkspace({
@@ -401,7 +403,7 @@ test('P04 security control plane uses the light theme and keeps Host Preparation
       colorScheme: 'light',
       panelBackground: 'rgb(255, 255, 255)',
       securityBackground: 'rgb(255, 255, 255)',
-      shellBackground: 'rgb(251, 251, 250)',
+      shellBackground: 'rgb(255, 255, 255)',
     });
 
     await expect(window.getByRole('button', { name: '重新探测' })).toHaveCount(0);
@@ -425,7 +427,9 @@ test('Archive completes through the Main-owned Lifecycle Barrier', async () => {
   const application = await launchAura();
   try {
     const window = await application.firstWindow();
-    await expect(window.getByText('Aura Core 已就绪')).toBeVisible({ timeout: 15_000 });
+    await expect(window.locator('.app-shell[data-core-state="ready"]')).toBeVisible({
+      timeout: 15_000,
+    });
     const result = await window.evaluate(async (selectedRoot) => {
       const rendererGlobal = globalThis as typeof globalThis & { aura: RendererAura };
       const created = await rendererGlobal.aura.v1.createWorkspace({

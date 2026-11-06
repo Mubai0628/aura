@@ -1,0 +1,26 @@
+/* A plugin's status entry in its row on the 插件 settings page: the tone's dot, then the text. */
+.plugin-status-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.plugin-status-line > span:first-child {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-round);
+  background: currentColor;
+}
+
+.plugin-status-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

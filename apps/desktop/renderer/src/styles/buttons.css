@@ -3,6 +3,7 @@
  * `is-danger` a destructive one, `is-ghost` a quiet one, `is-small` a row action. An unclassed
  * button inside a Settings page gets the ordinary look, so no page falls back to the browser's
  * grey block. A busy button (aria-busy) shows a small spinner instead of being re-pressed.
+ * Square, with a hard shadow; pressing moves the button onto its shadow.
  */
 .button,
 :where(.settings-page) button:where(:not([class])) {
@@ -12,68 +13,94 @@
   justify-content: center;
   gap: 6px;
   min-height: 32px;
-  padding: 0 12px;
+  padding: 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
   color: var(--ink);
   background: var(--surface);
   box-shadow: var(--shadow-xs);
-  font-size: 13px;
-  font-weight: 520;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.2;
   white-space: nowrap;
   transition:
     background var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out);
+    color var(--dur-fast) var(--ease-out);
 }
 
 .button:hover:not(:disabled),
 :where(.settings-page) button:where(:not([class])):hover:not(:disabled) {
-  border-color: #c4c9c3;
-  background: var(--surface-muted);
+  border-color: var(--ink);
 }
 
 .button:active:not(:disabled),
 :where(.settings-page) button:where(:not([class])):active:not(:disabled) {
-  transform: translateY(1px) scale(0.985);
+  background: var(--surface-muted);
   box-shadow: none;
+  transform: translate(2px, 2px);
+}
+
+.button:disabled,
+:where(.settings-page) button:where(:not([class])):disabled {
+  border-color: var(--line);
+  color: var(--faint);
+  background: var(--surface-muted);
+  box-shadow: none;
+  opacity: 1;
 }
 
 .button.is-primary {
-  border-color: var(--accent-strong);
-  color: #ffffff;
+  border-color: var(--accent);
+  color: var(--on-accent);
   background: var(--accent);
-  box-shadow:
-    var(--shadow-xs),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: 2px 2px 0 var(--line-strong);
 }
 
 .button.is-primary:hover:not(:disabled) {
-  border-color: #23433e;
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.button.is-primary:active:not(:disabled) {
+  border-color: var(--accent-strong);
   background: var(--accent-strong);
+  box-shadow: none;
+}
+
+.button.is-primary:disabled {
+  border-color: var(--surface-selected);
+  color: var(--faint);
+  background: var(--surface-selected);
 }
 
 .button.is-danger {
   border-color: var(--danger-line);
   color: var(--danger);
+  box-shadow: 2px 2px 0 var(--danger-shade);
 }
 
 .button.is-danger:hover:not(:disabled) {
-  border-color: #dfb1b1;
+  border-color: var(--danger);
   background: var(--danger-soft);
 }
 
-.button.is-danger.is-solid {
-  border-color: #8f3434;
-  color: #ffffff;
-  background: var(--danger);
+.button.is-danger:active:not(:disabled) {
+  background: var(--danger-soft);
+  box-shadow: none;
 }
 
-.button.is-danger.is-solid:hover:not(:disabled) {
-  background: #8f3434;
+.button.is-danger.is-solid {
+  border-color: var(--danger);
+  color: var(--on-accent);
+  background: var(--danger);
+  box-shadow: 2px 2px 0 var(--danger-line);
+}
+
+.button.is-danger.is-solid:hover:not(:disabled),
+.button.is-danger.is-solid:active:not(:disabled) {
+  background: var(--danger);
 }
 
 .button.is-ghost {
@@ -86,14 +113,18 @@
 .button.is-ghost:hover:not(:disabled) {
   border-color: transparent;
   color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.button.is-ghost:active:not(:disabled) {
   background: var(--surface-selected);
+  transform: none;
 }
 
 .button.is-small {
-  min-height: 27px;
-  padding: 0 9px;
+  min-height: 26px;
+  padding: 0 10px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
 }
 
 .button[aria-busy='true'] {
@@ -104,23 +135,16 @@
 .button[aria-busy='true']::after {
   position: absolute;
   inset: 0;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   margin: auto;
-  border: 2px solid var(--muted);
-  border-right-color: transparent;
-  border-radius: 50%;
+  color: var(--muted);
   content: '';
-  animation: button-busy 640ms linear infinite;
+  background: currentColor;
+  mask: var(--pixel-spinner) 0 0 / 128px 16px no-repeat;
+  animation: pixel-spin 800ms steps(8) infinite;
 }
 
 .button.is-primary[aria-busy='true']::after {
-  border-color: #ffffff;
-  border-right-color: transparent;
-}
-
-@keyframes button-busy {
-  to {
-    transform: rotate(360deg);
-  }
+  color: var(--on-accent);
 }

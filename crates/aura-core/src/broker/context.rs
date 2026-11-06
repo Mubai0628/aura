@@ -81,9 +81,10 @@ pub(crate) async fn dispatch_context(
         operation,
         request.id.to_string(),
         request.command_invocation_id,
+        super::OnChangedFacts::Retry,
         inspect,
         evidence,
-        move || async move {
+        move |_| async move {
             let perform = || -> anyhow::Result<Value> {
                 let value = if let Some((session, agent)) = scope {
                     let context = aura_context_tools::ContextToolServices::new(

@@ -1,0 +1,67 @@
+/* Passages replied to with 回复, waiting above the composer's words. Many blocks scroll inside
+   their list rather than push the composer up the window. */
+.composer-quotes {
+  display: grid;
+  gap: 6px;
+  max-height: 168px;
+  margin: 8px 12px 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.composer-quote {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  gap: 3px 6px;
+  padding: 6px 4px 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+/* Two lines of each, the rest cut with an ellipsis. */
+.composer-quote blockquote,
+.composer-quote p {
+  display: -webkit-box;
+  grid-column: 1;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.composer-quote blockquote {
+  padding-left: 8px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.composer-quote p {
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.composer-quote button {
+  display: inline-grid;
+  grid-row: 1;
+  grid-column: 2;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  background: transparent;
+}
+
+.composer-quote button:hover,
+.composer-quote button:focus-visible {
+  color: var(--ink);
+  background: var(--surface-hover);
+}

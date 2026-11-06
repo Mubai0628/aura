@@ -178,6 +178,7 @@ async fn start_binding_run_with(scenario: Scenario) -> BindingRun {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: "Write the fixture file once, then continue.".into(),
@@ -186,7 +187,9 @@ async fn start_binding_run_with(scenario: Scenario) -> BindingRun {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -266,12 +269,15 @@ async fn a_human_continuation_keeps_the_unknown_call_result_without_replaying_th
         &run.runtime,
         "agent.submit",
         json!(AgentSubmitRequest {
+            computer_mode: None,
             session_id: run.session,
             text: "Continue from the recorded results.".into(),
             destination: AgentInputLane::NextTurn,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

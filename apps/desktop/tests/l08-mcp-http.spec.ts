@@ -128,20 +128,23 @@ test('L08 an HTTP MCP server is added by address, trusted and called through the
     await form.getByRole('button', { name: '保存' }).click();
     const list = settings.getByRole('list', { name: 'MCP 服务器' });
     await expect(list).toContainText('未信任，不会启动');
+    // The row's review opens the server's dialog with what trusting it covers.
     await list.getByRole('button', { name: '查看并信任' }).click();
-    const trust = settings.getByRole('alertdialog', { name: '信任 测试网络' });
+    const server = page.getByRole('dialog', { name: '测试网络' });
+    const trust = server.getByRole('alertdialog', { name: '信任 测试网络' });
     await expect(trust).toContainText(url);
     await expect(trust).toContainText('请求头 X-Team: docs');
     await expect(trust).toContainText('工具调用的参数会发到这个地址');
     await trust.getByRole('button', { name: '信任并启用' }).click();
     await expect(list).toContainText('可用 · 9 个工具', { timeout: 60_000 });
-    await list.getByRole('button', { name: '测试连接' }).click();
-    await expect(settings.getByText('测试网络 连接成功，列出 9 个工具')).toBeVisible({
+    await server.getByRole('button', { name: '测试连接' }).click();
+    await expect(server.getByText('测试网络 连接成功，列出 9 个工具')).toBeVisible({
       timeout: 60_000,
     });
-    const tools = settings.getByRole('region', { name: '测试网络 的工具' });
+    const tools = server.getByRole('region', { name: '测试网络 的工具' });
     await expect(tools).toContainText(ECHO);
     await expect(tools).toContainText('日志与错误');
+    await server.getByRole('button', { name: '关闭' }).click();
     await page.getByRole('button', { name: '返回会话' }).click();
 
     // ReadOnly: one question for the server; the turn answer covers its event-stream tool.

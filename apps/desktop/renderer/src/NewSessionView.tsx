@@ -16,17 +16,22 @@ import { ConversationAttachments } from './composer-attachments/ConversationAtta
 import { FULL_ACCESS_DELETES } from './security/full-access-notice';
 import { SendingMessage } from './agent-session/SendingMessage';
 import { useSending } from './agent-session/sending';
+import type { SessionNavigationItem } from './app-shell-types';
+import { otherConversations } from './composer-references/conversations';
 
 export function NewSessionView({
   draft,
   onOpenSettings,
   onAccepted,
   onInspect,
+  conversations,
 }: {
   draft: ComposerDraft;
   onOpenSettings: (section: 'models' | 'security' | 'tools' | 'memory') => void;
   onAccepted: (localId: string, sessionId: string) => void;
   onInspect: (sessionId: string) => void;
+  /** The conversations of its workspace, which its message may refer to with "@". */
+  conversations?: readonly SessionNavigationItem[] | undefined;
 }) {
   const catalog = useDraftModelChoices();
   const sending = useSending(draft.id);
@@ -98,6 +103,7 @@ export function NewSessionView({
     <ConversationAttachments
       key={draft.id}
       className="conversation-workspace new-session-workspace"
+      draftKey={draft.id}
     >
       <header className="conversation-header">
         <h2>新会话</h2>
@@ -154,6 +160,7 @@ export function NewSessionView({
             promptInspector={undefined}
             workspaceId={draft.workspaceId}
             onOpenSettings={onOpenSettings}
+            conversations={otherConversations(conversations, draft.serverSessionId)}
           />
         </div>
       </div>

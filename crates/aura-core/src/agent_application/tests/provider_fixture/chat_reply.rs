@@ -107,6 +107,41 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
             .collect::<Vec<_>>();
         return json!({"role":"assistant","tool_calls":tool_calls});
     }
+    if matches!(scenario, Scenario::ReadAttachedFile) {
+        let Some(path) = attached_external_file(body) else {
+            return json!({"role":"assistant","content":"Done."});
+        };
+        if body["messages"].as_array().is_some_and(|m| m.iter().any(|m| m["role"] == "tool")) {
+            return json!({"role":"assistant","content":"Done."});
+        }
+        let arguments =
+            json!({"path": path, "range": {"range_kind": "full"}, "explicit_encoding": null});
+        return json!({"role":"assistant","tool_calls":[call("fs.read", arguments, 0)]});
+    }
+    if matches!(scenario, Scenario::ReferredHistory) {
+        let Some(handle) = referred_conversation(body) else {
+            return json!({"role":"assistant","content":"Done."});
+        };
+        // The results since the turn's own message, so a later turn reads again; the task's
+        // state comes last.
+        let messages = body["messages"].as_array().cloned().unwrap_or_default();
+        let since = messages
+            .iter()
+            .rposition(|m| {
+                m["role"] == "user"
+                    && !m["content"]
+                        .as_str()
+                        .is_some_and(|text| text.contains("Current-Task-State"))
+            })
+            .map_or(0, |at| at + 1);
+        let done = messages[since..].iter().filter(|m| m["role"] == "tool").count();
+        let (tool, arguments) = match done {
+            0 => ("history.list_turns", json!({"conversation": handle})),
+            1 => ("history.read", json!({"entries": ["T1.1"], "conversation": handle})),
+            _ => return json!({"role":"assistant","content":"Done."}),
+        };
+        return json!({"role":"assistant","tool_calls":[call(tool, arguments, done)]});
+    }
     if let Scenario::Sequence { calls } = scenario {
         let done = body["messages"]
             .as_array()

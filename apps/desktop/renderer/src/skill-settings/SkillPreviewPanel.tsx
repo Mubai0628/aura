@@ -1,17 +1,9 @@
 import type { SkillPreview } from '@aura/contracts/generated';
 import { bytesLabel } from './skill-labels';
 
-/** What trusting a Skill covers: exactly this SKILL.md and these files. The button that opened
- * it closes it, so the preview has no close button of its own. */
-export function SkillPreviewPanel({
-  preview,
-  busy,
-  onTrust,
-}: {
-  preview: SkillPreview;
-  busy: boolean;
-  onTrust?: (() => void) | undefined;
-}) {
+/** A Skill as it is now: its SKILL.md and its files. The button that opened it closes it, so the
+ * preview has no close button of its own. */
+export function SkillPreviewPanel({ preview }: { preview: SkillPreview }) {
   const { skill } = preview;
   return (
     <section
@@ -41,21 +33,6 @@ export function SkillPreviewPanel({
           ))}
         </ul>
       </details>
-      {onTrust ? (
-        <p>信任的是上面这份内容；以后任何文件改动都需要你重新信任，模型才能再用它。</p>
-      ) : null}
-      {onTrust ? (
-        <div className="settings-card-actions">
-          <button
-            type="button"
-            className="button is-primary is-small"
-            disabled={busy}
-            onClick={onTrust}
-          >
-            信任并启用
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 }

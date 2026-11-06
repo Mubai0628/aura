@@ -45,11 +45,41 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "agent.skills.trust_workspace",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "SkillWorkspaceTrustRequest",
+        "SkillRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.skills.untrust_workspace",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "SkillWorkspaceTrustRequest",
+        "SkillRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
         "agent.skills.set_enabled",
         Agent,
         Main,
         TrustedRenderer,
         "SkillSetEnabledRequest",
+        "SkillRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.skills.set_pinned",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "SkillSetPinnedRequest",
         "SkillRegistryView",
         CommandInvocation,
         None
@@ -145,11 +175,41 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "agent.skills.trust_workspace",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "SkillWorkspaceTrustRequest",
+        "SkillRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.skills.untrust_workspace",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "SkillWorkspaceTrustRequest",
+        "SkillRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
         "agent.skills.set_enabled",
         Agent,
         Core,
         AuthenticatedMain,
         "SkillSetEnabledRequest",
+        "SkillRegistryView",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "agent.skills.set_pinned",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "SkillSetPinnedRequest",
         "SkillRegistryView",
         CommandInvocation,
         None

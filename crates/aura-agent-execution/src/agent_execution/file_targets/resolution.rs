@@ -52,14 +52,19 @@ impl AgentExecution {
             "fs.delete.not_found: 找不到这个文件或文件夹。"
         );
         let final_path = native.as_ref().map_or_else(|| absolute.clone(), |i| i.final_path.clone());
+        let mutating = !matches!(handler, H::FileRead | H::FileList | H::FileFind | H::FileSearch);
         let mut class = super::super::protected_paths::classify(&final_path);
-        // Aura's own data asks every time.
+        // Aura's own data asks every time, except a read in the folder of a Skill usable now:
+        // Aura's store and plugins keep their Skills there.
         if class == super::super::protected_paths::ExternalPathClass::Ordinary
             && self.control_resources.in_aura_data(&final_path)
+            && (mutating
+                || !native
+                    .as_ref()
+                    .is_some_and(|info| self.in_usable_skill_folder(workspace, info)))
         {
             class = super::super::protected_paths::ExternalPathClass::SensitiveUser;
         }
-        let mutating = !matches!(handler, H::FileRead | H::FileList | H::FileFind | H::FileSearch);
         let control = native.as_ref().map_or_else(
             || self.control_resources.contains_missing(&final_path),
             |info| self.control_resources.overlaps(info, mutating),

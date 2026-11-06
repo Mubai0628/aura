@@ -6,10 +6,11 @@
 //! one they really observed.
 use super::*;
 use crate::agent_supervision::{RUN_STOP_BUDGET, RunStage};
+use aura_agent_domain::MessageSender;
 use aura_core_base::append_core_log;
 use aura_core_broker::agent_store::StoreStep;
 use aura_execution_contract::*;
-use aura_persistence_v2::agent::{approval, query, session};
+use aura_persistence_v2::agent::{approval, approver, query, session};
 use aura_security_service::external_grants;
 
 impl AgentApplication {
@@ -149,6 +150,17 @@ impl AgentApplication {
         command: CommandInvocationId,
         input: ExecutionApprovalResolutionRequest,
     ) -> anyhow::Result<AgentRunProjection> {
+        self.resolve_approval_by(command, input, None).await
+    }
+
+    /// As [`Self::resolve_approval`], with who decided on a chat platform when it was decided
+    /// there: kept on the call in the transaction that records the decision.
+    pub async fn resolve_approval_by(
+        self: &Arc<Self>,
+        command: CommandInvocationId,
+        input: ExecutionApprovalResolutionRequest,
+        decider: Option<MessageSender>,
+    ) -> anyhow::Result<AgentRunProjection> {
         let deadline = Self::stop_deadline();
         let v = self
             .approval(ExecutionApprovalRequest {
@@ -233,14 +245,27 @@ impl AgentApplication {
                                         "agent.approval_mode_changed"
                                     );
                                     store.database.unit_of_work(|tx| {
+                                        let first = !approval::resolved(tx, command, &resolution)?;
+                                        let at = UtcTimestamp::now();
                                         approval::resolve(
                                             tx,
                                             command,
                                             &resolution,
                                             current.revision,
                                             runtime,
-                                            UtcTimestamp::now(),
-                                        )
+                                            at,
+                                        )?;
+                                        match &decider {
+                                            Some(decider) if first => approver::set(
+                                                tx,
+                                                session_id,
+                                                resolution.approval_id,
+                                                decider,
+                                                resolution.decision,
+                                                at,
+                                            ),
+                                            _ => Ok(()),
+                                        }
                                     })?;
                                     Ok(())
                                 },

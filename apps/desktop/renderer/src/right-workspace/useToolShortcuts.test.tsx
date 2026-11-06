@@ -18,17 +18,12 @@ test('each shortcut the tool menu shows opens its tool and releases its listener
   press({ key: '`', code: 'Backquote', ctrlKey: true });
   press({ key: 'p', ctrlKey: true });
   press({ key: 't', ctrlKey: true });
-  press({ key: 's', ctrlKey: true, altKey: true });
-  expect(show.mock.calls.map(([kind]) => kind)).toEqual([
-    'review',
-    'terminal',
-    'files',
-    'browser',
-    'chat',
-  ]);
+  // Ctrl+Alt+S opened 侧边对话, which is no longer offered.
+  expect(press({ key: 's', ctrlKey: true, altKey: true }).defaultPrevented).toBe(false);
+  expect(show.mock.calls.map(([kind]) => kind)).toEqual(['review', 'terminal', 'files', 'browser']);
   hook.unmount();
   press({ key: 'p', ctrlKey: true });
-  expect(show).toHaveBeenCalledTimes(5);
+  expect(show).toHaveBeenCalledTimes(4);
 });
 
 test('shortcuts respect modal ownership, composition, repeats and other modifiers', () => {

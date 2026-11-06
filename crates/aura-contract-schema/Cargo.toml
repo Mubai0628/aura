@@ -15,6 +15,7 @@ aura-agent-domain = { path = "../aura-agent-domain" }
 aura-web-domain = { path = "../aura-web-domain" }
 aura-browser-domain = { path = "../aura-browser-domain" }
 aura-chrome-domain = { path = "../aura-chrome-domain" }
+aura-desktop-domain = { path = "../aura-desktop-domain" }
 aura-windows-user-contract = { path = "../aura-windows-user-contract" }
 aura-ipc = { path = "../aura-ipc" }
 aura-persistence-core = { path = "../aura-persistence-core" }

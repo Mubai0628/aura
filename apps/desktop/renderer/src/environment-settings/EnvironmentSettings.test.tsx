@@ -100,3 +100,36 @@ test('the default terminal and the debugging information are chosen on this page
   });
   await vi.waitFor(() => expect(debug.getAttribute('aria-checked')).toBe('true'));
 });
+
+// The sea behind an empty conversation: Windows' animation effects decide unless 开启 or 关闭
+// is chosen.
+test('背景动画 under 外观 follows the system until 开启 or 关闭 is chosen', async () => {
+  const user = userEvent.setup();
+  render(<EnvironmentSettings />);
+  const looks = screen.getByRole('region', { name: '外观' });
+  const motion = within(looks).getByRole('radiogroup', { name: '背景动画' });
+  await vi.waitFor(() =>
+    expect(within(motion).getByRole('radio', { name: '跟随系统' })).toHaveProperty('checked', true),
+  );
+  await user.click(within(motion).getByRole('radio', { name: '开启' }));
+  expect(update).toHaveBeenLastCalledWith({
+    expected_revision: 4,
+    settings: {
+      show_debug_information: false,
+      default_terminal: 'power_shell',
+      background_motion: 'on',
+    },
+  });
+  await vi.waitFor(() =>
+    expect(within(motion).getByRole('radio', { name: '开启' })).toHaveProperty('checked', true),
+  );
+  await user.click(within(motion).getByRole('radio', { name: '关闭' }));
+  expect(update).toHaveBeenLastCalledWith({
+    expected_revision: 5,
+    settings: {
+      show_debug_information: false,
+      default_terminal: 'power_shell',
+      background_motion: 'off',
+    },
+  });
+});

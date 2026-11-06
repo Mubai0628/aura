@@ -3,6 +3,7 @@
 mod browser_definitions;
 mod chrome_definitions;
 mod command_definitions;
+mod computer_definitions;
 mod definitions;
 mod entry_definitions;
 mod history_definitions;
@@ -12,6 +13,7 @@ mod media_definitions;
 mod memory_definitions;
 #[cfg(test)]
 mod memory_tests;
+mod plugin_definitions;
 pub mod revisions;
 mod schema;
 mod skill_definitions;
@@ -114,6 +116,11 @@ pub enum AgentBuiltinHandler {
     SkillsUnload,
     SkillsListLoaded,
     SkillsReadResource,
+    /// Writing a plugin with the user: check its folder, install it in development, read its
+    /// errors.
+    PluginsValidate,
+    PluginsDevInstall,
+    PluginsLogs,
     /// The unified entry. Admission rewrites its calls into the tool they name.
     ToolsCall,
     BrowserOpen,
@@ -154,6 +161,14 @@ pub enum AgentBuiltinHandler {
     ChromeConsole,
     ChromeClose,
     ChromeRequestUser,
+    /// Programs on the user's own desktop that the user allowed.
+    ComputerApps,
+    ComputerOpen,
+    ComputerSnapshot,
+    ComputerScreenshot,
+    ComputerAct,
+    ComputerInput,
+    ComputerWindow,
 }
 impl AgentBuiltinHandler {
     pub fn name(self) -> &'static str {
@@ -229,6 +244,9 @@ impl AgentBuiltinHandler {
             Self::SkillsUnload => "skills.unload",
             Self::SkillsListLoaded => "skills.list_loaded",
             Self::SkillsReadResource => "skills.read_resource",
+            Self::PluginsValidate => "plugins.validate",
+            Self::PluginsDevInstall => "plugins.dev_install",
+            Self::PluginsLogs => "plugins.logs",
             Self::ToolsCall => "tools.call",
             Self::BrowserOpen => "browser.open",
             Self::BrowserNavigate => "browser.navigate",
@@ -265,6 +283,13 @@ impl AgentBuiltinHandler {
             Self::ChromeConsole => "chrome.console",
             Self::ChromeClose => "chrome.close",
             Self::ChromeRequestUser => "chrome.request_user",
+            Self::ComputerApps => "computer.apps",
+            Self::ComputerOpen => "computer.open",
+            Self::ComputerSnapshot => "computer.snapshot",
+            Self::ComputerScreenshot => "computer.screenshot",
+            Self::ComputerAct => "computer.act",
+            Self::ComputerInput => "computer.input",
+            Self::ComputerWindow => "computer.window",
         }
     }
     pub fn is_control(self) -> bool {

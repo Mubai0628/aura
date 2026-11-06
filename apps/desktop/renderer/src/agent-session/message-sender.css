@@ -1,0 +1,5 @@
+.message-sender-line {
+  margin: 4px 0;
+  color: var(--quiet);
+  font-size: 11px;
+}

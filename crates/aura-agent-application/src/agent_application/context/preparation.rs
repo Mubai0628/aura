@@ -3,6 +3,9 @@ use aura_agent_execution::agent_execution;
 // The thinking level the conversation chose for its turn.
 #[path = "reasoning.rs"]
 mod reasoning;
+// The speed mode the conversation chose for its turn.
+#[path = "speed.rs"]
+pub(crate) mod speed;
 // The browser's screenshots a model that takes images is sent.
 #[path = "screenshots.rs"]
 pub mod screenshots;
@@ -19,6 +22,7 @@ impl AgentApplication {
         run_id: AgentRunId,
         profile: ModelProfileId,
         reasoning: Option<aura_agent_domain::TurnReasoningEffort>,
+        speed_mode: Option<aura_agent_domain::TurnSpeedMode>,
         continuation: AgentContinuation,
         cancel: &ModelCancellationToken,
     ) -> anyhow::Result<Option<Prepared>> {
@@ -64,7 +68,9 @@ impl AgentApplication {
             tool_settings,
             package_tools,
             mut state,
-        ) = self.assemble_frozen_facts(run_id, &permission, &step, at).await?;
+        ) = self
+            .assemble_frozen_facts(run_id, &permission, &step, at, self.computer_offered(profile))
+            .await?;
         let config = self.p05.model_config.snapshot()?;
         let model_profile = config
             .registry
@@ -145,6 +151,8 @@ impl AgentApplication {
             endpoint.api_format,
             snapshot.request_options.reasoning_effort,
         );
+        // Its own speed mode, when the model's settings allow speed modes.
+        snapshot.request_options.speed_mode = speed::turn_mode(speed_mode.as_ref(), &model_profile);
         // Boundary: one bounded read of the newest context-window trial for this run.
         let window_trial = self
             .store
@@ -244,12 +252,6 @@ impl AgentApplication {
             content: serde_json::to_string(&prompt_state(&state, &history.items))?,
         }];
         task_state_fragments.extend(activity_summary.fragments()?);
-        // The Skills loaded in this turn, re-checked for this step.
-        task_state_fragments.extend(self.loaded_skill_fragments(
-            run_id,
-            turn.workspace_id,
-            turn.revision,
-        )?);
         // The workspace's AGENTS.md, read again for every step: the folders' files with the task's
         // state, which changes anyway, the root file before the conversation.
         let agents =
@@ -267,9 +269,13 @@ impl AgentApplication {
                 ContextCompressibility::NeverCompress,
             ),
         ];
+        // The pinned Skills and the names of the others go first, then the root AGENTS.md.
+        let mut instructions =
+            self.turn_skill_fragments(run_id, turn.workspace_id, turn.revision).await?;
+        instructions.extend(agents.root);
         sections.push(section(
             ContextSectionKind::WorkspaceAgentsInstructions,
-            agents.root,
+            instructions,
             ContextCompressibility::NeverCompress,
         ));
         if !hooks.injections.is_empty() {

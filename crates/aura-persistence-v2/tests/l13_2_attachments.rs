@@ -52,12 +52,15 @@ fn prepared() -> Vec<PreparedAttachment> {
 
 fn request(session: SessionId, text: &str, attached: bool) -> AgentSubmitRequest {
     AgentSubmitRequest {
+        computer_mode: None,
         session_id: session,
         text: text.into(),
         destination: AgentInputLane::NextTurn,
         skill_ids: Vec::new(),
         reasoning_effort: None,
+        speed_mode: None,
         attachments: if attached { drafts() } else { Vec::new() },
+        references: Vec::new(),
     }
 }
 
@@ -163,7 +166,14 @@ fn a_message_keeps_its_attachments_and_the_model_reads_them_with_its_text() {
         .unit_of_work(|tx| {
             aura_persistence_v2::context::insert_bundle(tx, session, &bundle)?;
             let turn = lifecycle::start(tx, &user, AgentTaskMode::Normal, None, bundle.id)?;
-            attachments::record(tx, user.event_id, &first.text, &first.attachments, f.at)?;
+            attachments::record(
+                tx,
+                user.event_id,
+                &first.text,
+                &user.text,
+                &first.attachments,
+                f.at,
+            )?;
             input_consumption::start_batch(tx, &pending, &turn, f.at)?;
             Ok::<_, Error>(turn)
         })

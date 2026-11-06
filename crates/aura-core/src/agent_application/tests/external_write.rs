@@ -58,6 +58,7 @@ async fn a_successful_external_write_is_not_reported_as_no_effect() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -69,7 +70,9 @@ async fn a_successful_external_write_is_not_reported_as_no_effect() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;
@@ -160,6 +163,7 @@ async fn a_refused_external_write_is_reported_as_no_effect() {
         &runtime,
         "agent.start",
         json!(AgentStartRequest {
+            computer_mode: None,
             session_id: session,
             model_profile_id: model,
             text: format!(
@@ -171,7 +175,9 @@ async fn a_refused_external_write_is_reported_as_no_effect() {
             explicit_backend_id: None,
             skill_ids: Vec::new(),
             reasoning_effort: None,
+            speed_mode: None,
             attachments: Vec::new(),
+            references: Vec::new(),
         }),
     )
     .await;

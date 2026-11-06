@@ -19,7 +19,7 @@
 
 .tool-packages-panel .package-approval {
   border: 1px solid var(--border-strong, currentColor);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin: 10px 0;
   padding: 10px 12px;
 }
@@ -32,7 +32,7 @@
 
 .tool-packages-panel .package-report th,
 .tool-packages-panel .package-report td {
-  border-bottom: 1px solid var(--border-subtle, rgba(127, 127, 127, 0.3));
+  border-bottom: 1px solid var(--line);
   padding: 4px 6px;
   text-align: left;
 }

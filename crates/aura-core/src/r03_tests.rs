@@ -332,9 +332,35 @@ async fn r03_real_database_corruption_still_requires_global_recovery() {
         success(&state, "runtime.readiness", json!({})).await["core_health"],
         "recovery_required"
     );
-    assert!(
-        request(&state, "models.settings.get_snapshot", json!({})).await.get("error").is_some()
-    );
+    // Each area's own commands are refused alike, not to be retried as they were.
+    for (method, area) in [
+        ("models.settings.get_snapshot", "模型设置"),
+        ("permission.get_defaults", "权限设置"),
+        ("tools.tool.set_enabled", "工具设置"),
+        ("workspace.create", "工作区操作"),
+    ] {
+        let response = request(&state, method, json!({})).await;
+        let error = &response["error"]["data"];
+        assert_eq!(
+            [
+                &error["code"],
+                &error["category"],
+                &error["message"],
+                &error["retryable"],
+                &error["terminal"],
+                &error["details"]
+            ],
+            [
+                &json!("core.recovery_required"),
+                &json!("unavailable"),
+                &json!(format!("Aura 的数据需要恢复，{area}暂不可用。")),
+                &json!(false),
+                &json!("failed"),
+                &json!({})
+            ],
+            "{method}: {response}"
+        );
+    }
 }
 
 /// The search flight registry is process-global, so every test that registers a

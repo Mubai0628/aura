@@ -5,6 +5,7 @@
 //! Rounds and their entries are worked out from the turns and events whenever they are asked for;
 //! a round that is over never changes, so its ids stay. A branch's carried turns come first.
 mod entries;
+mod referred;
 mod rows;
 mod search;
 #[cfg(test)]
@@ -17,6 +18,7 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
 use rusqlite::Connection;
 
 pub use entries::Entry;
+pub use referred::recap_lines;
 pub use turns::Round;
 
 /// Rounds listed when the model names none.
@@ -152,19 +154,36 @@ pub fn read(
     Ok(HistoryReadResult { entries: views })
 }
 
-/// One of the history tools, by name, with the model's arguments.
-pub(crate) fn dispatch(
+/// One of the history tools, by name, with the model's arguments: this conversation's history,
+/// or another's that a user message of this one referred to and that is still there.
+pub fn dispatch(
     db: &Connection,
     session: SessionId,
     name: &str,
     arguments: &serde_json::Value,
 ) -> StoreResult<serde_json::Value> {
-    Ok(match name {
-        "history.list_turns" => serde_json::to_value(list(db, session, &input(arguments)?)?)?,
-        "history.search" => serde_json::to_value(search(db, session, &input(arguments)?)?)?,
-        "history.read" => serde_json::to_value(read(db, session, &input(arguments)?)?)?,
+    let (other, output) = match name {
+        "history.list_turns" => {
+            let input: HistoryListTurnsInput = input(arguments)?;
+            let other = referred::other(db, session, input.conversation.as_ref())?;
+            (other, serde_json::to_value(list(db, other.unwrap_or(session), &input)?)?)
+        }
+        "history.search" => {
+            let input: HistorySearchInput = input(arguments)?;
+            let other = referred::other(db, session, input.conversation.as_ref())?;
+            (other, serde_json::to_value(search(db, other.unwrap_or(session), &input)?)?)
+        }
+        "history.read" => {
+            let input: HistoryReadInput = input(arguments)?;
+            let other = referred::other(db, session, input.conversation.as_ref())?;
+            (other, serde_json::to_value(read(db, other.unwrap_or(session), &input)?)?)
+        }
         _ => return Err(Error::Conflict),
-    })
+    };
+    match other {
+        Some(other) => referred::named_by_handle(output, other),
+        None => Ok(output),
+    }
 }
 
 fn input<T: serde::de::DeserializeOwned>(arguments: &serde_json::Value) -> StoreResult<T> {

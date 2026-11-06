@@ -23,7 +23,7 @@
   margin: 0;
   padding: 0;
   border: 0;
-  background: rgb(0 0 0 / 88%);
+  background: rgba(28, 28, 27, 0.88);
   overscroll-behavior: contain;
   touch-action: none;
 }
@@ -58,8 +58,8 @@
   height: 36px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  color: #fff;
+  border-radius: var(--radius-round);
+  color: var(--on-accent);
   background: rgb(255 255 255 / 12%);
   cursor: pointer;
 }

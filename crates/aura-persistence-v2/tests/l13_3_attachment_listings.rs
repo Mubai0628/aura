@@ -23,15 +23,18 @@ fn queue(
 ) -> (AgentInboxProjection, ExternalGrantId) {
     let grant = ExternalGrantId::new();
     let request = AgentSubmitRequest {
+        computer_mode: None,
         session_id: fixture.turn.session_id,
         text: "比较两个 ZIP".to_owned(),
         destination: AgentInputLane::NextTurn,
         skill_ids: Vec::new(),
         reasoning_effort: None,
+        speed_mode: None,
         attachments: vec![
             AgentAttachmentDraft::File { path: "C:/synthetic/local.zip".to_owned() },
             AgentAttachmentDraft::File { path: "D:/Attachments/external.zip".to_owned() },
         ],
+        references: Vec::new(),
     };
     let prepared = vec![
         PreparedAttachment::File {

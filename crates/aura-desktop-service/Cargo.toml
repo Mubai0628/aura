@@ -1,0 +1,27 @@
+[package]
+name = "aura-desktop-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+aura-backend-windows-user = { path = "../aura-backend-windows-user" }
+aura-config = { path = "../aura-config" }
+aura-desktop-domain = { path = "../aura-desktop-domain" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+getrandom.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# The host a test plays, for Core's tests of the computer tools.
+test-hooks = []

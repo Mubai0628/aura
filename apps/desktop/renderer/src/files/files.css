@@ -114,7 +114,7 @@
 }
 
 .file-tree-filter .icon-button.is-refreshing svg {
-  animation: file-tree-refresh-spin 0.9s linear infinite;
+  animation: file-tree-refresh-spin 0.8s steps(4) infinite;
 }
 
 @keyframes file-tree-refresh-spin {
@@ -217,7 +217,7 @@
   width: 100%;
   padding: 3px 6px 3px calc(6px + var(--file-depth, 0) * 13px);
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
   background: transparent;
   font: inherit;
@@ -265,7 +265,7 @@
   bottom: 3px;
   left: 0;
   width: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
   content: '';
 }
@@ -312,7 +312,7 @@
 .file-tree-note button {
   padding: 1px 7px;
   border: 1px solid var(--line-strong);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
   background: var(--surface);
   font-size: 11px;
@@ -458,8 +458,8 @@
   position: absolute;
   top: 22px;
   right: 22px;
-  color: #fff;
-  background: rgb(0 0 0 / 65%);
+  color: var(--on-accent);
+  background: rgba(28, 28, 27, 0.65);
 }
 
 .file-view-media[data-expanded] {
@@ -609,7 +609,7 @@
   flex: none;
   align-items: center;
   max-width: 180px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
 }
 
@@ -642,7 +642,7 @@
   width: 18px;
   height: 18px;
   margin-right: 2px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   opacity: 0.5;
 }
 

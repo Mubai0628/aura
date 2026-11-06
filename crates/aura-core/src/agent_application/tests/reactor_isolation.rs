@@ -206,6 +206,7 @@ fn observe_the_permission_approval_section_held(inline_boundary: bool) -> Approv
             &state,
             "agent.start",
             json!(AgentStartRequest {
+                computer_mode: None,
                 session_id: session,
                 model_profile_id: model,
                 text: format!(
@@ -217,7 +218,9 @@ fn observe_the_permission_approval_section_held(inline_boundary: bool) -> Approv
                 explicit_backend_id: None,
                 skill_ids: Vec::new(),
                 reasoning_effort: None,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             }),
         )
         .await;

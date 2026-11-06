@@ -20,35 +20,64 @@ const MODES: ReadonlyArray<{ value: PermissionMode; label: string; description: 
   },
 ];
 
+/** Why the defaults were not read, that nothing changed, and what happens next. */
+function readFailure(reason: unknown): string {
+  const code =
+    typeof reason === 'object' && reason !== null ? Reflect.get(reason, 'code') : undefined;
+  if (code === 'ipc.transport_lost')
+    return '与 Aura Core 的连接中断，默认权限没有改变；连接恢复后会重新读取。';
+  if (code === 'ipc.handler_overloaded') return 'Aura Core 正忙，默认权限没有改变；请稍后重试。';
+  return `${userMessage(reason, '默认权限读取失败。')}默认权限没有改变。`;
+}
+
 export function PermissionDefaultsCard({
+  coreReady,
   onNotify,
 }: {
+  coreReady: boolean;
   onNotify: (notification: NotificationInput) => void;
 }) {
   const [snapshot, setSnapshot] = useState<PermissionDefaults>();
   const [selected, setSelected] = useState<PermissionMode>();
   const [error, setError] = useState<string>();
+  const [readFailed, setReadFailed] = useState(false);
+  const [reload, setReload] = useState(0);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const mounted = useRef(false);
+  const shown = useRef<PermissionDefaults>(undefined);
   useEffect(() => {
     mounted.current = true;
-    void window.aura.v1
-      .getPermissionDefaults()
-      .then((result) => {
-        if (!mounted.current) return;
-        if (result.ok) {
-          setSnapshot(result.value);
-          setSelected(result.value.mode);
-        } else setError(userMessage(result.error, '默认权限读取失败，请重试。'));
-      })
-      .catch((reason: unknown) => {
-        if (mounted.current) setError(userMessage(reason, '读取默认权限失败。'));
-      });
     return () => {
       mounted.current = false;
     };
   }, []);
+  // Read whenever Core is ready, so a read cut off by a lost connection is made again once it is
+  // back. A choice the user has not saved yet stays selected.
+  useEffect(() => {
+    if (!coreReady) return;
+    let live = true;
+    const failed = (reason: unknown) => {
+      if (!live) return;
+      setError(readFailure(reason));
+      setReadFailed(true);
+    };
+    void window.aura.v1.getPermissionDefaults().then((result) => {
+      if (!live) return;
+      if (!result.ok) return failed(result.error);
+      const previous = shown.current;
+      shown.current = result.value;
+      setSnapshot(result.value);
+      setSelected((current) =>
+        current === undefined || current === previous?.mode ? result.value.mode : current,
+      );
+      setError(undefined);
+      setReadFailed(false);
+    }, failed);
+    return () => {
+      live = false;
+    };
+  }, [coreReady, reload]);
 
   const save = async () => {
     if (snapshot === undefined || selected === undefined || busy) return;
@@ -63,9 +92,13 @@ export function PermissionDefaultsCard({
       if (!result.ok) {
         setError(userMessage(result.error, '默认权限没有保存，请刷新后重试。'));
         const latest = await window.aura.v1.getPermissionDefaults();
-        if (mounted.current && latest.ok) setSnapshot(latest.value);
+        if (mounted.current && latest.ok) {
+          shown.current = latest.value;
+          setSnapshot(latest.value);
+        }
         return;
       }
+      shown.current = result.value;
       setSnapshot(result.value);
       setSelected(result.value.mode);
       setConfirm(false);
@@ -116,9 +149,24 @@ export function PermissionDefaultsCard({
         ))}
       </div>
       {error === undefined ? null : (
-        <p role="alert" className="settings-error">
-          {error}
-        </p>
+        <div className="settings-error-row">
+          <p role="alert" className="settings-error">
+            {error}
+          </p>
+          {readFailed ? (
+            <button
+              className="button is-small"
+              type="button"
+              onClick={() => {
+                setError(undefined);
+                setReadFailed(false);
+                setReload((value) => value + 1);
+              }}
+            >
+              重试
+            </button>
+          ) : null}
+        </div>
       )}
       <footer>
         <button

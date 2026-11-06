@@ -9,18 +9,19 @@ export const ATTACHMENT_FILE_CHANNEL = 'aura:v1:attachment-file';
 
 export type AttachmentFileAction = 'media' | 'text' | 'default_application' | 'file_manager';
 
-/** The message that names a file, as the conversation shows it. */
+/** The message, or the call's row, that names a file, as the conversation shows it. */
 export type MentionSource =
   | { kind: 'user'; event_id: string }
   | { kind: 'assistant'; model_step_id: string }
-  | { kind: 'completion'; turn_task_id: string };
+  | { kind: 'completion'; turn_task_id: string }
+  | { kind: 'tool_call'; tool_call_id: string };
 
 /**
  * The file asked about, one of four. A file outside the workspace a message carried, by its
  * authorization; or an entry of that zip. An entry of a zip in the conversation's
- * workspace; a file outside the workspace a message names (Core finds the path in that message
- * first); a file the user picked or dropped for the message (Main knows it from the preload, which
- * reads the place of the file the user chose).
+ * workspace; a file outside the workspace a message or a call's row names (Core finds the path
+ * there first); a file the user picked or dropped for the message (Main knows it from the preload,
+ * which reads the place of the file the user chose).
  */
 export type AttachmentFileTarget =
   | { session_id: string; external_grant_id: string; entry?: string }
@@ -68,6 +69,8 @@ function mention(value: unknown): MentionSource | undefined {
     return { kind: 'assistant', model_step_id: value.model_step_id };
   if (keys === 'kind,turn_task_id' && value.kind === 'completion' && id(value.turn_task_id, 'trn'))
     return { kind: 'completion', turn_task_id: value.turn_task_id };
+  if (keys === 'kind,tool_call_id' && value.kind === 'tool_call' && id(value.tool_call_id, 'tcl'))
+    return { kind: 'tool_call', tool_call_id: value.tool_call_id };
   return undefined;
 }
 

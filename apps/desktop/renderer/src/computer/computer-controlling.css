@@ -1,0 +1,53 @@
+/* 近期活动's 正在操控: one line a program, its state, and 停止. */
+.computer-controlling ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.computer-controlling li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.computer-controlling-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.computer-controlling-state {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.computer-controlling-all {
+  justify-self: start;
+}
+
+.computer-controlling [role='alert'] {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.activity-compact-computer {
+  padding-left: 7px;
+  border-left: 1px solid var(--line);
+  color: var(--accent-strong);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.activity-compact-computer.is-taken-over {
+  color: var(--muted);
+}

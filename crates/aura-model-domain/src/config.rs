@@ -208,6 +208,13 @@ pub struct ModelRequestDefaults {
     /// none takes it from the matched catalog entry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image_input: Option<bool>,
+    /// Whether a conversation may choose, for its turns, a speed mode the model's catalog entry
+    /// offers. Not allowed, every request goes in the standard mode.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub allow_speed_modes: bool,
+    /// The speed mode a profile named before each turn chose its own; read, never sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speed_mode: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

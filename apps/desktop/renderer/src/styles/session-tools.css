@@ -3,7 +3,7 @@
   padding: 12px 14px;
   margin: 0 auto 14px;
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.92);
 }
 
@@ -37,9 +37,9 @@
   height: 27px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 8px;
-  color: #356257;
-  background: #e2ece8;
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: var(--surface-selected);
 }
 
 .session-tool-activity-card header strong {
@@ -65,7 +65,7 @@
   align-items: center;
   gap: 8px;
   padding: 7px 0;
-  border-top: 1px solid #edf0ed;
+  border-top: 1px solid var(--line);
 }
 
 .session-tool-activity-card li > span:nth-child(2) {
@@ -81,7 +81,7 @@
 }
 
 .session-tool-activity-card li strong {
-  color: #3b433d;
+  color: var(--ink);
   font-size: 10px;
 }
 
@@ -98,22 +98,22 @@
 .tool-call-dot {
   width: 7px;
   height: 7px;
-  border: 1px solid #a8aea9;
-  border-radius: 50%;
+  border: 1px solid var(--faint);
+  border-radius: var(--radius-round);
 }
 
 .tool-call-dot.state-running,
 .tool-call-dot.state-cancelling {
-  border-color: #638b82;
-  background: #73a095;
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
 .tool-call-dot.state-finalized {
-  border-color: #649270;
-  background: #72a17d;
+  border-color: var(--success);
+  background: var(--success-dot);
 }
 
 .tool-call-dot.state-recovery_required {
-  border-color: #b06c55;
-  background: #c68167;
+  border-color: var(--warning);
+  background: var(--warning-dot);
 }

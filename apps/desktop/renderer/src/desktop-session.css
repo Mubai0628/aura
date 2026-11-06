@@ -34,18 +34,36 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 28px;
   align-items: center;
-  border-radius: 7px;
+  border-radius: var(--radius-md);
 }
-.session-nav-item:has([aria-current='page']) {
+/* A conversation's title and its 更多 button are one row: the hover shade and the open
+   conversation's lifted white tile cover both, never the title alone. */
+.session-nav-item:hover {
   background: var(--surface-selected);
 }
-.session-nav-item .session-row {
+.session-nav-item:has([aria-current='page']) {
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    2px 2px 0 var(--pixel-shadow);
+}
+.session-nav-item .session-row,
+.session-nav-item .session-row:hover,
+.session-nav-item .session-row.is-active {
   background: transparent;
+  box-shadow: none;
   font-size: 12px;
 }
 .session-nav-item > .sidebar-item-menu {
   opacity: 0;
   transition: opacity 120ms ease;
+}
+.session-nav-item > .sidebar-item-menu .icon-button,
+.session-nav-item > .sidebar-item-menu .icon-button:hover {
+  background: transparent;
+}
+.session-nav-item > .sidebar-item-menu .icon-button:is(:hover, [aria-expanded='true']) {
+  color: var(--ink);
 }
 .session-nav-item:hover > .sidebar-item-menu,
 .session-nav-item:focus-within > .sidebar-item-menu {
@@ -60,7 +78,7 @@
   padding: 5px;
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: var(--shadow-popover);
   animation: sidebar-menu-enter 130ms ease-out;
@@ -69,7 +87,7 @@
   display: block;
   width: 100%;
   padding: 9px 11px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   text-align: left;
   font-size: 12px;
   background: transparent;
@@ -96,9 +114,14 @@
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
+}
+.sidebar-dialog-body .outside-file-path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 .sidebar-dialog-actions {
   display: flex;
@@ -109,7 +132,7 @@
 .sidebar-dialog-actions button {
   padding: 8px 17px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   font-size: 12px;
 }
@@ -154,16 +177,12 @@
   text-align: center;
   padding: 32px 0;
 }
+/* Both set in the pixel face (pixel-type.css). */
 .new-session-welcome > span {
-  letter-spacing: 0.22em;
   color: var(--quiet);
-  font-size: 10px;
 }
 .new-session-welcome h1 {
   margin: 14px 0 8px;
-  font-family: var(--font-serif);
-  font-size: clamp(22px, 2.2vw, 29px);
-  font-weight: 700;
 }
 .new-session-composer {
   width: min(900px, 100%);
@@ -178,7 +197,7 @@
 }
 .draft-inspect {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 12px;
   margin-bottom: 8px;
   background: var(--surface);
@@ -207,7 +226,7 @@
   gap: 2px;
   padding: 3px 7px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 11px;
   color: var(--accent-strong);
   background: var(--accent-soft);
@@ -221,7 +240,7 @@
   overflow: hidden;
   place-items: center;
   border: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: inherit;
   opacity: 0;
@@ -237,7 +256,7 @@
 }
 .composer-mode-chip > .composer-mode-chip-close:hover,
 .composer-mode-chip > .composer-mode-chip-close:focus-visible {
-  background: rgba(47, 82, 76, 0.12);
+  background: var(--surface-selected);
 }
 /* Goal's budgets open above its chip. */
 .composer-mode-chip-label {
@@ -278,7 +297,7 @@
   width: 100%;
   padding: 7px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
 }
 .model-choice-detail {
@@ -288,10 +307,8 @@
   color: var(--quiet);
 }
 .composer-popover {
-  border-radius: 13px;
-  box-shadow:
-    0 8px 28px rgba(37, 43, 39, 0.1),
-    0 1px 3px rgba(37, 43, 39, 0.04);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
 }
 .model-menu-group button[aria-checked='true'] {
   background: var(--surface-selected);
@@ -308,62 +325,68 @@
 .composer-select[aria-expanded='true'] {
   background: var(--surface-muted);
 }
-/* With a task running and nothing typed, the send button stops the task. Send and stop are one round button — a quiet disc while
-   there is nothing to send, ink with a white arrow when there is, and ink with a white square and
-   a slow ring going round while a task runs. The disc
-   is 24px inside the same 28px square as the other controls, and the ring goes round inside that
-   square instead of growing out of it. */
+/* With a task running and nothing typed, the send button stops the task. Send and stop are one
+   square button in the same 28px as the other controls: quiet grey while there is nothing to send,
+   graphite with a white arrow when there is, and graphite with a white square and a block going
+   round inside its edge while a task runs. */
 .composer .send-button {
-  --send-disc: var(--surface-muted);
+  --send-disc: var(--surface-selected);
   position: relative;
   width: 28px;
   height: 28px;
   min-height: 28px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle closest-side,
-    var(--send-disc) calc(100% - 2.5px),
-    transparent calc(100% - 2px)
-  );
-  color: #a2a8a4;
-  transition:
-    color var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out);
+  border-radius: var(--radius-round);
+  background: var(--send-disc);
+  color: var(--faint);
+  transition: color var(--dur-fast) var(--ease-out);
 }
 .composer .send-button:not(:disabled),
 .composer .send-button.is-stop {
-  --send-disc: var(--ink);
-  color: #fff;
+  --send-disc: var(--accent);
+  color: var(--on-accent);
 }
 .composer .send-button:not(:disabled):hover {
-  --send-disc: #3b403b;
+  --send-disc: var(--accent-hover);
 }
 .composer .send-button:not(:disabled):active {
-  transform: scale(0.94);
+  --send-disc: var(--accent-strong);
+  transform: translate(2px, 2px);
 }
 .composer .send-button.is-stop::before {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0 58%, rgba(36, 39, 36, 0.55) 100%);
+  background: currentColor;
   content: '';
-  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1px));
-  animation: send-stop-orbit 1.2s linear infinite;
+  mask: var(--pixel-orbit) 0 0 / 448px 28px no-repeat;
+  animation: pixel-orbit 1.2s steps(16) infinite;
 }
 .send-stop-square {
   display: block;
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-sm);
   background: currentColor;
 }
-@keyframes send-stop-orbit {
-  to {
-    transform: rotate(1turn);
-  }
+/* From the click on 停止 until Core answers, the button is grey and the square is a small spinner;
+   the button takes no second click meanwhile. */
+.composer .send-button.is-stop.is-stopping {
+  --send-disc: var(--quiet);
+  cursor: progress;
+}
+.composer .send-button.is-stop.is-stopping::before {
+  content: none;
+}
+.send-stop-spinner {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  mask: var(--pixel-spinner) 0 0 / 128px 16px no-repeat;
+  animation: pixel-spin 800ms steps(8) infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .composer .send-button.is-stop::before {
+  .composer .send-button.is-stop::before,
+  .send-stop-spinner {
     animation: none;
   }
 }
@@ -377,7 +400,7 @@
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   list-style: none;
 }
@@ -385,7 +408,7 @@
   content: '';
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   margin-right: 8px;
   background: currentColor;
 }
@@ -404,7 +427,7 @@
 .runtime-readiness-card[open] {
   padding: 4px 12px 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 .runtime-readiness-card:not([open]) summary:hover {
@@ -414,7 +437,7 @@
   padding: 5px 8px;
   margin-top: 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   font-size: 11px;
 }

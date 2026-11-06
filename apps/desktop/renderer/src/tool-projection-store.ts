@@ -2,6 +2,7 @@ import type { ToolProjectionChange, ToolProjectionRouteRequest } from '../../sha
 import { toolProjectionRouteKey } from '../../shared/projection-validation';
 import { useCallback, useSyncExternalStore } from 'react';
 import { ownProjectionCompatibilityRoute } from './projection-compatibility-store';
+import { SubscriptionRetries } from './projection-retries';
 
 type ProjectionListener = () => void;
 
@@ -14,7 +15,24 @@ interface ProjectionRouteEntry {
 const routes = new Map<string, ProjectionRouteEntry>();
 const cachedChanges = new Map<string, ToolProjectionChange>();
 const refreshes = new Map<string, Promise<void>>();
+const retries = new SubscriptionRetries();
 let stopListening: (() => void) | undefined;
+
+/** Asks Main for an entry's route; a refused route is asked again until it holds. Core answers
+ *  a subscription with the route's current state. */
+const ask = (key: string, entry: ProjectionRouteEntry): void => {
+  const fail = (code: string) => {
+    console.error('Scoped Tool Projection subscription failed', code);
+    if (routes.get(key) === entry) retries.failed(key, () => ask(key, entry));
+  };
+  void window.aura.v1.subscribeToolProjection(entry.route).then(
+    (result) => {
+      if (!result.ok) fail(result.error.code);
+      else if (routes.get(key) === entry) retries.settled(key);
+    },
+    () => fail('bridge_rejected'),
+  );
+};
 
 const publish = (key: string, change: ToolProjectionChange): void => {
   const current = cachedChanges.get(key);
@@ -92,11 +110,7 @@ export const subscribeScopedToolProjection = (
     };
     routes.set(key, entry);
     ensureProjectionListener();
-    void window.aura.v1.subscribeToolProjection(route).then((result) => {
-      if (!result.ok) {
-        console.error('Scoped Tool Projection subscription failed', result.error.code);
-      }
-    });
+    ask(key, entry);
     // A subscription only receives changes published after it exists, so a
     // projection committed earlier — a Registry head built before this surface was
     // opened, for instance — would stay undefined forever. The first subscriber for
@@ -115,6 +129,7 @@ export const subscribeScopedToolProjection = (
     current.listeners.delete(listener);
     if (current.listeners.size !== 0) return;
     routes.delete(key);
+    retries.settled(key);
     current.stopCompatibility();
     void window.aura.v1.unsubscribeToolProjection(current.route).then((result) => {
       if (!result.ok) {
@@ -154,6 +169,7 @@ export const useScopedToolProjection = <Kind extends ToolProjectionKind>(
 export const resetScopedToolProjectionStoreForTests = (): void => {
   for (const entry of routes.values()) entry.stopCompatibility();
   routes.clear();
+  retries.reset();
   cachedChanges.clear();
   refreshes.clear();
   stopListening?.();

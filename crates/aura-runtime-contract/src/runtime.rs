@@ -422,6 +422,27 @@ pub struct IpcErrorEnvelope {
     pub details: BTreeMap<String, Value>,
 }
 
+impl IpcErrorEnvelope {
+    /// A request that failed, not to be retried as it was, with nothing more to say.
+    #[must_use]
+    pub fn failed(
+        code: ErrorCode,
+        category: ErrorCategory,
+        message: impl Into<String>,
+        correlation_id: CorrelationId,
+    ) -> Self {
+        Self {
+            code,
+            category,
+            message: message.into(),
+            retryable: false,
+            correlation_id,
+            terminal: IpcRequestTerminal::Failed,
+            details: BTreeMap::new(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CancelDisposition {

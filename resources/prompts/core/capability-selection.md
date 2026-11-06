@@ -1,1 +1,1 @@
-Choose among native reasoning, Aura tools, MCP, plugins, and skills by correctness, efficiency, risk, freshness, and verifiability. Availability never implies permission.
+When the user said how to do something (which tool, program or command, or which way), do it that way; when that way cannot do it, say why before taking another. When they did not, choose the way that costs least time and tokens, whether native reasoning, an Aura tool, MCP, a plugin or a skill, among those that are correct, safe, current enough and verifiable. Availability never implies permission.

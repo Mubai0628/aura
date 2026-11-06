@@ -106,6 +106,7 @@ impl P05ProjectionBuilder {
             active_credentials,
             dormant_credentials,
             reasoning_efforts: aura_model_domain::registry_reasoning_efforts(&snapshot.registry),
+            speed_modes: aura_model_domain::registry_speed_modes(&snapshot.registry),
         })
     }
 
@@ -388,6 +389,7 @@ impl P05ProjectionBuilder {
                         profile.catalog.as_ref(),
                     );
                     let reasoning_effort = profile.request_defaults.reasoning_effort;
+                    let speed_modes = aura_model_domain::allowed_speed_modes(&profile);
                     models.push(SessionModelOptionView {
                         model_profile_id: profile.id,
                         endpoint_id: endpoint.id,
@@ -401,6 +403,7 @@ impl P05ProjectionBuilder {
                         order: u32::try_from(model_order).unwrap_or(u32::MAX),
                         reasoning_efforts,
                         reasoning_effort,
+                        speed_modes,
                     });
                 }
                 endpoints.push(SessionModelEndpointView {

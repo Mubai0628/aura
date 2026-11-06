@@ -42,6 +42,31 @@ fn a_current_execution_store_is_copied_before_replacing_a_version_that_refuses_i
     assert_eq!(answer(data_root.path(), Some("0.1.7"))[LEGACY], false, "there is no legacy store");
 }
 
+/// The legacy store holds the model settings, which 0.1.12 refuses once a model allows speed
+/// modes: it is copied before replacing such a version, though its schema stays the same.
+#[test]
+fn a_current_legacy_store_is_copied_before_replacing_a_version_that_refuses_its_records() {
+    let data_root = tempfile::tempdir().unwrap();
+    let data = data_root.path().join("data");
+    std::fs::create_dir(&data).unwrap();
+    let options = aura_persistence::PersistenceOptions::new(
+        data.join("aura.db"),
+        data.join("artifacts"),
+        aura_domain_common::RuntimeInstanceId::new(),
+    );
+    let aura_persistence::PersistenceStartup::Ready(store) =
+        aura_persistence::PersistenceCoordinator::start(options).unwrap()
+    else {
+        panic!("a new legacy store opens ready")
+    };
+    drop(store);
+
+    assert_eq!(answer(data_root.path(), Some("0.1.12"))[LEGACY], true);
+    assert_eq!(answer(data_root.path(), None)[LEGACY], true);
+    let readable = aura_persistence::RECORDS_READABLE_SINCE;
+    assert_eq!(answer(data_root.path(), Some(readable))[LEGACY], false);
+}
+
 #[test]
 fn a_missing_execution_store_is_never_copied() {
     let data_root = tempfile::tempdir().unwrap();

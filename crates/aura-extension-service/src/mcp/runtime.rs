@@ -32,8 +32,10 @@ const STOPPED_WHILE_STARTING: &str =
 
 mod plugin_hint;
 mod plugins;
+mod resources;
 mod signing;
 mod view;
+pub use resources::ReadResource;
 
 /// Core's network gateway and the runtime it runs on: every request to a Streamable HTTP
 /// server goes through them.
@@ -266,6 +268,7 @@ impl McpRuntime {
                 name: initialized.server_info.name.clone(),
                 version: initialized.server_info.version.clone(),
                 instructions: initialized.instructions.clone(),
+                resources: initialized.resources_supported,
             },
             catalog: normalize_tools(&server.id, tools),
             discovered_at: UtcTimestamp::now(),

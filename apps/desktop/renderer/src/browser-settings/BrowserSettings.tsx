@@ -114,8 +114,10 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
     let live = true;
     void api.getSettings().then((result) => {
       if (!live) return;
-      if (result.ok) setSnapshot(result.value);
-      else setError(userMessage(result.error, '浏览器设置读取失败，请重试。'));
+      if (result.ok) {
+        setSnapshot(result.value);
+        setError(undefined);
+      } else setError(userMessage(result.error, '浏览器设置读取失败，请重试。'));
     });
     return () => {
       live = false;
@@ -152,7 +154,7 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
       <section aria-label="内置浏览器" className="settings-surface browser-settings-row">
         <label className="browser-settings-toggle">
           <ToggleSwitch
-            checked={settings?.enabled ?? false}
+            checked={settings?.enabled}
             disabled={!ready}
             label="启用内置浏览器"
             onCheckedChange={(checked) => void save({ enabled: checked })}
@@ -182,7 +184,7 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
       <section aria-label="浏览器调试" className="settings-surface browser-settings-debug">
         <label className="browser-settings-toggle">
           <ToggleSwitch
-            checked={settings?.debugging ?? false}
+            checked={settings?.debugging}
             disabled={!ready}
             label="允许模型调试网页"
             onCheckedChange={(checked) =>

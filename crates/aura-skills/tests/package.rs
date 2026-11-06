@@ -147,28 +147,27 @@ fn roots_are_scanned_one_category_deep_and_states_follow_the_saved_choices() {
     assert_eq!(relative, ["alpha", "linked", "writing/beta"]);
     assert!(matches!(found[1].scanned, Err(SkillPackageError::Linked(_))));
 
-    let alpha = &found[0];
-    let fingerprint = alpha.scanned.as_ref().expect("valid").fingerprint.clone();
+    // What trust each source needs is in `trust.rs`; here, that a scan's results carry over.
     let id = skill_id(SkillSource::AgentGlobal, None, "alpha");
-    let setting = |enabled, trusted: Option<&str>| SkillSetting {
+    let setting = SkillSetting {
         id,
         source: SkillSource::AgentGlobal,
         workspace_id: None,
         relative: "alpha".into(),
-        enabled,
-        trusted_fingerprint: trusted.map(str::to_owned),
+        enabled: false,
+        trusted_fingerprint: None,
         available_for_subagents: false,
     };
-    let state =
-        |setting: Option<&SkillSetting>| view(alpha, SkillSource::AgentGlobal, None, setting).state;
-    assert_eq!(state(None), SkillState::Disabled, "found outside Aura: off until switched on");
-    assert_eq!(view(alpha, SkillSource::AuraStore, None, None).state, SkillState::NotTrusted);
-    assert_eq!(state(Some(&setting(true, None))), SkillState::NotTrusted);
-    assert_eq!(state(Some(&setting(true, Some(&fingerprint)))), SkillState::Ready);
-    assert_eq!(state(Some(&setting(true, Some("0123")))), SkillState::ContentChanged);
-    assert_eq!(state(Some(&setting(false, Some(&fingerprint)))), SkillState::Disabled);
     assert_eq!(
-        view(&found[1], SkillSource::AgentGlobal, None, None).state,
+        view(&found[0], SkillSource::AgentGlobal, None, None, false).state,
+        SkillState::Ready
+    );
+    assert_eq!(
+        view(&found[0], SkillSource::AgentGlobal, None, Some(&setting), false).state,
+        SkillState::Disabled
+    );
+    assert_eq!(
+        view(&found[1], SkillSource::AgentGlobal, None, None, false).state,
         SkillState::Unavailable
     );
     // The same folder name in another place is another Skill.

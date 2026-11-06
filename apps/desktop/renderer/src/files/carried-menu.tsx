@@ -73,11 +73,16 @@ async function copyPath(scope: FileActionScope, path: string): Promise<void> {
   if (refused) scope.notify(refused);
 }
 
+/** What runs an opening the menu offers: at once, or once the user agreed to open the file. */
+type Opening = (run: () => void) => void;
+const atOnce: Opening = (run) => run();
+
 /** Opening outside Aura, and showing in the file manager, for a file seen through Main. */
 export function outsideEntries(
   scope: Pick<FileActionScope, 'notify'>,
   target: AttachmentFileTarget,
   name: string,
+  opening: Opening = atOnce,
 ): MenuEntry[] {
   const program = runsCode(name);
   return [
@@ -86,26 +91,27 @@ export function outsideEntries(
       icon: icon('external-link'),
       disabled: program,
       ...(program ? { note: 'Aura 不直接运行可执行文件或脚本' } : {}),
-      run: () => void openOutside(scope, target, 'default_application'),
+      run: () => opening(() => void openOutside(scope, target, 'default_application')),
     },
     {
       label: '在文件资源管理器中显示',
       icon: icon('folder-open'),
-      run: () => void openOutside(scope, target, 'file_manager'),
+      run: () => opening(() => void openOutside(scope, target, 'file_manager')),
     },
   ];
 }
 
 /**
- * A file outside the workspace named by its full path — in a message, or picked for one —
- * in the sidebar when it shows that kind of file, outside Aura, or in the file manager; its path
- * is copied.
+ * A file outside the workspace named by its full path — in a message or a call's row, or picked
+ * for a message — in the sidebar when it shows that kind of file, outside Aura, or in the file
+ * manager; its path is copied.
  */
 export function placedEntries(
   scope: FileActionScope,
   entry: string,
   target: AttachmentFileTarget,
   path: string,
+  opening: Opening = atOnce,
 ): MenuEntry[] {
   return [
     ...(sidebarShows(path)
@@ -113,11 +119,11 @@ export function placedEntries(
           {
             label: '在侧边栏打开',
             icon: icon('panel-right-open'),
-            run: () => toolTabs.revealFile(scope.session, entry),
+            run: () => opening(() => toolTabs.revealFile(scope.session, entry)),
           },
         ]
       : []),
-    ...outsideEntries(scope, target, path),
+    ...outsideEntries(scope, target, path, opening),
     'separator',
     { label: '复制路径', icon: icon('copy'), run: () => void copyPath(scope, path) },
   ];

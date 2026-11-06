@@ -63,12 +63,15 @@ async fn r6_a_held_start_of_one_session_does_not_delay_another_sessions_ordinary
         services.agent_required().submit(
             CommandInvocationId::new(),
             AgentSubmitRequest {
+                computer_mode: None,
                 session_id: session_b,
                 text: "B's ordinary message while A is held".into(),
                 destination: AgentInputLane::NextTurn,
                 skill_ids: Vec::new(),
                 reasoning_effort: None,
+                speed_mode: None,
                 attachments: Vec::new(),
+                references: Vec::new(),
             },
         ),
     )

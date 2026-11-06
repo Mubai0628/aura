@@ -316,6 +316,25 @@
                   ],
                   "knowledge_cutoff": "fixture",
                   "last_updated": "fixture",
+                  "model_type": "fixture",
+                  "modes": {
+                    "fixture": {
+                      "body": {
+                        "fixture": "fixture"
+                      },
+                      "headers": {
+                        "fixture": "fixture"
+                      },
+                      "price": {
+                        "cache_read": "1",
+                        "cache_write": "1",
+                        "currency": "usd",
+                        "input": "1",
+                        "output": "1",
+                        "unit": "per_million_tokens"
+                      }
+                    }
+                  },
                   "open_weights": true,
                   "output_limit_tokens": 1,
                   "output_modalities": [
@@ -329,10 +348,29 @@
                     "output": "1",
                     "unit": "per_million_tokens"
                   },
+                  "price_tiers": [
+                    {
+                      "from_context_tokens": 1,
+                      "price": {
+                        "cache_read": "1",
+                        "cache_write": "1",
+                        "currency": "usd",
+                        "input": "1",
+                        "output": "1",
+                        "unit": "per_million_tokens"
+                      }
+                    }
+                  ],
+                  "reasoning_field": "fixture",
                   "reasoning_options": [
                     "fixture"
                   ],
                   "release_date": "fixture",
+                  "route": {
+                    "api_url": "fixture",
+                    "npm_package": "fixture",
+                    "shape": "fixture"
+                  },
                   "status": "fixture"
                 }
               },
@@ -366,6 +404,7 @@
               "origin": "discovered",
               "provider_model_name": "fixture",
               "request_defaults": {
+                "allow_speed_modes": true,
                 "chat_instruction_role": "system",
                 "chat_output_token_field": "max_completion_tokens",
                 "image_input": true,
@@ -374,6 +413,7 @@
                 "reasoning_efforts": [
                   "off"
                 ],
+                "speed_mode": "fixture",
                 "temperature": 1.0,
                 "top_p": 1.0
               },
@@ -404,7 +444,33 @@
               "updated_at": "2026-10-14T00:00:00Z"
             }
           }
-        }
+        },
+        "speed_modes": [
+          {
+            "model_profile_id": "mdl_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "modes": [
+              {
+                "name": "fixture",
+                "price": {
+                  "cache_read": "1",
+                  "cache_write": "1",
+                  "currency": "usd",
+                  "input": "1",
+                  "output": "1",
+                  "unit": "per_million_tokens"
+                }
+              }
+            ],
+            "standard_price": {
+              "cache_read": "1",
+              "cache_write": "1",
+              "currency": "usd",
+              "input": "1",
+              "output": "1",
+              "unit": "per_million_tokens"
+            }
+          }
+        ]
       },
       "projection_kind": "model_settings",
       "projection_scope": {
@@ -421,12 +487,21 @@
             "catalog_provider_id": "fixture",
             "configuration_class": "trusted_preset",
             "connection_defaults": {
+              "by_model": true,
               "source": "aura_preset",
               "variants": [
                 {
                   "api_format": "open_ai_responses",
                   "auth_scheme": "none",
                   "base_url": "https://fixture.invalid",
+                  "base_url_parameters": [
+                    {
+                      "display_name": "fixture",
+                      "example": "fixture",
+                      "kind": "domain_label",
+                      "name": "fixture"
+                    }
+                  ],
                   "chat_instruction_role": "system",
                   "chat_output_token_field": "max_completion_tokens",
                   "discovery_mode": {
@@ -600,6 +675,25 @@
                 ],
                 "knowledge_cutoff": "fixture",
                 "last_updated": "fixture",
+                "model_type": "fixture",
+                "modes": {
+                  "fixture": {
+                    "body": {
+                      "fixture": "fixture"
+                    },
+                    "headers": {
+                      "fixture": "fixture"
+                    },
+                    "price": {
+                      "cache_read": "1",
+                      "cache_write": "1",
+                      "currency": "usd",
+                      "input": "1",
+                      "output": "1",
+                      "unit": "per_million_tokens"
+                    }
+                  }
+                },
                 "open_weights": true,
                 "output_limit_tokens": 1,
                 "output_modalities": [
@@ -613,10 +707,29 @@
                   "output": "1",
                   "unit": "per_million_tokens"
                 },
+                "price_tiers": [
+                  {
+                    "from_context_tokens": 1,
+                    "price": {
+                      "cache_read": "1",
+                      "cache_write": "1",
+                      "currency": "usd",
+                      "input": "1",
+                      "output": "1",
+                      "unit": "per_million_tokens"
+                    }
+                  }
+                ],
+                "reasoning_field": "fixture",
                 "reasoning_options": [
                   "fixture"
                 ],
                 "release_date": "fixture",
+                "route": {
+                  "api_url": "fixture",
+                  "npm_package": "fixture",
+                  "shape": "fixture"
+                },
                 "status": "fixture"
               }
             },
@@ -650,6 +763,7 @@
             "origin": "discovered",
             "provider_model_name": "fixture",
             "request_defaults": {
+              "allow_speed_modes": true,
               "chat_instruction_role": "system",
               "chat_output_token_field": "max_completion_tokens",
               "image_input": true,
@@ -658,6 +772,7 @@
               "reasoning_efforts": [
                 "off"
               ],
+              "speed_mode": "fixture",
               "temperature": 1.0,
               "top_p": 1.0
             },
@@ -822,6 +937,25 @@
                 ],
                 "knowledge_cutoff": "fixture",
                 "last_updated": "fixture",
+                "model_type": "fixture",
+                "modes": {
+                  "fixture": {
+                    "body": {
+                      "fixture": "fixture"
+                    },
+                    "headers": {
+                      "fixture": "fixture"
+                    },
+                    "price": {
+                      "cache_read": "1",
+                      "cache_write": "1",
+                      "currency": "usd",
+                      "input": "1",
+                      "output": "1",
+                      "unit": "per_million_tokens"
+                    }
+                  }
+                },
                 "open_weights": true,
                 "output_limit_tokens": 1,
                 "output_modalities": [
@@ -835,10 +969,29 @@
                   "output": "1",
                   "unit": "per_million_tokens"
                 },
+                "price_tiers": [
+                  {
+                    "from_context_tokens": 1,
+                    "price": {
+                      "cache_read": "1",
+                      "cache_write": "1",
+                      "currency": "usd",
+                      "input": "1",
+                      "output": "1",
+                      "unit": "per_million_tokens"
+                    }
+                  }
+                ],
+                "reasoning_field": "fixture",
                 "reasoning_options": [
                   "fixture"
                 ],
                 "release_date": "fixture",
+                "route": {
+                  "api_url": "fixture",
+                  "npm_package": "fixture",
+                  "shape": "fixture"
+                },
                 "status": "fixture"
               }
             },
@@ -872,6 +1025,7 @@
             "origin": "discovered",
             "provider_model_name": "fixture",
             "request_defaults": {
+              "allow_speed_modes": true,
               "chat_instruction_role": "system",
               "chat_output_token_field": "max_completion_tokens",
               "image_input": true,
@@ -880,6 +1034,7 @@
               "reasoning_efforts": [
                 "off"
               ],
+              "speed_mode": "fixture",
               "temperature": 1.0,
               "top_p": 1.0
             },
@@ -1076,6 +1231,25 @@
               ],
               "knowledge_cutoff": "fixture",
               "last_updated": "fixture",
+              "model_type": "fixture",
+              "modes": {
+                "fixture": {
+                  "body": {
+                    "fixture": "fixture"
+                  },
+                  "headers": {
+                    "fixture": "fixture"
+                  },
+                  "price": {
+                    "cache_read": "1",
+                    "cache_write": "1",
+                    "currency": "usd",
+                    "input": "1",
+                    "output": "1",
+                    "unit": "per_million_tokens"
+                  }
+                }
+              },
               "open_weights": true,
               "output_limit_tokens": 1,
               "output_modalities": [
@@ -1089,10 +1263,29 @@
                 "output": "1",
                 "unit": "per_million_tokens"
               },
+              "price_tiers": [
+                {
+                  "from_context_tokens": 1,
+                  "price": {
+                    "cache_read": "1",
+                    "cache_write": "1",
+                    "currency": "usd",
+                    "input": "1",
+                    "output": "1",
+                    "unit": "per_million_tokens"
+                  }
+                }
+              ],
+              "reasoning_field": "fixture",
               "reasoning_options": [
                 "fixture"
               ],
               "release_date": "fixture",
+              "route": {
+                "api_url": "fixture",
+                "npm_package": "fixture",
+                "shape": "fixture"
+              },
               "status": "fixture"
             }
           },
@@ -1126,6 +1319,7 @@
           "origin": "discovered",
           "provider_model_name": "fixture",
           "request_defaults": {
+            "allow_speed_modes": true,
             "chat_instruction_role": "system",
             "chat_output_token_field": "max_completion_tokens",
             "image_input": true,
@@ -1134,6 +1328,7 @@
             "reasoning_efforts": [
               "off"
             ],
+            "speed_mode": "fixture",
             "temperature": 1.0,
             "top_p": 1.0
           },
@@ -1304,6 +1499,25 @@
               ],
               "knowledge_cutoff": "fixture",
               "last_updated": "fixture",
+              "model_type": "fixture",
+              "modes": {
+                "fixture": {
+                  "body": {
+                    "fixture": "fixture"
+                  },
+                  "headers": {
+                    "fixture": "fixture"
+                  },
+                  "price": {
+                    "cache_read": "1",
+                    "cache_write": "1",
+                    "currency": "usd",
+                    "input": "1",
+                    "output": "1",
+                    "unit": "per_million_tokens"
+                  }
+                }
+              },
               "open_weights": true,
               "output_limit_tokens": 1,
               "output_modalities": [
@@ -1317,10 +1531,29 @@
                 "output": "1",
                 "unit": "per_million_tokens"
               },
+              "price_tiers": [
+                {
+                  "from_context_tokens": 1,
+                  "price": {
+                    "cache_read": "1",
+                    "cache_write": "1",
+                    "currency": "usd",
+                    "input": "1",
+                    "output": "1",
+                    "unit": "per_million_tokens"
+                  }
+                }
+              ],
+              "reasoning_field": "fixture",
               "reasoning_options": [
                 "fixture"
               ],
               "release_date": "fixture",
+              "route": {
+                "api_url": "fixture",
+                "npm_package": "fixture",
+                "shape": "fixture"
+              },
               "status": "fixture"
             }
           },
@@ -1354,6 +1587,7 @@
           "origin": "discovered",
           "provider_model_name": "fixture",
           "request_defaults": {
+            "allow_speed_modes": true,
             "chat_instruction_role": "system",
             "chat_output_token_field": "max_completion_tokens",
             "image_input": true,
@@ -1362,6 +1596,7 @@
             "reasoning_efforts": [
               "off"
             ],
+            "speed_mode": "fixture",
             "temperature": 1.0,
             "top_p": 1.0
           },
@@ -1514,6 +1749,25 @@
               ],
               "knowledge_cutoff": "fixture",
               "last_updated": "fixture",
+              "model_type": "fixture",
+              "modes": {
+                "fixture": {
+                  "body": {
+                    "fixture": "fixture"
+                  },
+                  "headers": {
+                    "fixture": "fixture"
+                  },
+                  "price": {
+                    "cache_read": "1",
+                    "cache_write": "1",
+                    "currency": "usd",
+                    "input": "1",
+                    "output": "1",
+                    "unit": "per_million_tokens"
+                  }
+                }
+              },
               "open_weights": true,
               "output_limit_tokens": 1,
               "output_modalities": [
@@ -1527,10 +1781,29 @@
                 "output": "1",
                 "unit": "per_million_tokens"
               },
+              "price_tiers": [
+                {
+                  "from_context_tokens": 1,
+                  "price": {
+                    "cache_read": "1",
+                    "cache_write": "1",
+                    "currency": "usd",
+                    "input": "1",
+                    "output": "1",
+                    "unit": "per_million_tokens"
+                  }
+                }
+              ],
+              "reasoning_field": "fixture",
               "reasoning_options": [
                 "fixture"
               ],
               "release_date": "fixture",
+              "route": {
+                "api_url": "fixture",
+                "npm_package": "fixture",
+                "shape": "fixture"
+              },
               "status": "fixture"
             }
           },
@@ -1564,6 +1837,7 @@
           "origin": "discovered",
           "provider_model_name": "fixture",
           "request_defaults": {
+            "allow_speed_modes": true,
             "chat_instruction_role": "system",
             "chat_output_token_field": "max_completion_tokens",
             "image_input": true,
@@ -1572,6 +1846,7 @@
             "reasoning_efforts": [
               "off"
             ],
+            "speed_mode": "fixture",
             "temperature": 1.0,
             "top_p": 1.0
           },
@@ -1634,6 +1909,9 @@
             "reasoning_effort": "off",
             "reasoning_efforts": [
               "off"
+            ],
+            "speed_modes": [
+              "fixture"
             ]
           }
         ],

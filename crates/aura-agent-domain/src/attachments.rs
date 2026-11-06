@@ -1,8 +1,10 @@
 //! Pictures and files added to a
 //! message in the composer. A picture goes to the model as an image with its message; a text
 //! file's contents go with the message's text; a file of the workspace is named by its path, for
-//! the model to read with its tools. The conversation shows what the user typed, with a card for
-//! each picture and file.
+//! the model to read with its tools. What a terminal printed or a page of the built-in browser
+//! showed, captured when the message is sent, is kept as a file the model reads by its path, and
+//! so is an MCP resource, read when the message is sent. The conversation shows what the user
+//! typed, with a card for each picture and file.
 use aura_domain_common::{ArtifactId, ExternalGrantId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,6 +15,8 @@ pub const MAX_MESSAGE_ATTACHMENTS: usize = 10;
 pub const MAX_ATTACHED_IMAGE_BYTES: u64 = 3 * 1024 * 1024;
 /// The largest text file sent with its contents.
 pub const MAX_ATTACHED_TEXT_BYTES: u64 = 256 * 1024;
+/// The largest capture of a terminal or a page.
+pub const MAX_CAPTURED_TEXT_BYTES: u64 = 1024 * 1024;
 /// What one message's pictures and text files come to at most, so that the message stays within
 /// what one desktop command carries.
 pub const MAX_ATTACHED_BYTES: u64 = 4 * 1024 * 1024;
@@ -30,6 +34,13 @@ pub enum AgentAttachmentDraft {
     /// A file selected on this computer. Core classifies workspace files and authorizes an
     /// external file for read access to that one file identity in this conversation.
     File { path: String },
+    /// What a terminal printed or a page of the built-in browser showed when the message was
+    /// sent. Core keeps it as a file of the conversation under `name` and attaches it as it
+    /// attaches a file from outside the workspace, read only.
+    Capture { name: String, text: String },
+    /// A resource of an MCP server, by its address. Core reads it through the conversation's
+    /// instance of the server and keeps its text as a capture under `name`.
+    McpResource { server_id: String, uri: String, name: String },
 }
 
 /// One picture or file a message carries, as Aura keeps it with the message.
@@ -95,8 +106,12 @@ pub enum AttachmentError {
         "agent.attachment_text_too_large: 文本文件「{0}」太大，超过 256 KB 请改为按文件位置附加。"
     )]
     TextTooLarge(String),
+    #[error("agent.attachment_capture_too_large: 「{0}」的内容太多（最多 1 MB）。")]
+    CaptureTooLarge(String),
     #[error("agent.attachment_path_invalid: 附件的位置不可用。")]
     PathInvalid,
+    #[error("agent.attachment_resource_invalid: 引用的 MCP 资源不可用。")]
+    ResourceInvalid,
     #[error(
         "agent.attachments_too_large: 这条消息的图片和文本文件合计太大（最多 4 MB），请分几条发送。"
     )]
@@ -154,6 +169,28 @@ pub fn validate_attachment_drafts(drafts: &[AgentAttachmentDraft]) -> Result<(),
                     return Err(AttachmentError::PathInvalid);
                 }
             }
+            AgentAttachmentDraft::Capture { name, text } => {
+                if !valid_name(name) {
+                    return Err(AttachmentError::NameInvalid);
+                }
+                if text.len() as u64 > MAX_CAPTURED_TEXT_BYTES {
+                    return Err(AttachmentError::CaptureTooLarge(name.clone()));
+                }
+                total += text.len() as u64;
+            }
+            AgentAttachmentDraft::McpResource { server_id, uri, name } => {
+                if !valid_name(name) {
+                    return Err(AttachmentError::NameInvalid);
+                }
+                let usable = |value: &str, limit: usize| {
+                    !value.trim().is_empty()
+                        && value.len() <= limit
+                        && !value.chars().any(char::is_control)
+                };
+                if !usable(server_id, 128) || !usable(uri, 2048) {
+                    return Err(AttachmentError::ResourceInvalid);
+                }
+            }
         }
     }
     if total > MAX_ATTACHED_BYTES {
@@ -178,6 +215,10 @@ impl AgentAttachmentDraft {
                 Self::Text { name: name.clone(), text: digest(text.as_bytes()) }
             }
             Self::File { path } => Self::File { path: path.clone() },
+            Self::Capture { name, text } => {
+                Self::Capture { name: name.clone(), text: digest(text.as_bytes()) }
+            }
+            Self::McpResource { .. } => self.clone(),
         }
     }
 }

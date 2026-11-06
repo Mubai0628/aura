@@ -38,8 +38,8 @@
   width: 14px;
   height: 14px;
   place-items: center;
-  border: 1.5px solid var(--line-strong);
-  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-round);
   color: var(--surface);
   background: var(--surface);
 }
@@ -55,12 +55,12 @@
 
 .goal-status.is-running .goal-mark::after {
   position: absolute;
-  inset: -1.5px;
-  border: 1.5px solid transparent;
+  inset: -1px;
+  border: 1px solid transparent;
   border-top-color: var(--success);
   border-right-color: var(--success);
-  border-radius: 50%;
-  animation: goal-turn 0.9s linear infinite;
+  border-radius: var(--radius-round);
+  animation: goal-turn 0.8s steps(4) infinite;
   content: '';
 }
 
@@ -92,7 +92,7 @@
   display: block;
   height: 2px;
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background:
     linear-gradient(
         90deg,

@@ -23,7 +23,12 @@ fn copy_folder(from: &Path, to: &Path) {
 
 /// A plugin `guard` whose one Hook answers `answer`, imported and trusted.
 fn install(f: &Fixture, answer: &str, limits: &str) -> PluginContext {
-    let hook = f.package("guard-hook", &[BEFORE], &["answer", answer], "");
+    install_running(f, &["answer", answer], limits)
+}
+
+/// A plugin `guard` whose one Hook runs the test Hook with `arguments`, imported and trusted.
+fn install_running(f: &Fixture, arguments: &[&str], limits: &str) -> PluginContext {
+    let hook = f.package("guard-hook", &[BEFORE], arguments, "");
     let source = f.root.path().join("sources").join("guard");
     std::fs::create_dir_all(&source).expect("source");
     std::fs::write(
@@ -90,6 +95,23 @@ fn a_plugins_hook_runs_after_the_users_own_and_follows_the_plugin() {
         f.run(f.call(HookEvent::ToolBeforeCall, Some("fs.write"), json!({"arguments": {}})));
     assert!(outcome.block.is_none());
     assert_eq!(outcome.invocations.len(), 1, "only the user's own");
+}
+
+#[test]
+fn a_plugins_failing_hook_goes_into_the_plugins_log() {
+    let mut f = Fixture::new();
+    let _context = install_running(&f, &["exit", "3"], "");
+    let plugins = runtime(&f);
+    f.runner.plugins = Some(Arc::clone(&plugins));
+    let outcome =
+        f.run(f.call(HookEvent::ToolBeforeCall, Some("fs.write"), json!({"arguments": {}})));
+    assert_eq!(outcome.invocations[0].failure, Some(aura_hooks::HookFailureKind::ExitCode));
+    let (entries, truncated) = plugins.recent_logs("guard", 10).expect("logs");
+    assert!(!truncated);
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert_eq!(entries[0].source, aura_agent_domain::PluginLogSource::Hook);
+    assert_eq!(entries[0].part, "guard-hook");
+    assert!(entries[0].text.starts_with("ExitCode"), "{}", entries[0].text);
 }
 
 #[test]
