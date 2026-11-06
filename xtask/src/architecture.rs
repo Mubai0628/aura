@@ -2,6 +2,10 @@ use std::path::Path;
 
 use anyhow::Result;
 
+mod format_check;
+
+pub(crate) use format_check::check as check_format;
+
 pub(crate) fn check(root: &Path) -> Result<()> {
     super::run(root, "node", &["scripts/architecture/check-file-size.mjs"])?;
     super::run(
@@ -25,7 +29,7 @@ pub(crate) fn check(root: &Path) -> Result<()> {
 
 pub(crate) fn check_fast(root: &Path) -> Result<()> {
     check(root)?;
-    super::run(root, "cargo", &["fmt", "--all", "--", "--check"])?;
+    format_check::check(root)?;
     super::contracts::check()?;
     super::manifests::validate_manifests(root)?;
     // Run the existing package scripts sequentially, without pnpm's recursive output pipes.

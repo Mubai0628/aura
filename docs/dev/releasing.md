@@ -21,7 +21,7 @@ corepack pnpm --filter @aura/desktop package:dir
 node scripts/release/build-release.mjs --version <x.y.z>
 ```
 
-`AURA_PRODUCTION_RELEASE_BUILD=1` 把 `resources/release-trust/production/` 下的根证书编进检查签名的程序；正式版没有它时 `build-release.mjs` 直接拒绝。`build-release.mjs` 组装版本目录（桌面包、各程序、Chrome 扩展、固定版本的 PowerShell、许可证与第三方声明），签名组件清单（询问发布签名证书的口令），打出安装程序 `Aura-Setup-<版本>-x64.exe`、更新包 `Aura-Update-<版本>-x64.aura-update` 和 `SHA256SUMS`。
+`AURA_PRODUCTION_RELEASE_BUILD=1` 把 `resources/release-trust/production/` 下的根证书编进检查签名的程序；正式版没有它时 `build-release.mjs` 直接拒绝。`build-release.mjs` 组装版本目录（桌面包、各程序、Chrome 扩展、固定版本的 PowerShell、许可证与第三方声明），签名组件清单（询问发布签名证书的口令），打出安装程序 `Aura-Setup-<版本>-x64.exe`、更新包 `Aura-Update-<版本>-x64.aura-update` 和 `SHA256SUMS`。组件清单里的构建提交取自运行 `build-release.mjs` 时的当前提交，所以从构建到签名之间不要提交。
 
 Chrome 扩展放在版本目录的 `resources/chrome-extension`。`corepack pnpm build` 构建的是正式版扩展（`apps/chrome-extension/dist/production`）；组装时核对它的公钥、连接的主机名和版本号都属于这次发布，不符就拒绝并给出构建命令。扩展的版本号取自 `apps/chrome-extension/package.json`，随产品版本一起改。
 

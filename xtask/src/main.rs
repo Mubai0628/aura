@@ -265,7 +265,7 @@ fn workspace_root() -> PathBuf {
 fn check_all(skip_e2e: bool) -> Result<()> {
     let root = workspace_root();
     architecture::check(&root)?;
-    run(&root, "cargo", &["fmt", "--all", "--", "--check"])?;
+    architecture::check_format(&root)?;
     run(
         &root,
         "cargo",
