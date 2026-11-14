@@ -1,11 +1,11 @@
 use crate::{JsonRpcRequest, RuntimeServices, RuntimeState};
-use aura_agent_execution::{agent_activity, broker::files::facts};
-use aura_domain_common::{SessionId, WorkspaceId, WorkspacePath};
+use aura_agent_execution::agent_activity;
+use aura_agent_execution::broker::files::{facts, read_scope, verified_targets_of};
 use aura_execution_contract::{BrokerEvidence, SideEffectStateV1};
 use aura_runtime_contract::IpcErrorEnvelope;
 #[cfg(feature = "acceptance-barrier")]
 use aura_runtime_contract::IpcRequestTerminal;
-use aura_security_contract::{ResolvedCapability, ResourceDescriptor};
+use aura_security_contract::ResourceDescriptor;
 use aura_security_service::p04::{self, P04Services};
 use serde_json::Value;
 use std::sync::Arc;
@@ -26,7 +26,7 @@ pub(crate) async fn dispatch_files(
     let mutation = P04Services::gates_authenticated_main_workspace_mutation(&request.method);
     let (workspace, session, paths, capabilities) = if mutation {
         let r = p04::resolve_workspace_mutation(&request.method, &request.params, request.id)?;
-        (r.workspace_id, r.session_id, r.paths, r.capabilities)
+        (r.workspace_id, Some(r.session_id), r.paths, r.capabilities)
     } else {
         read_scope(&request.params).map_err(|e| super::error_envelope(request.id, e))?
     };
@@ -67,32 +67,36 @@ pub(crate) async fn dispatch_files(
             Ok(value)
         })
     };
-    let activity_subject = agent_activity::MainFsActivitySubject {
-        session_id: session,
-        workspace_id: workspace,
-        runtime_instance_id: services.activity_runtime_instance_id,
-        operation_id: operation.operation_id,
-        command_invocation_id: request.command_invocation_id,
-        targets: Vec::new(),
-    };
-    let index = services.activity_index.clone();
-    let observer = services.activity_observer.clone();
-    let activity_method = request.method.clone();
-    let activity_paths = paths.clone();
-    let activity_attempt = Arc::clone(&attempt);
-    let activity_publisher: aura_fs_tools::FileExecutionObserver = Arc::new(move |requests| {
-        let mut subject = activity_subject.clone();
-        subject.operation_id = activity_attempt.get().copied().unwrap_or(subject.operation_id);
-        let prepared = prepared.lock().map(|value| value.clone()).unwrap_or_default();
-        subject.targets = verified_targets_of(&activity_paths, prepared.as_ref());
-        let mut record = agent_activity::main_record(&subject, &activity_method);
-        if !requests.is_empty() {
-            record.resources = agent_activity::resources::project(requests);
-        }
-        let id = record.id;
-        let generation = record.generation;
-        observer.observe(index.publish(record));
-        Box::new(agent_activity::AgentActivityGuard::new(index.clone(), id, generation))
+    // A read without a conversation has no conversation to show its activity in.
+    let activity_publisher = session.map(|session_id| {
+        let activity_subject = agent_activity::MainFsActivitySubject {
+            session_id,
+            workspace_id: workspace,
+            runtime_instance_id: services.activity_runtime_instance_id,
+            operation_id: operation.operation_id,
+            command_invocation_id: request.command_invocation_id,
+            targets: Vec::new(),
+        };
+        let index = services.activity_index.clone();
+        let observer = services.activity_observer.clone();
+        let activity_method = request.method.clone();
+        let activity_paths = paths.clone();
+        let activity_attempt = Arc::clone(&attempt);
+        let publisher: aura_fs_tools::FileExecutionObserver = Arc::new(move |requests| {
+            let mut subject = activity_subject.clone();
+            subject.operation_id = activity_attempt.get().copied().unwrap_or(subject.operation_id);
+            let prepared = prepared.lock().map(|value| value.clone()).unwrap_or_default();
+            subject.targets = verified_targets_of(&activity_paths, prepared.as_ref());
+            let mut record = agent_activity::main_record(&subject, &activity_method);
+            if !requests.is_empty() {
+                record.resources = agent_activity::resources::project(requests);
+            }
+            let id = record.id;
+            let generation = record.generation;
+            observer.observe(index.publish(record));
+            Box::new(agent_activity::AgentActivityGuard::new(index.clone(), id, generation))
+        });
+        publisher
     });
     let evidence_inspect = read_facts;
     let evidence_persistence = Arc::clone(&services.persistence);
@@ -215,7 +219,7 @@ pub(crate) async fn dispatch_files(
                     &handler_request.params,
                     handler_request.id,
                     std::time::Instant::now() + FILE_DISPATCH_DEADLINE,
-                    Some(activity_publisher),
+                    activity_publisher,
                     Arc::new(move || {
                         if mutation {
                             recheck_p04.authorize_authenticated_main_workspace_mutation(
@@ -266,74 +270,4 @@ pub(super) fn on_changed_facts(method: &str) -> super::OnChangedFacts {
     } else {
         super::OnChangedFacts::Refuse
     }
-}
-
-type ReadScope = (WorkspaceId, SessionId, Vec<WorkspacePath>, Vec<ResolvedCapability>);
-fn read_scope(params: &Value) -> anyhow::Result<ReadScope> {
-    let workspace = serde_json::from_value(params["workspace_id"].clone())?;
-    let session = serde_json::from_value(params["session_id"].clone())?;
-    let path = params
-        .get("root")
-        .or_else(|| params.pointer("/target/path"))
-        .or_else(|| params.get("path"));
-    let path = path.map_or_else(
-        || WorkspacePath::parse(WorkspacePath::ROOT).map_err(anyhow::Error::from),
-        |v| serde_json::from_value(v.clone()).map_err(anyhow::Error::from),
-    )?;
-    Ok((workspace, session, vec![path], vec![ResolvedCapability::WorkspaceFileRead]))
-}
-
-/// Copies the identities `facts()` already verified into the activity contract's target shape (R1/R3).
-///
-/// WHY THIS IS A COPY AND NOT A SECOND READ
-/// `facts()` above is the one place that really verifies identity: it calls
-/// `resolver.verify_root_identity()` and `resolver.resolve_existing(path)` and reports the real
-/// `FileIdentity`. This function only reinterprets that already-produced JSON, so publishing
-/// costs no additional file I/O, opens no handle and takes no lock.
-///
-/// WHY THE KEY IS DERIVED THE SAME WAY THE OTHER PUBLISHERS DERIVE IT
-/// The platform identity is two opaque strings (`volume_serial_number`, `file_id`). They are
-/// folded into the index's compact `(u32, u64)` key space with the same canonical digest the
-/// Agent publisher uses (`agent_activity::identity_key`), so a Main row and an Agent row for one
-/// physical file land on the **same** `ActivityResourceKey`. A truncated hash or a path string
-/// would not.
-///
-/// A target with no verified identity (an absent path) is reported against its prospective
-/// parent's verified identity, which is the honest position fact for a file that does not exist
-/// yet, rather than being passed off as a real object or silently dropped.
-fn verified_targets_of(
-    paths: &[WorkspacePath],
-    pre_state: Option<&Value>,
-) -> Vec<agent_activity::MainFsTarget> {
-    let entries = pre_state
-        .and_then(|value| value.get("paths"))
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    paths
-        .iter()
-        .enumerate()
-        .map(|(index, path)| {
-            let entry = entries.get(index);
-            let identity = entry.and_then(|entry| entry.get("identity")).and_then(|value| {
-                serde_json::from_value::<aura_domain_common::FileIdentity>(value.clone()).ok()
-            });
-            let directory = entry
-                .and_then(|entry| entry.get("kind"))
-                .and_then(|value| {
-                    serde_json::from_value::<aura_workspace_domain::FsNodeKind>(value.clone()).ok()
-                })
-                .is_some_and(|kind| kind == aura_workspace_domain::FsNodeKind::Directory);
-            agent_activity::MainFsTarget {
-                path: path.as_str().to_owned(),
-                target: identity.as_ref().map(|identity| {
-                    aura_activity_domain::ActivityResourceTarget::VerifiedObject {
-                        identity: identity.clone(),
-                        ancestors: Vec::new(),
-                        subtree: directory,
-                    }
-                }),
-            }
-        })
-        .collect()
 }

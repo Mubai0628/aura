@@ -3947,7 +3947,7 @@ pub(crate) fn open_and_migrate(
             ),
         }));
     }
-    configure_writer(&connection)?;
+    crate::connection_settings::configure_writer(&connection)?;
     if current == LATEST_SCHEMA_VERSION {
         return Ok(MigrationResult::Ready(connection));
     }
@@ -3969,22 +3969,6 @@ pub(crate) fn open_and_migrate(
         return recovery_after_failure(database_path, backup_path, error.to_string());
     }
     Ok(MigrationResult::Ready(connection))
-}
-
-pub(crate) fn configure_writer(connection: &Connection) -> Result<(), PersistenceError> {
-    connection.busy_timeout(BUSY_TIMEOUT)?;
-    connection.pragma_update(None, "foreign_keys", "ON")?;
-    connection.pragma_update(None, "journal_mode", "WAL")?;
-    connection.pragma_update(None, "synchronous", "FULL")?;
-    connection.pragma_update(None, "wal_autocheckpoint", 1000_i64)?;
-    Ok(())
-}
-
-pub(crate) fn configure_reader(connection: &Connection) -> Result<(), PersistenceError> {
-    connection.busy_timeout(BUSY_TIMEOUT)?;
-    connection.pragma_update(None, "foreign_keys", "ON")?;
-    connection.pragma_update(None, "query_only", "ON")?;
-    Ok(())
 }
 
 pub(crate) fn current_schema_version(connection: &Connection) -> Result<i64, PersistenceError> {

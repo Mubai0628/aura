@@ -3,6 +3,7 @@ import { terminalBridge } from './terminal.js';
 import { browserBridge } from './browser.js';
 import { chromeBridge } from './chrome.js';
 import { computerBridge } from './computer.js';
+import { storageBridge } from './storage.js';
 import { pluginPanelsBridge } from './plugin-panels.js';
 import { pluginUiBridge } from './plugin-ui.js';
 import { attachmentFile, attachmentPath, messagePicture, workspaceMediaUrl } from './media.js';
@@ -61,6 +62,7 @@ export function agentBridge(
     browser: browserBridge(invoke),
     chrome: chromeBridge(invoke),
     computer: computerBridge(invoke),
+    storage: storageBridge(invoke),
     pluginPanels: pluginPanelsBridge(),
     pluginUi: pluginUiBridge(),
     workspaceMediaUrl,
@@ -246,6 +248,23 @@ export function agentBridge(
       invoke('agent.query.touch', request),
     readAgentSessionsActivity: (request: AgentMainParams['agent.sessions.activity']) =>
       invoke('agent.sessions.activity', request),
+    listAgentTeam: (request: AgentMainParams['agent.team.list']) =>
+      invoke('agent.team.list', request),
+    stopAgentTeamMember: (request: AgentMainParams['agent.team.stop']) =>
+      invoke('agent.team.stop', request),
+    openAgentTeamWorktree: (request: AgentMainParams['agent.team.worktree.open']) =>
+      invoke('agent.team.worktree.open', request),
+    revokeAgentTeamAllowance: (request: AgentMainParams['agent.team.allowance.revoke']) =>
+      invoke('agent.team.allowance.revoke', request),
+    readAgentTeamChanges: (request: AgentMainParams['agent.team.changes']) =>
+      invoke('agent.team.changes', request),
+    readAgentTeamSettings: () => invoke('agent.team.settings', {}),
+    setAgentTeamSettings: (request: AgentMainParams['agent.team.settings.set']) =>
+      invoke('agent.team.settings.set', request),
+    readWorktreeLocation: () => invoke('agent.team.worktrees.location', {}),
+    setWorktreeLocation: (request: AgentMainParams['agent.team.worktrees.location.set']) =>
+      invoke('agent.team.worktrees.location.set', request),
+    selectWorktreeLocation: () => invoke('agent.team.worktrees.location.select', {}),
     getAgentApproval: (request: AgentMainParams['agent.approval.get']) =>
       invoke('agent.approval.get', request),
     resolveAgentApproval: (request: AgentMainParams['agent.approval.resolve']) =>

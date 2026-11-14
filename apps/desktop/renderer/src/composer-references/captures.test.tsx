@@ -62,7 +62,8 @@ const terminal = (id: string, owner: 'user' | 'agent', title = ''): TerminalView
 
 const submit = vi.fn(),
   command = vi.fn(),
-  resources = vi.fn();
+  resources = vi.fn(),
+  handOver = vi.fn();
 beforeEach(async () => {
   localStorage.clear();
   resetComposerDraftsForTests();
@@ -70,6 +71,15 @@ beforeEach(async () => {
   resetToolTabsForTests();
   browserTabs.resetForTests();
   submit.mockReset().mockResolvedValue({ ok: true, value: {} });
+  handOver.mockReset().mockImplementation(async (request: { terminal_id: string }) => ({
+    ok: true,
+    value: {
+      ...terminal(request.terminal_id, request.terminal_id === 't1' ? 'user' : 'agent'),
+      controller: 'agent',
+      revision: '2',
+      ...(request.terminal_id === 't1' ? { handed_over: true } : {}),
+    },
+  }));
   resources.mockReset().mockResolvedValue({
     ok: true,
     value: {
@@ -87,7 +97,7 @@ beforeEach(async () => {
     },
   });
   command.mockReset().mockImplementation(async (request: { kind: string; pageId: string }) =>
-    request.kind === 'text' && request.pageId === 'page-1'
+    request.kind === 'text' && (request.pageId === 'page-1' || request.pageId === 'model')
       ? {
           ok: true,
           text: {
@@ -97,7 +107,9 @@ beforeEach(async () => {
             truncated: false,
           },
         }
-      : { ok: true },
+      : request.kind === 'hand-over' && request.pageId === 'page-1'
+        ? { ok: true, state: { ...browserStore.get('session', 'page-1'), handedAs: 'p1' } }
+        : { ok: true },
   );
   Object.defineProperty(window, 'aura', {
     configurable: true,
@@ -120,6 +132,7 @@ beforeEach(async () => {
         submitAgentMessage: submit,
         listMcpResources: resources,
         browser: { command, pages: vi.fn().mockResolvedValue([]), onState: () => () => {} },
+        terminal: { handOver },
       },
     },
   });
@@ -222,7 +235,40 @@ test('"@" lists the usable Skills; a pinned one is noted as loaded, and one pick
   );
 });
 
-test('a terminal picked from "@" is sent as what it shows, its last 2,000 lines', async () => {
+test('"@" leaves out a terminal that has ended, unless its tab is still open', async () => {
+  const ended = {
+    reason: 'core_stopped',
+    exit_code: null,
+    stop_confirmed: false,
+    error: null,
+  } as const;
+  const api = {
+    subscribe: vi.fn(async (request: { terminal_id: string }) => ({
+      ok: true,
+      value: {
+        runtime_instance_id: 'rt',
+        session_id: 'session',
+        terminal_id: request.terminal_id,
+        start_offset: 0,
+        next_offset: 0,
+        data_base64: '',
+        truncated: false,
+        end: ended,
+      },
+    })),
+  } as unknown as TerminalApiV1;
+  // The model's terminal from an earlier run of Aura, and the user's that ended in its tab.
+  await addTerminal({ ...terminal('t3', 'agent', 'npm run dev'), end: ended }, api);
+  await addTerminal({ ...terminal('t4', 'user'), end: ended }, api);
+  toolTabs.adoptTerminal('session', 't4');
+  const user = userEvent.setup();
+  const box = renderComposer();
+  await user.type(box, '@');
+  await waitFor(() => expect(group('终端')).toBeTruthy());
+  expect(options('终端')).toEqual(['终端 1', 'cargo test', '终端 2']);
+});
+
+test('a terminal picked from "@" is handed to the model and sent as what it shows, its last 2,000 lines', async () => {
   const user = userEvent.setup();
   const box = renderComposer();
   await user.type(box, '@');
@@ -243,15 +289,37 @@ test('a terminal picked from "@" is sent as what it shows, its last 2,000 lines'
         {
           kind: 'capture',
           name: '终端 1.txt',
-          text: 'Terminal "终端 1" (PowerShell 7) as it was when this message was sent, up to its last 2,000 lines:\n\nPS C:\\w> cargo test\nerror[E0425]\n',
+          text: 'Terminal "终端 1" (PowerShell 7; the user handed it to you as terminal `t1`: terminal.read reads what it prints from now on and terminal.write types into it; it stays the user\'s, who can take it back at any time, and terminal.close is refused) as it was when this message was sent, up to its last 2,000 lines:\n\nPS C:\\w> cargo test\nerror[E0425]\n',
         },
       ],
     }),
   );
+  // Handed over before the message goes, so the model's first step finds it its own.
+  expect(handOver).toHaveBeenCalledWith({ session_id: 'session', terminal_id: 't1' });
+  expect(handOver.mock.invocationCallOrder[0]).toBeLessThan(submit.mock.invocationCallOrder[0]!);
   await waitFor(() => expect(screen.queryByRole('group', { name: '引用' })).toBeNull());
 });
 
-test("a terminal the model opened is sent with its id, for the model's terminal tools", async () => {
+test('a terminal that cannot be handed over keeps the message, saying why', async () => {
+  handOver.mockResolvedValue({
+    ok: false,
+    error: { code: 'terminal.ended', message: '终端已结束，请新建终端。' },
+  });
+  const user = userEvent.setup();
+  const box = renderComposer();
+  await user.type(box, '@zd');
+  await waitFor(() => expect(options('终端')).toEqual(['终端 1']));
+  await user.keyboard('{Enter}');
+  await user.type(box, '看看{Enter}');
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('终端已结束'));
+  expect(screen.getByRole('alert').textContent).toContain(
+    '「终端 1」没能交给模型：终端已结束，请新建终端。消息没有发出，内容仍在输入框里。请移除这个引用或稍后再发。',
+  );
+  expect(submit).not.toHaveBeenCalled();
+  expect(box.value).toBe('看看');
+});
+
+test("a terminal the model opened is given back to it and sent with its id, for the model's terminal tools", async () => {
   const user = userEvent.setup();
   const box = renderComposer();
   await user.type(box, '@cargo');
@@ -271,9 +339,10 @@ test("a terminal the model opened is sent with its id, for the model's terminal 
       }),
     ),
   );
+  expect(handOver).toHaveBeenCalledWith({ session_id: 'session', terminal_id: 't2' });
 });
 
-test('a page picked from "@" is sent with its title, address and text; one that cannot be read is not sent', async () => {
+test('a page picked from "@" is handed to the model and sent with its title, address, text and page id; one that cannot be handed over or read is not sent', async () => {
   const user = userEvent.setup();
   const box = renderComposer();
   await user.type(box, '@');
@@ -290,10 +359,20 @@ test('a page picked from "@" is sent with its title, address and text; one that 
         {
           kind: 'capture',
           name: 'Example.txt',
-          text: 'Page "Example" (https://example.com/a) of the built-in browser as it was when this message was sent:\n\nHello from the page\n',
+          text: 'Page "Example" (https://example.com/a; the user handed it to you as page `p1`: the browser tools act on it when given page "p1"; it stays the user\'s, who can take it back at any time, and browser.close does not close it) of the built-in browser as it was when this message was sent:\n\nHello from the page\n',
         },
       ],
     }),
+  );
+  // Handed over before the message goes, so the model's first step finds it.
+  const handing = command.mock.calls.findIndex(([request]) => request.kind === 'hand-over');
+  expect(command.mock.calls[handing]?.[0]).toEqual({
+    kind: 'hand-over',
+    sessionId: 'session',
+    pageId: 'page-1',
+  });
+  expect(command.mock.invocationCallOrder[handing]).toBeLessThan(
+    submit.mock.invocationCallOrder[0]!,
   );
   expect(command).toHaveBeenCalledWith({ kind: 'text', sessionId: 'session', pageId: 'page-1' });
   // A page closed meanwhile: the message waits, and says why.
@@ -304,8 +383,36 @@ test('a page picked from "@" is sent with its title, address and text; one that 
   await user.click(within(group('浏览器标签页')!).getByRole('option'));
   await user.type(box, '再看{Enter}');
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('这个页面已关闭'));
+  expect(screen.getByRole('alert').textContent).toContain(
+    '「Example」没能交给模型：这个页面已关闭。消息没有发出，内容仍在输入框里。',
+  );
   expect(submit).not.toHaveBeenCalled();
   expect(box.value).toBe('再看');
+});
+
+test("the model's own page is sent as its own, for the browser tools without a page id", async () => {
+  browserTabs.add('session', 'model');
+  browserStore.put({ ...browserStore.get('session', 'page-1')!, pageId: 'model', title: '' });
+  const user = userEvent.setup();
+  const box = renderComposer();
+  await user.type(box, '@');
+  await waitFor(() => expect(group('浏览器标签页')).toBeTruthy());
+  await user.click(within(group('浏览器标签页')!).getByRole('option', { name: /模型的页面/ }));
+  await user.type(box, '看看{Enter}');
+  await waitFor(() =>
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments: [
+          {
+            kind: 'capture',
+            name: 'Example.txt',
+            text: 'Page "Example" (https://example.com/a; your own page, which the browser tools act on without page) of the built-in browser as it was when this message was sent:\n\nHello from the page\n',
+          },
+        ],
+      }),
+    ),
+  );
+  expect(command).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'hand-over' }));
 });
 
 test('a terminal is read as its lines show, wrapped rows joined and the empty end left out', () => {

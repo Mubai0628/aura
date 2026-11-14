@@ -189,10 +189,14 @@ export class PageDebugger {
       }
       case 'Network.loadingFailed': {
         const id = typeof params.requestId === 'string' ? params.requestId : '';
-        const url = redactUrl(this.#urls.get(id) ?? '');
+        const sent = this.#urls.get(id);
+        const url = redactUrl(sent ?? '');
         this.#urls.delete(id);
         const error = String(params.errorText ?? '');
         if (params.canceled === true || error === 'net::ERR_ABORTED') return;
+        // DevTools' own cache reads (a no-store page's styles while inspecting an element) are
+        // requests the page never sent, not loads of the page.
+        if (sent === undefined && error === 'net::ERR_CACHE_MISS') return;
         const blocked = error === 'net::ERR_BLOCKED_BY_CLIENT' ? '（浏览器设置不允许）' : '';
         this.#push({
           level: 'failed_load',

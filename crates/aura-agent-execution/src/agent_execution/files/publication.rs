@@ -19,6 +19,7 @@ pub(in crate::agent_execution) fn invoke(
         }
     });
     if outcome.is_ok() && !receipts.is_empty() {
+        super::same_response::record(call.batch.tool_batch_id, &receipts);
         follow_publications(service, call, &receipts)?;
     }
     super::traversal::finish(call, outcome?, scope.as_ref())

@@ -42,7 +42,17 @@ pub(super) fn details(name: &str, arguments: Option<&Value>) -> Vec<String> {
 pub(super) fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) {
     if name == "chrome.tabs" {
         let tabs = value["tabs"].as_array().cloned().unwrap_or_default();
-        view.summary = format!("{} 个共享的标签页", tabs.len());
+        // An empty list says why, as the model's notice does.
+        let notice = value["notice"].as_str().unwrap_or_default();
+        view.summary = if !tabs.is_empty() {
+            format!("{} 个共享的标签页", tabs.len())
+        } else if notice.starts_with("chrome.not_connected") {
+            "没有标签页：Chrome 没有连接 Aura".to_owned()
+        } else if notice.starts_with("chrome.no_shared_tab") {
+            "没有标签页：还没有标签页共享给这个对话".to_owned()
+        } else {
+            "没有共享的标签页".to_owned()
+        };
         view.details = tabs
             .iter()
             .map(|tab| {
@@ -120,6 +130,19 @@ mod tests {
         );
         assert_eq!(listed.summary, "2 个共享的标签页");
         assert_eq!(listed.details, ["t1 Cart", "t2 https://pay.example/"]);
+        let mut empty = view();
+        summarize(
+            &mut empty,
+            "chrome.tabs",
+            &json!({"tabs":[],"notice":"chrome.not_connected: Chrome 没有连接 Aura。"}),
+        );
+        assert_eq!(empty.summary, "没有标签页：Chrome 没有连接 Aura");
+        summarize(
+            &mut empty,
+            "chrome.tabs",
+            &json!({"tabs":[],"notice":"chrome.no_shared_tab: 还没有共享。"}),
+        );
+        assert_eq!(empty.summary, "没有标签页：还没有标签页共享给这个对话");
         assert_eq!(
             target("chrome.click", Some(&json!({"tab":"t2","ref":"e3"}))).as_deref(),
             Some("t2")

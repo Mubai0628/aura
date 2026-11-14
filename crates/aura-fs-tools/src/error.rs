@@ -15,8 +15,10 @@ pub enum FsToolError {
     InvalidRequest(String),
     #[error("file is too large for a full text read; provide a lines or characters range")]
     LargeFileRangeRequired,
-    #[error("the requested text range exceeds the configured small-range limit")]
-    TextRangeTooLarge,
+    #[error(
+        "the requested text range exceeds the read limit of {line_limit} lines or {character_limit} characters at a time"
+    )]
+    TextRangeTooLarge { line_limit: u64, character_limit: u64 },
     #[error("binary range exceeds the 64 KiB hard limit")]
     BinaryRangeTooLarge,
     #[error("expected file to be absent: {path}")]

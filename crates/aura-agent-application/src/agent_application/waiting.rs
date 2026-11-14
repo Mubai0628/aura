@@ -10,7 +10,8 @@ use aura_agent_domain::MessageSender;
 use aura_core_base::append_core_log;
 use aura_core_broker::agent_store::StoreStep;
 use aura_execution_contract::*;
-use aura_persistence_v2::agent::{approval, approver, query, session};
+use aura_persistence_v2::agent::{approval, approver, model_context::StopNote, query, session};
+use aura_security_contract::ApprovalDecisionKind;
 use aura_security_service::external_grants;
 
 impl AgentApplication {
@@ -135,7 +136,18 @@ impl AgentApplication {
         Ok(AgentQueryTouchView { query_id: input.query_id, deadline_at })
     }
 
+    /// The question as the user sees it. A sub-agent's deletion may also be answered with
+    /// 本工作区允许: this command runs once, and its later deletions in its own folders ask no more.
     pub async fn approval(
+        &self,
+        input: ExecutionApprovalRequest,
+    ) -> anyhow::Result<ExecutionApprovalView> {
+        let mut view = self.stored_approval(input).await?;
+        self.offer_deletion_allowance(&mut view).await?;
+        Ok(view)
+    }
+
+    pub(in crate::agent_application) async fn stored_approval(
         &self,
         input: ExecutionApprovalRequest,
     ) -> anyhow::Result<ExecutionApprovalView> {
@@ -163,17 +175,28 @@ impl AgentApplication {
     ) -> anyhow::Result<AgentRunProjection> {
         let deadline = Self::stop_deadline();
         let v = self
-            .approval(ExecutionApprovalRequest {
+            .stored_approval(ExecutionApprovalRequest {
                 session_id: input.session_id,
                 approval_id: input.approval_id,
             })
             .await?;
-        let run = v
-            .operation
-            .content
-            .identity
-            .agent_run_id
-            .ok_or_else(|| anyhow::anyhow!("agent.approval_run_missing"))?;
+        // 本工作区允许 where the stored question has no such answer: it was offered for a
+        // sub-agent's deletion, which then runs once while its later deletions in its own
+        // folders ask no more. A repeat of an answered command is the once-answer it stored.
+        let mut input = input;
+        let beside_stored = input.decision == ApprovalDecisionKind::AllowWorkspace
+            && !v.approval.allowed_decisions.contains(&ApprovalDecisionKind::AllowWorkspace);
+        let pending = v.approval.state == aura_security_contract::ApprovalState::Pending;
+        let allow_deletions =
+            beside_stored && pending && self.offers_deletion_allowance(&v).await?;
+        if allow_deletions || beside_stored && !pending {
+            input.decision = ApprovalDecisionKind::AllowOnce;
+        }
+        let run = v.operation.content.identity.agent_run_id.ok_or_else(|| {
+            anyhow::anyhow!(
+                "agent.approval_run_missing: 这个审批请求没有对应的任务，没法在这里回答；什么都没改。"
+            )
+        })?;
         let request = AgentRunRequest { session_id: input.session_id, agent_run_id: run };
         let resolved_input = input.clone();
         let resolved = self
@@ -209,6 +232,7 @@ impl AgentApplication {
             let session_id = input.session_id;
             let resolution = input.clone();
             let permission_snapshot_id = v.operation.content.identity.permission_snapshot_id;
+            let workspace_id = v.operation.content.identity.workspace_id;
             let file_answer =
                 aura_security_contract::file_capabilities_are_consentable(
                     &v.operation.content.capabilities,
@@ -224,6 +248,12 @@ impl AgentApplication {
                             .with_session_permission_authority(
                                 session_id,
                                 |current| -> anyhow::Result<()> {
+                                    // A session file approval belongs to the folder its
+                                    // Workspace is at when the user answers.
+                                    let workspace_root = match workspace_id {
+                                        Some(id) => Some(persistence.workspace(id)?.canonical_root),
+                                        None => None,
+                                    };
                                     let mut store = journal.lock()?;
                                     let snapshot = aura_persistence_v2::security::snapshot(
                                         store.database.connection(),
@@ -253,8 +283,16 @@ impl AgentApplication {
                                             &resolution,
                                             current.revision,
                                             runtime,
+                                            workspace_root.as_deref(),
                                             at,
                                         )?;
+                                        if allow_deletions {
+                                            aura_agent_team::store::change_allowed(
+                                                tx,
+                                                session_id,
+                                                |allowed| allowed.deletions = true,
+                                            )?;
+                                        }
                                         match &decider {
                                             Some(decider) if first => approver::set(
                                                 tx,
@@ -361,6 +399,16 @@ impl AgentApplication {
         self: &Arc<Self>,
         input: &AgentRunRequest,
     ) -> anyhow::Result<AgentRunProjection> {
+        self.cancel_noting(input, None).await
+    }
+
+    /// [`Self::cancel`], with `note` saying who stopped the run and why when it was not the user:
+    /// the model reads it in its next turn.
+    pub async fn cancel_noting(
+        self: &Arc<Self>,
+        input: &AgentRunRequest,
+        note: Option<StopNote>,
+    ) -> anyhow::Result<AgentRunProjection> {
         // One deadline for the whole entry: the request, the real end and the fallback
         // interruption all share it.
         let deadline = Self::stop_deadline();
@@ -369,7 +417,10 @@ impl AgentApplication {
         let at = UtcTimestamp::now();
         self.store
             .write(StoreStep::run(run, "agent.cancel.request"), move |journal| {
-                journal.database.unit_of_work(|tx| store::request_cancel(tx, run, at))
+                journal.database.unit_of_work(|tx| match &note {
+                    Some(note) => store::request_cancel_noting(tx, run, note, at),
+                    None => store::request_cancel(tx, run, at),
+                })
             })
             .await?;
         // The cancellation signals are fired by the run's own owner; whether the work really

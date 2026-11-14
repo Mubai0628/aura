@@ -162,10 +162,50 @@ test('with a task running, a message and its chosen Skill wait in the queue', as
   });
 });
 
+test('the picker lists the names alone and closes on a press outside it or Esc', async () => {
+  const user = userEvent.setup();
+  const box = renderComposer();
+  const open = async () => {
+    await user.click(screen.getByRole('button', { name: '添加' }));
+    await user.click(screen.getByRole('menuitem', { name: /Skill/u }));
+    return screen.findByRole('region', { name: '选择 Skill' });
+  };
+  const picker = await open();
+  const notes = await within(picker).findByRole('button', { name: 'notes' });
+  expect(notes.textContent).toBe('notes');
+  // No description, no note and no close button.
+  expect(picker.textContent).not.toContain('的说明');
+  expect(picker.textContent).not.toContain('权限');
+  expect(within(picker).queryByRole('button', { name: '关闭' })).toBeNull();
+  // Choosing keeps it open; a press anywhere else closes it.
+  await user.click(notes);
+  expect(screen.getByRole('region', { name: '选择 Skill' })).toBeTruthy();
+  await user.click(box);
+  expect(screen.queryByRole('region', { name: '选择 Skill' })).toBeNull();
+  await open();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('region', { name: '选择 Skill' })).toBeNull();
+});
+
 test('the conversation and the queue name each chosen Skill once', () => {
   render(<ChosenSkillsLine skills={[{ name: 'notes' }, { name: 'pdf' }, { name: 'notes' }]} />);
   expect(screen.getByText('已选 Skill：notes、pdf')).toBeTruthy();
   cleanup();
   const { container } = render(<ChosenSkillsLine skills={[]} />);
   expect(container.textContent).toBe('');
+});
+
+test('a Skill list that could not be read says why and that no Skill can be chosen this time', async () => {
+  listSkills.mockResolvedValue({
+    ok: false,
+    error: { code: 'ipc.transport_lost', message: 'Transport is closed' },
+  });
+  const user = userEvent.setup();
+  renderComposer();
+  await user.click(screen.getByRole('button', { name: '添加' }));
+  await user.click(screen.getByRole('menuitem', { name: /Skill/u }));
+  const picker = await screen.findByRole('region', { name: '选择 Skill' });
+  expect((await within(picker).findByRole('alert')).textContent).toBe(
+    'Skill 列表读不出来（与 Aura Core 的连接断开了），这次无法选择 Skill。关闭后再点一次会重新读取。',
+  );
 });

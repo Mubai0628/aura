@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { userMessage } from './agent-session/user-message';
 import type { NotificationInput } from './notification-center-store';
+import { addWorkspaceFailure } from './session-lifecycle/failure-words';
 
 /** What adding a folder came to, as the app's notice says it. */
 function addedNotice(disposition: string, name: string, workspace: string): NotificationInput {
@@ -55,8 +56,7 @@ export function useAddWorkspace(
         selected_root: selected.value.selected_root,
         display_name: selected.value.suggested_display_name,
       });
-      if (!result.ok)
-        throw new Error(userMessage(result.error.message, '添加未确认，请核对工作区列表。'));
+      if (!result.ok) throw new Error(addWorkspaceFailure(result.error));
       onCreated(result.value.workspace.workspace_id);
       const added = addedNotice(
         result.value.disposition,

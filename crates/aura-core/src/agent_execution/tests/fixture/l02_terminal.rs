@@ -113,8 +113,9 @@ async fn real_agent_cmd_persists_plain_text_and_takeover_pauses_read_and_write()
     )
     .await;
     assert!(output["output"].as_str().expect("text").contains("L02-HAND-BACK"));
-    let (_, read) = run(&mut f, "terminal.read", json!({"terminal_id":id,"max_bytes":65536})).await;
-    assert!(read["output"].as_str().expect("plain durable output").contains("L02-AGENT-READY"));
+    let (_, read) =
+        run(&mut f, "terminal.read", json!({"terminal_id":id,"line":1,"max_lines":2000})).await;
+    assert!(read["lines"].as_str().expect("lines").contains("L02-AGENT-READY"), "{read}");
     let (_, closed) = run(&mut f, "terminal.close", json!({"terminal_id":id})).await;
     assert_eq!(closed["running"], false);
     assert_eq!(closed["end"]["stop_confirmed"], true);
@@ -124,12 +125,11 @@ async fn real_agent_cmd_persists_plain_text_and_takeover_pauses_read_and_write()
             .await
             .contains("已结束")
     );
-    let (_, after) = run(&mut f, "terminal.read", json!({"terminal_id":id})).await;
+    let (_, after) =
+        run(&mut f, "terminal.read", json!({"terminal_id":id,"line":1,"max_lines":2000})).await;
     assert!(
-        after["output"]
-            .as_str()
-            .expect("record survives kernel release")
-            .contains("L02-AGENT-READY")
+        after["lines"].as_str().expect("lines survive kernel release").contains("L02-AGENT-READY"),
+        "{after}"
     );
     let user = crate::r03_tests::success(
         &f.runtime,

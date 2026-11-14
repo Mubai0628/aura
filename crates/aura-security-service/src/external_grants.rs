@@ -2,6 +2,8 @@ mod attachment;
 mod capabilities;
 pub use attachment::AttachmentGrant;
 mod classification;
+mod error;
+pub use error::ExternalGrantError;
 mod file_origin;
 mod namespace;
 use namespace::relative_under;
@@ -28,33 +30,6 @@ use aura_windows_platform::{
     open_verified_existing, open_verified_publish_parent,
 };
 use aura_workspace::domain_identity;
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum ExternalGrantError {
-    #[error(transparent)]
-    Persistence(#[from] PersistenceError),
-    #[error("external path must be an existing absolute path")]
-    InvalidSelection,
-    #[error("the external path approval does not contain a verified file identity")]
-    IdentityUnavailable,
-    #[error("the external path identity changed and requires a new authorization")]
-    IdentityChanged,
-    #[error("the external grant is suspended until its identity is revalidated")]
-    Suspended,
-    #[error("the external grant was revoked")]
-    Revoked,
-    #[error("the external grant has expired")]
-    Expired,
-    #[error("the external grant does not provide the required capability")]
-    CapabilityUnavailable,
-    #[error("the target is outside the recursive external grant boundary")]
-    ScopeUnavailable,
-    #[error("the workspace permission grant cannot be reused for this session")]
-    PermissionGrantUnavailable,
-    #[error("external path resolution failed: {0}")]
-    PathResolution(#[from] std::io::Error),
-}
 
 pub struct ResolvedExternalFile {
     pub grant: ExternalGrantRecord,

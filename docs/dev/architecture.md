@@ -30,7 +30,7 @@ AuraLauncher.exe          选择要运行的版本，核对组件，处理试运
 | Core 组装与应用协调 | `aura-core` |
 | 会话与模型 | `aura-agent-domain`、`aura-context-*`、`aura-model-*`、`aura-prompt-runtime` |
 | 权限 | `aura-permission-domain`、`aura-permission-engine`、`aura-approval` |
-| 工具 | `aura-tool-*`、`aura-fs-tools`、`aura-net-tools`、`aura-git-service`、`aura-web-*`、`aura-browser-domain` |
+| 工具 | `aura-tool-*`、`aura-fs-tools`、`aura-net-tools`、`aura-git-service`、`aura-web-*`、`aura-browser-domain`、`aura-media-container`（读视频文件头里的编码和帧率） |
 | 执行 | `aura-backend-*`、`aura-windows-platform`、`aura-sandbox*`、`aura-egress-proxy`、`aura-network-control` |
 | 扩展 | `aura-mcp`、`aura-skills`、`aura-plugins`、`aura-hooks`、`aura-commands` |
 | 存储 | `aura-persistence`、`aura-persistence-core`、`aura-persistence-v2`、`aura-memory*`、`aura-config` |

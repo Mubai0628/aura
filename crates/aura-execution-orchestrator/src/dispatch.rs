@@ -180,6 +180,25 @@ impl ExecutionOrchestrator {
         }
         Ok(())
     }
+    /// A call Core runs in its own process, recorded Unknown because its reply was lost (an MCP
+    /// request past its time limit, a Memory Vault write that failed midway): the worker has
+    /// returned, so nothing of Core's still uses its locks or its capacity slot, and keeping them
+    /// would hold every later call on the same resources. The result stays Unknown and is never
+    /// replayed; only a Core broker's attempt is released this way.
+    pub fn release_core_call(&self, attempt: &AttemptRef) -> Result<(), BackendError> {
+        let mut map = self.quarantine.lock().unwrap_or_else(|v| v.into_inner());
+        if let Some(held) = map.get(&attempt.operation_id) {
+            if held.iter().any(|v| {
+                v.attempt != *attempt
+                    || v.backend.descriptor().class
+                        != aura_security_contract::BackendClass::CoreBroker
+            }) {
+                return Err(rejected("orchestrator.unmanaged_execution"));
+            }
+            map.remove(&attempt.operation_id);
+        }
+        Ok(())
+    }
     pub fn new(concurrency: u32) -> Result<Self, aura_tool_scheduler::ToolScheduleErrorV1> {
         Ok(Self {
             scheduler: ToolExecutionSchedulerV1::new(concurrency)?,

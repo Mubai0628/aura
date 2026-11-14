@@ -53,6 +53,7 @@ pub fn validate_composite(
                         g.grant_id == *grant_id
                             && g.revision == *revision
                             && g.is_live_at(input.now)
+                            && grant_in_its_workspace(g, input.workspace.as_ref())
                             && lifetime_matches(&g.scope.lifetime, op)
                             && g.expires_at.is_none_or(|expiry| decision.expires_at <= expiry)
                             && AuthorizationScope::derive_for(&g.scope, &op.fingerprint).as_ref()

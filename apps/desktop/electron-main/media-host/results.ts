@@ -23,7 +23,7 @@ export function checkedMediaResult(value: unknown, command: MediaCommand): Media
     if (
       !exact(
         value,
-        'kind,duration,width,height,frame_rate,has_audio,container,codec,byte_length',
+        'kind,duration,width,height,frame_rate,has_audio,container,codec,note,byte_length',
       ) ||
       value.kind !== 'probe' ||
       !finite(value.duration, Number.MIN_VALUE) ||
@@ -36,6 +36,7 @@ export function checkedMediaResult(value: unknown, command: MediaCommand): Media
       !(value.has_audio === null || typeof value.has_audio === 'boolean') ||
       !text(value.container) ||
       !text(value.codec) ||
+      value.note !== null ||
       value.byte_length !== command.file_size
     )
       fail();

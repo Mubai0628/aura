@@ -132,6 +132,10 @@ impl ConsoleSession {
         state.size = size;
         Ok(true)
     }
+    /// The size the pseudoconsole has now: the one it opened with, or the last resize.
+    pub(super) fn size(&self) -> io::Result<TerminalSize> {
+        Ok(self.state.lock().map_err(|_| io::Error::other("terminal.console_lock"))?.size)
+    }
     pub(super) fn output_error(&self) -> Option<String> {
         self.output_error.lock().ok()?.clone()
     }

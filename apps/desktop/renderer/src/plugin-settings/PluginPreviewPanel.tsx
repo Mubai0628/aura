@@ -1,5 +1,6 @@
 import type { PluginPreview } from '@aura/contracts/generated';
 import { AppIcon } from '../app-icons';
+import { hookEventLabel } from '../hook-settings/hook-labels';
 import { PluginDeclarations } from './PluginDeclarations';
 import { bytesLabel, limitsLabel, serverTargetLabel, signInLabel } from './plugin-labels';
 
@@ -87,8 +88,8 @@ export function PluginPreviewPanel({
                 {hook.definition ? (
                   <span>
                     {' '}
-                    — 事件：{hook.definition.events.join('、')}
-                    {hook.definition.kind === 'security' ? '（安全 Hook，失败即阻断）' : ''}
+                    — 事件：{hook.definition.events.map(hookEventLabel).join('、')}
+                    {hook.definition.kind === 'security' ? '（安全 Hook，失败时阻止）' : ''}
                   </span>
                 ) : null}
                 {hook.problems.length ? <p role="alert">{hook.problems.join('；')}</p> : null}

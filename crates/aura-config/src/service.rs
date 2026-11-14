@@ -561,6 +561,8 @@ pub struct SettingsFacade {
     /// The recovery state determines *responsibility* before any domain
     /// repairs itself.
     recovery: Mutex<RecoveryDisposition>,
+    /// Where tools that follow the system read its proxy.
+    pub(crate) system_proxy: Mutex<Arc<dyn aura_system_proxy::SystemProxySource>>,
 }
 
 /// The domain set and identity of the live cross-domain transaction.
@@ -1225,6 +1227,7 @@ impl SettingsFacade {
                 failures: judgement.failures.clone(),
                 scope_known: initial_scope_known,
             }),
+            system_proxy: Mutex::new(crate::system_proxy::default_source()),
         });
         // A bundle journal names the domains it actually contains. The journals
         // were already judged above (read-only), and the health registry already
@@ -1287,15 +1290,6 @@ impl SettingsFacade {
         let snapshot = self.snapshot(ConfigModule::Prompt)?;
         prompt_snapshot_from_document(&snapshot.document).map_err(|source| {
             SettingsFacadeError::Validation { module: ConfigModule::Prompt, source }
-        })
-    }
-
-    pub fn tool_settings_snapshot(
-        &self,
-    ) -> Result<aura_tool_contract::ToolSettingsSnapshotV1, SettingsFacadeError> {
-        let snapshot = self.snapshot(ConfigModule::Tools)?;
-        crate::tool_settings_snapshot_from_document(&snapshot.document).map_err(|source| {
-            SettingsFacadeError::Validation { module: ConfigModule::Tools, source }
         })
     }
 

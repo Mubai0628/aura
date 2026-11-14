@@ -6,6 +6,8 @@ import type {
 } from '@aura/contracts/generated';
 import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { refusedAction } from '../agent-session/failure-text';
+import { applyRefusal, previewFailure } from './recovery-words';
 
 export function useConfigRecovery(coreReady: boolean) {
   const [notice, setNotice] = useState<RecoveryNotice>();
@@ -68,10 +70,9 @@ export function useConfigRecovery(coreReady: boolean) {
       if (result.ok) {
         setPlan(result.value);
         setUnknown(false);
-      } else setMessage('无法生成恢复预览。未执行恢复，请先检查当前状态。');
-    } catch {
-      if (active.current && id === operation.current)
-        setMessage('读取预览失败。未执行恢复，请重试。');
+      } else setMessage(previewFailure(result.error));
+    } catch (reason) {
+      if (active.current && id === operation.current) setMessage(previewFailure(reason));
     } finally {
       if (id === operation.current) pending.current = false;
       if (active.current && id === operation.current) setBusy(false);
@@ -112,7 +113,11 @@ export function useConfigRecovery(coreReady: boolean) {
       ) {
         setUnknown(true);
         setMessage('恢复结果尚未确认。请先检查当前状态，不要重复提交相同操作。');
-      } else setMessage('恢复未完成。请检查当前状态，重新查看可用选项。');
+      } else
+        setMessage(
+          applyRefusal(result.error.code) ??
+            refusedAction(result.error, '恢复没有完成', '请先检查当前状态，再重新查看可用选项。'),
+        );
     } catch {
       if (active.current && id === operation.current) {
         setUnknown(true);

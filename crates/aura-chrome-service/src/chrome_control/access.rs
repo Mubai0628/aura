@@ -95,6 +95,11 @@ impl ChromeControl {
         self.inner.lock().live.as_ref().is_some_and(|live| live.authenticated)
     }
 
+    /// Whether the user has Chrome control on, connected or not.
+    pub fn enabled(&self) -> bool {
+        self.inner.settings.chrome_settings().settings.enabled
+    }
+
     pub fn has_shares(&self, session: SessionId) -> bool {
         !self.inner.lock().shares.tabs(session).is_empty()
     }

@@ -62,7 +62,7 @@ await auraPanel.setSetting(key, value); // 要 settings
 }
 ```
 
-- `activity`：`idle`、`running` 或 `waiting`；在等时 `waiting_for` 是 `approval`、`question` 或 `context`。
+- `activity`：`idle`、`running` 或 `waiting`；在等时 `waiting_for` 是 `approval`、`question`、`sensitive_input`（终端在等用户在 Aura 里输入）或 `context`。
 - `todo` 是最新一个回合的待办，`status` 是 `pending`、`in_progress`、`completed`、`blocked` 或 `cancelled`。
 - `model_profile_id`、`model_name`、`waiting_for`、`todo`、`context` 没有时不出现。
 - `cursor` 是从现在起读事件的位置。

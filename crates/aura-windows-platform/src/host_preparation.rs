@@ -1433,7 +1433,7 @@ mod dacl_write_tests {
     }
 
     /// Measurement, not a gate: run explicitly with
-    /// `cargo test -p aura-windows-platform --lib measurement_ -- --ignored --nocapture`.
+    /// `cargo xtask test -p aura-windows-platform --lib -- measurement_ --ignored --nocapture`.
     ///
     /// It answers two questions the write path depends on:
     /// 1. does the inheritance-requesting API's latency grow with the number of

@@ -48,3 +48,34 @@ it('views the existing terminal and stops only the selected owned process', asyn
   );
   await screen.findByText('本会话没有仍在运行的后台进程。');
 });
+
+it('names a process by its command and start, and says why a list or a stop failed', async () => {
+  const process = {
+    kind: 'shell',
+    command: 'npm run watch',
+    started_at: '2026-10-14T14:00:00Z',
+    tool_call_id: 'tcl_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+  };
+  const listProcesses = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: true, value: { processes: [process] } })
+    .mockResolvedValue({
+      ok: false,
+      error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+    });
+  const stopProcess = vi.fn().mockResolvedValue({
+    ok: false,
+    error: { code: 'ipc.transport_lost', message: 'Transport is closed' },
+  });
+  vi.stubGlobal('aura', { v1: { terminal: { listProcesses, stopProcess } } });
+  render(<ProcessPanel sessionId="session-1" onViewTerminal={vi.fn()} />);
+  await screen.findByText('npm run watch');
+  expect(screen.queryByText(/tcl_/u)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '停止' }));
+  await waitFor(() =>
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent)).toEqual([
+      '进程列表读不出来（Aura Core 没有及时回复），点“刷新”再试。',
+      '停止没有完成（与 Aura Core 的连接断开了），进程可能仍在运行；点“刷新”查看，仍在运行就再停一次。',
+    ]),
+  );
+});

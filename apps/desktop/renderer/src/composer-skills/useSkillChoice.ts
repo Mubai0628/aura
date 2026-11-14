@@ -1,5 +1,6 @@
 import type { SkillView, WorkspaceId } from '@aura/contracts/generated';
 import { useCallback, useState } from 'react';
+import { failedAction } from '../agent-session/failure-text';
 import { useKeptDraft } from '../agent-session/kept-draft';
 
 export type ChosenSkill = { id: string; name: string };
@@ -24,15 +25,27 @@ export function useSkillChoice(workspaceId: string | undefined, draftKey?: strin
     const result = await window.aura.v1.listSkills({
       workspace_id: (workspaceId ?? null) as WorkspaceId | null,
     });
-    if (!result.ok) throw new Error('skills');
+    if (!result.ok)
+      throw Object.assign(new Error(result.error.message), {
+        code: result.error.code,
+        details: result.error.details,
+      });
     return result.value.skills.filter((s) => s.state === 'ready');
   }, [workspaceId]);
   const open = async () => {
     setPicker({ loading: true, skills: [] });
     try {
       setPicker({ loading: false, skills: await usable() });
-    } catch {
-      setPicker({ loading: false, skills: [], error: 'Skill 列表读取失败，请重试。' });
+    } catch (reason) {
+      setPicker({
+        loading: false,
+        skills: [],
+        error: failedAction(
+          reason,
+          'Skill 列表读不出来',
+          '这次无法选择 Skill。关闭后再点一次会重新读取。',
+        ),
+      });
     }
   };
   const add = (skill: SkillView) =>

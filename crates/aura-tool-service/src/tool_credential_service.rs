@@ -23,19 +23,27 @@ pub mod execution;
 
 #[derive(Debug, Error)]
 pub enum ToolSecretError {
-    #[error("tool credential metadata changed; refresh before confirming")]
+    #[error("tool.credential.changed: 工具凭据的设置刚刚变了，这次调用没有执行；请刷新后再试。")]
     Conflict,
-    #[error("tool credential is not available for this owner, scope, tool and placement")]
+    #[error(
+        "tool.credential.not_authorized: 这个凭据不允许用在这里（工具、范围或填入位置不符），这次调用没有执行；请用户在工具设置里核对凭据绑定。"
+    )]
     NotAuthorized,
-    #[error("the stored tool credential is missing")]
+    #[error(
+        "tool.credential.missing: 保存的工具凭据已经不在了，这次调用没有执行；请用户在工具设置里重新填写这个凭据。"
+    )]
     Missing,
-    #[error("Windows denied access to the tool credential")]
+    #[error(
+        "tool.credential.access_denied: Windows 拒绝读取这个工具凭据，这次调用没有执行；请用户在工具设置里重新填写这个凭据。"
+    )]
     AccessDenied,
-    #[error("tool credential input was cancelled")]
+    #[error("tool.credential.cancelled: 填写工具凭据的操作已取消，没有保存。")]
     Cancelled,
-    #[error("tool credential state could not be obtained")]
+    #[error("tool.credential.not_obtained: 没能读到工具凭据的状态，这次调用没有执行；请稍后再试。")]
     NotObtained,
-    #[error("tool credential identity could not be verified")]
+    #[error(
+        "tool.credential.not_authorized: 没能核实这个工具凭据的身份，这次调用没有执行；请用户在工具设置里重新填写这个凭据。"
+    )]
     IdentityMismatch,
 }
 impl From<PersistenceError> for ToolSecretError {

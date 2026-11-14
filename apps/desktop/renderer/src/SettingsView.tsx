@@ -13,12 +13,14 @@ import { ComputerSettings } from './computer-settings/ComputerSettings';
 import { ArchiveSettings } from './session-lifecycle/ArchiveSettings';
 import { MemorySettings } from './memory-settings/MemorySettings';
 import { CommandSettings } from './command-settings/CommandSettings';
+import { AgentTeamSettings } from './agent-settings/AgentTeamSettings';
 import { HookSettings } from './hook-settings/HookSettings';
 import { McpSettings } from './mcp-settings/McpSettings';
 import { PluginSettings } from './plugin-settings/PluginSettings';
 import { SkillSettings } from './skill-settings/SkillSettings';
 import { AboutUpdates } from './app-updates/AboutUpdates';
 import { NotificationSettings } from './notification-settings/NotificationSettings';
+import { StorageSettings } from './storage-settings/StorageSettings';
 import './settings-navigation.css';
 import type { WorkspaceId } from '@aura/contracts/generated';
 import { useSecurityControl } from './security-control-store';
@@ -74,6 +76,13 @@ const SETTINGS_NAVIGATION: readonly {
   },
   { group: '智能能力', icon: 'bookmark', label: '记忆', value: 'memory' },
   { group: '智能能力', icon: 'slash', label: '命令', value: 'commands' },
+  {
+    group: '智能能力',
+    icon: 'agents',
+    label: '多 Agent',
+    value: 'agents',
+    keywords: ['子 Agent', 'token', '预算', '用时', 'CPU'],
+  },
   { group: '扩展', icon: 'puzzle', label: '插件', value: 'plugins' },
   { group: '扩展', icon: 'book', label: 'Skill', value: 'skills' },
   { group: '扩展', icon: 'plug', label: 'MCP', value: 'mcp' },
@@ -91,6 +100,13 @@ const SETTINGS_NAVIGATION: readonly {
     label: '通知',
     value: 'notifications',
     keywords: ['提醒', '审批', '完成'],
+  },
+  {
+    group: '系统',
+    icon: 'folder',
+    label: '存储',
+    value: 'storage',
+    keywords: ['数据', '位置', '移动', '磁盘', '安装', '文件夹'],
   },
   {
     group: '系统',
@@ -200,6 +216,7 @@ export function SettingsView({
           {section === 'computer' ? <ComputerSettings coreReady={coreReady} /> : null}
           {section === 'archive' ? <ArchiveSettings /> : null}
           {section === 'notifications' ? <NotificationSettings /> : null}
+          {section === 'storage' ? <StorageSettings coreReady={coreReady} /> : null}
           {section === 'memory' ? (
             <MemorySettings
               key={workspaceId ?? 'global'}
@@ -217,6 +234,7 @@ export function SettingsView({
           {section === 'plugins' ? (
             <PluginSettings coreReady={coreReady} onOpenSection={onChangeSection} />
           ) : null}
+          {section === 'agents' ? <AgentTeamSettings coreReady={coreReady} /> : null}
           {section === 'hooks' ? <HookSettings coreReady={coreReady} /> : null}
           {section === 'mcp' ? <McpSettings coreReady={coreReady} /> : null}
           {section === 'skills' ? (

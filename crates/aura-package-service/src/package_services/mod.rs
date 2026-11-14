@@ -64,7 +64,7 @@ impl PackageServices {
             ensure!(
                 held.info().is_directory
                     && aura_windows_platform::final_path_within(parent.info(), held.info()),
-                "package.import_root_changed"
+                crate::failures::IMPORT_ROOT_CHANGED
             );
             let final_path = held.info().final_path.clone();
             drop(held);
@@ -84,7 +84,7 @@ impl PackageServices {
     }
 
     fn store(&self) -> Result<MutexGuard<'_, V2Store>> {
-        self.store.lock().map_err(|_| anyhow::anyhow!("package.store_unavailable"))
+        self.store.lock().map_err(|_| anyhow::anyhow!(crate::failures::STORE_UNAVAILABLE))
     }
 
     pub fn shutdown(&self) {

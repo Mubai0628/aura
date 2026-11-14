@@ -2,7 +2,13 @@ import type {
   AgentToolActivityEntry,
   ToolCallActivitySummaryView,
 } from '@aura/contracts/generated';
-import { errorCodeLabel, toolCallStateLabel } from '../tool-call-state-label';
+import {
+  endedBeforeStart,
+  errorCodeLabel,
+  notExecutedCodeLabel,
+  notExecutedReasonText,
+  toolCallStateLabel,
+} from '../tool-call-state-label';
 
 /** The real visual tone of one Tool call; text always states the same thing. */
 export type ToolCallTone = 'success' | 'failed' | 'waiting' | 'running' | 'unknown';
@@ -24,6 +30,8 @@ export const terminalReasonLabel = (summary: ToolCallActivitySummaryView): strin
   const outcome = summary.outcome;
   if (outcome === undefined || outcome === null) return undefined;
   if (outcome.type === 'not_executed') {
+    const named = notExecutedCodeLabel(summary.error_code, summary.display_name);
+    if (named !== undefined) return named;
     switch (outcome.reason) {
       case 'purpose_required':
         return '缺少调用说明，未执行';
@@ -36,21 +44,41 @@ export const terminalReasonLabel = (summary: ToolCallActivitySummaryView): strin
       case 'atomic_group_not_executed':
         return '同组调用未执行';
       case 'permission_denied':
-      case 'approval_denied':
         return '权限拒绝，未执行';
+      case 'approval_denied':
+        return '你拒绝了，未执行';
       case 'runtime_unavailable':
-        return '工具暂不可用，未执行';
-      default:
-        return '未执行';
+        return notStartedLabel(summary);
+      default: {
+        const why = notExecutedReasonText(outcome.reason);
+        return why === undefined ? '未执行' : `${why}，未执行`;
+      }
     }
   }
   if (outcome.type === 'indeterminate') return '结果未知';
-  if (outcome.type === 'cancelled') return outcome.reason === 'timeout' ? '超时' : '已取消';
+  if (outcome.type === 'cancelled') {
+    if (endedBeforeStart(summary)) return '会话中断，未执行';
+    switch (outcome.reason) {
+      case 'timeout':
+        return '超时';
+      case 'user_requested':
+      case 'parent_agent_cancelled':
+      case 'batch_cancelled':
+        return '已停止';
+      case 'turn_interrupted':
+      case 'core_shutdown':
+      case 'permission_revoked':
+      case 'scope_closed':
+        return '已中断';
+      default:
+        return '已取消';
+    }
+  }
   if (outcome.type === 'succeeded') return '成功';
   // A rejected or failed invocation is described by the kind its own code names, else by the
   // class the Store recorded. An absent class is a legacy row, and it stays neutral rather than
   // being guessed at.
-  const named = errorCodeLabel(summary.error_code);
+  const named = errorCodeLabel(summary.error_code, summary.display_name);
   if (named !== undefined) return named;
   switch (summary.error_class) {
     case 'not_found':
@@ -61,10 +89,31 @@ export const terminalReasonLabel = (summary: ToolCallActivitySummaryView): strin
       return '状态已变化';
     case 'invalid_request':
       return outcome.type === 'operation_rejected' ? '请求无效，未执行' : '执行失败：请求无效';
+    // Every failure a backend reports while running is stored under one general code in the
+    // unavailable class; only a tool that is really unavailable is called so.
     case 'unavailable':
-      return '工具暂不可用';
+      return summary.error_code === 'tool.runtime.dispatch_failed' ? '执行失败' : '工具暂不可用';
     default:
       return outcome.type === 'operation_rejected' ? '已拒绝' : '执行失败';
+  }
+};
+
+/**
+ * A call Core stopped before it started. Core stores these under the general dispatch code with
+ * the class of their cause: a stopped turn as cancelled, a refusal before start (a sub-agent's
+ * main agent, a desktop notice, a network check) as a conflict, a permission rule as permission.
+ */
+const notStartedLabel = (summary: ToolCallActivitySummaryView): string => {
+  if (summary.error_code !== 'tool.runtime.dispatch_failed') return '工具暂不可用，未执行';
+  switch (summary.error_class) {
+    case 'other':
+      return '会话中断，未执行';
+    case 'conflict':
+      return '开始前被拦下，未执行';
+    case 'permission':
+      return '权限拒绝，未执行';
+    default:
+      return '工具暂不可用，未执行';
   }
 };
 
@@ -75,9 +124,10 @@ export const toolCallTone = (entry: AgentToolActivityEntry | undefined): ToolCal
   switch (summary.outcome?.type) {
     case 'succeeded':
       return 'success';
+    case 'cancelled':
+      return endedBeforeStart(summary) ? 'unknown' : 'failed';
     case 'failed':
     case 'operation_rejected':
-    case 'cancelled':
       return 'failed';
     case 'not_executed':
       return 'unknown';
@@ -165,6 +215,7 @@ const terminalReasonKey = (summary: ToolCallActivitySummaryView): string => {
   if (outcome.type === 'not_executed') return `reason:${outcome.reason}`;
   if (outcome.type === 'indeterminate') return `reason:${outcome.reason}`;
   if (outcome.type === 'cancelled') return `reason:${outcome.reason}`;
-  if (errorCodeLabel(summary.error_code) !== undefined) return `code:${summary.error_code}`;
+  if (errorCodeLabel(summary.error_code, summary.display_name) !== undefined)
+    return `code:${summary.error_code}`;
   return `class:${summary.error_class ?? 'unclassified'}`;
 };

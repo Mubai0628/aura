@@ -11,9 +11,13 @@ interface WorkspaceSessionViewState {
 
 const INITIAL_STATE: WorkspaceSessionViewState = { loading: true };
 
+/** How long a list Core did not give waits before it is asked for again. */
+const RETRY_MS = 3_000;
+
 class WorkspaceSessionStore {
   readonly #listeners = new Set<() => void>();
   #queuedChange: WorkspaceSessionProjectionChange | undefined;
+  #retry: ReturnType<typeof setTimeout> | undefined;
   #snapshotRequest: Promise<void> | undefined;
   #started = false;
   #state: WorkspaceSessionViewState = INITIAL_STATE;
@@ -46,6 +50,17 @@ class WorkspaceSessionStore {
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#started = false;
+    clearTimeout(this.#retry);
+    this.#retry = undefined;
+  }
+
+  /** Core may send no change after a list it could not give, so the list is asked for again. */
+  #retryLater(): void {
+    if (!this.#started || this.#retry !== undefined) return;
+    this.#retry = setTimeout(() => {
+      this.#retry = undefined;
+      if (this.#started) void this.#requestSnapshot();
+    }, RETRY_MS);
   }
 
   #receiveIncrement(change: WorkspaceSessionProjectionChange): void {
@@ -80,6 +95,7 @@ class WorkspaceSessionStore {
       .then((result) => {
         if (!result.ok) {
           this.#setState({ error: result.error, loading: false });
+          this.#retryLater();
           return;
         }
         this.#setState({ loading: false, projection: result.value });
@@ -100,6 +116,7 @@ class WorkspaceSessionStore {
           },
           loading: false,
         });
+        this.#retryLater();
       })
       .finally(() => {
         this.#snapshotRequest = undefined;

@@ -3,15 +3,18 @@
 mod composition;
 
 mod agent_terminal;
-pub(crate) use agent_terminal::sensitive::SensitiveWait;
+pub use agent_terminal::sensitive::terminal_sensitive_refusal;
+pub(crate) use agent_terminal::sensitive::{PROMPT_GONE, SensitiveWait};
 pub mod background_observations;
 mod control;
 mod diagnostics;
 pub(crate) mod managed_operations;
+mod not_started;
 mod output;
 mod permission_scope;
 pub mod port;
 mod process;
+pub mod process_policy;
 mod runtime;
 mod selection;
 pub(crate) mod terminal;

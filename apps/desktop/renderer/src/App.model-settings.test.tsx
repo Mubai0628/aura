@@ -254,7 +254,7 @@ describe('P05 prerequisite desktop shell', () => {
     const heading = await screen.findByRole('heading', { level: 2, name: '模型配置' });
     expect(screen.getByRole('status').textContent).toContain('现有配置仍可查看');
     expect(screen.queryByText('模型配置不可用')).toBeNull();
-    // The last configuration read stays; its revision is the heading's title now.
-    expect(heading.getAttribute('title')).toBe('配置修订 1');
+    // The last configuration read stays; its revision is not shown.
+    expect(heading.getAttribute('title')).toBeNull();
   });
 });

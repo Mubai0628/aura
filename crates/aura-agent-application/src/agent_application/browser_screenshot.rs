@@ -7,12 +7,17 @@ use base64::Engine as _;
 /// The longest screenshot shown (a full page is at most 1280 by 6000 pixels as a JPEG).
 const LONGEST: usize = 16 * 1024 * 1024;
 
-/// What an image's first bytes say it is: the browser's screenshots are JPEG, or PNG.
+/// What an image's first bytes say it is: the browser's screenshots are JPEG, or PNG; a picture
+/// file `fs.read` sends may also be GIF or WebP.
 pub(super) fn image_media_type(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
         Some("image/jpeg")
     } else if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
         Some("image/png")
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some("image/webp")
     } else {
         None
     }

@@ -26,6 +26,10 @@ impl ControlResources {
             roots.push(path);
         }
     }
+    /// Aura's data folders as they were registered, to find them named in a command.
+    pub(in crate::agent_execution) fn data_root_paths(&self) -> Vec<PathBuf> {
+        self.data_roots.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
     /// Aura's data folders that exist now, found where they really are.
     pub(in crate::agent_execution) fn data_folders(&self) -> Vec<NativePathInfo> {
         self.data_roots
@@ -38,7 +42,7 @@ impl ControlResources {
     }
     /// Whether `path` - found where it really is, or where it would be created - lies in one of
     /// Aura's data folders.
-    pub(in crate::agent_execution) fn in_aura_data(&self, path: &Path) -> bool {
+    pub fn in_aura_data(&self, path: &Path) -> bool {
         let Some(info) = path
             .ancestors()
             .find_map(|p| aura_windows_platform::inspect_existing_path(p, true).ok())

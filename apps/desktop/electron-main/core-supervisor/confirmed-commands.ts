@@ -1,4 +1,4 @@
-import { CORE_UNREACHABLE_MESSAGE } from '../core-unavailable.js';
+import { coreUnreachable } from '../core-unavailable.js';
 import type { CommandInvocationId, CommandOutcome } from '@aura/contracts/generated';
 import type { CoreTransport } from '../core-transport.js';
 import {
@@ -101,7 +101,7 @@ export class ConfirmedCommands {
     send: (transport: CoreTransport) => Promise<unknown>;
   }): Promise<Result> {
     const transport = this.#host.transport();
-    if (transport === undefined) throw new Error(CORE_UNREACHABLE_MESSAGE);
+    if (transport === undefined) throw coreUnreachable();
     const owner: CoreConfirmationOwner = {
       coreGeneration: this.#host.coreGeneration(),
       coreRuntimeInstanceId: this.#host.coreRuntimeInstanceId(),

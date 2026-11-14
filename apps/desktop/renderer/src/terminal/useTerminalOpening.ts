@@ -90,7 +90,13 @@ export function useTerminalOpening(
         return 'cancelled';
       }
       if (mounted.current)
-        setState({ ...idle, error: userMessage(result.error, '终端没有打开，请重试。') });
+        setState({
+          ...idle,
+          error: userMessage(
+            result.error,
+            '终端没有打开：Aura 没能启动所选的终端程序（可能没有安装、被安全软件拦截，或服务正在重启）。可以再打开一次，或到 设置 → 环境 → 默认终端 换一个。',
+          ),
+        });
       return 'failed';
     } catch {
       if (mounted.current)

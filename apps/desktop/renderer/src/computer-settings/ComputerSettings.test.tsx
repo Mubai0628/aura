@@ -179,3 +179,10 @@ describe('设置 → 电脑操控', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('设置已在别处更改');
   });
 });
+
+describe('电脑操控 before Core is ready', () => {
+  it('says the page waits for Core', () => {
+    render(<ComputerSettings coreReady={false} />);
+    expect(screen.getByText('Core 尚未就绪，电脑操控设置暂不可用。')).toBeTruthy();
+  });
+});

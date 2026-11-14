@@ -14,6 +14,7 @@ import {
   RequestedModelAvailability,
 } from './model-availability/RequestedModelAvailability';
 import { useModelAvailability } from './model-availability/use-model-availability';
+import { availabilityPrerequisite } from './provider-connection/credential-status';
 import { isProfileReady, profileStatusLabel } from './model-profile-status';
 import './model-availability/availability.css';
 
@@ -58,7 +59,7 @@ export function ModelProfileCard({
   const testing =
     operation.testing || (activeAvailability !== null && activeAvailability !== undefined);
   const prerequisite =
-    writeUnavailableReason ?? availabilityPrerequisite(endpoint, credentialState);
+    writeUnavailableReason ?? availabilityPrerequisite(endpoint.auth_scheme, credentialState);
   const menu = useContextMenu();
 
   const locked = busy || writeUnavailableReason !== undefined;
@@ -169,15 +170,6 @@ export function ModelProfileCard({
 
 const profileStatusClass = (profile: ModelProfileConfig): string =>
   isProfileReady(profile) ? 'status-ready' : 'status-warning';
-
-const availabilityPrerequisite = (
-  endpoint: ModelEndpointConfig,
-  credentialState: EndpointCredentialState | undefined,
-): string | undefined => {
-  if (endpoint.auth_scheme === 'none') return undefined;
-  if (credentialState === 'configured') return undefined;
-  return '先输入并保存配置后再进行测试';
-};
 
 const formatTokens = (value: number): string => new Intl.NumberFormat('zh-CN').format(value);
 /** "100万 tokens": a window as people read it; the exact number is its title. */

@@ -1,6 +1,6 @@
 import type { SkillView } from '@aura/contracts/generated';
+import { useEffect, useRef } from 'react';
 import { AppIcon } from '../app-icons';
-import { skillSourceLabel } from '../skill-settings/skill-labels';
 import { MAX_CHOSEN_SKILLS, type ChosenSkill } from './useSkillChoice';
 import './composer-skills.css';
 
@@ -31,7 +31,10 @@ export function SkillChips({
   );
 }
 
-/** The usable Skills to choose from; only ones the user trusted and left switched on. */
+/**
+ * The usable Skills to choose from, by name; only ones the user trusted and left switched on.
+ * Choosing one keeps it open; a press anywhere outside it, or Esc, closes it.
+ */
 export function SkillPicker({
   picker,
   chosen,
@@ -43,23 +46,28 @@ export function SkillPicker({
   onChoose: (skill: SkillView) => void;
   onClose: () => void;
 }) {
+  const root = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) onClose();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [onClose]);
   const full = chosen.length >= MAX_CHOSEN_SKILLS;
   return (
-    <section className="composer-skill-picker composer-popover" aria-label="选择 Skill">
-      <header>
-        <strong>选择本轮使用的 Skill</strong>
-        <button type="button" onClick={onClose}>
-          关闭
-        </button>
-      </header>
-      <p className="composer-skill-picker-note">
-        模型在这一轮会按它的说明工作；Skill 不给任何权限，工具照常按会话模式和审批执行。
-      </p>
-      {picker.loading ? <p role="status">正在读取 Skill…</p> : null}
+    <section ref={root} className="composer-skill-picker composer-popover" aria-label="选择 Skill">
+      <p>Skill</p>
+      {picker.loading ? <p role="status">正在读取…</p> : null}
       {picker.error ? <p role="alert">{picker.error}</p> : null}
-      {!picker.loading && !picker.error && !picker.skills.length ? (
-        <p>没有可用的 Skill：在 设置 → Skill 里导入或启用后才能选择。</p>
-      ) : null}
+      {!picker.loading && !picker.error && !picker.skills.length ? <p>没有可用的 Skill</p> : null}
       <ul aria-label="可用的 Skill">
         {picker.skills.map((skill) => {
           const taken = chosen.some((entry) => entry.id === skill.id);
@@ -72,20 +80,19 @@ export function SkillPicker({
                 disabled={taken || full || loaded}
                 onClick={() => onChoose(skill)}
               >
-                <span>
-                  {skill.name ?? skill.relative}
-                  {loaded ? <em>已加载</em> : null}
-                </span>
-                <small>
-                  {skillSourceLabel(skill.source)}
-                  {skill.description ? ` · ${skill.description}` : ''}
-                </small>
+                <span>{skill.name ?? skill.relative}</span>
+                {taken || loaded ? (
+                  <>
+                    <AppIcon name="check" size={13} aria-hidden="true" />
+                    <span className="sr-only">{loaded ? '已加载' : '已选'}</span>
+                  </>
+                ) : null}
               </button>
             </li>
           );
         })}
       </ul>
-      {full ? <p role="status">一次最多选择 {MAX_CHOSEN_SKILLS} 个 Skill。</p> : null}
+      {full ? <p role="status">最多 {MAX_CHOSEN_SKILLS} 个</p> : null}
     </section>
   );
 }

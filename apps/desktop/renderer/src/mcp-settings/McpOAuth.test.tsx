@@ -150,3 +150,23 @@ test('the OAuth choice saves the sign-in way and no secret', async () => {
     }),
   );
 });
+
+test('a browser that did not open says so and leaves the link to copy', async () => {
+  const user = userEvent.setup();
+  api.listMcpServers.mockResolvedValue(registry([view({})]));
+  api.signInMcpServer.mockResolvedValue({
+    ok: true,
+    value: { authorization_url: ADDRESS, authorization_server: '127.0.0.1', browser_opened: false },
+  });
+  render(<McpSettings coreReady />);
+  const dialog = await details();
+  const group = within(dialog).getByRole('group', { name: 'web 服务器 的登录' });
+  await user.click(within(group).getByRole('button', { name: '在浏览器中登录' }));
+  expect(
+    await within(dialog).findByText(
+      '没能打开系统浏览器（可能没有设置默认浏览器），登录还没开始；请复制下面的链接到浏览器中打开，完成后这里会自动更新。',
+    ),
+  ).toBeTruthy();
+  expect(within(dialog).queryByText(/已在浏览器中打开/u)).toBeNull();
+  expect(within(dialog).getByText(ADDRESS, { selector: 'code' })).toBeTruthy();
+});

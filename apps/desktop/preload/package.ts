@@ -45,7 +45,19 @@ function parse<C extends PackageMainCommand>(
         return { ok: true, value: parsePackageResult(command, result.value) };
     }
   } catch {
-    return { ok: false, error: error('package.invalid_response', '工具包回执格式不兼容') };
+    return {
+      ok: false,
+      error: error(
+        'package.invalid_response',
+        'Aura 界面和 Core 的版本对不上，这次工具包操作的结果读不懂；请重启 Aura，仍然如此请重新运行安装程序修复。',
+      ),
+    };
   }
-  return { ok: false, error: error('package.invalid_response', '工具包回执格式不兼容') };
+  return {
+    ok: false,
+    error: error(
+      'package.invalid_response',
+      'Aura 界面和 Core 的版本对不上，这次工具包操作的结果读不懂；请重启 Aura，仍然如此请重新运行安装程序修复。',
+    ),
+  };
 }

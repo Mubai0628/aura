@@ -3,18 +3,9 @@ use aura_execution_contract::SecuredOperation;
 use aura_security_contract::{MemoryVaultScope, ResourceDescriptor};
 use aura_tool_projection::AgentToolDisplay;
 
-pub(super) fn decorate(
-    mut view: AgentToolDisplay,
-    operation: Option<&SecuredOperation>,
-) -> AgentToolDisplay {
-    let Some(operation) = operation else { return view };
-    let Some(scope) = operation.content.resources.iter().find_map(|r| match r {
-        ResourceDescriptor::MemoryVault { scope, .. } => Some(scope),
-        _ => None,
-    }) else {
-        return view;
-    };
-    view.title = match operation.content.action_kind.as_str() {
+/// A memory tool in the words its rows use.
+pub(super) fn title(name: &str) -> Option<&'static str> {
+    Some(match name {
         "memory.search" => "搜索记忆",
         "memory.read" => "读取记忆",
         "memory.list_recent" => "最近记忆",
@@ -26,9 +17,23 @@ pub(super) fn decorate(
         "memory.delete" => "删除记忆",
         "memory.validate" => "校验记忆",
         "memory.repair" => "修复记忆",
-        _ => return view,
-    }
-    .into();
+        _ => return None,
+    })
+}
+
+pub(super) fn decorate(
+    mut view: AgentToolDisplay,
+    operation: Option<&SecuredOperation>,
+) -> AgentToolDisplay {
+    let Some(operation) = operation else { return view };
+    let Some(scope) = operation.content.resources.iter().find_map(|r| match r {
+        ResourceDescriptor::MemoryVault { scope, .. } => Some(scope),
+        _ => None,
+    }) else {
+        return view;
+    };
+    let Some(title) = title(operation.content.action_kind.as_str()) else { return view };
+    view.title = title.into();
     view.target = Some(
         match scope {
             MemoryVaultScope::Global => "全局记忆",

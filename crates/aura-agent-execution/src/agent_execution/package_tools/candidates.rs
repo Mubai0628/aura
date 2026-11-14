@@ -87,23 +87,43 @@ pub(crate) fn installed_tool_for(
     db: &Connection,
     definition: &ToolDefinitionRecordV1,
 ) -> Result<InstalledPackageTool> {
-    let package =
-        definition.tool_package_id.ok_or_else(|| anyhow::anyhow!("package.tool_not_package"))?;
-    let entry = packages::catalog::package(db, package)?
-        .ok_or_else(|| anyhow::anyhow!("package.uninstalled: 这个工具包已卸载"))?;
-    ensure!(entry.trusted, "package.not_trusted: 这个工具包已撤销信任");
-    ensure!(entry.enabled, "package.disabled: 这个工具包已停用");
-    ensure!(entry.eligible(), "package.content_unavailable: 这个工具包的内容不可用");
+    let package = definition.tool_package_id.ok_or_else(|| {
+        anyhow::anyhow!(
+            "package.tool_not_package: 这个工具不属于任何工具包，调用没有运行。请用 tools.search 找现在可用的工具。"
+        )
+    })?;
+    let entry = packages::catalog::package(db, package)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "package.uninstalled: 这个工具所在的工具包已经卸载，调用没有运行。请用 tools.search 找别的工具，或请用户重新安装它。"
+        )
+    })?;
+    let key = &entry.package_key;
+    ensure!(
+        entry.trusted,
+        "package.not_trusted: 工具包 {key} 已撤销信任，调用没有运行。请用户在工具包页重新信任它，或者换别的工具。"
+    );
+    ensure!(
+        entry.enabled,
+        "package.disabled: 工具包 {key} 已停用，调用没有运行。请用户在工具包页启用它，或者换别的工具。"
+    );
+    ensure!(
+        entry.eligible(),
+        "package.content_unavailable: 工具包 {key} 的内容现在不可用（还没装好，或者校验没有通过），调用没有运行。请用户在工具包页检查它。"
+    );
     let tool = entry_tools(db, &entry)?
         .into_iter()
         .find(|tool| tool.definition.tool_id == definition.tool_id)
-        .ok_or_else(|| anyhow::anyhow!("package.tool_missing: 当前版本没有这个工具"))?;
-    ensure!(
-        tool.definition == *definition,
-        "package.version_changed: 这个工具包已更新，请重新发起调用"
-    );
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "package.tool_missing: 工具包 {key} 现在安装的版本里没有这个工具，调用没有运行。请用 tools.search 找现在可用的工具。"
+            )
+        })?;
+    ensure!(tool.definition == *definition, VERSION_CHANGED);
     Ok(tool)
 }
+
+/// Also the refusal when the instance the call was bound to is no longer the installed one.
+pub(super) const VERSION_CHANGED: &str = "package.version_changed: 这个工具包在调用准备好之后更新了，调用没有运行。请用 tools.load 重新载入这个工具再调用。";
 
 /// Whether the package version this operation ran is no longer the installed,
 /// trusted and enabled one: it started before a disable, a revoke, an uninstall or
@@ -141,7 +161,12 @@ fn entry_tools(db: &Connection, entry: &CatalogEntry) -> Result<Vec<InstalledPac
         return Ok(vec![]);
     };
     let descriptor = Arc::new(
-        version.descriptor.clone().ok_or_else(|| anyhow::anyhow!("package.content_unavailable"))?,
+        version.descriptor.clone().ok_or_else(|| {
+            anyhow::anyhow!(
+                "package.content_unavailable: 工具包 {} 的内容现在不可用（还没装好，或者校验没有通过），调用没有运行。请用户在工具包页检查它。",
+                entry.package_key
+            )
+        })?,
     );
     let settings = packages::installed_settings(db, binding)?;
     let mut tools = Vec::with_capacity(descriptor.manifest.tools.len());

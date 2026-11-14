@@ -8,6 +8,7 @@ mod backend_selection;
 mod command_mode;
 mod common_admission;
 mod control_isolation;
+mod file_wait_exhausted;
 mod l01_user_proxy;
 #[cfg(feature = "p08-contract-driver")]
 mod l03_git;

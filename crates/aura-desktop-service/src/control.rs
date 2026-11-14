@@ -466,10 +466,35 @@ impl DesktopControl {
     }
 }
 
-fn unexpected(doing: &str, result: &HostResult) -> HostError {
+/// A reply that answered another request than the one sent: named by its kind, never dumped, so
+/// that a screenshot's picture or a whole catalog never reaches the model as text.
+pub(crate) fn unexpected(doing: &str, result: &HostResult) -> HostError {
     HostError::new(
         aura_desktop_domain::HostErrorCode::Internal,
-        format!("{doing}时收到了别的结果：{result:?}"),
+        format!(
+            "电脑操控的宿主程序在{doing}时给了不对应的回答（收到的是 {} 的结果），什么都没改动；可以再试一次，反复出现时请用户重启 Aura",
+            result_kind(result)
+        ),
         aura_desktop_domain::Delivery::NotDelivered,
     )
+}
+
+/// The kind of a host reply, as the protocol names it.
+#[must_use]
+pub fn result_kind(result: &HostResult) -> &'static str {
+    match result {
+        HostResult::Inspected { .. } => "inspected",
+        HostResult::Catalog { .. } => "catalog",
+        HostResult::Windows { .. } => "windows",
+        HostResult::Launched { .. } => "launched",
+        HostResult::Displays { .. } => "displays",
+        HostResult::Icons { .. } => "icons",
+        HostResult::Screenshot { .. } => "screenshot",
+        HostResult::Input { .. } => "input",
+        HostResult::Elements { .. } => "elements",
+        HostResult::Acted { .. } => "acted",
+        HostResult::Window { .. } => "window",
+        HostResult::Released => "released",
+        HostResult::Kept { .. } => "kept",
+    }
 }

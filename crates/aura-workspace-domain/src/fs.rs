@@ -275,6 +275,28 @@ pub struct FsSearchTextResult {
     /// does not change.
     #[serde(default)]
     pub external: Option<FsExternalSearchTarget>,
+    /// The lines around the matches, by file, when the call asked for them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context: Vec<FsSearchContext>,
+}
+
+/// The lines near one file's matches that are not matches themselves, read from the text the
+/// search matched.
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FsSearchContext {
+    pub path: WorkspacePath,
+    pub lines: Vec<FsSearchContextLine>,
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FsSearchContextLine {
+    pub line_index: u64,
+    pub text: String,
+    /// The line goes on past `text`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub truncated: bool,
 }
 
 /// The authorized external directory one text search used.

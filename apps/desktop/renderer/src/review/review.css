@@ -259,6 +259,11 @@
   color: var(--danger);
 }
 
+.review-note {
+  margin: 6px 12px 0;
+  color: var(--muted);
+}
+
 .git-review-unavailable {
   display: flex;
   flex-direction: column;

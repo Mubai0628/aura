@@ -33,7 +33,7 @@ impl AgentExecution {
                     mcp_tools::descriptor(self.runtime),
                     broker::Port { service: self.clone(), call: call.clone(), commands: None },
                 )
-                .map_err(|e| anyhow::anyhow!("{e:?}"))?,
+                .map_err(super::dispatch::backend_failure)?,
             ));
         }
         if matches!(
@@ -52,7 +52,7 @@ impl AgentExecution {
                     broker::descriptor(self.runtime),
                     broker::Port { service: self.clone(), call: call.clone(), commands: None },
                 )
-                .map_err(|e| anyhow::anyhow!("{e:?}"))?,
+                .map_err(super::dispatch::backend_failure)?,
             ))
         }
     }
@@ -70,7 +70,7 @@ impl AgentExecution {
                     commands: Some(commands),
                 },
             )
-            .map_err(|e| anyhow::anyhow!("{e:?}"))?,
+            .map_err(super::dispatch::backend_failure)?,
         ))
     }
 }

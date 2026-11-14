@@ -74,6 +74,7 @@ function context(fake: FakeDebugger, tab: Tab = SHOP, windowState = 'normal'): C
   return {
     tabs: {
       get: async () => tab,
+      query: async () => [tab],
       create: async () => tab,
       remove: async () => undefined,
     },
@@ -124,6 +125,27 @@ describe('commands from Core', () => {
       null,
     ])
       expect(() => parseCommand(wrong), JSON.stringify(wrong)).toThrow(CommandError);
+  });
+
+  it("list the user's ordinary tabs for Aura's @ menu: never an incognito, browser or store page, and no page is read", async () => {
+    const fake = new FakeDebugger();
+    const tabs: Tab[] = [
+      SHOP,
+      { ...SHOP, id: 8, url: 'http://localhost:5173/', title: 'Dev' },
+      { ...SHOP, id: 9, url: 'https://private.example/', title: 'Private', incognito: true },
+      { ...SHOP, id: 10, url: 'chrome://settings/', title: 'Settings' },
+      { ...SHOP, id: 11, url: 'https://chromewebstore.google.com/detail/x', title: 'Store' },
+      { ...SHOP, id: 12, url: 'file:///C:/notes.txt', title: 'Notes' },
+      { windowId: 1, url: 'https://nowhere.example/', title: 'No id', active: false, groupId: -1 },
+    ];
+    const listing = { ...context(fake), tabs: { ...context(fake).tabs, query: async () => tabs } };
+    expect(await run(listing, parseCommand({ op: 'tabs' }), undefined)).toEqual({
+      tabs: [
+        { tab_id: 7, window_id: 1, url: 'https://shop.example/cart', title: 'Cart' },
+        { tab_id: 8, window_id: 1, url: 'http://localhost:5173/', title: 'Dev' },
+      ],
+    });
+    expect(fake.sent).toEqual([]);
   });
 
   it('read the tab with refs for its actionable elements', async () => {

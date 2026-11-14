@@ -355,3 +355,74 @@ async fn dropping_execution_future_retains_lock_until_original_backend_stops() {
     engine.reconcile_quarantined(f.facts.dispatch.operation.operation_id).await.expect("reconcile");
     assert!(engine.quarantine.lock().expect("mutex").is_empty());
 }
+
+/// A call Core ran itself and recorded Unknown (its reply was lost) keeps its lock until the
+/// caller says Core's part of it is over; only a Core broker's attempt may be released that way.
+fn recorded_unknown(class: aura_security_contract::BackendClass) -> Arc<Fixture> {
+    let mut f = Fixture::new(false, false, false);
+    let fixture = Arc::get_mut(&mut f).expect("the only owner");
+    fixture.facts.result.termination = TerminationEvidence::Unknown;
+    fixture.facts.result.outcome = ExecutionOutcome::Unknown;
+    fixture.facts.result.side_effect = SideEffectStateV1::Unknown;
+    // The plan and the dispatch binding are fingerprinted: a plan for another backend is a new
+    // plan, bound as such.
+    let mut prepared = fixture.facts.dispatch.plan.prepared.clone();
+    prepared.backend.class = class;
+    fixture.facts.dispatch.plan = ExecutionPlan::new(prepared).expect("plan");
+    fixture.facts.dispatch.binding.plan_fingerprint =
+        fixture.facts.dispatch.plan.fingerprint.clone();
+    fixture.stopped.store(true, Ordering::SeqCst);
+    f
+}
+
+#[tokio::test]
+async fn a_core_call_recorded_unknown_gives_its_lock_back_when_released() {
+    let f = recorded_unknown(aura_security_contract::BackendClass::CoreBroker);
+    let engine = ExecutionOrchestrator::new(1).expect("scheduler");
+    let (_tx, mut cancel) = watch::channel(false);
+    let plan = plan();
+    let mut stages = DispatchStages::default();
+    let completion = engine
+        .execute(f.selected(), schedule(&plan), &*f, cancel.clone(), &mut stages)
+        .await
+        .expect("dispatch");
+    let DispatchCompletion::Terminal(result) = completion else {
+        panic!("the recorded result comes back")
+    };
+    assert_eq!(result.termination, TerminationEvidence::Unknown);
+    assert!(
+        tokio::time::timeout(
+            Duration::from_millis(50),
+            engine.scheduler.acquire_dispatch_permit(schedule(&plan), &mut cancel)
+        )
+        .await
+        .is_err(),
+        "an unproven end keeps the lock"
+    );
+    engine.release_core_call(&result.receipt.attempt).expect("a Core broker's attempt");
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        engine.scheduler.acquire_dispatch_permit(schedule(&plan), &mut cancel),
+    )
+    .await
+    .expect("released")
+    .expect("permit");
+    assert!(engine.quarantine.lock().expect("mutex").is_empty());
+}
+
+#[tokio::test]
+async fn another_backends_unknown_attempt_is_not_released_as_a_core_call() {
+    let f = recorded_unknown(aura_security_contract::BackendClass::RestrictedUserOffline);
+    let engine = ExecutionOrchestrator::new(1).expect("scheduler");
+    let (_tx, cancel) = watch::channel(false);
+    let mut stages = DispatchStages::default();
+    let completion = engine
+        .execute(f.selected(), schedule(&plan()), &*f, cancel, &mut stages)
+        .await
+        .expect("dispatch");
+    let DispatchCompletion::Terminal(result) = completion else {
+        panic!("the recorded result comes back")
+    };
+    assert!(engine.release_core_call(&result.receipt.attempt).is_err());
+    assert_eq!(engine.quarantine.lock().expect("mutex").len(), 1);
+}

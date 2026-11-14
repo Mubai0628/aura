@@ -20,8 +20,8 @@ export interface RouteConnectionsInput {
 export interface RouteConnectionsResult {
   /** The names of the connections saved, in order. */
   created: string[];
-  /** The route whose connection was not saved, and why; the routes after it were not tried. */
-  failure?: { variant: ProviderPresetVariantView; error: IpcErrorEnvelope };
+  /** The route whose connection was not saved, and why; `untried` names the routes after it. */
+  failure?: { variant: ProviderPresetVariantView; error: IpcErrorEnvelope; untried: string[] };
 }
 
 /** One connection for each of the variants, one after another, each at the revision the one
@@ -31,7 +31,8 @@ export async function createRouteConnections(
 ): Promise<RouteConnectionsResult> {
   let revision = input.expectedRevision;
   const created: string[] = [];
-  for (const variant of input.variants) {
+  for (const [index, variant] of input.variants.entries()) {
+    const untried = () => input.variants.slice(index + 1).map((each) => each.display_name);
     const request: ModelEndpointCreateRequest = {
       anthropic_workspace_id: null,
       api_format: variant.api_format,
@@ -50,13 +51,15 @@ export async function createRouteConnections(
     };
     if (input.secret === undefined) {
       const result = await window.aura.v1.createModelEndpoint(request);
-      if (!result.ok) return { created, failure: { error: result.error, variant } };
+      if (!result.ok)
+        return { created, failure: { error: result.error, untried: untried(), variant } };
       revision = result.value.revision;
     } else {
       const copy = input.secret.slice();
       try {
         const result = await window.aura.v1.createModelEndpointWithCredential(request, copy);
-        if (!result.ok) return { created, failure: { error: result.error, variant } };
+        if (!result.ok)
+          return { created, failure: { error: result.error, untried: untried(), variant } };
         revision = result.value.models_revision;
       } finally {
         copy.fill(0);

@@ -48,12 +48,20 @@ pub(in crate::agent_application) fn prompt_state(
 }
 
 /// Writes the control state the model reads into the request being prepared, as its conversation
-/// now stands: a compaction or a clearing may have taken the result that showed the to-do.
+/// now stands: a compaction or a clearing may have taken the result that showed the to-do. The
+/// pictures of its messages that could not be read are named, so none is taken as seen.
 pub(in crate::agent_application) fn write_control_state(
     input: &mut ContextPreparationInput,
     state: &serde_json::Value,
+    unread_pictures: &[String],
 ) -> anyhow::Result<()> {
-    let content = serde_json::to_string(&prompt_state(state, &input.recent_history_items))?;
+    let mut view = prompt_state(state, &input.recent_history_items);
+    if !unread_pictures.is_empty()
+        && let Some(fields) = view.as_object_mut()
+    {
+        fields.insert("pictures_not_sent".to_owned(), unread_note(unread_pictures).into());
+    }
+    let content = serde_json::to_string(&view)?;
     for fragment in input.section_inputs.iter_mut().flat_map(|section| &mut section.fragments) {
         if matches!(&fragment.source_ref, ContextSourceRef::RuntimeState { state_kind, .. } if state_kind == CONTROL_STATE)
         {
@@ -61,6 +69,15 @@ pub(in crate::agent_application) fn write_control_state(
         }
     }
     Ok(())
+}
+
+/// What the model reads of the pictures the user sent that could not be read.
+fn unread_note(names: &[String]) -> String {
+    format!(
+        "These pictures the user sent could not be read, so they were not sent and you have not \
+         seen them: {}. If the task needs them, ask the user to send them again.",
+        names.join(", ")
+    )
 }
 
 /// No update has written the to-do: a turn's to-do starts empty at its first revision.

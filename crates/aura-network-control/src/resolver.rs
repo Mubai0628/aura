@@ -77,7 +77,7 @@ impl ProxyDnsResolver {
             .cloned()
         {
             return Ok(ProxyResolvedAddressSet {
-                addresses: validate_dns_set(cached.addresses, allowed_classes)?,
+                addresses: validate_dns_set(&normalized, cached.addresses, allowed_classes)?,
                 expires_at: cached.wall_expires_at,
             });
         }
@@ -90,7 +90,8 @@ impl ProxyDnsResolver {
         .map_err(|error| NetworkControlError::Transport(error.to_string()))?
         .map_err(|_| host_not_found())?;
         let addresses = records.iter().map(|record| record.address).collect::<BTreeSet<_>>();
-        let addresses = validate_dns_set(addresses.into_iter().collect(), allowed_classes)?;
+        let addresses =
+            validate_dns_set(&normalized, addresses.into_iter().collect(), allowed_classes)?;
         let ttl = records
             .iter()
             .map(|record| Duration::from_secs(u64::from(record.ttl_seconds)))
@@ -130,6 +131,7 @@ impl Default for ProxyDnsResolver {
 }
 
 fn validate_dns_set(
+    host: &str,
     addresses: Vec<IpAddr>,
     allowed_classes: &BTreeSet<NetworkDestinationClass>,
 ) -> Result<Vec<IpAddr>, NetworkControlError> {
@@ -138,6 +140,9 @@ fn validate_dns_set(
         || !allowed_classes.contains(&NetworkDestinationClass::Public)
     {
         return Err(NetworkControlError::DestinationBlocked);
+    }
+    if let Some(routed) = crate::system_route::tun_answers(host, &addresses) {
+        return Ok(routed);
     }
     for address in &addresses {
         let classes = classify_ip(address);
@@ -227,8 +232,17 @@ async fn normalize_and_resolve_inner(
     if addresses.is_empty() {
         return Err(NetworkControlError::DestinationBlocked);
     }
-    let addresses = addresses.into_iter().collect::<BTreeSet<_>>();
-    let classes = addresses.iter().flat_map(classify_ip).collect::<BTreeSet<_>>();
+    // Read again here rather than kept across the lookup: every request's future would carry it.
+    let domain = matches!(url.host(), Some(Host::Domain(_)));
+    let tun =
+        if domain { crate::system_route::tun_answers(&normalized_host, &addresses) } else { None };
+    let routed = tun.is_some();
+    let addresses = tun.unwrap_or(addresses).into_iter().collect::<BTreeSet<_>>();
+    let classes = if routed {
+        BTreeSet::from([NetworkDestinationClass::Public])
+    } else {
+        addresses.iter().flat_map(classify_ip).collect::<BTreeSet<_>>()
+    };
     let origin =
         NormalizedOrigin { scheme: url.scheme().to_owned(), host: normalized_host.clone(), port };
     let destination = ResolvedNetworkDestination {
@@ -408,7 +422,7 @@ mod tests {
         let mixed =
             vec!["8.8.8.8".parse().expect("public IP"), "127.0.0.1".parse().expect("loopback IP")];
         assert!(matches!(
-            validate_dns_set(mixed, &public_only),
+            validate_dns_set("example.com", mixed, &public_only),
             Err(NetworkControlError::DestinationBlocked)
         ));
     }
@@ -420,11 +434,30 @@ mod tests {
             BTreeSet::from([NetworkDestinationClass::Public, NetworkDestinationClass::Private]);
         let public_address = vec!["8.8.8.8".parse().expect("public IP")];
         assert!(matches!(
-            validate_dns_set(public_address.clone(), &private_only),
+            validate_dns_set("example.com", public_address.clone(), &private_only),
             Err(NetworkControlError::DestinationBlocked)
         ));
         assert!(matches!(
-            validate_dns_set(public_address, &mixed_policy),
+            validate_dns_set("example.com", public_address, &mixed_policy),
+            Err(NetworkControlError::DestinationBlocked)
+        ));
+    }
+
+    #[test]
+    fn proxy_dns_takes_a_tun_answer_for_a_public_name_only() {
+        let public_only = BTreeSet::from([NetworkDestinationClass::Public]);
+        let tun: Vec<IpAddr> = vec!["198.18.3.32".parse().expect("TUN address")];
+        assert_eq!(
+            validate_dns_set("api.deepseek.com", tun.clone(), &public_only).expect("routed"),
+            tun
+        );
+        assert!(matches!(
+            validate_dns_set("nas.lan", tun.clone(), &public_only),
+            Err(NetworkControlError::DestinationBlocked)
+        ));
+        let private_only = BTreeSet::from([NetworkDestinationClass::Private]);
+        assert!(matches!(
+            validate_dns_set("api.deepseek.com", tun, &private_only),
             Err(NetworkControlError::DestinationBlocked)
         ));
     }

@@ -23,12 +23,7 @@ pub(crate) fn freeze_candidates(
     include_ignored: bool,
     include_generated: bool,
 ) -> Result<Vec<SearchCandidate>, FsToolError> {
-    if let Some(glob) = path_glob
-        && glob.len() > MAX_PATH_GLOB_BYTES
-    {
-        return Err(FsToolError::InvalidRequest("path_glob exceeds 1024 UTF-8 bytes".into()));
-    }
-    let glob = path_glob.map(compile_glob).transpose()?;
+    let glob = path_glob.map(read_path_glob).transpose()?;
     let mut selected = Vec::new();
     for entry in entries {
         if entry.kind != CatalogEntryKind::File || entry.hidden_from_search {
@@ -65,13 +60,13 @@ pub(crate) fn freeze_candidates(
 /// A `path_glob` as ripgrep reads one: without `/` it names files in any folder (`*.rs`,
 /// `*.{ts,tsx}`); with `/` it names a path below the search root (`src/**/*.rs`), or below the
 /// workspace root when the search root is not where it starts.
-enum PathGlob {
+pub(crate) enum PathGlob {
     Name(GlobMatcher),
     Path(GlobMatcher),
 }
 
 impl PathGlob {
-    fn matches(&self, path: &WorkspacePath, root: &WorkspacePath) -> bool {
+    pub(crate) fn matches(&self, path: &WorkspacePath, root: &WorkspacePath) -> bool {
         let path = path.as_str();
         match self {
             Self::Name(matcher) => matcher.is_match(path.rsplit('/').next().unwrap_or(path)),
@@ -85,6 +80,14 @@ impl PathGlob {
             }
         }
     }
+}
+
+/// One `path_glob` as a search reads it, inside the workspace or outside it.
+pub(crate) fn read_path_glob(pattern: &str) -> Result<PathGlob, FsToolError> {
+    if pattern.len() > MAX_PATH_GLOB_BYTES {
+        return Err(FsToolError::InvalidRequest("path_glob exceeds 1024 UTF-8 bytes".into()));
+    }
+    compile_glob(pattern)
 }
 
 fn compile_glob(pattern: &str) -> Result<PathGlob, FsToolError> {

@@ -136,6 +136,15 @@ pub fn version_of(archive: &mut Archive) -> Result<String> {
     versions.pop_first().context("the release carries no version")
 }
 
+/// The longest path the archive puts under the installation's folder, in UTF-16 units.
+pub fn longest(archive: &Archive) -> usize {
+    archive
+        .file_names()
+        .map(|name| name.trim_end_matches('/').encode_utf16().count())
+        .max()
+        .unwrap_or(0)
+}
+
 pub fn read_entry(archive: &mut Archive, name: &str) -> Result<Option<Vec<u8>>> {
     let mut entry = match archive.by_name(name) {
         Ok(entry) => entry,

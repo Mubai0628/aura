@@ -1,7 +1,8 @@
 //! Which
 //! conversations have a turn under way, for the sidebar: running, or waiting for the user (an
-//! approval, a question, or a decision about the context); and how the turns a caller saw under
-//! way ended, for the notifications of a conversation the user is not looking at.
+//! approval, a question, a secure input a terminal asked for, or a decision about the context);
+//! and how the turns a caller saw under way ended, for the notifications of a conversation the
+//! user is not looking at.
 use aura_domain_common::{SessionId, TurnTaskId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -28,8 +29,28 @@ pub enum AgentSessionActivityState {
 pub enum AgentSessionWaitingFor {
     Approval,
     Question,
+    /// A secure input a terminal asked for, typed in Aura's own form.
+    SensitiveInput,
     /// A decision about a context too large for the model.
     Context,
+}
+
+impl AgentSessionWaitingFor {
+    /// Of two waits, the one a conversation shows: an approval, then a question, then a secure
+    /// input, then a decision about the context.
+    #[must_use]
+    pub fn first(self, other: Self) -> Self {
+        if other.rank() < self.rank() { other } else { self }
+    }
+
+    fn rank(self) -> u8 {
+        match self {
+            Self::Approval => 0,
+            Self::Question => 1,
+            Self::SensitiveInput => 2,
+            Self::Context => 3,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -72,4 +93,26 @@ pub struct AgentSessionsActivity {
     /// Of the turns the request named, those that have ended.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ended: Vec<AgentTurnEnded>,
+}
+
+impl AgentSessionsActivity {
+    /// Marks `sessions` as waiting for `waiting` too, for a wait Core keeps outside the turns
+    /// table; a wait that shows first stays shown.
+    pub fn waiting_also(&mut self, sessions: &[SessionId], waiting: AgentSessionWaitingFor) {
+        for session in sessions {
+            match self.sessions.iter_mut().find(|entry| entry.session_id == *session) {
+                Some(entry) => {
+                    entry.state = AgentSessionActivityState::Waiting;
+                    entry.waiting_for =
+                        Some(entry.waiting_for.map_or(waiting, |known| known.first(waiting)));
+                }
+                None => self.sessions.push(AgentSessionActivity {
+                    session_id: *session,
+                    state: AgentSessionActivityState::Waiting,
+                    turn_task_ids: Vec::new(),
+                    waiting_for: Some(waiting),
+                }),
+            }
+        }
+    }
 }

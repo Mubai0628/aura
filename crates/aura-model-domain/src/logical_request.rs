@@ -150,11 +150,11 @@ pub struct LogicalModelRequest {
     pub attachments: Vec<ModelAttachmentSnapshot>,
     pub provider_continuation: Option<ProviderContinuationState>,
     pub output_request: ModelOutputRequest,
-    /// A question asked after the whole request the step would have sent - a compaction asked on
-    /// that request, so the provider reads it from its cache. It is a user message of its own
-    /// after the conversation and the task state, which stay where the step put them. The tools
-    /// the request carries for the cache stay declared; the question itself says none may be
-    /// called.
+    /// A user message of Core's own after the whole request the step would have sent, so the
+    /// provider reads all before it from its cache: a compaction asked on that request, or the
+    /// note of a step asking again after its provider went silent mid-answer. It comes after the
+    /// conversation and the task state, which stay where the step put them. The tools the request
+    /// carries for the cache stay declared; a compaction's question says none may be called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub closing_question: Option<String>,
     /// What followed the closing question when the model called tools instead of answering it:

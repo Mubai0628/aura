@@ -10,6 +10,7 @@ pub mod file_lease;
 pub mod git;
 pub mod installation;
 pub mod lease_recovery;
+pub mod lingering;
 pub mod maintenance;
 mod managed_operations;
 mod native;

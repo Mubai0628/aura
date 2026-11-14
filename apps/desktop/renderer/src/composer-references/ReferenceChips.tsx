@@ -6,12 +6,14 @@ const KINDS: Record<ChosenReference['kind'], { icon: IconName; name: string }> =
   session: { icon: 'chat', name: '会话' },
   terminal: { icon: 'terminal', name: '终端' },
   page: { icon: 'browser', name: '网页' },
+  chrome: { icon: 'browser', name: 'Chrome 标签页' },
   resource: { icon: 'plug', name: 'MCP 资源' },
 };
 
 /**
- * The conversations, terminals, pages and MCP resources chosen from the "@" list, sent with the
- * message; a terminal or page is read when it is sent, and one that cannot be read says why.
+ * The conversations, terminals, pages, Chrome tabs and MCP resources chosen from the "@" list, sent
+ * with the message; a terminal, page or tab is read when it is sent, and one that cannot be read
+ * says why.
  */
 export function ReferenceChips({
   chosen,

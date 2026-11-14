@@ -1,6 +1,7 @@
 //! Explicit file approval management uses the same V2 grants dispatch consumes.
 use super::*;
 use anyhow::bail;
+use aura_core_base::append_core_log;
 use aura_core_base::envelope::error_envelope;
 use aura_permission_domain::{FileSessionConsentAvailability as A, FileSessionConsentView};
 use aura_security_contract::{
@@ -18,7 +19,7 @@ impl P04Services {
             let journal = self
                 .external_grants
                 .bound_journal()
-                .ok_or_else(|| anyhow!("permission.journal_unbound"))?;
+                .ok_or_else(|| anyhow!("permission.journal_unbound: Aura 的批准记录还没准备好（刚启动或正在恢复），这次没有完成；请稍后再试。"))?;
             let mut store = journal.lock()?;
             match method_name {
                 method::FILE_SESSION_CONSENT_LIST => {
@@ -50,19 +51,76 @@ impl P04Services {
                         store.database.connection(),
                         input.grant_id,
                     )?
-                    .ok_or_else(|| anyhow!("permission.grant_state_changed"))?;
+                    .ok_or_else(|| anyhow!("permission.grant_state_changed: 没能确认这项文件批准的最新状态，请刷新列表核对。"))?;
                     drop(store);
                     if let Some(consent) = grant.scope.file_consent.as_ref() {
                         self.external_grants.withdraw_file_companions(consent, correlation)?;
                     }
                     Ok(serde_json::to_value(
-                        view(grant).ok_or_else(|| anyhow!("permission.grant_state_changed"))?,
+                        view(grant).ok_or_else(|| anyhow!("permission.grant_state_changed: 没能确认这项文件批准的最新状态，请刷新列表核对。"))?,
                     )?)
                 }
-                _ => bail!("registered file consent command has no handler"),
+                _ => bail!(
+                    "permission.unknown_consent_command: Aura Core 处理不了这个文件批准请求（Aura 内部出错），没有执行；请重启 Aura 后重试。"
+                ),
             }
         };
         work().map_err(|error| error_envelope(correlation, error))
+    }
+
+    /// Lets the grant lists read the session's current turn and its file approvals from the agent
+    /// journal, then withdraws the session file approvals that are out of their Workspace. A stop
+    /// between a Workspace move and the withdrawal after it leaves such approvals in force in the
+    /// store, though they cover nothing; every start binds the journal, so this finishes that
+    /// withdrawal. A failure is logged and leaves them for the next start.
+    pub fn bind_turn_journal(&self, journal: Arc<aura_core_broker::broker::BrokerJournal>) {
+        self.external_grants.bind_turn_journal(journal);
+        let correlation = CorrelationId::new();
+        match self.external_grants.withdraw_out_of_workspace_file_approvals(None, correlation) {
+            Ok(0) => {}
+            Ok(count) => append_core_log(
+                "security.moved_file_approvals.withdrawn",
+                serde_json::json!({"correlation_id": correlation, "count": count}),
+            ),
+            Err(error) => append_core_log(
+                "security.moved_file_approvals.kept",
+                serde_json::json!({"correlation_id": correlation, "reason": error.to_string()}),
+            ),
+        }
+    }
+
+    /// Withdraws the file approvals a move left out of the Workspace, with their directory
+    /// companions: those given at the folder it was at before. An approval follows a file's
+    /// identity rather than its path, and a folder moved on its own drive keeps every identity;
+    /// the approval already covers nothing at the new folder, and this makes the settings say so.
+    /// The move has already committed when this runs; a failure is logged and leaves the
+    /// approvals to the next start.
+    pub(crate) fn on_workspace_relocated(
+        &self,
+        workspace: WorkspaceId,
+        correlation: CorrelationId,
+    ) {
+        match self
+            .external_grants
+            .withdraw_out_of_workspace_file_approvals(Some(workspace), correlation)
+        {
+            Ok(count) => append_core_log(
+                "security.workspace_relocated.file_approvals_withdrawn",
+                serde_json::json!({
+                    "correlation_id": correlation,
+                    "workspace_id": workspace,
+                    "count": count,
+                }),
+            ),
+            Err(error) => append_core_log(
+                "security.workspace_relocated.file_approvals_kept",
+                serde_json::json!({
+                    "correlation_id": correlation,
+                    "workspace_id": workspace,
+                    "reason": error.to_string(),
+                }),
+            ),
+        }
     }
 }
 

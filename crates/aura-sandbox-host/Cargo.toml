@@ -8,6 +8,7 @@ rust-version.workspace = true
 aura-runtime-contract = { path = "../aura-runtime-contract" }
 anyhow.workspace = true
 aura-config = { path = "../aura-config" }
+aura-data-location = { path = "../aura-data-location" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-ipc = { path = "../aura-ipc" }
 aura-permission-domain = { path = "../aura-permission-domain" }

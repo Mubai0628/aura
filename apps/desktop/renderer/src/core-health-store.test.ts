@@ -137,3 +137,26 @@ test('a read that produced no envelope is reported as a bridge failure', async (
   });
   expect(result.current.projection).toBeUndefined();
 });
+
+// The page says Aura reads Core's state again, so a read that failed is tried again by itself.
+test('a state read that failed is tried again by itself', async () => {
+  vi.useFakeTimers();
+  try {
+    getCoreHealth
+      .mockResolvedValueOnce({ error: requestTimeout, ok: false })
+      .mockResolvedValue({ ok: true, value: projection(3) });
+    const { result } = renderHook(() => useCoreHealth());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(result.current.error?.code).toBe(REQUEST_TIMEOUT_CODE);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(getCoreHealth).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.projection?.revision).toBe('3');
+  } finally {
+    vi.useRealTimers();
+  }
+});

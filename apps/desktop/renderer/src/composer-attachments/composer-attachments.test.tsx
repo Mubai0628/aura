@@ -157,7 +157,9 @@ test('a file is read as a picture, a text file with its contents, or a file by i
   const binary = await readAttachment(new File(['a\u0000b'], 'data.txt'), place);
   expect(binary).toMatchObject({ kind: 'file' });
   const nowhere = await readAttachment(new File(['%PDF'], 'a.pdf'), () => '');
-  expect(nowhere).toEqual({ error: '「a.pdf」没有可用的位置，无法附加。' });
+  expect(nowhere).toEqual({
+    error: '「a.pdf」不是这台电脑上的文件（例如从网页拖来的），无法附加。请先保存到电脑上再附加。',
+  });
   expect([fileKind('报告.PDF'), fileKind('a.xlsx'), fileKind('a.tsx'), fileKind('noext')]).toEqual([
     'pdf',
     'sheet',
@@ -218,7 +220,7 @@ test('a pasted picture is added, and a file that cannot be sent says why', async
     new File(['%PDF'], 'elsewhere.pdf', { type: 'application/pdf' }),
   ]);
   expect((await screen.findByRole('alert')).textContent).toContain(
-    '「elsewhere.pdf」没有可用的位置',
+    '「elsewhere.pdf」不是这台电脑上的文件（例如从网页拖来的），无法附加。请先保存到电脑上再附加。',
   );
 });
 

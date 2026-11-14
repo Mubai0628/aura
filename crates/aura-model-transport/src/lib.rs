@@ -18,6 +18,7 @@ mod request_layout;
 mod retry;
 mod speed_mode;
 mod sse;
+mod state_log;
 mod strict_schema;
 
 pub use adapter::{
@@ -57,4 +58,5 @@ pub use request_layout::{
 pub use retry::{MAX_TRANSPORT_ATTEMPTS, RetryDecision, TransportRetryPolicy};
 pub use speed_mode::speed_mode_fields;
 pub use sse::{ProviderStreamFrame, SseDecoder, SseLimits};
+pub use state_log::{StatePlacement, place_state};
 pub use strict_schema::strict_schema_compatible;

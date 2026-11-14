@@ -81,6 +81,11 @@ pub struct TerminalViewV1 {
     pub title: String,
     pub tool_call_id: Option<aura_domain_common::ToolCallId>,
     pub revision: aura_domain_common::Revision,
+    /// A user's own terminal the user handed to the model with @: while the model controls it,
+    /// the model's terminal tools act on it; it stays the user's. Sent only when set; the terminal
+    /// store keeps it as the record's owner, never as this field.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub handed_over: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]

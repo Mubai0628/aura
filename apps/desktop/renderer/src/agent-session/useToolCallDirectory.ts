@@ -1,7 +1,13 @@
 import type { AgentToolActivityEntry } from '@aura/contracts/generated';
-import { useEffect, useRef, useState } from 'react';
+import { createContext, useEffect, useRef, useState } from 'react';
 
 const EMPTY: ReadonlyMap<string, AgentToolActivityEntry> = new Map();
+/** A read that failed is tried again after this long, after the turn as well. */
+const UNREADABLE_RETRY_MS = 5_000;
+
+/** Whether the conversation's call records could not be read the last time they were asked for:
+ *  a call without a record is then of unknown state, not one that never ran. */
+export const ToolCallsUnreadable = createContext(false);
 interface Directory {
   key: string;
   calls: ReadonlyMap<string, AgentToolActivityEntry>;
@@ -34,7 +40,12 @@ export function useToolCallDirectory(
   visibleCallIds: readonly string[],
   stateToken: string | undefined,
   settled = false,
+  onUnreadable?: (unreadable: boolean) => void,
 ) {
+  const told = useRef(onUnreadable);
+  useEffect(() => {
+    told.current = onUnreadable;
+  });
   const key = `${runtimeInstanceId ?? ''}:${sessionId ?? ''}`;
   const visible = [...new Set(visibleCallIds)].join(',');
   const cache = useRef<Directory>({ key, calls: directories.get(key) ?? new Map() });
@@ -48,6 +59,7 @@ export function useToolCallDirectory(
     const ids = visible.split(',');
     const refresh = async () => {
       const pending = ids.filter((id) => !cache.current.calls.get(id)?.summary.outcome);
+      let failed = false;
       try {
         for (let index = 0; index < pending.length; index += 100) {
           const result = await window.aura.v1.readAgentToolActivity({
@@ -57,7 +69,11 @@ export function useToolCallDirectory(
             limit: 100,
           });
           if (!alive) return;
-          if (!result.ok || result.value.session_id !== sessionId) break;
+          if (!result.ok) {
+            failed = true;
+            break;
+          }
+          if (result.value.session_id !== sessionId) break;
           const calls = new Map(cache.current.calls);
           for (const entry of result.value.calls) calls.set(entry.summary.tool_call_id, entry);
           cache.current = { key, calls };
@@ -66,15 +82,18 @@ export function useToolCallDirectory(
         }
       } catch {
         // Do not invent a name or success state when the projection is unavailable.
+        failed = true;
       }
+      if (!alive) return;
+      told.current?.(failed);
       // Unfinished calls are asked for again; once the turn is over, a call with no record at all
-      // is not waited for any longer.
+      // is not waited for any longer, unless the records could not be read.
       const waiting = ids.filter((id) => {
         const known = cache.current.calls.get(id);
-        return known ? !known.summary.outcome : !settled;
+        return known ? !known.summary.outcome : !settled || failed;
       });
-      if (alive && waiting.length) {
-        timer = setTimeout(() => void refresh(), 1500);
+      if (waiting.length) {
+        timer = setTimeout(() => void refresh(), failed ? UNREADABLE_RETRY_MS : 1500);
       }
     };
     void refresh();

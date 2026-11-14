@@ -16,12 +16,16 @@ test-hooks = []
 
 [dependencies]
 anyhow.workspace = true
+aura-agent-domain = { path = "../aura-agent-domain" }
 aura-backend-api = { path = "../aura-backend-api" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }
 aura-config = { path = "../aura-config" }
+aura-data-location = { path = "../aura-data-location" }
+aura-data-move = { path = "../aura-data-move" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-execution-contract = { path = "../aura-execution-contract" }
 aura-ipc = { path = "../aura-ipc" }
+aura-old-data = { path = "../aura-old-data" }
 aura-permission-domain = { path = "../aura-permission-domain" }
 aura-projection-contract = { path = "../aura-projection-contract" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }

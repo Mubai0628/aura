@@ -46,10 +46,7 @@ use std::{
 
 use rusqlite::{Connection, OpenFlags};
 
-use crate::{
-    PersistenceError,
-    migration::{BUSY_TIMEOUT, configure_reader},
-};
+use crate::{PersistenceError, connection_settings::configure_reader, migration::BUSY_TIMEOUT};
 // The storage hold points exist only in a debug build. Every use below carries the
 // same gate, so a release build compiles none of this module or its callers.
 #[cfg(debug_assertions)]

@@ -26,6 +26,7 @@ import type {
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   MessageChannelMain,
@@ -85,7 +86,16 @@ import { bindEmbeddedHosts, createMediaHosts } from './embedded-hosts.js';
 import { prepareExitThenStop } from './core-exit.js';
 import { errorEnvelope } from './core-transport.js';
 import { createAuraId } from './ids.js';
-import { loadReleaseContext, type ReleaseContext } from './release.js';
+import { loadReleaseContext, locationsQuery, type ReleaseContext } from './release.js';
+import { askCore, desktopLocations, type DesktopLocations } from './data-locations.js';
+import * as windowRecovery from './window-recovery.js';
+import { healthForWindow } from './core-health-read.js';
+import { modelKeyFailure } from './secret-failures.js';
+import {
+  installedLauncher,
+  pinThroughLauncher,
+  startThroughLauncher,
+} from './installed-launcher.js';
 import { keepStorageWritten } from './storage-flush.js';
 import { restoreWindowState, WindowStateStore } from './window-state.js';
 import { createLauncherReadyReporter, type LauncherReadyReporter } from './launcher-ready.js';
@@ -133,10 +143,28 @@ if (rendererDevelopmentUrl !== undefined && rendererDevelopmentUrl !== 'http://1
   throw new Error('AURA_RENDERER_URL must be exactly http://127.0.0.1:5175');
 }
 
-const localAppData = process.env.LOCALAPPDATA;
-if (localAppData === undefined || localAppData.length === 0) {
-  throw new Error('LOCALAPPDATA is required on Windows');
+/** From the launcher, or else from this version's Core; without them Aura does not start. */
+function startupLocations(): DesktopLocations {
+  try {
+    return desktopLocations(process.argv, () => {
+      const query = locationsQuery({
+        appIsPackaged: app.isPackaged,
+        currentDirectory,
+        executablePath: process.execPath,
+      });
+      return askCore(query.coreExecutable, query.manifestPath);
+    });
+  } catch (error) {
+    dialog.showErrorBox('找不到 Aura 的数据', windowRecovery.dataLocationText(error));
+    process.exit(1);
+  }
 }
+const launcher = installedLauncher(process.execPath, app.isPackaged);
+startThroughLauncher(process.argv, launcher);
+const locations = startupLocations();
+// Electron's own profile is this installation's, wherever its locations put it; Chromium has not
+// opened it yet.
+app.setPath('userData', locations.uiProfile);
 const safeMode = process.argv.includes('--safe-mode');
 const parentRuntimeInstanceId = process.argv
   .find((argument) => argument.startsWith('--aura-parent-runtime-id='))
@@ -157,8 +185,6 @@ const pendingLifecycleArms = new Map<string, Promise<BeginWorkspaceLifecycleResu
 let mainWindow: BrowserWindow | undefined;
 const windowContents = () => liveContents(mainWindow);
 let releaseContext: ReleaseContext | undefined;
-const namespaceDataRoot = (release: ReleaseContext) =>
-  resolve(localAppData, 'Aura/namespaces', release.namespaceObjectHash);
 let supervisor: CoreSupervisor | undefined;
 const { workspaceMedia, mediaHost } = createMediaHosts(() => mainWindow);
 // An attached file outside the workspace, for the 文件 tab and its menu.
@@ -180,10 +206,14 @@ let notifications: RegisteredNotifications | undefined;
 // The launcher starts Aura again when it exits with this code (after an update was applied).
 const APP_RESTART_EXIT_CODE = 75;
 let exitCode: number | undefined;
+const restartThroughLauncher = () => {
+  exitCode = APP_RESTART_EXIT_CODE;
+  app.quit();
+  return true;
+};
 let coreExit: Promise<void> | undefined;
 const mainDiagnostics = installMainDiagnostics({
-  localAppData,
-  namespace: () => releaseContext?.namespaceObjectHash,
+  dataRoot: locations.dataRoot,
   contents: windowContents,
   trust: (event) => assertTrustedSender(event),
   // After app.quit() the window is still open here; its close event only comes after this wait.
@@ -201,6 +231,7 @@ const mainDiagnostics = installMainDiagnostics({
 });
 const appendMainLog = mainDiagnostics.append;
 let rendererRecoveryInProgress = false;
+const rendererCrashes = new windowRecovery.RendererCrashes();
 let currentProjection = createFallbackProjection(
   'not_started',
   'core.not_started',
@@ -289,6 +320,7 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
     },
   });
   mainWindow = window;
+  pinThroughLauncher(window, launcher, releaseContext?.manifest.bundle_namespace);
   const webContentsId = window.webContents.id;
   rendererInstances.set(webContentsId, createAuraId('rnd'));
   window.webContents.on('did-start-navigation', (details) => {
@@ -339,13 +371,21 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
       rendererRecoveryInProgress
     )
       return;
+    void appendMainLog('renderer_gone', { reason: details.reason, exitCode: details.exitCode });
+    if (rendererCrashes.record(Date.now()) === 'stop') {
+      const message = windowRecovery.RENDERER_CRASH_LOOP;
+      void dialog.showMessageBox(window, { type: 'error', title: 'Aura', message });
+      return;
+    }
     rendererRecoveryInProgress = true;
     captureWindowState(window);
     setTimeout(() => {
       void (windowStateStore?.flush() ?? Promise.resolve())
         .then(() => createMainWindow())
-        .then(() => {
+        .then((rebuilt) => {
           if (!window.isDestroyed()) window.destroy();
+          const message = windowRecovery.rendererGoneText(details.reason);
+          void dialog.showMessageBox(rebuilt, { type: 'warning', title: 'Aura', message });
         })
         .catch((error: unknown) => {
           if (!window.isDestroyed()) window.webContents.reload();
@@ -385,8 +425,14 @@ const createMainWindow = async (): Promise<BrowserWindow> => {
     void launcherReady?.windowShown().catch(() => undefined);
   });
 
-  if (rendererDevelopmentUrl === undefined) await window.loadURL('aura://app/');
-  else await window.loadURL(rendererDevelopmentUrl);
+  await window.loadURL(rendererDevelopmentUrl ?? 'aura://app/').catch(async (error: unknown) => {
+    // A load another navigation replaced is not a missing page.
+    if ((error as { code?: unknown }).code === 'ERR_ABORTED') return;
+    await appendMainLog('renderer_load_failed', { message: String(error) }).catch(() => undefined);
+    const said = windowRecovery.pageLoadFailureText(rendererDevelopmentUrl);
+    dialog.showErrorBox('Aura 没能打开', said);
+    app.exit(1);
+  });
   return window;
 };
 
@@ -394,7 +440,7 @@ const startSupervisor = async (release: ReleaseContext): Promise<void> => {
   try {
     supervisor = new CoreSupervisor({
       appIsPackaged: app.isPackaged,
-      localAppData,
+      dataRoot: locations.dataRoot,
       onEscalated: () => app.exit(APP_CRASH_ESCALATED_EXIT_CODE),
       ...(parentRuntimeInstanceId === undefined ? {} : { parentRuntimeInstanceId }),
       release,
@@ -415,14 +461,7 @@ const startSupervisor = async (release: ReleaseContext): Promise<void> => {
     await supervisor.start();
     await browserHost?.refreshSettings();
   } catch (error) {
-    publishProjection(
-      createFallbackProjection(
-        'incompatible',
-        'release_bundle.invalid',
-        error instanceof Error ? error.message : String(error),
-        Number(currentProjection.revision) + 1,
-      ),
-    );
+    publishStartFailure('supervisor', error);
   }
 };
 
@@ -536,9 +575,7 @@ const registerIpc = (): void => {
             errorEnvelope('invalid_preload_request', 'Invalid Core Health request', 'failed'),
           );
         }
-        const snapshot =
-          supervisor === undefined ? currentProjection : await supervisor.refreshSnapshot();
-        return { ok: true, value: snapshot };
+        return { ok: true, value: await healthForWindow(supervisor, currentProjection) };
       }
       if (request.command === 'workspace_session.get') {
         if (!isEmptyRecord(request.params)) {
@@ -669,7 +706,8 @@ const registerIpc = (): void => {
               supervisor,
               (e) => requireActiveAuraWindow(e, 'Hook folder selection'),
               (snapshot) => browserHost?.applySettings(snapshot),
-              () => releaseContext && namespaceDataRoot(releaseContext),
+              () => locations.chromeRoot,
+              () => app.isPackaged && restartThroughLauncher(),
             ),
           }),
         };
@@ -744,15 +782,7 @@ const registerIpc = (): void => {
           value: await dispatchP05SecretMain(request.command, request.params, mainSecret),
         };
       } catch (error) {
-        const envelope =
-          error instanceof Error && 'envelope' in error
-            ? (error as { envelope: IpcErrorEnvelope }).envelope
-            : errorEnvelope(
-                'model_credential_request_failed',
-                'The model credential operation failed.',
-                'failed',
-              );
-        return failureResult(envelope);
+        return failureResult(modelKeyFailure(error));
       } finally {
         if (rendererSecret instanceof Uint8Array) rendererSecret.fill(0);
         mainSecret?.fill(0);
@@ -841,6 +871,16 @@ const isAllowedRendererUrl = (value: string): boolean => {
   return url.protocol === 'aura:' && url.hostname === 'app';
 };
 
+/** Core was not started: the window says why in words, the Main log keeps the reason. */
+function publishStartFailure(kind: 'release' | 'supervisor', error: unknown): void {
+  void appendMainLog('core.start_failed', { kind, message: String(error) }).catch(() => undefined);
+  const message = windowRecovery.startFailureText(kind);
+  const revision = Number(currentProjection.revision) + 1;
+  publishProjection(
+    createFallbackProjection('incompatible', 'release_bundle.invalid', message, revision),
+  );
+}
+
 function createFallbackProjection(
   state: CoreHealthProjectionChange['payload']['state'],
   statusCode: string,
@@ -888,13 +928,13 @@ app.whenReady().then(async () => {
       executablePath: process.execPath,
     });
     windowStateStore = new WindowStateStore(
-      namespaceDataRoot(releaseContext),
+      locations.dataRoot,
       (event, fields) => void appendMainLog(event, fields),
     );
-    void refreshLoadedChromeExtension(namespaceDataRoot(releaseContext), appendMainLog);
+    void refreshLoadedChromeExtension(locations.chromeRoot, appendMainLog);
     notifications = startNotifications({
       namespace: releaseContext.manifest.bundle_namespace,
-      dataRoot: namespaceDataRoot(releaseContext),
+      dataRoot: locations.dataRoot,
       window: () => mainWindow,
       trust: (event) => assertTrustedSender(event),
       core: () => supervisor,
@@ -903,21 +943,18 @@ app.whenReady().then(async () => {
     appUpdates = registerAppUpdates({
       appIsPackaged: app.isPackaged,
       manifestPath: releaseContext.manifestPath,
-      dataRoot: namespaceDataRoot(releaseContext),
+      dataRoot: locations.dataRoot,
       current: releaseContext.manifest.product_version,
       namespace: releaseContext.manifest.bundle_namespace,
       contents: windowContents,
       trust: (event) => assertTrustedSender(event),
-      requestRestart: () => {
-        exitCode = APP_RESTART_EXIT_CODE;
-        app.quit();
-      },
+      requestRestart: restartThroughLauncher,
       log: (event, fields) => void appendMainLog(event, fields),
       onState: (state) => notifications?.updateState(state),
     });
     if (app.isPackaged) {
       launcherReady = createLauncherReadyReporter({
-        dataRoot: namespaceDataRoot(releaseContext),
+        dataRoot: locations.dataRoot,
         releaseBundleId: releaseContext.manifest.release_bundle_id,
         productVersion: releaseContext.manifest.product_version,
       });
@@ -935,14 +972,7 @@ app.whenReady().then(async () => {
       core_executable: releaseContext.coreExecutable,
     });
   } catch (error) {
-    publishProjection(
-      createFallbackProjection(
-        'incompatible',
-        'release_bundle.invalid',
-        error instanceof Error ? error.message : String(error),
-        Number(currentProjection.revision) + 1,
-      ),
-    );
+    publishStartFailure('release', error);
   }
   await createMainWindow();
   powerMonitor.on('suspend', () => supervisor?.onSuspend());

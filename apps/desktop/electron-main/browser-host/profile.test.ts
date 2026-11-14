@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { BrowserPages, type PageViews } from './pages.js';
 import { browserUserAgent, guardProfile, type ProfileSession } from './profile.js';
@@ -55,9 +55,10 @@ describe('the browser profile', () => {
     expect(calls.device?.()).toBe(false);
   });
 
-  it('stops every download', () => {
+  it('stops every download, and the page says why and what to do instead', () => {
     const { session, calls } = fakeSession();
-    guardProfile(session, new BrowserPages(views));
+    const pages = new BrowserPages(views);
+    guardProfile(session, pages);
     let prevented = false;
     calls.download?.(
       { preventDefault: () => (prevented = true) },
@@ -65,6 +66,17 @@ describe('the browser profile', () => {
       undefined,
     );
     expect(prevented).toBe(true);
+    const notice = vi.spyOn(pages, 'notice');
+    calls.download?.(
+      { preventDefault: () => undefined },
+      { getFilename: () => 'report.pdf' },
+      { id: 7 },
+    );
+    expect(notice).toHaveBeenCalledWith(
+      7,
+      'download',
+      '内置浏览器不支持下载，report.pdf 没有下载；可以把这个页面的地址复制到系统浏览器里打开，再点一次下载。',
+    );
   });
 
   it('sends every request through the site policy', () => {

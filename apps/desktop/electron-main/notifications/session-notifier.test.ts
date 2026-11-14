@@ -61,6 +61,26 @@ describe('notifications about conversations', () => {
     ]);
   });
 
+  it('say when a terminal starts waiting for a secure input, under the questions switch', async () => {
+    const h = harness();
+    h.set({ sessions: [running(A, T1)] });
+    await h.notifier.poll();
+    h.set({
+      sessions: [{ ...running(A, T1), state: 'waiting', waiting_for: 'sensitive_input' }],
+    });
+    await h.notifier.poll();
+    await h.notifier.poll();
+    expect(h.shown).toEqual([{ sessionId: A, kind: 'input' }]);
+    const off = harness({ preferences: { questions: false } });
+    off.set({ sessions: [running(A, T1)] });
+    await off.notifier.poll();
+    off.set({
+      sessions: [{ ...running(A, T1), state: 'waiting', waiting_for: 'sensitive_input' }],
+    });
+    await off.notifier.poll();
+    expect(off.shown).toEqual([]);
+  });
+
   it('ask how a turn that left ended, and say so for a finished or failed one', async () => {
     const h = harness();
     h.set({ sessions: [running(A, T1), running(B, T2)] });

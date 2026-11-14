@@ -48,7 +48,11 @@ export function guardProfile(session: ProfileSession, pages: BrowserPages): void
     // Downloads are not part of this browser yet; the model has http.download for files.
     event.preventDefault();
     if (contents !== undefined)
-      pages.notice(contents.id, 'download', `已阻止下载 ${item.getFilename()}`);
+      pages.notice(
+        contents.id,
+        'download',
+        `内置浏览器不支持下载，${item.getFilename()} 没有下载；可以把这个页面的地址复制到系统浏览器里打开，再点一次下载。`,
+      );
   });
   session.webRequest.onBeforeRequest((request, callback) =>
     callback({ cancel: !pages.allowRequest(request) }),

@@ -49,7 +49,10 @@ impl SkillContext {
                 let request: SkillTrustRequest = serde_json::from_value(params)?;
                 let located = self.runtime.locate(request.id, request.workspace_id)?;
                 let fingerprint = located.view.fingerprint.clone().ok_or_else(|| {
-                    anyhow::anyhow!("skills.invalid: {}", located.view.problems.join("；"))
+                    anyhow::anyhow!(
+                        "skills.invalid: 这个 Skill 不符合要求：{}",
+                        located.view.problems.join("；")
+                    )
                 })?;
                 anyhow::ensure!(
                     fingerprint == request.expected_fingerprint,
@@ -104,7 +107,9 @@ impl SkillContext {
             "agent.skills.remove" => {
                 serde_json::to_value(self.remove(serde_json::from_value(params)?)?)?
             }
-            other => anyhow::bail!("skills.unknown_route: {other}"),
+            other => anyhow::bail!(
+                "skills.unknown_route: Skill 设置不认识这个操作（{other}），没有执行；请更新 Aura 后重试。"
+            ),
         })
     }
 
@@ -135,7 +140,7 @@ impl SkillContext {
         let (registry, _, skills) = self.runtime.list(request.workspace_id)?;
         anyhow::ensure!(
             registry.issue.is_none(),
-            "skills.registry_unavailable: {}",
+            "skills.registry_unavailable: Skill 设置暂时读不出来，没有改动：{}",
             registry.issue.clone().unwrap_or_default()
         );
         let skill = skills.iter().find(|skill| skill.view.id == request.id).ok_or_else(|| {
@@ -180,7 +185,7 @@ impl SkillContext {
         let registry = self.runtime.settings().skill_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
-            "skills.registry_unavailable: {}",
+            "skills.registry_unavailable: Skill 设置暂时读不出来，没有改动：{}",
             registry.issue.clone().unwrap_or_default()
         );
         written(self.runtime.settings().update_skill_choices(
@@ -212,7 +217,7 @@ impl SkillContext {
         let registry = self.runtime.settings().skill_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
-            "skills.registry_unavailable: {}",
+            "skills.registry_unavailable: Skill 设置暂时读不出来，没有改动：{}",
             registry.issue.clone().unwrap_or_default()
         );
         let view = &located.view;

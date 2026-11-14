@@ -11,6 +11,9 @@ use rusqlite::{Connection, OptionalExtension, Transaction};
 
 const RETRIED: &str = "model.transient_retry";
 
+/// The failure code of a stream the provider went silent in after its answer began.
+pub const STREAM_IDLE: &str = "model_transport_streamidle_timeout";
+
 /// Records that the provider failed this running step for a passing reason, and returns its run to
 /// preparing a new step, which [`source`] continues where the failed one would have.
 pub fn retry(
@@ -131,6 +134,73 @@ pub fn failed_connections(db: &Connection, run_id: AgentRunId) -> StoreResult<Ve
         }
     }
     Ok(failed)
+}
+
+/// The failure code of the run's step before the one being prepared, when the provider failed that
+/// step for a passing reason and the step being prepared asks it again.
+pub fn asked_again_after(db: &Connection, run_id: AgentRunId) -> StoreResult<Option<String>> {
+    for step in model_context::steps(db, run_id)?.iter().rev() {
+        match step.state {
+            ModelStepState::Preparing | ModelStepState::Running { .. } => {}
+            ModelStepState::Failed { .. } => {
+                let code: Option<Option<String>> = db
+                    .query_row(
+                        "SELECT json_extract(payload,'$.code') FROM events WHERE owner=?1 AND kind=?2 LIMIT 1",
+                        [step.model_step_id.to_string(), RETRIED.to_owned()],
+                        |row| row.get(0),
+                    )
+                    .optional()?;
+                return Ok(code.flatten());
+            }
+            _ => return Ok(None),
+        }
+    }
+    Ok(None)
+}
+
+/// Whether the run's step before its last one failed and was asked again: the last step was that
+/// retry.
+pub fn asked_again_before_last(db: &Connection, run_id: AgentRunId) -> StoreResult<bool> {
+    match model_context::steps(db, run_id)?.iter().rev().nth(1) {
+        Some(step) if matches!(step.state, ModelStepState::Failed { .. }) => {
+            retried(db, step.model_step_id)
+        }
+        _ => Ok(false),
+    }
+}
+
+/// How many of the run's steps were asked again after the provider failed them, and the latest of
+/// those failures.
+pub fn run_retries(
+    db: &Connection,
+    run_id: AgentRunId,
+) -> StoreResult<(u32, Option<NormalizedModelFailure>)> {
+    let mut statement = db.prepare(
+        "SELECT e.owner, json_extract(e.payload,'$.failure_id') FROM events e JOIN model_steps m ON e.owner=m.id WHERE m.agent_run_id=?1 AND e.kind=?2 ORDER BY e.sequence",
+    )?;
+    let retried = statement
+        .query_map([run_id.to_string(), RETRIED.to_owned()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    let count = u32::try_from(retried.len()).unwrap_or(u32::MAX);
+    let Some((step, Some(failure_id))) = retried.last() else {
+        return Ok((count, None));
+    };
+    let payload: Option<String> = db
+        .query_row(
+            "SELECT payload FROM events WHERE owner=?1 AND kind='model.failure' AND json_extract(payload,'$.id')=?2",
+            [step.clone(), failure_id.clone()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    Ok((
+        count,
+        match payload {
+            Some(payload) => Some(serde_json::from_str::<PersistedModelFailure>(&payload)?.failure),
+            None => None,
+        },
+    ))
 }
 
 fn retried(db: &Connection, step: ModelStepId) -> StoreResult<bool> {

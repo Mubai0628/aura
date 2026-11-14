@@ -6,6 +6,13 @@
         "active": {
           "type": "string"
         },
+        "data_location": {
+          "description": "The installation's copy of where its data was moved to; it must name the same folder as\nthe location record. Left out while the data is in its default place, so the file stays\nthe same as before; a version that does not know it refuses the file instead of starting\nwithout the moved data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "last_known_good": {
           "type": [
             "string",
@@ -1007,6 +1014,105 @@
       "required": [
         "endpoint_id",
         "provider_model_name"
+      ],
+      "type": "object"
+    },
+    "AgentApprovalAnswer": {
+      "description": "An answer to a sub-agent's question.",
+      "oneOf": [
+        {
+          "const": "allow",
+          "description": "This one call runs.",
+          "type": "string"
+        },
+        {
+          "const": "allow_workspace",
+          "description": "This call runs, and the sub-agent's later deletions in its own worktree and temporary\nfolder ask no more until it is merged or discarded, as the user's card allows them. Only\nfor a question whose `allow_workspace` is true.",
+          "type": "string"
+        },
+        {
+          "const": "deny",
+          "description": "It does not run.",
+          "type": "string"
+        },
+        {
+          "const": "ask_user",
+          "description": "The user decides.",
+          "type": "string"
+        }
+      ]
+    },
+    "AgentApprovalAnswered": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "$ref": "#/$defs/AgentApprovalAnswer"
+        },
+        "at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "by": {
+          "$ref": "#/$defs/AgentApprovalAnsweredBy"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "by",
+        "answer",
+        "reason",
+        "at"
+      ],
+      "type": "object"
+    },
+    "AgentApprovalAnsweredBy": {
+      "description": "Who answered a sub-agent's question in the user's place.",
+      "oneOf": [
+        {
+          "enum": [
+            "main_agent"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "settings",
+          "description": "The settings' presets.",
+          "type": "string"
+        }
+      ]
+    },
+    "AgentApprovalReview": {
+      "additionalProperties": false,
+      "description": "A question of the sub-agent's that went to the main agent, or that the settings answered.",
+      "properties": {
+        "answered": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentApprovalAnswered"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approval_id": {
+          "$ref": "#/$defs/ApprovalRequestId"
+        },
+        "presented_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "When agents.wait or agents.status first gave it to the main agent."
+        }
+      },
+      "required": [
+        "approval_id"
       ],
       "type": "object"
     },
@@ -2181,6 +2287,13 @@
     "AgentFileSearchInput": {
       "additionalProperties": false,
       "properties": {
+        "context_lines": {
+          "description": "Lines shown before and after each match in a workspace file, 0..=10 (default 0).",
+          "format": "uint32",
+          "maximum": 10,
+          "minimum": 0,
+          "type": "integer"
+        },
         "include_generated": {
           "default": false,
           "description": "Default false.",
@@ -3971,6 +4084,11 @@
           "type": "string"
         },
         {
+          "const": "sensitive_input",
+          "description": "A secure input a terminal asked for, typed in Aura's own form.",
+          "type": "string"
+        },
+        {
           "const": "context",
           "description": "A decision about a context too large for the model.",
           "type": "string"
@@ -4198,6 +4316,609 @@
       ],
       "type": "string"
     },
+    "AgentTeamAllowanceKind": {
+      "description": "What a sub-agent's commands may do without asking, one kind at a time.",
+      "enum": [
+        "deletions",
+        "outside_writes",
+        "downloads"
+      ],
+      "type": "string"
+    },
+    "AgentTeamAllowanceRevokeRequest": {
+      "additionalProperties": false,
+      "description": "The user takes back one thing a sub-agent's commands could do without asking.",
+      "properties": {
+        "agent": {
+          "description": "Its handle: `A1`, `A2`…",
+          "type": "string"
+        },
+        "allowance": {
+          "$ref": "#/$defs/AgentTeamAllowanceKind"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId",
+          "description": "The conversation that started it."
+        }
+      },
+      "required": [
+        "session_id",
+        "agent",
+        "allowance"
+      ],
+      "type": "object"
+    },
+    "AgentTeamChangesRequest": {
+      "additionalProperties": false,
+      "description": "The changes of a sub-agent's worktree, or of the conversation's own when `agent` is none.",
+      "properties": {
+        "agent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "AgentTeamChangesView": {
+      "properties": {
+        "agent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "branch": {
+          "type": "string"
+        },
+        "checks": {
+          "description": "The checks of its newest final report: each command with its exit code.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/WorktreeChange"
+          },
+          "type": "array"
+        },
+        "member_state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentTeamMemberState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remaining": {
+          "description": "What its newest final report says is not done.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "size_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/WorktreeState"
+        }
+      },
+      "required": [
+        "branch",
+        "state",
+        "files"
+      ],
+      "type": "object"
+    },
+    "AgentTeamLeadView": {
+      "additionalProperties": false,
+      "description": "The conversation's own agent.",
+      "properties": {
+        "model": {
+          "description": "Its name, while it is enabled.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_profile_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelProfileId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The model the conversation uses, when it has one."
+        },
+        "tokens": {
+          "description": "What the conversation's answers used so far, as their providers counted.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tool": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "working": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "working",
+        "tokens"
+      ],
+      "type": "object"
+    },
+    "AgentTeamLimits": {
+      "additionalProperties": false,
+      "description": "The limits under 设置 → 智能能力 → 多 Agent; they hold for every conversation.",
+      "properties": {
+        "cpu_percent": {
+          "description": "Share of all processors, in percent, that every sub-agent's commands take together.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_running": {
+          "description": "Sub-agents of one conversation working at once. One waiting for an approval does not\ncount.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "minutes_per_task": {
+          "description": "Minutes one sub-agent may work on what it was last given, not counting the time it waits\nfor an approval.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "token_budget": {
+          "description": "Tokens one sub-agent's answers may use in all, as their providers counted them; none\nwhen they are not limited.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "max_running",
+        "minutes_per_task",
+        "cpu_percent"
+      ],
+      "type": "object"
+    },
+    "AgentTeamListRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "AgentTeamMemberAllowances": {
+      "additionalProperties": false,
+      "description": "What the user lets a sub-agent's commands do without asking, beyond its mode: from the\nsettings when it started, or the user's answer on one of its questions. They go with it.",
+      "properties": {
+        "deletions": {
+          "default": false,
+          "description": "Its commands delete without asking where their targets lie in its worktree or temporary\nfolder, or are left to a variable or the pipeline while the command stands there. Only a\nsub-agent with a worktree has it.",
+          "type": "boolean"
+        },
+        "downloads": {
+          "default": false,
+          "description": "Its downloads run without asking.",
+          "type": "boolean"
+        },
+        "outside_writes": {
+          "default": false,
+          "description": "Its commands write outside its workspace without asking; a deletion there still asks.",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "AgentTeamMemberState": {
+      "oneOf": [
+        {
+          "const": "running",
+          "description": "Working, or ready to work on what it was last sent.",
+          "type": "string"
+        },
+        {
+          "const": "reported",
+          "description": "Handed in a final report; it waits for the main agent.",
+          "type": "string"
+        },
+        {
+          "const": "stopped",
+          "description": "Stopped by the main agent or the user; it does nothing more.",
+          "type": "string"
+        }
+      ]
+    },
+    "AgentTeamMemberView": {
+      "additionalProperties": false,
+      "properties": {
+        "agent": {
+          "type": "string"
+        },
+        "allowed": {
+          "$ref": "#/$defs/AgentTeamMemberAllowances",
+          "default": {
+            "deletions": false,
+            "downloads": false,
+            "outside_writes": false
+          },
+          "description": "What the user lets its commands do without asking."
+        },
+        "approvals": {
+          "description": "Approvals it waits for the user to decide, in the conversation that started it.",
+          "items": {
+            "$ref": "#/$defs/ApprovalRequestId"
+          },
+          "type": "array"
+        },
+        "last_report": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentTeamReportStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PermissionMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Its permission mode now, which the user may change while it works."
+        },
+        "model": {
+          "type": "string"
+        },
+        "model_profile_id": {
+          "$ref": "#/$defs/ModelProfileId"
+        },
+        "name": {
+          "type": "string"
+        },
+        "question": {
+          "description": "The newest report's question for the main agent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reviewing": {
+          "description": "Approvals it waits for the main agent to decide first.",
+          "items": {
+            "$ref": "#/$defs/ApprovalRequestId"
+          },
+          "type": "array"
+        },
+        "reviews": {
+          "description": "Its questions the main agent or the settings answered, newest last.",
+          "items": {
+            "$ref": "#/$defs/AgentApprovalReview"
+          },
+          "type": "array"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId",
+          "description": "The conversation it works in."
+        },
+        "state": {
+          "$ref": "#/$defs/AgentTeamMemberState"
+        },
+        "summary": {
+          "description": "The newest report's summary, cut to [`LIST_SUMMARY_CHARS`].",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tokens": {
+          "description": "What its answers used so far, as their providers counted.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tool": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "working": {
+          "type": "boolean"
+        },
+        "workspace_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkspaceId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The workspace that conversation works in: its worktree's, or the starting conversation's."
+        },
+        "worktree": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentWorktreeView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The worktree it changes files in, when it has one."
+        }
+      },
+      "required": [
+        "agent",
+        "name",
+        "session_id",
+        "model_profile_id",
+        "model",
+        "state",
+        "working",
+        "approvals",
+        "tokens"
+      ],
+      "type": "object"
+    },
+    "AgentTeamPermissions": {
+      "additionalProperties": false,
+      "description": "Under 设置 → 智能能力 → 多 Agent. A sub-agent already working keeps its mode and grants; the\nuser changes them on that sub-agent.",
+      "properties": {
+        "allow_deletions": {
+          "description": "A new sub-agent may delete files with its commands without asking, where a command names\nno place outside its worktree and temporary folder.",
+          "type": "boolean"
+        },
+        "allow_downloads": {
+          "description": "The same for downloads.",
+          "type": "boolean"
+        },
+        "allow_outside_writes": {
+          "description": "The same for commands that write outside its workspace.",
+          "type": "boolean"
+        },
+        "main_agent_approves": {
+          "description": "The main agent answers a sub-agent's approval first, where it may: a deletion or a write\nthat names no place outside the sub-agent's own.",
+          "type": "boolean"
+        },
+        "shared_mode": {
+          "$ref": "#/$defs/PermissionMode",
+          "description": "The mode a sub-agent working in the starting conversation's workspace starts in."
+        },
+        "worktree_mode": {
+          "$ref": "#/$defs/PermissionMode",
+          "description": "The mode a sub-agent with a worktree of its own starts in; its workspace is that worktree."
+        }
+      },
+      "required": [
+        "worktree_mode",
+        "shared_mode",
+        "allow_deletions",
+        "allow_outside_writes",
+        "allow_downloads",
+        "main_agent_approves"
+      ],
+      "type": "object"
+    },
+    "AgentTeamReportStatus": {
+      "oneOf": [
+        {
+          "const": "progress",
+          "description": "Still working; this is a note on the way.",
+          "type": "string"
+        },
+        {
+          "const": "waiting",
+          "description": "Stops until the main agent answers its one question.",
+          "type": "string"
+        },
+        {
+          "const": "ready",
+          "description": "Done: the summary holds what the main agent needs.",
+          "type": "string"
+        },
+        {
+          "const": "blocked",
+          "description": "Cannot go on without help.",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "Did not get it done.",
+          "type": "string"
+        }
+      ]
+    },
+    "AgentTeamSettingsSetRequest": {
+      "additionalProperties": false,
+      "description": "The user saves the limits, and the permissions when given, at the revision the page read.",
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limits": {
+          "$ref": "#/$defs/AgentTeamLimits"
+        },
+        "permissions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentTeamPermissions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "None keeps the permissions saved before."
+        }
+      },
+      "required": [
+        "limits",
+        "expected_revision"
+      ],
+      "type": "object"
+    },
+    "AgentTeamSettingsView": {
+      "additionalProperties": false,
+      "description": "The limits and permissions as the settings page reads them.",
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/AgentTeamLimits",
+          "description": "What 恢复默认 puts back."
+        },
+        "limits": {
+          "$ref": "#/$defs/AgentTeamLimits"
+        },
+        "maximum": {
+          "$ref": "#/$defs/AgentTeamLimits"
+        },
+        "minimum": {
+          "$ref": "#/$defs/AgentTeamLimits",
+          "description": "The smallest and the largest of each limit Core takes."
+        },
+        "permission_defaults": {
+          "$ref": "#/$defs/AgentTeamPermissions",
+          "description": "What 恢复默认 puts back."
+        },
+        "permissions": {
+          "$ref": "#/$defs/AgentTeamPermissions"
+        },
+        "revision": {
+          "description": "The settings revision a change names; 0 until the user saved any.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "limits",
+        "defaults",
+        "minimum",
+        "maximum",
+        "permissions",
+        "permission_defaults",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "AgentTeamStopRequest": {
+      "additionalProperties": false,
+      "description": "The user stops one sub-agent of a conversation.",
+      "properties": {
+        "agent": {
+          "description": "Its handle: `A1`, `A2`…",
+          "type": "string"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId",
+          "description": "The conversation that started it."
+        }
+      },
+      "required": [
+        "session_id",
+        "agent"
+      ],
+      "type": "object"
+    },
+    "AgentTeamView": {
+      "additionalProperties": false,
+      "properties": {
+        "lead": {
+          "$ref": "#/$defs/AgentTeamLeadView",
+          "description": "The conversation's own agent, first in the list."
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/AgentTeamMemberView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "lead",
+        "members"
+      ],
+      "type": "object"
+    },
+    "AgentTeamWorktreeFolder": {
+      "additionalProperties": false,
+      "description": "The folder of a sub-agent's worktree still in use, for Main to open.",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "AgentTeamWorktreeRequest": {
+      "additionalProperties": false,
+      "description": "One sub-agent of a conversation, for its worktree's folder.",
+      "properties": {
+        "agent": {
+          "description": "Its handle: `A1`, `A2`…",
+          "type": "string"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId",
+          "description": "The conversation that started it."
+        }
+      },
+      "required": [
+        "session_id",
+        "agent"
+      ],
+      "type": "object"
+    },
     "AgentTerminalCloseInput": {
       "additionalProperties": false,
       "properties": {
@@ -4207,6 +4928,68 @@
       },
       "required": [
         "terminal_id"
+      ],
+      "type": "object"
+    },
+    "AgentTerminalLinesV1": {
+      "additionalProperties": false,
+      "description": "A page of the lines an Agent terminal shows, numbered from its first line with text.",
+      "properties": {
+        "earliest_line": {
+          "description": "The oldest line still kept; earlier ones are gone.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TerminalEnd"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "first_line": {
+          "description": "The number of the first line in `lines`.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "last_line": {
+          "description": "The number of the terminal's newest line.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lines": {
+          "description": "The lines as the terminal shows them, joined with line breaks.",
+          "type": "string"
+        },
+        "next_line": {
+          "description": "The `line` that reads on after this page; absent when the page reaches the newest line.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "terminal_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "terminal_id",
+        "lines",
+        "first_line",
+        "last_line",
+        "earliest_line",
+        "running"
       ],
       "type": "object"
     },
@@ -4243,17 +5026,20 @@
     "AgentTerminalReadInput": {
       "additionalProperties": false,
       "properties": {
-        "max_bytes": {
-          "default": 8192,
-          "format": "uint32",
-          "maximum": 65536,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "offset": {
-          "default": 0,
+        "line": {
+          "description": "The first line to read; the terminal's first line with text is line 1. Without it the\nnewest lines are read.",
           "format": "uint64",
-          "minimum": 0,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "max_lines": {
+          "default": 200,
+          "format": "uint32",
+          "maximum": 2000,
+          "minimum": 1,
           "type": "integer"
         },
         "terminal_id": {
@@ -4360,7 +5146,7 @@
           ]
         },
         "wait_ms": {
-          "default": 2000,
+          "default": 15000,
           "format": "uint64",
           "maximum": 30000,
           "minimum": 0,
@@ -4696,6 +5482,13 @@
           ],
           "description": "Absent leaves the stored proxy untouched. JSON `null` clears it. An object replaces it."
         },
+        "network_proxy_follows_system": {
+          "description": "Read so that an older client's request still decodes; it changes nothing. Model requests\nand tools follow the proxy Windows names whenever `network_proxy` is switched off.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "use_recommended_fixed_tool_ids": {
           "default": false,
           "description": "Restore the recommended default tool list instead of `fixed_tool_ids`.\n\nA user who once saved their own list keeps it across upgrades, so the\nrecommended list only reaches an untouched configuration. This is the\nexplicit user action that opts back in; it is never applied silently.",
@@ -4762,7 +5555,7 @@
               "type": "null"
             }
           ],
-          "description": "The proxy that tools will actually use. Empty when disabled or the stored field is unusable."
+          "description": "The proxy stored in Aura's settings, switched on or off. While it is switched on, model\nrequests and tools use it instead of the system's. Empty when none is stored or the stored\nfield is unusable."
         },
         "network_proxy_diagnostic": {
           "description": "Why the stored field is not in effect. Other Tools settings stay readable and writable.",
@@ -4782,6 +5575,10 @@
           ],
           "description": "The stored field, including a value that failed validation, so the form can keep it."
         },
+        "network_proxy_follows_system": {
+          "description": "Always false; kept so older readers still decode the view. Following the system needs no\nchoice: it is what happens while `network_proxy` is switched off.",
+          "type": "boolean"
+        },
         "network_proxy_recovery": {
           "anyOf": [
             {
@@ -4795,6 +5592,17 @@
         },
         "revision": {
           "$ref": "#/$defs/Revision"
+        },
+        "system_network_proxy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SystemNetworkProxyV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What Windows names now, followed while `network_proxy` is switched off."
         },
         "tools": {
           "items": {
@@ -5096,6 +5904,31 @@
     "AgentWorkspacePath": {
       "description": "A path relative to the workspace root (\".\" is the root). An absolute path inside the workspace names the same file.",
       "type": "string"
+    },
+    "AgentWorktreeView": {
+      "description": "A sub-agent's worktree as the 多 Agent page shows it.",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "size_bytes": {
+          "description": "Bytes on disk, build outputs included; none until counted.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/WorktreeState"
+        }
+      },
+      "required": [
+        "branch",
+        "state"
+      ],
+      "type": "object"
     },
     "AppKind": {
       "description": "Where a program in the catalog comes from.",
@@ -7336,6 +8169,14 @@
           "default": false,
           "type": "boolean"
         },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "ref": {
           "default": null,
           "description": "The element to click: a ref from the latest snapshot, such as e12.",
@@ -7429,6 +8270,14 @@
             "integer",
             "null"
           ]
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object"
@@ -7500,6 +8349,14 @@
         "expression": {
           "description": "A JavaScript expression, run in the page; a promise is awaited (at most 10 seconds).",
           "type": "string"
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -8004,6 +8861,13 @@
             "null"
           ]
         },
+        "page": {
+          "description": "A page the user handed over, by the id Main gave it (p1, p2…); none is the session's model\npage.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "runtime_instance_id": {
           "$ref": "#/$defs/RuntimeInstanceId"
         },
@@ -8135,6 +8999,14 @@
     "BrowserHoverInput": {
       "additionalProperties": false,
       "properties": {
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "ref": {
           "type": "string"
         }
@@ -8179,6 +9051,14 @@
         "element": {
           "description": "The element's ref in the latest snapshot (e3).",
           "type": "string"
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -8239,6 +9119,14 @@
       "properties": {
         "action": {
           "$ref": "#/$defs/BrowserHistoryAction"
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -8320,6 +9208,14 @@
             "integer",
             "null"
           ]
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object"
@@ -8350,6 +9246,22 @@
     "BrowserOpenInput": {
       "additionalProperties": false,
       "properties": {
+        "agent": {
+          "default": null,
+          "description": "With path: a sub-agent of this conversation (A1, A2…) whose worktree holds the file, to\nlook at its changes before they are merged.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "path": {
           "default": null,
           "description": "A workspace file to open instead, such as index.html or dist/game.html.",
@@ -8450,6 +9362,16 @@
     "BrowserPerformanceInput": {
       "additionalProperties": false,
       "description": "The page's performance counters, as Chromium keeps them.",
+      "properties": {
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
       "type": "object"
     },
     "BrowserPerformanceResult": {
@@ -8489,6 +9411,14 @@
           "description": "A key or a chord: Enter, Escape, Tab, ArrowLeft, Space, a, Control+a, Shift+Tab.",
           "type": "string"
         },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "repeat": {
           "default": null,
           "description": "Press it this many times (default 1, at most 20).",
@@ -8508,6 +9438,14 @@
     "BrowserRequestUserInput": {
       "additionalProperties": false,
       "properties": {
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "reason": {
           "description": "What the user should do on the page, in a sentence (sign in, solve a check, choose).",
           "type": "string"
@@ -8551,6 +9489,14 @@
           "default": false,
           "description": "The whole page instead of what is on screen.",
           "type": "boolean"
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "ref": {
           "default": null,
@@ -8647,6 +9593,14 @@
         "direction": {
           "$ref": "#/$defs/BrowserScrollDirection"
         },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "ref": {
           "default": null,
           "description": "Scroll inside this element (a ref) instead of the page.",
@@ -8664,6 +9618,14 @@
     "BrowserSelectInput": {
       "additionalProperties": false,
       "properties": {
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "ref": {
           "description": "The select element (a ref).",
           "type": "string"
@@ -8775,6 +9737,14 @@
             "integer",
             "null"
           ]
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "type": "object"
@@ -8786,6 +9756,14 @@
           "default": false,
           "description": "Replace the field's current text instead of adding to it.",
           "type": "boolean"
+        },
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "ref": {
           "default": null,
@@ -8812,6 +9790,14 @@
     "BrowserWaitInput": {
       "additionalProperties": false,
       "properties": {
+        "page": {
+          "default": null,
+          "description": "A page the user handed you with @ (p1, p2…); without it, this session's own page.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "text": {
           "default": null,
           "description": "Wait until this text is on the page.",
@@ -10499,6 +11485,36 @@
       ],
       "type": "object"
     },
+    "ChromeHandedTab": {
+      "additionalProperties": false,
+      "description": "The tab handed over: shared with the conversation until the user stops sharing it, and read\nonce for the message it goes with.",
+      "properties": {
+        "snapshot": {
+          "type": "string"
+        },
+        "snapshot_truncated": {
+          "type": "boolean"
+        },
+        "tab": {
+          "description": "The conversation's name for the tab (t1, t2…), which Chrome's tools take.",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tab",
+        "title",
+        "url",
+        "snapshot",
+        "snapshot_truncated"
+      ],
+      "type": "object"
+    },
     "ChromeHistoryAction": {
       "enum": [
         "back",
@@ -11057,6 +12073,77 @@
       },
       "type": "object"
     },
+    "ChromeTabChoice": {
+      "additionalProperties": false,
+      "description": "One of the user's ordinary Chrome tabs, as Aura's @ menu offers it.",
+      "properties": {
+        "tab_id": {
+          "description": "Chrome's own id for the tab; it never reaches a model.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tab_id",
+        "title",
+        "url"
+      ],
+      "type": "object"
+    },
+    "ChromeTabChoices": {
+      "additionalProperties": false,
+      "description": "The user's Chrome tabs for Aura's @ menu.",
+      "properties": {
+        "connected": {
+          "description": "Whether the extension is connected now.",
+          "type": "boolean"
+        },
+        "issue": {
+          "description": "Why the connected extension could not list them, in the user's words.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tabs": {
+          "items": {
+            "$ref": "#/$defs/ChromeTabChoice"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "connected",
+        "tabs"
+      ],
+      "type": "object"
+    },
+    "ChromeTabHandOverRequest": {
+      "additionalProperties": false,
+      "description": "The user hands one of their Chrome tabs to a conversation with @.",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "tab_id": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "tab_id"
+      ],
+      "type": "object"
+    },
     "ChromeTabV1": {
       "additionalProperties": false,
       "description": "One tab the session may act on.",
@@ -11096,6 +12183,13 @@
     "ChromeTabsResult": {
       "additionalProperties": false,
       "properties": {
+        "notice": {
+          "description": "Why no tab is listed: Chrome is not connected, or nothing is shared with this conversation.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "tabs": {
           "items": {
             "$ref": "#/$defs/ChromeTabV1"
@@ -13998,7 +15092,8 @@
         "diagnostics",
         "update",
         "chrome",
-        "computer"
+        "computer",
+        "network"
       ],
       "type": "string"
     },
@@ -19024,6 +20119,13 @@
             "$ref": "#/$defs/FileConsentTarget"
           },
           "type": "array"
+        },
+        "workspace_root": {
+          "description": "The folder its Workspace was at when the user answered. Once a move points the Workspace\nat another folder the approval covers nothing, whether or not its withdrawal after the\nmove ran; archiving and restoring keep the folder. Absent on an approval recorded before\nthe folder was: that one covers only a Workspace still at its first authorization epoch.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -20404,6 +21506,48 @@
         }
       ]
     },
+    "FsSearchContext": {
+      "additionalProperties": false,
+      "description": "The lines near one file's matches that are not matches themselves, read from the text the\nsearch matched.",
+      "properties": {
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/FsSearchContextLine"
+          },
+          "type": "array"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "lines"
+      ],
+      "type": "object"
+    },
+    "FsSearchContextLine": {
+      "additionalProperties": false,
+      "properties": {
+        "line_index": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        },
+        "truncated": {
+          "description": "The line goes on past `text`.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "line_index",
+        "text"
+      ],
+      "type": "object"
+    },
     "FsSearchIncompleteReason": {
       "enum": [
         "scope_excluded",
@@ -20596,6 +21740,13 @@
         },
         "completion": {
           "$ref": "#/$defs/FsSearchCompletion"
+        },
+        "context": {
+          "description": "The lines around the matches, by file, when the call asked for them.",
+          "items": {
+            "$ref": "#/$defs/FsSearchContext"
+          },
+          "type": "array"
         },
         "external": {
           "anyOf": [
@@ -24633,7 +25784,7 @@
           "type": "array"
         },
         "closing_question": {
-          "description": "A question asked after the whole request the step would have sent - a compaction asked on\nthat request, so the provider reads it from its cache. It is a user message of its own\nafter the conversation and the task state, which stay where the step put them. The tools\nthe request carries for the cache stay declared; the question itself says none may be\ncalled.",
+          "description": "A user message of Core's own after the whole request the step would have sent, so the\nprovider reads all before it from its cache: a compaction asked on that request, or the\nnote of a step asking again after its provider went silent mid-answer. It comes after the\nconversation and the task state, which stay where the step put them. The tools the request\ncarries for the cache stay declared; a compaction's question says none may be called.",
           "type": [
             "string",
             "null"
@@ -25762,6 +26913,13 @@
         },
         "authorization_url": {
           "type": "string"
+        },
+        "browser_opened": {
+          "description": "Set by Main: `false` when the system browser did not open, so the link has to be copied.\nCore leaves it out.",
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       },
       "required": [
@@ -26295,6 +27453,13 @@
               "const": "probe",
               "type": "string"
             },
+            "note": {
+              "description": "Why codec or frame_rate is null: what kept the file's header from naming them.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "width": {
               "format": "uint32",
               "minimum": 0,
@@ -26588,6 +27753,13 @@
           "minimum": 0,
           "type": "integer"
         },
+        "note": {
+          "description": "Why codec or frame_rate is null: what kept the file's header from naming them.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "width": {
           "format": "uint32",
           "minimum": 0,
@@ -26820,6 +27992,7 @@
           "type": "string"
         },
         "category": {
+          "description": "1 to 64 lowercase ASCII letters, digits or '-', such as rules or project-notes.",
           "type": "string"
         },
         "confidence": {
@@ -28149,6 +29322,7 @@
           ]
         },
         "category": {
+          "description": "1 to 64 lowercase ASCII letters, digits or '-', such as rules or project-notes.",
           "type": [
             "string",
             "null"
@@ -35058,6 +36232,152 @@
         "definition_ref",
         "input",
         "provider_arguments_envelope_hash"
+      ],
+      "type": "object"
+    },
+    "OldDataEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "description": "What a removal names it by; it stays the same while the item is there.",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/OldDataKind"
+        },
+        "modified_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The newest change to anything in it."
+        },
+        "paths": {
+          "description": "The folders and files removing it deletes.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "paths",
+        "bytes"
+      ],
+      "type": "object"
+    },
+    "OldDataFailure": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "OldDataKind": {
+      "oneOf": [
+        {
+          "const": "early_layout",
+          "description": "What the versions before namespaces kept at the top of Aura's folders.",
+          "type": "string"
+        },
+        {
+          "const": "namespace",
+          "description": "The data and settings of a namespace no installation uses.",
+          "type": "string"
+        },
+        {
+          "const": "unfinished",
+          "description": "Folders whose removal began and did not finish.",
+          "type": "string"
+        }
+      ]
+    },
+    "OldDataListing": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/OldDataEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    },
+    "OldDataRemoval": {
+      "additionalProperties": false,
+      "properties": {
+        "failed": {
+          "items": {
+            "$ref": "#/$defs/OldDataFailure"
+          },
+          "type": "array"
+        },
+        "in_use": {
+          "description": "Kept whole: a file in it is open, or a program works in it.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "items": {
+          "description": "What is left over after the removal.",
+          "items": {
+            "$ref": "#/$defs/OldDataEntry"
+          },
+          "type": "array"
+        },
+        "removed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "removed",
+        "in_use",
+        "failed",
+        "items"
+      ],
+      "type": "object"
+    },
+    "OldDataRemoveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "ids": {
+          "description": "The ids of the items to remove, from the listing.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "ids"
       ],
       "type": "object"
     },
@@ -47182,6 +48502,13 @@
         },
         "revision": {
           "$ref": "#/$defs/Revision"
+        },
+        "skipped_model_profile_ids": {
+          "description": "Models left as they were: allowing sub-agents needs an output limit they do not have.",
+          "items": {
+            "$ref": "#/$defs/ModelProfileId"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -56749,6 +58076,287 @@
         }
       ]
     },
+    "StorageCheck": {
+      "additionalProperties": false,
+      "description": "What checking a choice found.",
+      "properties": {
+        "bytes": {
+          "description": "What the move copies, in bytes.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "destination": {
+          "description": "Where the data would go: the folder chosen or an `Aura` folder inside it; absent: the\ndefault places.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "free": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "needed": {
+          "description": "The room the copy needs on the destination's disk, and the room there is.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "parts": {
+          "description": "What it copies part by part; empty when the data cannot go there.",
+          "items": {
+            "$ref": "#/$defs/StorageMovePart"
+          },
+          "type": "array"
+        },
+        "refusals": {
+          "description": "Why the data cannot go there, in the user's words; empty when it can.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "bytes",
+        "parts",
+        "needed",
+        "free",
+        "refusals"
+      ],
+      "type": "object"
+    },
+    "StorageChoice": {
+      "additionalProperties": false,
+      "description": "A folder the user chose, or the default places.",
+      "properties": {
+        "folder": {
+          "description": "Absent: back to the default places.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "StorageFolderOpened": {
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "completed",
+        "message"
+      ],
+      "type": "object"
+    },
+    "StorageMoveFailure": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "destination": {
+          "description": "Where the data was to go; absent: back to the default places.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "StorageMovePart": {
+      "additionalProperties": false,
+      "description": "One part of what a move copies, and its size.",
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "part": {
+          "$ref": "#/$defs/StorageMovedPart"
+        }
+      },
+      "required": [
+        "part",
+        "bytes"
+      ],
+      "type": "object"
+    },
+    "StorageMoveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "destination": {
+          "description": "Where the data goes; absent: back to the default places.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "StorageMovedPart": {
+      "oneOf": [
+        {
+          "enum": [
+            "data",
+            "core_log"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "window_profile",
+          "description": "The window profile without the caches Chromium rebuilds.",
+          "type": "string"
+        },
+        {
+          "const": "global_memory",
+          "description": "The released product's global memory.",
+          "type": "string"
+        }
+      ]
+    },
+    "StorageOpenFolderRequest": {
+      "additionalProperties": false,
+      "description": "Opens the folder of one part the overview names; the window never supplies a path.",
+      "properties": {
+        "part": {
+          "$ref": "#/$defs/StoragePart"
+        }
+      },
+      "required": [
+        "part"
+      ],
+      "type": "object"
+    },
+    "StorageOverview": {
+      "additionalProperties": false,
+      "description": "Where the data and the installation are, how big they are, and what waits.",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/StoragePlace",
+          "description": "The data's folder: the one it was moved to, or the default data folder."
+        },
+        "data_moved": {
+          "description": "The data is in a folder the user chose rather than at the default places.",
+          "type": "boolean"
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageMoveFailure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Why the last move did not happen, until it is dismissed or a move succeeds."
+        },
+        "install": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StoragePlace"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The installation's folder; absent in a development run."
+        },
+        "old_copies": {
+          "description": "The copy the last move left behind is still to be removed.",
+          "type": "boolean"
+        },
+        "requested": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageMoveRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A move asked for and waiting for the next start."
+        }
+      },
+      "required": [
+        "data",
+        "data_moved",
+        "old_copies"
+      ],
+      "type": "object"
+    },
+    "StoragePart": {
+      "enum": [
+        "data",
+        "install"
+      ],
+      "type": "string"
+    },
+    "StoragePlace": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "description": "What a move would copy from it, or what the folder holds, in bytes.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "bytes"
+      ],
+      "type": "object"
+    },
+    "StorageRestart": {
+      "additionalProperties": false,
+      "description": "Aura closes so the launcher starts it again and does the move first; a development run has\nno launcher and does not close.",
+      "properties": {
+        "restarting": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "restarting"
+      ],
+      "type": "object"
+    },
+    "StorageSelectedFolder": {
+      "additionalProperties": false,
+      "description": "Main's own folder dialog for choosing where the data goes.",
+      "properties": {
+        "path": {
+          "description": "Absent when the user cancelled.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "StreamId": {
       "type": "string"
     },
@@ -56801,6 +58409,31 @@
         "retained_recent_tokens",
         "retention_exceptions"
       ],
+      "type": "object"
+    },
+    "SystemNetworkProxyV1": {
+      "additionalProperties": false,
+      "description": "The proxy Windows names for the current user, which model requests and tools follow while\nAura's own proxy is switched off.",
+      "properties": {
+        "issue": {
+          "description": "Why it is not used, and what to do instead.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "proxy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolNetworkProxyV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The proxy they use; absent when Windows names none that Aura can use."
+        }
+      },
       "type": "object"
     },
     "TaskLineage": {
@@ -58125,6 +59758,10 @@
               "type": "null"
             }
           ]
+        },
+        "handed_over": {
+          "description": "A user's own terminal the user handed to the model with @: while the model controls it,\nthe model's terminal tools act on it; it stays the user's. Sent only when set; the terminal\nstore keeps it as the record's owner, never as this field.",
+          "type": "boolean"
         },
         "owner": {
           "$ref": "#/$defs/TerminalOwnerV1"
@@ -70227,6 +71864,13 @@
             "$ref": "#/$defs/WorkspaceSummary"
           },
           "type": "array"
+        },
+        "worktrees": {
+          "description": "Workspaces that are worktrees: not listed on their own, their conversations listed under\nthe workspace each was made from.",
+          "items": {
+            "$ref": "#/$defs/WorkspaceWorktreeLink"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -70470,6 +72114,159 @@
         "rescanning",
         "polling_fallback",
         "failed"
+      ],
+      "type": "string"
+    },
+    "WorkspaceWorktreeLink": {
+      "additionalProperties": false,
+      "description": "A worktree's workspace and the workspace it was made from.",
+      "properties": {
+        "parent_workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "parent_workspace_id"
+      ],
+      "type": "object"
+    },
+    "WorktreeChange": {
+      "description": "One file a worktree changed since it started.",
+      "properties": {
+        "added": {
+          "description": "Lines added and removed; none for a binary or very large file.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/WorktreeChangeKind"
+        },
+        "path": {
+          "type": "string"
+        },
+        "removed": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "WorktreeChangeKind": {
+      "enum": [
+        "added",
+        "modified",
+        "deleted"
+      ],
+      "type": "string"
+    },
+    "WorktreeLocationSelected": {
+      "description": "The folder the user picked in Main's own dialog for new worktrees; none when cancelled.",
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "WorktreeLocationSetRequest": {
+      "additionalProperties": false,
+      "description": "Choose the folder for new worktrees, or go back to the default with `location` none.",
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "expected_revision"
+      ],
+      "type": "object"
+    },
+    "WorktreeLocationView": {
+      "description": "Where new worktrees go.",
+      "properties": {
+        "chosen": {
+          "description": "The user chose it; otherwise it is the default.",
+          "type": "boolean"
+        },
+        "default_location": {
+          "type": "string"
+        },
+        "free_bytes": {
+          "description": "Free bytes on its drive.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "location": {
+          "description": "The folder new worktrees go under.",
+          "type": "string"
+        },
+        "revision": {
+          "description": "The settings revision a change names.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "size_bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "worktrees": {
+          "description": "Worktrees there now, and their bytes on disk; none until counted.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "location",
+        "chosen",
+        "default_location",
+        "revision",
+        "worktrees"
+      ],
+      "type": "object"
+    },
+    "WorktreeState": {
+      "description": "Where a worktree is in its life.",
+      "enum": [
+        "active",
+        "merged",
+        "discarded"
       ],
       "type": "string"
     }

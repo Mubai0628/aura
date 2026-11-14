@@ -27,6 +27,18 @@ pub(in crate::gateway) struct ProxyClient {
     proxy: ToolNetworkProxyV1,
     tls: tokio_rustls::TlsConnector,
 }
+
+/// What one proxied hop sends, and how long it may take: `connect` to reach the target through
+/// the proxy, `deadline` for the whole exchange, body included.
+pub(in crate::gateway) struct ProxiedHop<'a> {
+    pub url: &'a str,
+    pub method: Method,
+    pub headers: HeaderMap,
+    pub body: Vec<u8>,
+    pub connect: Duration,
+    pub deadline: Instant,
+}
+
 impl ProxyClient {
     pub(in crate::gateway) fn new(
         proxy: ToolNetworkProxyV1,
@@ -41,11 +53,26 @@ impl ProxyClient {
         method: Method,
         headers: HeaderMap,
     ) -> Result<reqwest::Response, HopSendError> {
+        // Reserve time for the owner's direct recovery. A Windows refused TCP connect can
+        // itself wait for a SYN timeout; it must not consume the complete hop budget.
+        self.send_hop(ProxiedHop {
+            url: &request.plan.requested_url,
+            method,
+            headers,
+            body: request.body.clone(),
+            connect: Duration::from_millis((request.plan.timeout_ms / 2).clamp(1, 5_000)),
+            deadline: Instant::now() + Duration::from_millis(request.plan.timeout_ms),
+        })
+        .await
+    }
+
+    pub(in crate::gateway) async fn send_hop(
+        &self,
+        hop: ProxiedHop<'_>,
+    ) -> Result<reqwest::Response, HopSendError> {
         let started = Arc::new(AtomicBool::new(false));
-        let deadline = Instant::now() + Duration::from_millis(request.plan.timeout_ms);
-        match timeout_at(deadline, self.exchange(request, method, headers, &started, deadline))
-            .await
-        {
+        let deadline = hop.deadline;
+        match timeout_at(deadline, self.exchange(hop, &started)).await {
             Ok(result) => result.map_err(|error| {
                 let request_not_started = !started.load(Ordering::SeqCst);
                 let error =
@@ -69,21 +96,15 @@ impl ProxyClient {
 
     async fn exchange(
         &self,
-        request: &GatewayRequest,
-        method: Method,
-        headers: HeaderMap,
+        hop: ProxiedHop<'_>,
         started: &AtomicBool,
-        deadline: Instant,
     ) -> Result<reqwest::Response, NetworkControlError> {
-        let url =
-            Url::parse(&request.plan.requested_url).map_err(|_| NetworkControlError::InvalidUrl)?;
+        let ProxiedHop { url, method, headers, body, connect: connect_budget, deadline } = hop;
+        let url = Url::parse(url).map_err(|_| NetworkControlError::InvalidUrl)?;
         let host = url.host_str().ok_or(NetworkControlError::InvalidUrl)?.trim_matches(['[', ']']);
         let port = url.port_or_known_default().ok_or(NetworkControlError::InvalidUrl)?;
         let server_name =
             ServerName::try_from(host.to_owned()).map_err(|_| NetworkControlError::InvalidUrl)?;
-        // Reserve time for the owner's direct recovery. A Windows refused TCP connect can
-        // itself wait for a SYN timeout; it must not consume the complete hop budget.
-        let connect_budget = Duration::from_millis((request.plan.timeout_ms / 2).clamp(1, 5_000));
         let establish = async {
             let socket = handshake::connect(&self.proxy, host, port).await?;
             self.tls.connect(server_name, socket).await.map_err(|_| {
@@ -94,17 +115,9 @@ impl ProxyClient {
             failure(&self.proxy, Kind::Unavailable, "连接代理或目标 TLS 握手超时")
         })??;
         let h2 = tls.get_ref().1.alpn_protocol() == Some(b"h2");
-        let response = send_http(
-            TokioIo::new(tls),
-            &url,
-            method,
-            headers,
-            request.body.clone(),
-            h2,
-            started,
-            deadline,
-        )
-        .await?;
+        let response =
+            send_http(TokioIo::new(tls), &url, method, headers, body, h2, started, deadline)
+                .await?;
         let (parts, incoming) = response.into_parts();
         // Preserve streaming, wire/decompressed limits and the hop's total deadline.
         let stream = futures_util::stream::unfold(

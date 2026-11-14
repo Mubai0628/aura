@@ -1,6 +1,10 @@
 import type { UserQuery } from '@aura/contracts/generated';
 import { useState } from 'react';
-import { userMessage } from '../user-message';
+import { failedAction } from '../failure-text';
+
+/** What a file that was not taken as the answer says; the answer has not gone. */
+const NOT_TAKEN = '这个文件没有选上';
+const NOT_TAKEN_NEXT = '回答还没有发出；请重新选择。';
 
 /** A file or folder in the workspace as the answer to one question. */
 export function QueryFile({
@@ -29,13 +33,17 @@ export function QueryFile({
         relative_path: path,
       });
       if (!result.ok) {
-        setStatus(userMessage(result.error, '回答没有送达，请重试。'));
+        setStatus(
+          `${result.error.code ?? ''} ${result.error.message}`.includes('agent.query_file_scope')
+            ? '这个文件不在工作区里，不能用来回答；请选工作区里的文件或目录。'
+            : failedAction(result.error, NOT_TAKEN, NOT_TAKEN_NEXT),
+        );
         return;
       }
       onSelected(result.value.file_reference_id);
       setStatus(`已选择：${result.value.relative_path}`);
-    } catch {
-      setStatus('无法确认文件，请检查连接。');
+    } catch (reason) {
+      setStatus(failedAction(reason, NOT_TAKEN, NOT_TAKEN_NEXT));
     } finally {
       setBusy(false);
     }

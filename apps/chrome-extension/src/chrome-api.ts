@@ -25,6 +25,7 @@ export interface Tab {
   active: boolean;
   groupId: number;
   status?: string;
+  incognito?: boolean;
 }
 
 export interface Debuggee {

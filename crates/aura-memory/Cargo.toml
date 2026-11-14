@@ -11,7 +11,6 @@ aura-persistence-core = { path = "../aura-persistence-core" }
 aura-persistence-v2 = { path = "../aura-persistence-v2" }
 aura-fs-tools = { path = "../aura-fs-tools" }
 aura-secret-scanner = { path = "../aura-secret-scanner" }
-aura-windows-platform = { path = "../aura-windows-platform" }
 blake3.workspace = true
 notify.workspace = true
 serde.workspace = true
@@ -21,6 +20,7 @@ thiserror.workspace = true
 time.workspace = true
 
 [dev-dependencies]
+aura-windows-platform = { path = "../aura-windows-platform" }
 tempfile.workspace = true
 junction.workspace = true
 

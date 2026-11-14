@@ -1,7 +1,11 @@
 //! Agent terminal ownership, output persistence and trusted desktop control.
 mod calls;
 mod handback;
+mod handover;
+mod lines;
 mod privacy;
+mod prompt;
+mod read;
 pub(crate) mod sensitive;
 #[cfg(any(test, feature = "test-hooks"))]
 pub mod test_support;
@@ -34,6 +38,10 @@ struct Live {
     offset: u64,
     text: text::PlainText,
     privacy: privacy::EchoPrivacy,
+    /// What the terminal shows, for the check before a secure input is typed.
+    screen: prompt::Screen,
+    /// What the terminal shows, line by line, for the model.
+    lines: lines::ScreenLines,
 }
 /// A terminal of this Core. Input needs only `live`; a capture holds `saving` from reading the
 /// output until it is saved, so saves keep the output's order without holding `live` while the
@@ -143,12 +151,17 @@ impl AgentTerminals {
         }
         Ok(())
     }
+    /// Saves the record and keeps the terminal's output from `offset` on.
     fn register(
         self: &Arc<Self>,
         record: AgentTerminalRecord,
         terminal: Arc<TerminalSession>,
+        offset: u64,
     ) -> Result<()> {
         self.journal.lock()?.database.unit_of_work(|tx| records::save(tx, &record))?;
+        let size = terminal
+            .size()
+            .unwrap_or(aura_windows_platform::TerminalSize { columns: 80, rows: 24 });
         self.live.lock().map_err(|_| anyhow::anyhow!("terminal.owner_lock"))?.insert(
             record.view.terminal_id.clone(),
             Arc::new(Entry {
@@ -156,9 +169,11 @@ impl AgentTerminals {
                     terminal: Some(terminal.clone()),
                     controller: TerminalControllerV1::Agent,
                     view: record.view.clone(),
-                    offset: 0,
+                    offset,
                     text: Default::default(),
                     privacy: Default::default(),
+                    screen: Default::default(),
+                    lines: lines::ScreenLines::new(size, offset),
                 }),
                 saving: Mutex::new(()),
             }),
@@ -236,6 +251,10 @@ impl AgentTerminals {
             }
             bytes += page.bytes.len();
             text.push_str(&live.text.push(&page.bytes, false));
+            live.screen.push(&page.bytes);
+            let live = &mut *live;
+            let start = page.next_offset - page.bytes.len() as u64;
+            live.lines.push(start, &page.bytes, &live.privacy);
             if bytes >= 2 * 1024 * 1024 {
                 break;
             }
@@ -244,6 +263,8 @@ impl AgentTerminals {
         let end = if pending { None } else { terminal.end()? };
         if end.is_some() {
             text.push_str(&live.text.push(&[], true));
+            let live = &mut *live;
+            live.lines.end(&live.privacy);
         }
         let text = live.privacy.push(&text, end.is_some());
         drop(live);
@@ -261,7 +282,10 @@ impl AgentTerminals {
             Ok::<_, aura_persistence_core::PersistenceCoreError>(record.view)
         })?;
         if let Some(end) = &view.end {
-            ensure!(end.stop_confirmed, "terminal.stop_unconfirmed");
+            ensure!(
+                end.stop_confirmed,
+                "terminal.stop_unconfirmed: 终端结束了，但 Aura 没能确认它启动的进程都已经停止，它们可能还在运行；不要自动重放输入。需要终端时请新建一个。"
+            );
             self.registry.close_and_remove(session, id, end.reason)?;
             let mut live = entry.lock()?;
             live.terminal = None;
@@ -361,11 +385,12 @@ impl AgentTerminals {
                 })
             });
         ensure!(
-            live.view.owner == TerminalOwnerV1::Agent
+            (live.view.owner == TerminalOwnerV1::Agent || live.view.handed_over)
                 && (live.controller == TerminalControllerV1::User || cursor_reply && !interrupt),
-            "请先接管该 Agent 终端，再输入。"
+            "terminal.not_taken_over: 请先接管这个终端，再输入。"
         );
-        let terminal = live.terminal.as_ref().context("终端已结束，请新建终端。")?;
+        let terminal =
+            live.terminal.as_ref().context("terminal.ended: 终端已结束，没有输入。请新建终端。")?;
         if interrupt {
             terminal.interrupt()?;
         }

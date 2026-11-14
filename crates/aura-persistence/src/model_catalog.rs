@@ -199,8 +199,18 @@ impl PersistenceCoordinator {
                 serde_json::to_string(&entry).map(|json| (provider_id, json))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let artifact_root = self.artifact_root().to_path_buf();
         self.dispatch(move |connection| {
             let transaction = connection.transaction()?;
+            // The same version stored again replaces its raw response.
+            let replaced_raw = transaction
+                .query_row(
+                    "SELECT raw_artifact_id FROM provider_catalog_snapshots WHERE catalog_revision=?1",
+                    [write.catalog_revision.to_string()],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+                .filter(|raw| *raw != write.raw_artifact_id.to_string());
             transaction.execute(
                 "INSERT INTO provider_catalog_snapshots(
                     catalog_revision, catalog_content_hash, checked_at,
@@ -254,7 +264,10 @@ impl PersistenceCoordinator {
                     UtcTimestamp::now().to_string()
                 ],
             )?;
+            let (_, unused) =
+                crate::slimming::catalog::drop_replaced(&transaction, &artifact_root, replaced_raw)?;
             transaction.commit()?;
+            crate::artifact_gc::remove_files(unused);
             Ok(())
         })
     }

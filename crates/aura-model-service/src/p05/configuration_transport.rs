@@ -84,15 +84,25 @@ pub struct ConfigurationTransportExecuteRequest {
 
 #[derive(Debug, Error)]
 pub enum ConfigurationTransportError {
-    #[error("configuration transport request does not match its frozen operation")]
+    #[error(
+        "transport.binding_mismatch: 这次为模型设置发出的网络请求与准备时记录的不一致，没有发出；请重试。"
+    )]
     BindingMismatch,
-    #[error("configuration transport request target is invalid")]
+    #[error(
+        "transport.target_invalid: 这次为模型设置发出的网络请求地址不对，没有发出；请检查这个连接的 Base URL 后重试。"
+    )]
     InvalidTarget,
-    #[error("configuration transport request exceeds its frozen byte policy")]
+    #[error(
+        "transport.request_too_large: 这次为模型设置发出的网络请求超过了允许的大小，没有发出；请重试。"
+    )]
     RequestTooLarge,
-    #[error("configuration transport contract is invalid: {0}")]
+    #[error(
+        "transport.contract_invalid: 这次为模型设置发出的网络请求不符合 Aura 的要求，没有发出；请重试。（{0}）"
+    )]
     Contract(String),
-    #[error("configuration transport attempt could not be bound to its operation: {0}")]
+    #[error(
+        "transport.operation_binding_failed: 这次为模型设置发出的网络请求没能与它所属的操作对上，没有发出；请重试。（{0}）"
+    )]
     OperationBinding(String),
     #[error(transparent)]
     Persistence(#[from] PersistenceError),

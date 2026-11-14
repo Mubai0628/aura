@@ -111,6 +111,11 @@ export function EnvironmentSettings() {
       {error || ui.snapshot?.issue || (ui.error && !ui.snapshot) ? (
         <p className="settings-status-line" role="alert">
           {error ?? ui.snapshot?.issue ?? ui.error}
+          {error === undefined && !ui.snapshot ? (
+            <button className="button is-small" onClick={() => void ui.reload()} type="button">
+              重试
+            </button>
+          ) : null}
         </p>
       ) : null}
     </div>

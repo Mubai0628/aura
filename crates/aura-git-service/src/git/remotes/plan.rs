@@ -10,8 +10,14 @@ impl GitReader {
             include_untracked: false,
             ..Default::default()
         })?;
+        let arguments = |error: serde_json::Error| {
+            anyhow::anyhow!(
+                "git.invalid_arguments: 这次远端操作的参数无法解析（{}），没有执行。请按工具说明改正参数后再试。",
+                config::shown(&error.to_string())
+            )
+        };
         let (requested_remote, branch, destination, lease) = if kind == "git.push" {
-            let input: GitPushInput = serde_json::from_value(action.clone())?;
+            let input: GitPushInput = serde_json::from_value(action.clone()).map_err(arguments)?;
             (
                 input.remote,
                 input.branch.or(status.branch.clone()),
@@ -19,7 +25,7 @@ impl GitReader {
                 input.force_with_lease,
             )
         } else {
-            let input: GitSyncInput = serde_json::from_value(action.clone())?;
+            let input: GitSyncInput = serde_json::from_value(action.clone()).map_err(arguments)?;
             match input {
                 GitSyncInput::Fetch { remote } => (remote, status.branch.clone(), None, None),
                 GitSyncInput::Pull { remote, branch } => {
@@ -50,19 +56,24 @@ impl GitReader {
             .flatten()
             .and_then(|value| value.strip_prefix("refs/heads/").map(str::to_owned));
         let remote = requested_remote.or(upstream_remote.clone()).ok_or_else(|| {
-            anyhow::anyhow!("git.remote_required: 请指定已配置的远端，或先为本地分支设置上游")
+            anyhow::anyhow!(
+                "git.remote_required: 没有给出 remote，当前分支也没有设置上游，不知道要连接哪个远端；没有连接远端。请在 remote 里写明已配置的远端名称，或先为本地分支设置上游。"
+            )
         })?;
         ensure!(
             !remote.is_empty()
                 && remote.len() <= 1024
                 && !remote.starts_with('-')
                 && !remote.chars().any(char::is_control),
-            "git.invalid_remote: 必须使用已配置的远端名称"
+            "git.invalid_remote: remote「{}」不是合法的远端名称（不能为空、不能以 - 开头、不能含控制字符），没有连接远端。请使用 Git 配置里已有的远端名称。",
+            config::shown(&remote)
         );
-        let names = self.command(&["remote"])?;
+        let names = String::from_utf8(self.command(&["remote"])?)
+            .map_err(|_| config::unreadable_output("remote_format", "远端列表"))?;
         ensure!(
-            String::from_utf8(names)?.lines().any(|name| name == remote),
-            "git.remote_missing: 请使用git配置中的远端名称，不能提供URL"
+            names.lines().any(|name| name == remote),
+            "git.remote_missing: 仓库里没有名为「{}」的远端，没有连接远端。请使用 Git 配置里已有的远端名称（不能直接给 URL）。",
+            config::shown(&remote)
         );
         let remote_branch = destination.or_else(|| {
             (upstream_remote.as_deref() == Some(&remote)).then_some(upstream_branch).flatten()
@@ -72,7 +83,9 @@ impl GitReader {
             String::new()
         } else {
             remote_branch.ok_or_else(|| {
-                anyhow::anyhow!("git.remote_branch_required: 请明确远端分支，或先设置该远端的上游")
+                anyhow::anyhow!(
+                    "git.remote_branch_required: 没有给出远端分支，当前分支在这个远端也没有上游；没有连接远端。请写明远端分支（git.push 用 remote_branch，git.sync 的 pull 用 branch），或先设置上游。"
+                )
             })?
         };
         if !is_fetch {
@@ -81,7 +94,7 @@ impl GitReader {
         if let Some(oid) = &lease {
             ensure!(
                 (oid.len() == 40 || oid.len() == 64) && oid.bytes().all(|b| b.is_ascii_hexdigit()),
-                "git.exact_lease_required: force_with_lease必须为完整的期望远端提交号"
+                "git.exact_lease_required: force_with_lease 必须是远端分支现在应有的完整提交号（40 或 64 位十六进制），没有推送。请先用 git.sync 的 fetch 核对远端分支后再试。"
             );
         }
         let url = self.resolved_remote_url(&remote, kind == "git.push")?;
@@ -92,9 +105,10 @@ impl GitReader {
                 (&local_head, self.oid(&format!("refs/remotes/{remote}/{remote_branch}")))
             {
                 let range = format!("{previous}..{head}");
-                let count = String::from_utf8(self.command(&["rev-list", "--count", &range])?)?
-                    .trim()
-                    .parse()?;
+                let count = String::from_utf8(self.command(&["rev-list", "--count", &range])?)
+                    .ok()
+                    .and_then(|count| count.trim().parse().ok())
+                    .ok_or_else(|| config::unreadable_output("count_format", "待推送提交数"))?;
                 let subjects = String::from_utf8(self.command(&[
                     "log",
                     "--no-textconv",
@@ -103,7 +117,8 @@ impl GitReader {
                     "-5",
                     &range,
                     "--",
-                ])?)?
+                ])?)
+                .map_err(|_| config::unreadable_output("log_format", "待推送提交的说明"))?
                 .lines()
                 .map(|subject| subject.chars().take(300).collect())
                 .collect();
@@ -134,13 +149,11 @@ impl GitReader {
             !value.is_empty()
                 && value.len() <= 1024
                 && !value.starts_with('-')
-                && !value.chars().any(char::is_control),
-            "git.invalid_branch: 分支名称不合法"
-        );
-        ensure!(
-            self.raw(&["check-ref-format".into(), format!("refs/heads/{value}")])?.exit_code
-                == Some(0),
-            "git.invalid_branch: 分支名称不合法"
+                && !value.chars().any(char::is_control)
+                && self.raw(&["check-ref-format".into(), format!("refs/heads/{value}")])?.exit_code
+                    == Some(0),
+            "{}",
+            crate::git::config::invalid_branch(value)
         );
         Ok(())
     }
@@ -149,8 +162,15 @@ impl GitReader {
         if output.exit_code == Some(1) {
             return Ok(None);
         }
-        ensure!(output.exit_code == Some(0), "git.config_invalid: 无法读取远端分支配置");
-        Ok(Some(String::from_utf8(output.stdout)?.trim_end().to_owned()))
+        ensure!(
+            output.exit_code == Some(0),
+            "git.config_invalid: 读取分支的上游配置（{}）没有成功，没有连接远端。请在终端运行 git config --get {} 查看并修复。",
+            config::shown(key),
+            config::shown(key)
+        );
+        let value = String::from_utf8(output.stdout)
+            .map_err(|_| config::unreadable_output("config_format", "上游配置"))?;
+        Ok(Some(value.trim_end().to_owned()))
     }
     pub(in crate::git) fn resolved_remote_url(&self, remote: &str, push: bool) -> Result<String> {
         let mut args = vec!["remote", "get-url", "--all"];
@@ -158,7 +178,8 @@ impl GitReader {
             args.push("--push");
         }
         args.push(remote);
-        let output = String::from_utf8(self.command(&args)?)?;
+        let output = String::from_utf8(self.command(&args)?)
+            .map_err(|_| config::unreadable_output("remote_url_format", "远端地址"))?;
         let urls: Vec<_> = output.lines().collect();
         ensure!(
             urls.len() == 1,

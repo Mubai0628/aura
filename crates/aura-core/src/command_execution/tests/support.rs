@@ -148,6 +148,7 @@ impl Case {
             now,
             expires_at: expires,
             core_runtime_instance_id: Some(RuntimeInstanceId::new()),
+            workspace: None,
         };
         let PolicyAuthorization::Allow { authorization } =
             aura_permission_engine::policy::authorize(&input, &backend, None)

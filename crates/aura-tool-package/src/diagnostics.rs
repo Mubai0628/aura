@@ -2,13 +2,13 @@
 //!
 //! Publish failures are mapped to stable typed errors, so which branch ran and what
 //! the store looked like at that moment has no place in the returned error. These
-//! lines go to the same per-run log file Core writes
-//! (`%LOCALAPPDATA%/Aura/logs/core.jsonl`, none in a test build) with their own
+//! lines go to the same log file Core writes (the one routed through
+//! `aura_data_location`; none without a route, as in every test) with their own
 //! component tag, and carry paths, states and bounded reasons only — never package
 //! bytes or user content.
 
 use std::{
-    env, fs,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -34,14 +34,10 @@ pub(crate) fn append_store_log(event: &str, fields: serde_json::Value) {
     }
 }
 
-/// Core's log file, which these lines share. A test build has none: tests publish into stores of
-/// their own and must never write into the user's real profile.
+/// Core's log file, which these lines share. A test build routes none: tests publish into stores
+/// of their own and must never write into the user's real profile.
 fn store_log_path() -> Option<PathBuf> {
-    if cfg!(test) {
-        return None;
-    }
-    let local = env::var_os("LOCALAPPDATA")?;
-    Some(Path::new(&local).join("Aura").join("logs").join("core.jsonl"))
+    aura_data_location::core_log_path().map(Path::to_path_buf)
 }
 
 #[cfg(test)]

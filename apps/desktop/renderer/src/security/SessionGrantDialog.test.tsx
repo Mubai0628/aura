@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { isP04MainParams } from '../../../shared/p04-validation';
@@ -145,7 +145,9 @@ test('a failed directory grant read is not shown as an empty list', async () => 
     grants: [],
   } as unknown as ReturnType<typeof useSecurityControl>;
   render(<SessionGrantDialog security={security} sessionId="session" onClose={() => undefined} />);
-  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '目录授权没有读到，请点“重试”。 重试',
+  );
   expect(screen.queryByText('当前没有可撤销的持久授权。')).toBeNull();
 });
 
@@ -358,4 +360,118 @@ test('a consent from an earlier Core run reads as superseded, never as pending',
   expect(await screen.findByText(/已失效（Core 已重启）/)).toBeTruthy();
   expect(screen.queryByText('尚未生效')).toBeNull();
   expect(screen.queryByRole('button', { name: '撤销 Shell 运行批准' })).toBeNull();
+});
+
+test('a directory grant says what it allows and until when, in words', async () => {
+  const expires = new Date();
+  expires.setHours(16, 0, 0, 0);
+  Object.assign(window, {
+    aura: {
+      v1: {
+        ...consentStub,
+        listExternalGrants: async () => ({
+          ok: true,
+          value: [
+            {
+              availability: 'in_force',
+              capabilities: ['read', 'write', 'model_egress'],
+              display_path: 'D:\\Docs',
+              expires_at: expires.toISOString(),
+              id: 'egr_1',
+              recursive_scope: true,
+              target_kind: 'directory',
+              term: 'session',
+            },
+          ],
+        }),
+        revokeExternalGrant: async () => ({
+          ok: false,
+          error: { code: 'x', message: 'y' },
+        }),
+      },
+    },
+  });
+  const security = {
+    permission: { session_id: 'session' },
+    loading: false,
+    grants: [],
+  } as unknown as ReturnType<typeof useSecurityControl>;
+  render(<SessionGrantDialog security={security} sessionId="session" onClose={() => undefined} />);
+  expect(
+    await screen.findByText(
+      'D:\\Docs · 该目录及其下内容 · 本会话，至 16:00 · 读取、写入、发给模型',
+    ),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '撤销目录授权' }));
+  expect(
+    await screen.findByText('目录授权没有撤销，这个目录仍可访问；列表已重新读取，请核对后再撤销。'),
+  ).toBeTruthy();
+});
+
+test('a Shell approval row reads in words, and a withdrawal without an answer can be pressed again', async () => {
+  const issued = new Date();
+  issued.setHours(9, 30, 0, 0);
+  const commands: string[] = [];
+  Object.assign(window, {
+    aura: {
+      v1: {
+        ...consentStub,
+        listExternalGrants: async () => ({ ok: true, value: [] }),
+        revokeExternalGrant: async () => ({ ok: true, value: null }),
+        listNativeSessionConsents: async () => ({
+          ok: true,
+          value: [
+            {
+              grant_id: 'grant-native',
+              grant_revision: '1',
+              approval_id: 'approval-native',
+              scope: {
+                session_id: 'session',
+                workspace_id: 'workspace',
+                lifetime: 'legacy_runtime',
+                approved_shell: 'cmd',
+                shells: ['cmd'],
+                principal_id: 'principal',
+                approved_permission_revision: 1,
+                core_runtime_instance_id: 'runtime',
+                approved_operation_fingerprint: { algorithm: 'sha256', hex: 'a'.repeat(64) },
+              },
+              availability: 'in_force',
+              issued_at: issued.toISOString(),
+              approved_through: issued.toISOString(),
+              revoked_at: null,
+              backend_id: 'windows-user-native-v1',
+            },
+          ],
+        }),
+        revokeNativeSessionConsent: async (request: { correlation_id: string }) => {
+          commands.push(request.correlation_id);
+          return {
+            ok: false,
+            error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+          };
+        },
+      },
+    },
+  });
+  const security = {
+    permission: { session_id: 'session' },
+    loading: false,
+    grants: [],
+  } as unknown as ReturnType<typeof useSecurityControl>;
+  render(<SessionGrantDialog security={security} sessionId="session" onClose={() => undefined} />);
+  const withdraw = await screen.findByRole('button', { name: '撤销 Shell 运行批准' });
+  expect(
+    screen.getByText(/· 旧版批准，Aura Core 重启或权限设置变化后失效 · 批准于 09:30$/u),
+  ).toBeTruthy();
+  expect(screen.queryByText(/确认窗|T\d\d:\d\d/u)).toBeNull();
+  fireEvent.click(withdraw);
+  expect(
+    await screen.findByText(
+      '撤销没有确认完成（Aura Core 没有及时回复），这项 Shell 运行批准可能仍然有效。可以再点一次撤销，不会重复撤销。',
+    ),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '撤销 Shell 运行批准' }));
+  await waitFor(() => expect(commands).toHaveLength(2));
+  expect(commands[1]).toBe(commands[0]);
 });

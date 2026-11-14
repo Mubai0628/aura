@@ -25,7 +25,7 @@ pub(super) fn scope(request: &JsonRpcRequest) -> Option<TerminalLaneKey> {
             let input = typed_params::<TerminalResizeRequestV1>(request)?;
             (input.session_id, input.terminal_id)
         }
-        "terminal.user.close" => {
+        "terminal.user.close" | "terminal.user.hand_over" => {
             let input = typed_params::<TerminalRequestV1>(request)?;
             (input.session_id, input.terminal_id)
         }

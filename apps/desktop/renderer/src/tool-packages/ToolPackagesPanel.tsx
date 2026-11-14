@@ -77,7 +77,16 @@ export function ToolPackagesPanel() {
         </ul>
       )}
       {packages.list === undefined ? (
-        <p role="status">正在读取工具包…</p>
+        packages.listError === undefined ? (
+          <p role="status">正在读取工具包…</p>
+        ) : (
+          <div className="package-list-error">
+            <p role="alert">{packages.listError}</p>
+            <button onClick={() => void packages.load()} type="button">
+              重试
+            </button>
+          </div>
+        )
       ) : packages.list.packages.length === 0 ? (
         <p>尚未导入工具包。</p>
       ) : (

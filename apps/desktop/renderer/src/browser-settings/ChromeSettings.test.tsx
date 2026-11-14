@@ -90,7 +90,7 @@ describe('设置 → 网络与浏览器 → Chrome', () => {
     render(<ChromeSettings coreReady />);
     await user.click(await screen.findByRole('button', { name: '打开扩展文件夹' }));
     expect(await screen.findByText('C:/Aura/resources/chrome-extension')).toBeTruthy();
-    expect(screen.getByText(/没有找到扩展文件夹/u)).toBeTruthy();
+    expect(screen.getByText(/扩展文件夹没有打开，可以在文件资源管理器里手动打开：/u)).toBeTruthy();
   });
 
   it('says when the state cannot be read, and reads it again on 重试', async () => {

@@ -26,3 +26,32 @@ fn memory_writes_state_the_ranges_of_their_numbers() {
         assert_eq!(published.fingerprint, entry.definition.definition_fingerprint.hex(), "{name}");
     }
 }
+
+/// A category is checked for 1 to 64 lowercase ASCII letters, digits or '-', and the schemas did
+/// not say so: a model wrote one in another form, was refused and wrote the note again. The tools
+/// that write a category now describe its form. The Vault still checks it and names the rule on a
+/// miss, which says more than a schema pattern's refusal would.
+#[test]
+fn memory_writes_state_the_form_of_a_category() {
+    let at = "2026-09-09T00:00:00Z".parse().expect("release timestamp");
+    let entries = definitions::entries(at).expect("domain-owned definitions");
+    for name in ["memory.create", "memory.update"] {
+        let entry =
+            entries.iter().find(|entry| entry.handler.name() == name).expect("a memory write tool");
+        println!(
+            "{} {} {} {} {}",
+            name,
+            entry.definition.tool_id,
+            entry.instance.tool_instance_id,
+            entry.definition.tool_version.definition_revision.value(),
+            entry.definition.definition_fingerprint.hex()
+        );
+        let schema = serde_json::to_string(&entry.definition.input_schema).expect("schema");
+        assert!(
+            schema.contains("1 to 64 lowercase ASCII letters, digits or '-'"),
+            "{name} describes the form: {schema}"
+        );
+        let published = revisions::current(name).expect("stable identity");
+        assert_eq!(published.fingerprint, entry.definition.definition_fingerprint.hex(), "{name}");
+    }
+}

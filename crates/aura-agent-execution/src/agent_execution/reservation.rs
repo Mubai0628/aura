@@ -28,6 +28,8 @@ impl CallContext {
             now,
             expires_at: UtcTimestamp::from_value(now.value() + time::Duration::minutes(5)),
             core_runtime_instance_id: Some(runtime),
+            // Read live by each caller that offers the session's approvals.
+            workspace: None,
         }
     }
 }
@@ -70,7 +72,7 @@ impl aura_execution_orchestrator::DispatchStore for Reservation {
                             "agent.cancelled_or_changed"
                         );
                         service.verify_source(&call)?;
-                        let external_capabilities = service.external_authority(&call.operation);
+                        let external_capabilities = service.call_authority(&call);
                         let external_grants = service.external_authority_slices(&call.operation);
                         let mcp_denied =
                             super::mcp_tools::denied_for_turn(&service, &call.operation)?;
@@ -78,6 +80,7 @@ impl aura_execution_orchestrator::DispatchStore for Reservation {
                         current.denied_for_turn = mcp_denied;
                         current.verified_external_capabilities = &external_capabilities;
                         current.verified_external_grants = &external_grants;
+                        current.workspace = service.approval_workspace(&call.operation);
                         let backend = request.plan.prepared.backend.clone();
                         let mut store = service.journal.lock()?;
                         // The scheduler activated a real slot for this call, so this is where it

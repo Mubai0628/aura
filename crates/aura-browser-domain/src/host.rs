@@ -1,5 +1,5 @@
-//! What Core asks the browser host (Electron Main) to do on a session's model page, and what
-//! comes back. Core decides and records; the host acts, and checks again before it acts that the
+//! What Core asks the browser host (Electron Main) to do on a session's model page, or on a page
+//! the user handed over, and what comes back. Core decides and records; the host acts, and checks again before it acts that the
 //! page is still where Core authorized the action.
 use crate::{
     BrowserConsoleLevel, BrowserHistoryAction, BrowserMouseButton, BrowserScrollDirection,
@@ -122,6 +122,10 @@ pub struct BrowserHostCommandV1 {
     pub command_id: String,
     pub runtime_instance_id: RuntimeInstanceId,
     pub session_id: SessionId,
+    /// A page the user handed over, by the id Main gave it (p1, p2…); none is the session's model
+    /// page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
     /// The host of the page when Core authorized the action (none: a blank or workspace page).
     /// An input action on a page that has since moved elsewhere is refused, not carried out.
     pub expected_host: Option<String>,

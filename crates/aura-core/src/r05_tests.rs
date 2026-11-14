@@ -4,9 +4,10 @@ use crate::r03_tests::{Fixture, request, success};
 use crate::*;
 use aura_domain_common::{ContentHash, ExpectedRevision, SessionId};
 use aura_execution_contract::{ExecutionResult, SideEffectStateV1};
-use aura_workspace_domain::SessionSummary;
+use aura_workspace_domain::{SessionSummary, WorkspaceSummary};
 mod l05_desktop;
 mod l06_commands;
+mod new_conversation_find;
 mod safety_tests;
 mod services_tests;
 

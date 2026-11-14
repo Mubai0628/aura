@@ -94,7 +94,9 @@ describe('正在操控 in the activity card', () => {
     } as never);
     render(<Part session={S} />);
     await userEvent.click(await screen.findByRole('button', { name: '停止操控 记事本' }));
-    expect((await screen.findByRole('alert')).textContent).toBe('电脑操控不可用');
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '没有停止：电脑操控不可用。模型可能仍在操控「记事本」；请再点一次“停止”，需要时按 Esc 接管。',
+    );
     expect(screen.getByRole('button', { name: '停止操控 记事本' })).toBeTruthy();
   });
 

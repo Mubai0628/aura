@@ -110,6 +110,69 @@ fn answered(tx: &Transaction<'_>, batch: ToolBatchId, call: ToolCallId) -> Store
     Ok(built)
 }
 
+/// Records that a call marked started ended before anything of it was sent: its turn was stopped
+/// in between. When the run has already ended without the call's result, the call is answered
+/// here, as the run's end would have answered it; otherwise the run answers it.
+pub fn end_before_start(
+    tx: &Transaction<'_>,
+    batch: &aura_tool_contract::ToolBatchRequestV1,
+    call: ToolCallId,
+    request: &aura_execution_contract::DispatchRequest,
+    reason: &str,
+    at: UtcTimestamp,
+) -> StoreResult<()> {
+    crate::execution::end_before_start(tx, request, reason, at)?;
+    let turn = turns::load(tx, batch.invocation_identity.turn_task_id)?;
+    if turn.state.terminal() && crate::tool::execution::call(tx, call)?.result.is_none() {
+        answered(tx, batch.tool_batch_id, call)?;
+    }
+    Ok(())
+}
+
+/// Records a call whose domain refused to start it while its turn went on (another call held its
+/// file past the wait limit) as not run: rejected, with no effect, in the model's words. Its own
+/// executor reads that result as usual; a turn that ended meanwhile answers the call here.
+pub fn refused_before_start(
+    tx: &Transaction<'_>,
+    batch: &aura_tool_contract::ToolBatchRequestV1,
+    call: ToolCallId,
+    request: &aura_execution_contract::DispatchRequest,
+    reason: &str,
+    at: UtcTimestamp,
+) -> StoreResult<()> {
+    use crate::tool::refusal_text::{code_in, known, readable_line};
+    let code = code_in(reason).unwrap_or("agent.not_started");
+    let message = known(reason)
+        .map(str::to_owned)
+        .or_else(|| {
+            readable_line(reason)
+                .and_then(|line| line.split_once(':'))
+                .map(|(_, sentence)| sentence.trim().to_owned())
+        })
+        .unwrap_or_else(|| {
+            "This call was not started. Nothing was changed. Call it again if it is still needed."
+                .to_owned()
+        });
+    let rejection = aura_tool_contract::ModelSafeToolErrorV1 {
+        code: ErrorCode::new(code).map_err(|_| Error::Invalid("refusal code"))?,
+        category: ErrorCategory::Conflict,
+        message,
+        retryable: true,
+    };
+    crate::execution::refuse_before_start(
+        tx,
+        request,
+        reason,
+        serde_json::to_value(rejection)?,
+        at,
+    )?;
+    let turn = turns::load(tx, batch.invocation_identity.turn_task_id)?;
+    if turn.state.terminal() && crate::tool::execution::call(tx, call)?.result.is_none() {
+        answered(tx, batch.tool_batch_id, call)?;
+    }
+    Ok(())
+}
+
 pub fn interrupt(
     tx: &Transaction<'_>,
     run_id: AgentRunId,
@@ -157,15 +220,18 @@ pub fn interrupt_with_diagnostic(
                 let operation = inputs.operations.get(&c.tool_call_id);
                 if call.result.is_none() {
                     if call.attempt_id.is_none() {
-                        crate::tool::result::not_executed(
+                        // The turn stopped, not the tool: the call says why it never ran.
+                        let why = super::model_context::stop_cause(tx, run_id, reason, cancelled)?;
+                        let notice = format!(
+                            "turn.stopped: This call was not run: the turn stopped before it started ({}). Nothing was changed. Call it again if it is still needed.",
+                            why.english()
+                        );
+                        crate::tool::result::not_executed_with_notice(
                             tx,
                             batch,
                             c.tool_call_id,
-                            if cancelled {
-                                ToolNotExecutedReasonV1::CancelledBeforeDispatch
-                            } else {
-                                ToolNotExecutedReasonV1::RuntimeUnavailable
-                            },
+                            ToolNotExecutedReasonV1::CancelledBeforeDispatch,
+                            Some(&notice),
                             at,
                         )?;
                         not_executed.push(c.tool_call_id);

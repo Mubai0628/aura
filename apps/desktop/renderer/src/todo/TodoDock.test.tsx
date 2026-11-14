@@ -33,7 +33,11 @@ function reopen() {
 
 test('the card counts what is done and marks the item being worked on, without a read-only note', () => {
   const { container } = render(
-    <TodoDock sessionId="ses_a" todo={list(['completed', 'in_progress', 'pending', 'blocked'])} />,
+    <TodoDock
+      running
+      sessionId="ses_a"
+      todo={list(['completed', 'in_progress', 'pending', 'blocked'])}
+    />,
   );
   expect(screen.getByRole('heading', { name: '待办' })).toBeTruthy();
   expect(screen.getByLabelText('已完成 1 / 4').textContent).toBe('1/4');
@@ -49,7 +53,9 @@ test('the card counts what is done and marks the item being worked on, without a
 });
 
 test('folded, the card keeps the item being worked on, and the conversation remembers it', () => {
-  render(<TodoDock sessionId="ses_a" todo={list(['completed', 'in_progress', 'pending'])} />);
+  render(
+    <TodoDock running sessionId="ses_a" todo={list(['completed', 'in_progress', 'pending'])} />,
+  );
   fireEvent.click(screen.getByRole('button', { name: '收起清单' }));
   expect(screen.queryByRole('list')).toBeNull();
   expect(screen.getByText('第 2 项')).toBeTruthy();
@@ -58,28 +64,54 @@ test('folded, the card keeps the item being worked on, and the conversation reme
   );
 
   reopen();
-  render(<TodoDock sessionId="ses_a" todo={list(['completed', 'in_progress', 'pending'])} />);
+  render(
+    <TodoDock running sessionId="ses_a" todo={list(['completed', 'in_progress', 'pending'])} />,
+  );
   expect(screen.queryByRole('list')).toBeNull();
   reopen();
-  render(<TodoDock sessionId="ses_b" todo={list(['completed', 'in_progress', 'pending'])} />);
+  render(
+    <TodoDock running sessionId="ses_b" todo={list(['completed', 'in_progress', 'pending'])} />,
+  );
   expect(screen.getByRole('list')).toBeTruthy();
 });
 
 test('a finished list closes and stays closed; the next list the model writes shows', () => {
-  render(<TodoDock sessionId="ses_a" todo={list(['completed', 'cancelled', 'completed'])} />);
+  render(
+    <TodoDock running sessionId="ses_a" todo={list(['completed', 'cancelled', 'completed'])} />,
+  );
   expect(screen.getByLabelText('已完成 3 / 3')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: '关闭清单' }));
   expect(screen.queryByRole('heading', { name: '待办' })).toBeNull();
 
   reopen();
-  render(<TodoDock sessionId="ses_a" todo={list(['completed', 'cancelled', 'completed'])} />);
+  render(
+    <TodoDock running sessionId="ses_a" todo={list(['completed', 'cancelled', 'completed'])} />,
+  );
   expect(screen.queryByRole('heading', { name: '待办' })).toBeNull();
   reopen();
-  render(<TodoDock sessionId="ses_a" todo={list(['completed', 'pending'], '2')} />);
+  render(<TodoDock running sessionId="ses_a" todo={list(['completed', 'pending'], '2')} />);
   expect(screen.getByRole('heading', { name: '待办' })).toBeTruthy();
 });
 
+// A conversation stopped earlier kept turning its list's in-progress item as if the work went on.
+test('an item left in progress by a turn that is no longer running stands still', () => {
+  const statuses: TodoStatus[] = ['completed', 'in_progress', 'pending'];
+  const { container, rerender } = render(
+    <TodoDock running sessionId="ses_a" todo={list(statuses)} />,
+  );
+  const card = () => container.querySelector('.todo-dock');
+  expect(card()?.hasAttribute('data-running')).toBe(true);
+  expect(screen.getByText('第 2 项').closest('li')?.textContent).toContain('进行中');
+
+  rerender(<TodoDock running={false} sessionId="ses_a" todo={list(statuses)} />);
+  expect(card()?.hasAttribute('data-running')).toBe(false);
+  const left = screen.getByText('第 2 项').closest('li');
+  expect(left?.className).toContain('is-in_progress');
+  expect(left?.textContent).toContain('未完成');
+  expect(left?.textContent).not.toContain('进行中');
+});
+
 test('no items, no card', () => {
-  const { container } = render(<TodoDock sessionId="ses_a" todo={list([])} />);
+  const { container } = render(<TodoDock running sessionId="ses_a" todo={list([])} />);
   expect(container.innerHTML).toBe('');
 });

@@ -180,7 +180,7 @@ impl AgentExecution {
                         let batch = Arc::clone(&admitted);
                         let unit_calls = unit.calls.clone();
                         let message = error.to_string();
-                        let refusal = refusal_notice(&message);
+                        let refusal = refusal_notice(&error);
                         self.section(
                             StoreStep::run(run_id, "agent.tool.dispatch_error"),
                             StoreAccess::Write,
@@ -214,13 +214,18 @@ impl AgentExecution {
                             results.insert(call_id, *result);
                         }
                         CallOutcome::Denied(reason) => {
-                            let reason = if reason == PolicyDenyReason::BackendUnavailable {
+                            let not_run = if reason == PolicyDenyReason::BackendUnavailable {
                                 ToolNotExecutedReasonV1::RuntimeUnavailable
                             } else {
                                 ToolNotExecutedReasonV1::PermissionDenied
                             };
                             let refused = self
-                                .refuse_unit_async(Arc::clone(&admitted), unit.clone(), reason)
+                                .refuse_with_notice_async(
+                                    Arc::clone(&admitted),
+                                    unit.clone(),
+                                    not_run,
+                                    deny_notice(reason).to_owned(),
+                                )
                                 .await?;
                             results.extend(refused.into_iter().map(|r| (r.tool_call_id, r)));
                         }
@@ -594,19 +599,67 @@ impl AgentExecution {
     }
 }
 
-/// What the model is told about calls a dispatch error left unexecuted. It quotes the error's top-level text, bounded.
-fn refusal_notice(error: &str) -> String {
-    if error.contains("agent.source_or_scope_changed") || error.contains("agent.file_changed") {
-        return "tool.dispatch_refused: This call was not started: its target changed after it was \
-                approved (another call of the same response, or another program, changed it at the \
-                same moment). Nothing was changed. Call it again if it is still needed."
-            .to_owned();
+/// Why the permission policy refused a call, for the model: the rule, that nothing ran, and what
+/// may help.
+fn deny_notice(reason: PolicyDenyReason) -> &'static str {
+    use PolicyDenyReason as R;
+    match reason {
+        R::ModeDenied => {
+            "permission.mode_denied: This call was not run: the session's permission mode does not allow this kind of call. Nothing was changed. Do it another way, or ask the user to change the mode."
+        }
+        R::ApprovalRequired => {
+            "permission.approval_required: This call was not run: it needs the user's approval, which could not be asked for here. Nothing was changed. Ask the user, or do it another way."
+        }
+        R::InvalidOperation => {
+            "permission.invalid_operation: This call was not run: Aura could not check its permission because the call's description was incomplete. Nothing was changed. Check its arguments and call it again."
+        }
+        R::IdentityMismatch => {
+            "permission.identity_mismatch: This call was not run: it did not match the conversation it was made in. Nothing was changed. Call it again."
+        }
+        R::SourceDisabled => {
+            "permission.source_disabled: This call was not run: the user has turned off where this tool comes from. Nothing was changed. Do it another way, or ask the user to turn it on."
+        }
+        R::SourceUntrusted => {
+            "permission.source_untrusted: This call was not run: the user has not trusted where this tool comes from. Nothing was changed. Do it another way, or ask the user to trust it."
+        }
+        R::HardBoundary => {
+            "permission.hard_boundary: This call was not run: it touches something Aura never lets a tool change. Nothing was changed. Do it another way."
+        }
+        R::DeniedForTurn => {
+            "permission.denied_for_turn: This call was not run: the user refused this kind of call for the rest of this turn. Nothing was changed. Continue without it."
+        }
+        R::NetworkDeclaration => {
+            "permission.network_declaration: This call was not run: the tool did not declare the network access it would need. Nothing was changed. Do it another way."
+        }
+        R::ProfileProhibited => {
+            "permission.profile_prohibited: This call was not run: the user's settings do not allow this kind of call. Nothing was changed. Do it another way, or ask the user."
+        }
+        R::BackendUnavailable => {
+            "permission.backend_unavailable: This call was not run: nothing that can run it is ready now. Nothing was changed. Try again later, or do it another way."
+        }
+        R::DispatchAlreadyStarted => {
+            "permission.dispatch_already_started: This call was not started again: it had already been started. Nothing more was changed. Read its result instead."
+        }
     }
-    let summary =
-        error.chars().map(|c| if c.is_control() { ' ' } else { c }).take(240).collect::<String>();
+}
+
+/// What the model is told about calls a dispatch error left unexecuted: the reason in words when
+/// it is a known one, a family's own `code: sentence` as it is, otherwise the reason's code. The
+/// error's raw text (a Rust value, an identity, a chain of internal messages) is not quoted.
+fn refusal_notice(error: &anyhow::Error) -> String {
+    let chain: Vec<String> = error.chain().map(ToString::to_string).collect();
+    let whole = chain.join(": ");
+    if let Some(sentence) = tool::refusal_text::known(&whole) {
+        return format!("tool.dispatch_refused: {sentence}");
+    }
+    if let Some(line) = chain.iter().find_map(|text| tool::refusal_text::readable_line(text)) {
+        return line.to_owned();
+    }
+    let named = tool::refusal_text::code_in(&whole).map(|code| format!(" ({code})"));
     format!(
-        "tool.dispatch_refused: Aura refused this call before running it ({summary}). Nothing \
-         was changed. Check the current state before calling again."
+        "tool.dispatch_refused: This call was not started: Aura refused it before it ran{}. \
+         Nothing was changed. Check the current state, then call it again if it is still needed.",
+        named.unwrap_or_default()
     )
 }
 
@@ -616,12 +669,40 @@ mod refusal_tests {
 
     #[test]
     fn a_target_changed_before_the_start_is_named_with_the_way_on() {
-        let notice =
-            refusal_notice("PreparationRejected { reason: \"agent.source_or_scope_changed\" }");
+        let notice = refusal_notice(&anyhow::anyhow!("agent.source_or_scope_changed"));
         assert!(
-            notice.contains("its target changed") && notice.contains("Call it again"),
+            notice.starts_with("tool.dispatch_refused: ")
+                && notice.contains("its target changed")
+                && notice.contains("call it again"),
             "{notice}"
         );
-        assert!(refusal_notice("agent.mode_changed").contains("(agent.mode_changed)"));
+        let mode = refusal_notice(&anyhow::anyhow!("agent.mode_changed"));
+        assert!(mode.contains("permission mode changed"), "{mode}");
+        // A completion vetoed by a message the user added says to read it first, not to retry.
+        let added = refusal_notice(&anyhow::anyhow!("agent.pending_addition"));
+        assert!(added.contains("added a message") && added.contains("Read it"), "{added}");
+        assert!(!added.contains("call it again"), "{added}");
+    }
+
+    /// The model once read `(PreparationRejected { reason: "compat.preparation_failed" })` and
+    /// `(agent.worker_terminated:task 12 panicked)`.
+    #[test]
+    fn a_refusal_never_quotes_a_rust_value_or_a_panic() {
+        let value =
+            refusal_notice(&anyhow::anyhow!("PreparationRejected {{ reason: \"x.unheard_of\" }}"));
+        assert!(!value.contains('{') && value.contains("(x.unheard_of)"), "{value}");
+        let panic = refusal_notice(&anyhow::anyhow!("agent.worker_terminated:task 12 panicked"));
+        assert!(panic.contains("internal error in Aura") && !panic.contains("task 12"), "{panic}");
+    }
+
+    #[test]
+    fn a_familys_own_sentence_under_a_bare_context_reaches_the_model() {
+        let error =
+            anyhow::anyhow!("goal.check_required: 先用 goal.check 判断目标，再结束这一轮。")
+                .context("agent.control.preflight");
+        assert_eq!(
+            refusal_notice(&error),
+            "goal.check_required: 先用 goal.check 判断目标，再结束这一轮。"
+        );
     }
 }

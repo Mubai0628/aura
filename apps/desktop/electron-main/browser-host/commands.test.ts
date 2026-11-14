@@ -33,6 +33,7 @@ describe('commands from the renderer', () => {
       'take-control',
       'release-control',
       'dismiss-notice',
+      'hand-over',
     ])
       expect(parseUserCommand({ kind, ...page })).toEqual({ kind, ...page });
     expect(parseUserCommand({ kind: 'clear-data' })).toEqual({ kind: 'clear-data' });

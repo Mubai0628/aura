@@ -19,7 +19,9 @@ impl CommandExecution {
                         &owner.compat.managed_operations(session)?,
                     )?;
                     for record in owner.agent_terminals.list(session)? {
+                        // The model's processes only: a terminal the user handed over is theirs.
                         if record.view.end.is_none()
+                            && record.view.owner == TerminalOwnerV1::Agent
                             && owner
                                 .compat
                                 .terminals

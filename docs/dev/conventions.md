@@ -20,6 +20,7 @@
 
 - **依赖方向**：`aura-domain-common` 只放共享基元；`aura-core` 负责组装与协调，不放领域实现；Renderer 不导入 Electron 或 Node API。`check-architecture` 检查这些方向。
 - **文件规模**：新建的手写文件不超过 1000 行，目标 500 行；新能力放在独立的模块目录里，`mod.rs` 只做组装。已经超长的文件不能再变长。
+- **给桌面的失败**：答复桌面的 crate（`scripts/architecture/failure-text.mjs` 列出的目录）里，`bail!`、`anyhow!`、`ensure!`、`#[error]` 和 `.context` 的文字写成 `代码: 中文句`：带点的小写代码，冒号，再用一句中文说发生了什么、没做什么、下一步怎么做。界面用 `userMessage` 把整个错误信封变成句子，按代码查表，查不到时用调用处给的、说明这次动作的兜底句。`check-architecture` 扫描这些文字；还没改的旧文字记在 `failure-text-baseline.json`，每个文件的数目只许减少。
 - **注释**：只写技术原因与约束，不写计划阶段、日期或人名；来由写在提交说明里。
 - **Rust**：Edition 2024，`rustfmt` 与工作区 Clippy 规则；公开 API 显式表达类型、错误与版本。
 - **TypeScript**：strict，Prettier 与 ESLint。

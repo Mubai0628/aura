@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { useLayoutEffect, useRef } from 'react';
 
 import { AppIcon } from './app-icons';
@@ -10,6 +10,8 @@ interface ConfirmationDialogProps {
   cancelLabel?: string;
   confirmLabel: string;
   description: string;
+  /** Shown under the description, such as a list of what the action covers. */
+  details?: ReactNode;
   fallbackFocusRef?: RefObject<HTMLElement | null> | undefined;
   onCancel: () => void;
   onConfirm: () => void;
@@ -23,6 +25,7 @@ export function ConfirmationDialog({
   cancelLabel = '取消',
   confirmLabel,
   description,
+  details,
   fallbackFocusRef,
   onCancel,
   onConfirm,
@@ -63,6 +66,7 @@ export function ConfirmationDialog({
           </span>
           <h2 id={titleId}>{title}</h2>
           <p>{description}</p>
+          {details === undefined ? null : <div className="confirmation-details">{details}</div>}
         </div>
         <button
           aria-label="关闭确认对话框"

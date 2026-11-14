@@ -99,6 +99,8 @@ pub enum ChromeCommand {
     Release {
         tab_ids: Vec<u32>,
     },
+    /// The user's ordinary tabs, for Aura's @ menu; no page is read or debugged to list them.
+    Tabs,
 }
 
 /// The action an [`ChromeCommand::Inspect`] is about.
@@ -132,6 +134,13 @@ pub struct ChromeOpenedTab {
     pub window_id: u32,
     pub url: String,
     pub title: String,
+}
+
+/// What `Tabs` lists: never an incognito, browser or store page.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChromeTabsReport {
+    pub tabs: Vec<ChromeOpenedTab>,
 }
 
 /// The tab after an action; Core adds the model's reference to it.

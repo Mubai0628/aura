@@ -133,6 +133,11 @@ export function ComputerSettings({ coreReady }: { coreReady: boolean }) {
           <h2>电脑操控</h2>
         </div>
       </div>
+      {coreReady ? null : (
+        <p className="settings-status-line" role="status">
+          Core 尚未就绪，电脑操控设置暂不可用。
+        </p>
+      )}
       <section aria-label="电脑操控开关" className="settings-surface">
         {toggle('enabled', '电脑操控')}
       </section>

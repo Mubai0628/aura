@@ -151,9 +151,8 @@ fn take_with(
     }
     let staging = backups(data_root).join(format!(".taking-{version}"));
     let _ = fs::remove_dir_all(&staging);
-    let copied = aura_windows_platform::with_progress_window(
-        "Aura",
-        "正在备份数据，准备启动新版本",
+    let copied = aura_pixel_window::with_progress_window(
+        |progress| crate::recovery::progress_page("正在备份更新前的数据", progress),
         |progress| {
             progress.set_total(bytes);
             files.iter().try_for_each(|file| {
@@ -233,6 +232,50 @@ pub fn restore(data_root: &Path, version: &str) -> Result<bool> {
     }
     remove_folders(data_root, "replaced-", &kept);
     Ok(true)
+}
+
+/// The copies `restore` set aside that were removed, and those that could not be.
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct ExpiredCopies {
+    pub removed: Vec<String>,
+    pub failed: Vec<String>,
+}
+
+/// Days a copy `restore` set aside is kept, counted from the time in its name.
+const SET_ASIDE_DAYS: i64 = 30;
+
+/// When the copy named `name` was set aside, read back from the name `restore` gave it
+/// (`replaced-<UTC time>`, with `:` and `.` written as `-`).
+fn set_aside_at(name: &str) -> Option<UtcTimestamp> {
+    let stamp = name.strip_prefix("replaced-")?.strip_suffix('Z')?;
+    let (date, time) = stamp.split_once('T')?;
+    let mut parts = time.splitn(4, '-');
+    let (hour, minute, second) = (parts.next()?, parts.next()?, parts.next()?);
+    let fraction = parts.next().map(|fraction| format!(".{fraction}")).unwrap_or_default();
+    format!("{date}T{hour}:{minute}:{second}{fraction}Z").parse().ok()
+}
+
+/// Removes the copies `restore` set aside 30 days or more before `now`. The time comes from the
+/// folder's name, which a copy of the data to another place keeps; a name without one is left
+/// alone, and so are the copies taken before a version's first start.
+pub fn remove_expired_copies(data_root: &Path, now: UtcTimestamp) -> ExpiredCopies {
+    let mut copies = ExpiredCopies::default();
+    for entry in fs::read_dir(backups(data_root)).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(at) = set_aside_at(&name) else {
+            continue;
+        };
+        if (now.value() - at.value()).whole_days() < SET_ASIDE_DAYS || !entry.path().is_dir() {
+            continue;
+        }
+        match fs::remove_dir_all(entry.path()) {
+            Ok(()) => copies.removed.push(name),
+            Err(_) => copies.failed.push(name),
+        }
+    }
+    copies.removed.sort();
+    copies.failed.sort();
+    copies
 }
 
 /// The user's request to put the copy from before `version` back before the next start.

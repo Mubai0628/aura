@@ -17,6 +17,21 @@ interface Saved {
  * The switches of 设置 → 通知, kept with this installation's desktop state. A missing or damaged
  * file reads as every switch on; nothing else depends on it.
  */
+/** Why the file could not be written, by the file system's code. */
+const WRITE_CAUSES: Readonly<Record<string, string>> = {
+  ENOSPC: '磁盘已满',
+  EPERM: '没有写入权限',
+  EACCES: '没有写入权限',
+  EBUSY: '文件正被其他程序占用',
+};
+
+const notWritten = (error: unknown): string => {
+  const code = (error as { code?: unknown } | null)?.code;
+  const cause =
+    (typeof code === 'string' ? WRITE_CAUSES[code] : undefined) ?? '磁盘已满或没有写入权限';
+  return `通知设置没能写入磁盘（${cause}），这次改动没有保存；腾出空间或检查 Aura 数据文件夹的权限后再切换一次。`;
+};
+
 export class NotificationPreferencesStore {
   readonly #path: string;
   #saved: Saved = { preferences: { ...DEFAULT_NOTIFICATION_PREFERENCES }, announcedUpdate: null };
@@ -41,10 +56,21 @@ export class NotificationPreferencesStore {
     return this.current;
   }
 
+  /**
+   * Keeps the switches; one whose write failed is undone in memory, so what is shown is what the
+   * file holds, and the reason is given.
+   */
   async save(preferences: NotificationPreferences): Promise<NotificationPreferences> {
     await this.#loaded;
-    this.#saved = { ...this.#saved, preferences: readNotificationPreferences(preferences) };
-    await this.#write();
+    const before = this.#saved;
+    const wanted = { ...this.#saved, preferences: readNotificationPreferences(preferences) };
+    this.#saved = wanted;
+    try {
+      await this.#write();
+    } catch (error) {
+      if (this.#saved === wanted) this.#saved = before;
+      throw new Error(notWritten(error), { cause: error });
+    }
     return this.current;
   }
 
@@ -66,22 +92,27 @@ export class NotificationPreferencesStore {
     }
   }
 
-  /** One write at a time, through a temporary file, so a crash leaves the old file or the new. */
+  /**
+   * One write at a time, through a temporary file, so a crash leaves the old file or the new. A
+   * write that failed does not hold up the next one.
+   */
   #write(): Promise<void> {
     const saved = this.#saved;
-    this.#writes = this.#writes.then(async () => {
-      await mkdir(dirname(this.#path), { recursive: true });
-      const temporary = `${this.#path}.${process.pid}.tmp`;
-      await writeFile(
-        temporary,
-        JSON.stringify({
-          schema_version: 1,
-          preferences: saved.preferences,
-          announced_update: saved.announcedUpdate,
-        }),
-      );
-      await rename(temporary, this.#path);
-    });
+    this.#writes = this.#writes
+      .catch(() => undefined)
+      .then(async () => {
+        await mkdir(dirname(this.#path), { recursive: true });
+        const temporary = `${this.#path}.${process.pid}.tmp`;
+        await writeFile(
+          temporary,
+          JSON.stringify({
+            schema_version: 1,
+            preferences: saved.preferences,
+            announced_update: saved.announcedUpdate,
+          }),
+        );
+        await rename(temporary, this.#path);
+      });
     return this.#writes;
   }
 }

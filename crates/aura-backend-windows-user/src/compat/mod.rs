@@ -6,6 +6,7 @@ pub mod environment;
 #[cfg(test)]
 mod environment_tests;
 mod execution;
+mod groups;
 mod job_owner;
 mod monitor;
 mod output;
@@ -13,6 +14,7 @@ mod preparation;
 pub mod redaction;
 #[cfg(test)]
 mod redaction_tests;
+mod refusal;
 mod registry;
 mod runtime;
 mod service;
@@ -29,5 +31,6 @@ pub use terminal::{
 pub use backend::CompatBackend;
 #[cfg(any(test, feature = "compat-adoption"))]
 pub use backend::LaunchFault;
+pub use groups::ProcessPolicy;
 pub use job_owner::{CompatExecution, DirectResult, JobObservation, JobReceipt, StopObservation};
 pub use registry::CompatJobs;

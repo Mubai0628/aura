@@ -38,3 +38,7 @@ export function workspaceRelativeParts(path: string): string[] | undefined {
   }
   return parts;
 }
+
+/** What a file the system could not open with its default application says. */
+export const DEFAULT_APP_FAILED =
+  'Windows 没能用默认应用打开这个文件（可能没有关联的程序），文件没有打开；可以在文件资源管理器中显示它，再右键选择打开方式。';

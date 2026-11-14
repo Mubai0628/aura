@@ -3,17 +3,23 @@ import { AppIcon } from './app-icons';
 import { copyText } from './clipboard';
 import { ModalDialog } from './ModalDialog';
 import { useDismissablePopover } from './useDismissablePopover';
-import { userMessage } from './agent-session/user-message';
 import type { SessionNavigationItem, WorkspaceNavigationItem } from './app-shell-types';
 import { removeComposerDraft } from './agent-session/composer-drafts';
+import type { NotificationInput } from './notification-center-store';
 import { archiveWorkspaceById } from './session-lifecycle/workspace-lifecycle';
+import { RelocateQuestionDialog } from './workspace-relocate/RelocateQuestionDialog';
+import { useWorkspaceRelocation } from './workspace-relocate/useWorkspaceRelocation';
+import { archiveFailure, renameFailure } from './session-lifecycle/failure-words';
 
 export function SidebarItemMenu({
   workspace,
   session,
+  onNotify,
 }: {
   workspace: WorkspaceNavigationItem;
   session?: SessionNavigationItem;
+  /** Where a Workspace move says how it ended; without it, the menu opens again with a failure. */
+  onNotify?: (notice: NotificationInput) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useDismissablePopover(ref);
@@ -48,6 +54,13 @@ export function SidebarItemMenu({
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const relocation = useWorkspaceRelocation(workspace, (notice) => {
+    if (onNotify) onNotify(notice);
+    else if (notice.tone === 'danger') {
+      setError(notice.message);
+      setOpen(true);
+    }
+  });
   const titleId = useId();
   const local = session?.id.startsWith('draft_');
   const close = () => {
@@ -63,10 +76,10 @@ export function SidebarItemMenu({
         expected_title: session.title,
         title: title.trim(),
       });
-      if (!result.ok) throw new Error(userMessage(result.error.message));
+      if (!result.ok) throw result.error;
       setDialog(undefined);
     } catch (reason) {
-      setError(userMessage(reason, '重命名未确认，请刷新后查看。'));
+      setError(renameFailure(reason));
     } finally {
       setBusy(false);
     }
@@ -84,7 +97,7 @@ export function SidebarItemMenu({
       } else await archiveWorkspaceById(workspace.id);
       setOpen(false);
     } catch (reason) {
-      setError(userMessage(reason, '归档没有完成，请刷新后查看。'));
+      setError(archiveFailure(reason, session ? '会话' : '工作区'));
       setOpen(true);
     } finally {
       setArchiving(false);
@@ -177,6 +190,18 @@ export function SidebarItemMenu({
               <button
                 type="button"
                 role="menuitem"
+                disabled={relocation.busy}
+                onClick={() => {
+                  setOpen(false);
+                  setError(undefined);
+                  void relocation.start();
+                }}
+              >
+                更改位置…
+              </button>
+              <button
+                type="button"
+                role="menuitem"
                 title="归档后可在“设置 → 归档”里恢复或删除"
                 disabled={archiving}
                 onClick={() => void archive()}
@@ -259,6 +284,15 @@ export function SidebarItemMenu({
             </div>
           )}
         </ModalDialog>
+      )}
+      {relocation.question && (
+        <RelocateQuestionDialog
+          busy={relocation.busy}
+          error={relocation.questionError}
+          question={relocation.question}
+          onCancel={relocation.cancel}
+          onConfirm={() => void relocation.confirm()}
+        />
       )}
     </div>
   );

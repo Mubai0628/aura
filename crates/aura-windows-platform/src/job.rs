@@ -44,6 +44,8 @@ const COMPONENT_JOB_COMPLETION_KEY: usize = 0x4155_5241;
 mod account_runner;
 #[cfg(test)]
 pub(crate) mod creation_tests;
+mod group;
+pub use group::{GroupJob, GroupLimits};
 mod limits;
 pub use limits::JobLimits;
 mod membership;
@@ -57,6 +59,11 @@ pub struct RootJob {
 }
 
 impl RootJob {
+    /// Counts every process that belonged to this Job, including exited children.
+    pub fn total_processes(&self) -> io::Result<u32> {
+        job_accounting(&self.handle).map(|accounting| accounting.TotalProcesses)
+    }
+
     pub fn create() -> io::Result<Self> {
         // SAFETY: null security/name pointers request a private, non-inheritable
         // unnamed job. The returned handle is owned immediately.
@@ -372,6 +379,10 @@ pub(crate) fn terminate_job(handle: &OwnedHandle, exit_code: u32) -> io::Result<
 }
 
 pub(crate) fn job_active_processes(handle: &OwnedHandle) -> io::Result<u32> {
+    job_accounting(handle).map(|accounting| accounting.ActiveProcesses)
+}
+
+fn job_accounting(handle: &OwnedHandle) -> io::Result<JOBOBJECT_BASIC_ACCOUNTING_INFORMATION> {
     let mut accounting = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION::default();
     let mut returned = 0_u32;
     // SAFETY: `accounting` matches JobObjectBasicAccountingInformation.
@@ -397,7 +408,7 @@ pub(crate) fn job_active_processes(handle: &OwnedHandle) -> io::Result<u32> {
             "Windows returned an unexpected Job accounting record length",
         ));
     }
-    Ok(accounting.ActiveProcesses)
+    Ok(accounting)
 }
 
 pub(crate) fn wait_for_job_empty(

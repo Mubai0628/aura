@@ -8,6 +8,7 @@ rust-version.workspace = true
 aura-execution-contract = { path = "../aura-execution-contract" }
 aura-workspace-domain = { path = "../aura-workspace-domain" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }
+aura-data-location = { path = "../aura-data-location" }
 aura-security-contract = { path = "../aura-security-contract" }
 aura-artifact-contract = { path = "../aura-artifact-contract" }
 aura-context-domain = { path = "../aura-context-domain" }

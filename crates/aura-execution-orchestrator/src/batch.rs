@@ -3,7 +3,8 @@
 use aura_domain_common::ToolCallId;
 use aura_execution_contract::SideEffectStateV1;
 use aura_tool_contract::{
-    ToolExecutionPlanV1, ToolNotExecutedReasonV1, ToolResultOutcomeV1, ToolResultV1,
+    ToolExecutionPlanCallV1, ToolExecutionPlanV1, ToolNotExecutedReasonV1, ToolResultOutcomeV1,
+    ToolResultV1,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -33,6 +34,9 @@ pub struct BatchProgress {
     plan: ToolExecutionPlanV1,
     units: Vec<DispatchUnit>,
     state: BTreeMap<ToolCallId, State>,
+    /// Per call, the calls written before it that cannot run at the same time as it: it starts
+    /// once they finished, whatever their outcome.
+    written_before: BTreeMap<ToolCallId, BTreeSet<ToolCallId>>,
 }
 impl BatchProgress {
     pub fn new(
@@ -70,7 +74,8 @@ impl BatchProgress {
             plan.calls.iter().find(|c| c.tool_call_id == u.calls[0]).map(|c| c.ordinal)
         });
         let state = plan.calls.iter().map(|c| (c.tool_call_id, State::Pending)).collect();
-        let mut value = Self { plan, units, state };
+        let written_before = written_before(&plan);
+        let mut value = Self { plan, units, state, written_before };
         let mut seen = BTreeSet::new();
         for result in committed {
             if !seen.insert(result.tool_call_id) {
@@ -119,10 +124,9 @@ impl BatchProgress {
                 if let Some(reason) = reason {
                     return Some(UnitReadiness::Rejected { unit: unit.clone(), reason });
                 }
-                dependencies
-                    .iter()
-                    .all(|d| self.state[d] == State::Succeeded)
-                    .then(|| UnitReadiness::Ready(unit.clone()))
+                (dependencies.iter().all(|d| self.state[d] == State::Succeeded)
+                    && self.written_before_finished(unit))
+                .then(|| UnitReadiness::Ready(unit.clone()))
             })
             .collect()
     }
@@ -170,6 +174,13 @@ impl BatchProgress {
     pub fn finished(&self) -> bool {
         self.state.values().all(|v| matches!(v, State::Succeeded | State::Blocked))
     }
+    fn written_before_finished(&self, unit: &DispatchUnit) -> bool {
+        unit.calls
+            .iter()
+            .filter_map(|call| self.written_before.get(call))
+            .flatten()
+            .all(|earlier| matches!(self.state[earlier], State::Succeeded | State::Blocked))
+    }
     fn external_dependencies(&self, unit: &DispatchUnit) -> BTreeSet<ToolCallId> {
         self.plan
             .calls
@@ -179,6 +190,39 @@ impl BatchProgress {
             .filter(|d| !unit.calls.contains(d))
             .collect()
     }
+}
+/// The calls written before each call that use one of its resources while one of the two holds
+/// it exclusively. The scheduler would run them one at a time anyway; in the order written, the
+/// later one sees what the earlier one did, so a read after a patch of one file reads the patched
+/// text. Only calls with no dependency and in no atomic group take part, so this order never
+/// meets a dependency that points the other way.
+fn written_before(plan: &ToolExecutionPlanV1) -> BTreeMap<ToolCallId, BTreeSet<ToolCallId>> {
+    let mut free = plan
+        .calls
+        .iter()
+        .filter(|c| c.dependency_tool_call_ids.is_empty() && c.execution_atomic_group.is_none())
+        .collect::<Vec<_>>();
+    free.sort_by_key(|c| c.ordinal);
+    let mut output = BTreeMap::new();
+    for (index, later) in free.iter().enumerate() {
+        let earlier = free[..index]
+            .iter()
+            .filter(|earlier| exclude(earlier, later))
+            .map(|earlier| earlier.tool_call_id)
+            .collect::<BTreeSet<_>>();
+        if !earlier.is_empty() {
+            output.insert(later.tool_call_id, earlier);
+        }
+    }
+    output
+}
+fn exclude(a: &ToolExecutionPlanCallV1, b: &ToolExecutionPlanCallV1) -> bool {
+    a.resolved_resource_claims.iter().any(|x| {
+        b.resolved_resource_claims.iter().any(|y| {
+            x.canonical_lock_key == y.canonical_lock_key
+                && (x.access.is_exclusive() || y.access.is_exclusive())
+        })
+    })
 }
 fn result_state(result: &ToolResultV1) -> Result<State, BatchProgressError> {
     result.validate().map_err(|_| BatchProgressError)?;

@@ -10,7 +10,13 @@ import {
 } from './agent-session/composer-drafts';
 import { rememberFirstTitle } from './agent-session/session-titles';
 import { useDraftModelChoices } from './agent-session/useDraftModelChoices';
-import { userMessage } from './agent-session/user-message';
+import {
+  NotSent,
+  preparationFailure,
+  sessionCreateFailure,
+} from './agent-session/first-send-failure';
+import { isUnconfirmedCommandOutcome } from '../../shared/ipc-request-failure';
+import { PERMISSION_MODE_NAMES } from './security/permission-mode-names';
 import { OceanBackdrop } from './ocean/OceanBackdrop';
 import { ConversationAttachments } from './composer-attachments/ConversationAttachments';
 import { FULL_ACCESS_DELETES } from './security/full-access-notice';
@@ -18,6 +24,9 @@ import { SendingMessage } from './agent-session/SendingMessage';
 import { useSending } from './agent-session/sending';
 import type { SessionNavigationItem } from './app-shell-types';
 import { otherConversations } from './composer-references/conversations';
+
+const MODEL_NOT_CHOSEN = '模型没有选上';
+const MODEL_NEXT = '请再点发送，仍不行请到设置里检查这个模型。';
 
 export function NewSessionView({
   draft,
@@ -60,41 +69,50 @@ export function NewSessionView({
         workspace_id: draft.workspaceId!,
         title: '',
       });
-      if (!result.ok)
-        throw new Error(userMessage(result.error.message, '会话创建未确认，草稿已保留。'));
+      if (!result.ok) {
+        const text = sessionCreateFailure(result.error);
+        throw isUnconfirmedCommandOutcome(result.error) ? new Error(text) : new NotSent(text);
+      }
       id = result.value.session_id;
       updateComposerDraft(draft.id, { serverSessionId: id });
     }
     const selector =
       binding.current?.sessionId === id
         ? binding.current
-        : await readSessionModelSelector(id).then((value) => ({
-            sessionId: id,
-            revision: value.payload.binding_revision,
-            modelId: value.payload.selected_model_profile_id ?? '',
-          }));
+        : await readSessionModelSelector(id).then(
+            (value) => ({
+              sessionId: id,
+              revision: value.payload.binding_revision,
+              modelId: value.payload.selected_model_profile_id ?? '',
+            }),
+            (reason: unknown) => {
+              throw new NotSent(preparationFailure(reason, MODEL_NOT_CHOSEN, MODEL_NEXT));
+            },
+          );
     if (selector.modelId !== modelId) {
       const result = await window.aura.v1.setSessionModelBinding({
         session_id: id,
         model_profile_id: modelId,
         expected_revision: selector.revision,
       });
-      if (!result.ok)
-        throw new Error(
-          userMessage(result.error.message, '模型配置尚未就绪，请在设置中检查凭据与模型。'),
-        );
+      if (!result.ok) {
+        // The next send reads the conversation's model again.
+        binding.current = undefined;
+        throw new NotSent(preparationFailure(result.error, MODEL_NOT_CHOSEN, MODEL_NEXT));
+      }
       binding.current = { sessionId: id, revision: result.value.revision, modelId };
     }
     if (current.permissionMode) {
+      const notSet = `权限没有设成「${PERMISSION_MODE_NAMES[current.permissionMode]}」`;
       const permission = await window.aura.v1.getSessionPermissionState({ session_id: id });
-      if (!permission.ok) throw new Error('未能读取会话权限，消息尚未发送。');
+      if (!permission.ok) throw new NotSent(preparationFailure(permission.error, notSet));
       if (permission.value.mode !== current.permissionMode) {
         const result = await window.aura.v1.setSessionPermissionMode({
           session_id: id,
           mode: current.permissionMode,
           expected_revision: permission.value.revision,
         });
-        if (!result.ok) throw new Error('权限设置未完成，消息尚未发送。');
+        if (!result.ok) throw new NotSent(preparationFailure(result.error, notSet));
       }
     }
     return id;

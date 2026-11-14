@@ -151,6 +151,20 @@ test('新建分支 asks first, says what is carried, then makes the branch, keep
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
+test('a branch whose model could not be kept opens with the default model and says so', async () => {
+  setSessionModelBinding.mockResolvedValue({
+    ok: false,
+    error: { code: 'models.binding.profile_disabled', message: 'x' },
+  });
+  const user = userEvent.setup();
+  const { onBranched } = show(page([turn('turn')]));
+  const footer = document.querySelector('.agent-turn-footer') as HTMLElement;
+  await user.click(within(footer).getByRole('button', { name: '新建分支' }));
+  const dialog = screen.getByRole('dialog', { name: '从这一轮新建分支？' });
+  await user.click(within(dialog).getByRole('button', { name: '新建分支' }));
+  await waitFor(() => expect(onBranched).toHaveBeenCalledWith({ ...made, modelNotKept: true }));
+});
+
 test('a branch that was not made is said in the dialog and can be tried again', async () => {
   const user = userEvent.setup();
   branchSession.mockResolvedValueOnce({

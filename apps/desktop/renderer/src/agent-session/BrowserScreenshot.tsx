@@ -15,6 +15,9 @@ type Loaded = { kind: 'image'; url: string } | { kind: 'missing'; text: string }
  * at once; the model may or may not have seen it (the row's line says which). A click opens it in
  * the picture viewer; its menu also copies or saves it.
  */
+const UNREADABLE =
+  '这张截图读不出来（记录可能已被清理），不影响这一步的结果；需要时让模型重新截图。';
+
 export function BrowserScreenshot({ artifactId, name }: { artifactId: string; name: string }) {
   const sessionId = useActivitySession();
   const scope = useContext(FileLinkContext);
@@ -28,7 +31,7 @@ export function BrowserScreenshot({ artifactId, name }: { artifactId: string; na
     let current = true;
     void readPicture(sessionId, artifactId).then((url) => {
       if (!current || url === undefined) return;
-      setLoaded(url === null ? { kind: 'missing', text: '截图不可用' } : { kind: 'image', url });
+      setLoaded(url === null ? { kind: 'missing', text: UNREADABLE } : { kind: 'image', url });
     });
     return () => {
       current = false;

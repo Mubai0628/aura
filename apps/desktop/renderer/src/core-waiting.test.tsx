@@ -107,3 +107,38 @@ test('no notice while Core is starting, even if Main was waiting', async () => {
   await act(async () => Promise.resolve());
   expect(screen.queryByRole('status')).toBeNull();
 });
+
+// A restart that did not happen says why, that Core still works on its task, and what to do.
+test('a restart whose request was not answered says why, what it means and what to do', async () => {
+  const push = healthPushes();
+  Object.assign(window.aura.v1, {
+    restartCore: vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        error: {
+          category: 'transport',
+          code: 'ipc.request_timeout',
+          correlation_id: 'cor_00000000000000000000000000',
+          details: {},
+          message: 'Core request timed out: core.restart',
+          retryable: true,
+          terminal: 'failed',
+        },
+      })
+      .mockRejectedValueOnce(new Error('Aura Core pipe disconnected')),
+  });
+  render(<CoreWaitingNotice />);
+  push(waitingFor(20));
+  fireEvent.click(await screen.findByRole('button', { name: '立即重启' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '没能重启 Aura Core（Aura Core 没有及时回复），Core 仍在处理原来的任务；稍后再点“立即重启”，仍不行请退出 Aura 后重新打开。',
+  );
+  fireEvent.click(screen.getByRole('button', { name: '立即重启' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toBe(
+      '没能重启 Aura Core（与 Aura Core 的连接断开了），Core 仍在处理原来的任务；稍后再点“立即重启”，仍不行请退出 Aura 后重新打开。',
+    ),
+  );
+  expect(screen.getByRole('button', { name: '立即重启' })).toHaveProperty('disabled', false);
+});

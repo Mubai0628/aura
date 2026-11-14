@@ -97,17 +97,12 @@ test('process listeners mark quit before existing app listeners and release thei
   expect(processEvents.listenerCount('unhandledRejection')).toBe(0);
   expect(appEvents.listenerCount('before-quit')).toBe(1);
 });
-test('real Main logs survive a namespace transition and synchronous shutdown recording', async () => {
+test('real Main logs go into the data folder from the first line, also at shutdown', async () => {
   const root = await mkdtemp(join(tmpdir(), 'aura-main-logging-'));
-  let namespace: string | undefined;
-  const logger = createMainLogger(root, () => namespace);
+  const logger = createMainLogger(root);
   try {
-    const startup = logger.path();
+    expect(logger.path()).toBe(join(root, 'logs', 'main.jsonl'));
     logger.appendSync('main.uncaught_exception', { message: 'temporary startup' });
-    expect(JSON.parse((await readFile(startup, 'utf8')).trim()).event).toBe(
-      'main.uncaught_exception',
-    );
-    namespace = 'temporary-namespace';
     await logger.append('core.binding', { state: 'temporary fixture' });
     logger.appendSync('main.unhandled_rejection', { quitting: true });
     const records = (await readFile(logger.path(), 'utf8'))
@@ -115,11 +110,12 @@ test('real Main logs survive a namespace transition and synchronous shutdown rec
       .split('\n')
       .map((line) => JSON.parse(line));
     expect(records.map((record) => record.event)).toEqual([
+      'main.uncaught_exception',
       'core.binding',
       'main.unhandled_rejection',
     ]);
-    expect(records[1].component).toBe('electron_main');
-    expect(records[1].fields.quitting).toBe(true);
+    expect(records[2].component).toBe('electron_main');
+    expect(records[2].fields.quitting).toBe(true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

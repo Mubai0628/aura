@@ -20,10 +20,11 @@ impl ControlledWeb {
         let expiry =
             UtcTimestamp::from_value(UtcTimestamp::now().value() + time::Duration::seconds(30));
         let grant = if request.plan.requested_url == parent.plan.requested_url {
-            OrdinaryToolRequestGrant::issue(dispatch, &request, None, expiry)?
+            OrdinaryToolRequestGrant::issue(dispatch, &request, None, expiry)
         } else {
-            OrdinaryToolRequestGrant::subresource(dispatch, &parent, &request, expiry)?
-        };
+            OrdinaryToolRequestGrant::subresource(dispatch, &parent, &request, expiry)
+        }
+        .map_err(super::proxy::explain_grant)?;
         let grant = self
             .apply_frozen_proxy(
                 dispatch.request().operation.operation_id,
@@ -61,8 +62,10 @@ impl ControlledWeb {
         event: &str,
     ) -> Result<impl FnOnce() -> aura_network_control::GatewayStartedHook + Send + 'static> {
         let content = &dispatch.request().operation.content;
-        let session =
-            content.identity.session_id.ok_or_else(|| anyhow::anyhow!("web.session_required"))?;
+        let session = content
+            .identity
+            .session_id
+            .ok_or_else(|| anyhow::anyhow!(super::inspection::SESSION_REQUIRED))?;
         let operation_id = dispatch.request().operation.operation_id;
         let run = content.identity.agent_run_id;
         let launch = if self.activities.started_mode(operation_id, session)?.is_none() {

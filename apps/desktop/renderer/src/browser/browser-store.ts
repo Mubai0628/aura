@@ -23,6 +23,14 @@ class BrowserStore {
   get = (sessionId: string, pageId: string): BrowserPageState | undefined =>
     this.#pages.get(key(sessionId, pageId));
 
+  /** The conversation's open page on which the model waits for the user, if one is. */
+  assisted = (sessionId: string): BrowserPageState | undefined => {
+    for (const state of this.#pages.values())
+      if (state.sessionId === sessionId && !state.closed && state.assist !== undefined)
+        return state;
+    return undefined;
+  };
+
   /**
    * A state from Main or from a command's reply. The model's page joins the browser's row, shown
    * with the sidebar, the first time it opens in a conversation; the user's own pages Main still
@@ -55,4 +63,8 @@ export const browserStore = new BrowserStore();
 
 export function useBrowserPage(sessionId: string, pageId: string): BrowserPageState | undefined {
   return useSyncExternalStore(browserStore.subscribe, () => browserStore.get(sessionId, pageId));
+}
+
+export function useAssistedPage(sessionId: string): BrowserPageState | undefined {
+  return useSyncExternalStore(browserStore.subscribe, () => browserStore.assisted(sessionId));
 }

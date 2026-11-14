@@ -61,6 +61,27 @@ const sameOrigin = (url: string, plugin: string) => {
   }
 };
 
+/** Why a panel's page stopped, by Electron's reason, in words. */
+const GONE_BECAUSE: Readonly<Record<string, string>> = {
+  oom: '内存不足',
+  'memory-eviction': '内存不足',
+  killed: '被系统结束了',
+  'launch-failed': '没能启动',
+  'integrity-failure': '程序文件校验没通过',
+};
+
+/** A panel whose page stopped: why, that it closed, and what to do. */
+export const panelGone = (reason: string): string => {
+  const why = GONE_BECAUSE[reason];
+  return `插件面板意外停止了${why === undefined ? '' : `（${why}）`}，面板已关闭；点“重新打开”，反复出现请停用这个插件或联系作者。`;
+};
+
+/** A panel whose page did not load, by Chromium's error code: why, and what to do. */
+export const panelNotLoaded = (code: number): string =>
+  code === -6
+    ? '插件面板的页面文件找不到，面板没有打开；请检查插件的 panel 文件夹或重新安装插件后点“重新打开”。'
+    : '插件面板的页面没有加载出来，面板没有打开；点“重新打开”，反复出现请停用这个插件或联系作者。';
+
 export class PluginPanels {
   readonly #views: PanelViews;
   readonly #problem: PanelProblem;
@@ -202,16 +223,15 @@ export class PluginPanels {
       (_event: unknown, code: number, description: string, url: string, mainFrame: boolean) => {
         // -3 is a load the page itself replaced; not a failure.
         if (!mainFrame || code === -3) return;
-        const why = `面板没有打开：${description}（${url.slice(0, 200)}）`;
-        this.#problem(panel, why);
-        this.stop(panel, why);
+        // The plugin's log keeps Chromium's words for its author; the tab says what happened.
+        this.#problem(panel, `面板没有打开：${description}（${url.slice(0, 200)}）`);
+        this.stop(panel, panelNotLoaded(code));
       },
     );
     contents.on('render-process-gone', (_event: unknown, details: { reason: string }) => {
       if (details.reason === 'clean-exit') return;
-      const why = `面板停止运行了（${details.reason}）`;
-      this.#problem(panel, why);
-      this.stop(panel, why);
+      this.#problem(panel, `面板停止运行了（${details.reason}）`);
+      this.stop(panel, panelGone(details.reason));
     });
     contents.on(
       'console-message',

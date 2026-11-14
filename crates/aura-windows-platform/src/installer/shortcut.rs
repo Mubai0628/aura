@@ -1,5 +1,7 @@
 //! Shell shortcuts (.lnk) through the shell's own ShellLink object, and the per-user folders they
-//! go in.
+//! go in. A shortcut may carry the window identity (System.AppUserModel.ID) of the program it
+//! starts, so Windows treats it as that program's shortcut: a pin and the running window share
+//! one taskbar button.
 use std::{
     ffi::c_void,
     io,
@@ -24,6 +26,27 @@ use super::wide_null;
 const CLSID_SHELL_LINK: GUID = GUID::from_u128(0x0002_1401_0000_0000_c000_0000_0000_0046);
 const IID_ISHELL_LINK_W: GUID = GUID::from_u128(0x0002_14f9_0000_0000_c000_0000_0000_0046);
 const IID_IPERSIST_FILE: GUID = GUID::from_u128(0x0000_010b_0000_0000_c000_0000_0000_0046);
+const IID_IPROPERTY_STORE: GUID = GUID::from_u128(0x886d_8eeb_8cf2_4446_8d02_cdba_1dbd_cf99);
+/// PKEY_AppUserModel_ID.
+const APP_USER_MODEL_ID: PropertyKey =
+    PropertyKey { fmtid: GUID::from_u128(0x9f4c_2855_9f79_4b39_a8d0_e1d4_2de1_d5f3), pid: 5 };
+const VT_LPWSTR: u16 = 31;
+
+#[repr(C)]
+struct PropertyKey {
+    fmtid: GUID,
+    pid: u32,
+}
+
+/// A PROPVARIANT holding a string: its type, three reserved words and the union, of which the
+/// string pointer is the first field (the union is two pointers wide).
+#[repr(C)]
+struct StringVariant {
+    vt: u16,
+    reserved: [u16; 3],
+    value: *const u16,
+    rest: usize,
+}
 
 #[repr(C)]
 struct IUnknownVtbl {
@@ -67,6 +90,18 @@ struct IPersistFileVtbl {
     save: unsafe extern "system" fn(*mut c_void, PCWSTR, i32) -> HRESULT,
     save_completed: usize,
     get_cur_file: usize,
+}
+
+/// IPropertyStore, in declaration order.
+#[repr(C)]
+struct IPropertyStoreVtbl {
+    unknown: IUnknownVtbl,
+    get_count: usize,
+    get_at: usize,
+    get_value: usize,
+    set_value:
+        unsafe extern "system" fn(*mut c_void, *const PropertyKey, *const StringVariant) -> HRESULT,
+    commit: unsafe extern "system" fn(*mut c_void) -> HRESULT,
 }
 
 struct Interface<V>(*mut *const V);
@@ -130,6 +165,8 @@ pub struct Shortcut<'a> {
     pub working_directory: &'a Path,
     pub description: &'a str,
     pub icon: Option<&'a Path>,
+    /// The window identity of the program it starts.
+    pub app_id: Option<&'a str>,
 }
 
 /// Writes the shortcut file, replacing one already there.
@@ -169,6 +206,9 @@ pub fn create_shortcut(shortcut: &Shortcut<'_>) -> io::Result<()> {
             hr((vtbl.set_icon_location)(raw, icon.as_ptr(), 0), "IShellLinkW::SetIconLocation")?;
         }
     }
+    if let Some(app_id) = shortcut.app_id {
+        set_app_id(&link, raw, app_id)?;
+    }
     let mut persist_raw: *mut c_void = ptr::null_mut();
     // SAFETY: QueryInterface on the live link with a valid IID and output pointer.
     hr(
@@ -182,6 +222,28 @@ pub fn create_shortcut(shortcut: &Shortcut<'_>) -> io::Result<()> {
     let path = wide_null(&shortcut.path.to_string_lossy());
     // SAFETY: `persist` is a live IPersistFile and the path is NUL-terminated.
     hr(unsafe { (persist.vtbl().save)(persist_raw, path.as_ptr(), 1) }, "IPersistFile::Save")
+}
+
+/// Puts the window identity in the link's property store; the link keeps a copy of the value.
+fn set_app_id(link: &Interface<IShellLinkWVtbl>, raw: *mut c_void, app_id: &str) -> io::Result<()> {
+    let mut store_raw: *mut c_void = ptr::null_mut();
+    // SAFETY: QueryInterface on the live link with a valid IID and output pointer.
+    hr(
+        unsafe { (link.vtbl().unknown.query_interface)(raw, &IID_IPROPERTY_STORE, &mut store_raw) },
+        "QueryInterface(IPropertyStore)",
+    )?;
+    let store = Interface::<IPropertyStoreVtbl>(store_raw.cast());
+    let value = wide_null(app_id);
+    let variant = StringVariant { vt: VT_LPWSTR, reserved: [0; 3], value: value.as_ptr(), rest: 0 };
+    // SAFETY: `store` is a live IPropertyStore; the key and the variant, whose string is
+    // NUL-terminated, outlive both calls, and the store copies the value it keeps.
+    unsafe {
+        hr(
+            (store.vtbl().set_value)(store_raw, &APP_USER_MODEL_ID, &variant),
+            "IPropertyStore::SetValue",
+        )?;
+        hr((store.vtbl().commit)(store_raw), "IPropertyStore::Commit")
+    }
 }
 
 fn known_folder(id: &GUID) -> io::Result<PathBuf> {
@@ -218,6 +280,12 @@ pub fn desktop_folder() -> io::Result<PathBuf> {
 mod tests {
     use super::*;
 
+    /// Whether `bytes` hold `text` as UTF-16, as a link's property store keeps a string.
+    fn holds(bytes: &[u8], text: &str) -> bool {
+        let wide: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        bytes.windows(wide.len()).any(|window| window == wide.as_slice())
+    }
+
     #[test]
     fn a_shortcut_file_is_written_where_asked() {
         let folder = tempfile::tempdir().expect("folder");
@@ -229,12 +297,32 @@ mod tests {
             working_directory: folder.path(),
             description: "Aura",
             icon: None,
+            app_id: None,
         })
         .expect("shortcut");
         let bytes = std::fs::read(&path).expect("shortcut file");
         // A shell link starts with its header size and the ShellLink class id.
         assert_eq!(&bytes[..4], &[0x4c, 0, 0, 0]);
         assert_eq!(&bytes[4..8], &[0x01, 0x14, 0x02, 0x00]);
+        assert!(!holds(&bytes, "Aura.aura.desktop"));
+    }
+
+    #[test]
+    fn a_shortcut_carries_the_window_identity_it_is_given() {
+        let folder = tempfile::tempdir().expect("folder");
+        let path = folder.path().join("Aura.lnk");
+        let identity = "Aura.aura.desktop.test-shortcut";
+        create_shortcut(&Shortcut {
+            path: &path,
+            target: Path::new(r"C:\Windows\System32\notepad.exe"),
+            arguments: "",
+            working_directory: folder.path(),
+            description: "Aura",
+            icon: None,
+            app_id: Some(identity),
+        })
+        .expect("shortcut");
+        assert!(holds(&std::fs::read(&path).expect("shortcut file"), identity));
     }
 
     #[test]

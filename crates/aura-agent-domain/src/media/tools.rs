@@ -60,6 +60,9 @@ pub struct MediaProbeResult {
     pub container: Option<String>,
     pub codec: Option<String>,
     pub byte_length: u64,
+    /// Why codec or frame_rate is null: what kept the file's header from naming them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq)]

@@ -5,6 +5,7 @@ import { NewSessionView } from './NewSessionView';
 import {
   createLocalConversation,
   resetComposerDraftsForTests,
+  updateComposerDraft,
   useComposerDrafts,
 } from './agent-session/composer-drafts';
 import { resetSendingForTests } from './agent-session/sending';
@@ -169,7 +170,7 @@ test('binding rejection does not send or pause a message; retry uses the same ma
   await user.click(screen.getByRole('button', { name: '发送消息' }));
   expect(await screen.findByRole('alert')).toHaveProperty(
     'textContent',
-    '模型配置尚未就绪，请在设置中检查凭据与模型。',
+    '模型没有选上，消息没有发出，草稿已保留；请再点发送，仍不行请到设置里检查这个模型。',
   );
   expect(submit).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: '发送消息' }));
@@ -198,4 +199,54 @@ test('the first message shows at once while the conversation is made, and comes 
   expect((box as HTMLTextAreaElement).value).toBe('你好');
   expect(screen.getByRole('heading', { name: '从一个想法开始' })).toBeTruthy();
   expect(accepted).not.toHaveBeenCalled();
+});
+
+// A conversation that could not be made, or whose permission mode could not be set, says why,
+// that the message was not sent, and what to do; a refusal whose outcome is known needs no review.
+test('a conversation Core refused to make says why, and the next send tries again', async () => {
+  create.mockResolvedValueOnce({
+    ok: false,
+    error: {
+      code: 'persistence.busy',
+      message: 'persistence writer session queue is at capacity; the request was not admitted',
+    },
+  });
+  const user = userEvent.setup();
+  render(<Fixture id={createLocalConversation('workspace')} />);
+  await user.type(screen.getByRole('textbox', { name: '输入消息' }), '你好');
+  await user.click(screen.getByRole('button', { name: '发送消息' }));
+  expect(await screen.findByRole('alert')).toHaveProperty(
+    'textContent',
+    '没能新建会话（Aura 的存储正忙），消息没有发出，草稿已保留；请稍后再点发送。',
+  );
+  expect(screen.queryByText(/发送结果待核对/u)).toBeNull();
+  await user.click(screen.getByRole('button', { name: '发送消息' }));
+  await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+  expect(create).toHaveBeenCalledTimes(2);
+});
+
+test('a permission mode that was not set names the mode and the reason', async () => {
+  const state = vi.fn().mockResolvedValue({
+    ok: true,
+    value: { mode: 'read_only', revision: '0' },
+  });
+  const setMode = vi.fn().mockResolvedValue({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  Object.assign(window.aura.v1, {
+    getSessionPermissionState: state,
+    setSessionPermissionMode: setMode,
+  });
+  const id = createLocalConversation('workspace');
+  updateComposerDraft(id, { permissionMode: 'workspace_read_write' });
+  const user = userEvent.setup();
+  render(<Fixture id={id} />);
+  await user.type(screen.getByRole('textbox', { name: '输入消息' }), '你好');
+  await user.click(screen.getByRole('button', { name: '发送消息' }));
+  expect(await screen.findByRole('alert')).toHaveProperty(
+    'textContent',
+    '权限没有设成「工作区读写」（Aura Core 没有及时回复），消息没有发出，草稿已保留；请再点发送。',
+  );
+  expect(submit).not.toHaveBeenCalled();
 });

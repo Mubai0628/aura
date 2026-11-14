@@ -20,7 +20,7 @@ impl ControlledWeb {
             .content
             .identity
             .agent_run_id
-            .ok_or_else(|| anyhow::anyhow!("web.agent_authority_required"));
+            .ok_or_else(|| anyhow::anyhow!(super::inspection::AGENT_AUTHORITY_REQUIRED));
         let run = match run {
             Ok(run) => run,
             Err(error) => {
@@ -58,7 +58,7 @@ impl ControlledWeb {
                             |_| -> Result<()> {
                                 ensure!(
                                     web.inspect(&operation)? == preparation,
-                                    "web.mode_changed_before_start"
+                                    super::inspection::MODE_CHANGED_BEFORE_START
                                 );
                                 aura_persistence_v2::agent::checkpoint::verify_start_operation(
                                     web.journal.lock()?.database.connection(),
@@ -67,7 +67,8 @@ impl ControlledWeb {
                                 web.activities.mark_started(operation.operation_id)
                             },
                         )??;
-                        let input: WebReadInput = serde_json::from_value(action)?;
+                        let input: WebReadInput = serde_json::from_value(action)
+                            .map_err(|e| super::inspection::input_error("web.read", &e))?;
                         let document = web.document(session, input.document_artifact_id)?;
                         let (text, next) = aura_web_runtime::excerpt(
                             &document.text,
@@ -86,13 +87,12 @@ impl ControlledWeb {
             return InvokeFinish { value, cancelled: false, stop_confirmed: true };
         }
         if content.action_kind == "web.fetch"
-            && serde_json::from_value::<WebFetchInput>(
+            && let Err(error) = serde_json::from_value::<WebFetchInput>(
                 crate::agent_execution::network::model_action(&content.action),
             )
-            .is_err()
         {
             return InvokeFinish {
-                value: Err(anyhow::anyhow!("web.fetch_input")),
+                value: Err(super::inspection::input_error("web.fetch", &error)),
                 cancelled: false,
                 stop_confirmed: true,
             };
@@ -110,7 +110,7 @@ impl ControlledWeb {
                 Ok(input) => input.max_bytes,
                 Err(error) => {
                     return InvokeFinish {
-                        value: Err(error.into()),
+                        value: Err(super::inspection::input_error("web.fetch", &error)),
                         cancelled: false,
                         stop_confirmed: true,
                     };
@@ -143,7 +143,8 @@ impl ControlledWeb {
                     StoreStep::run(run, "agent.web.search_evidence"),
                     StoreAccess::Write,
                     move || -> Result<serde_json::Value> {
-                        let input: WebSearchInput = serde_json::from_value(action)?;
+                        let input: WebSearchInput = serde_json::from_value(action)
+                            .map_err(|e| super::inspection::input_error("web.search", &e))?;
                         let hits = aura_web_runtime::extract_search(
                             &url,
                             status,
@@ -184,7 +185,7 @@ impl ControlledWeb {
             Ok(input) => input,
             Err(error) => {
                 return InvokeFinish {
-                    value: Err(error.into()),
+                    value: Err(super::inspection::input_error("web.fetch", &error)),
                     cancelled: false,
                     stop_confirmed: true,
                 };

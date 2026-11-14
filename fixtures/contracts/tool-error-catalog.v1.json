@@ -2,6 +2,30 @@
   "catalog_version": 1,
   "entries": [
     {
+      "code": "tool.approval.denied",
+      "category": "cancelled",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_approval_denied",
+      "suggested_not_executed_reason": "permission_denied"
+    },
+    {
+      "code": "tool.approval.expired",
+      "category": "cancelled",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_approval_expired",
+      "suggested_not_executed_reason": "permission_denied"
+    },
+    {
+      "code": "tool.approval.invalidated",
+      "category": "cancelled",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_approval_invalidated",
+      "suggested_not_executed_reason": "permission_denied"
+    },
+    {
       "code": "tool.batch.atomic_group_invalid",
       "category": "conflict",
       "visibility": "renderer_and_model_safe",
@@ -287,6 +311,14 @@
       "visibility": "renderer_and_model_safe",
       "retry_class": "conditional",
       "safe_message_key": "tool_network_host_not_found",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.network.timed_out",
+      "category": "transport",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "conditional",
+      "safe_message_key": "tool_network_timed_out",
       "suggested_not_executed_reason": null
     },
     {

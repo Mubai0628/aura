@@ -4,7 +4,14 @@ export function allowedOrigins(text: string): string[] {
     .split(/[\s,]+/u)
     .filter(Boolean)
     .map((value) => {
-      const url = new URL(value);
+      let url: URL;
+      try {
+        url = new URL(value);
+      } catch {
+        throw new Error(
+          `“${value.slice(0, 80)}” 不是完整的网址，凭据没有保存。请写成 https://${value.slice(0, 80)} 这样的形式。`,
+        );
+      }
       if (
         !['http:', 'https:'].includes(url.protocol) ||
         url.username ||

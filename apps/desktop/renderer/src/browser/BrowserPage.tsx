@@ -34,7 +34,10 @@ export function BrowserPage({
   const addressId = useId();
   const [draft, setDraft] = useState<string>();
   const [unavailable, setUnavailable] = useState('');
-  const model = pageId === MODEL_PAGE_ID;
+  /** Why the address typed into the bar was not opened; cleared by the next edit. */
+  const [refusal, setRefusal] = useState('');
+  // The model drives its own page and any page the user handed to it.
+  const model = pageId === MODEL_PAGE_ID || state?.handedAs !== undefined;
 
   const run = (kind: Plain) => {
     void browserApi()?.command({ kind, sessionId, pageId } as BrowserUserCommand);
@@ -74,6 +77,7 @@ export function BrowserPage({
     const input = draft ?? '';
     setDraft(undefined);
     void go(input).then((refused) => {
+      setRefusal(refused === undefined ? '' : `没有打开：${refused}`);
       if (refused !== undefined) setDraft(input);
     });
   };
@@ -138,7 +142,10 @@ export function BrowserPage({
             autoComplete="off"
             id={addressId}
             onBlur={() => setDraft(undefined)}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setRefusal('');
+            }}
             onFocus={(event) => {
               setDraft(url);
               event.currentTarget.select();
@@ -181,6 +188,12 @@ export function BrowserPage({
       {loading ? (
         <div aria-label="正在加载" className="browser-progress" role="progressbar" />
       ) : null}
+      {refusal === '' ? null : (
+        <div className="browser-notice is-failed" role="alert">
+          <AppIcon name="warning" size={14} />
+          <span>{refusal}</span>
+        </div>
+      )}
       {state?.notice !== undefined && !state.closed ? (
         <div className={`browser-notice is-${state.notice.kind}`} role="alert">
           <AppIcon name="warning" size={14} />

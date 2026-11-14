@@ -5,18 +5,18 @@ impl P04Services {
     pub(super) fn recover_security_state(&self) -> Result<()> {
         self.persistence
             .reconcile_security_after_core_restart(CorrelationId::new())
-            .context("failed to reconcile security state after Core restart")?;
+            .context("security.restart_reconcile_failed: Aura 重启后没能整理上次留下的权限与审批状态，权限与沙箱相关的功能暂时不能用；请重启 Aura。")?;
         SandboxExecutor::new(
             self.persistence.as_ref().clone(),
             CancellationRegistry::default(),
             SandboxExecutorOptions::default(),
         )
         .recover_acl_journal(|_| {})
-        .context("failed to recover Sandbox ACL journal")?;
+        .context("sandbox.acl_journal_unrecovered: 上次没做完的沙箱文件权限改动没能收尾，权限与沙箱相关的功能暂时不能用；请重启 Aura。")?;
         for pending in self
             .persistence
             .pending_host_preparation_operations()
-            .context("failed to read Host Preparation journal")?
+            .context("sandbox.host_preparation_journal_unreadable: 读不出上次没做完的兼容环境操作记录，权限与沙箱相关的功能暂时不能用；请重启 Aura。")?
         {
             let recovery = match pending.operation.state {
                 HostPreparationOperationState::Applying
@@ -56,8 +56,8 @@ impl P04Services {
             let expected_host_preparation_revision = self
                 .persistence
                 .host_preparation_state()
-                .context("failed to read Host Preparation revision during recovery")?
-                .context("Host Preparation state disappeared during recovery")?
+                .context("sandbox.host_preparation_state_unreadable: 收尾上次中断的兼容环境操作时读不出它的状态，权限与沙箱相关的功能暂时不能用；请重启 Aura。")?
+                .context("sandbox.host_preparation_state_missing: 收尾上次中断的兼容环境操作时找不到它的状态记录，权限与沙箱相关的功能暂时不能用；请重启 Aura。")?
                 .status
                 .revision;
             self.persistence
@@ -72,7 +72,7 @@ impl P04Services {
                     runtime,
                     correlation_id: CorrelationId::new(),
                 })
-                .context("failed to close interrupted Host Preparation operation")?;
+                .context("sandbox.host_preparation_unsettled: 上次中断的兼容环境操作没能收尾，权限与沙箱相关的功能暂时不能用；请重启 Aura。")?;
         }
         self.probe_and_persist(CorrelationId::new())?;
         Ok(())
@@ -115,7 +115,7 @@ pub(super) fn classify_interrupted_host_preparation(
     plan: &HostPreparationBrokerPlan,
 ) -> Result<HostPreparationRecoveryDisposition> {
     let probe =
-        probe_host_compatibility().context("failed to probe interrupted Host Preparation")?;
+        probe_host_compatibility().context("sandbox.host_probe_failed: 没能读取本机的兼容环境状态，上次中断的兼容环境操作按结果不明处理；请点“修复兼容环境”重新检查。")?;
     let null_ready = match probe_null_device_readiness() {
         NullDeviceVerdict::Ready => Some(true),
         NullDeviceVerdict::NotReady => Some(false),
@@ -127,7 +127,7 @@ pub(super) fn classify_interrupted_host_preparation(
         match plan.ownership_before.original_null_device_sddl.as_deref() {
             Some(original) => Some(
                 null_device_security_descriptor_matches(original)
-                    .context("failed to compare the frozen NUL security descriptor")?,
+                    .context("sandbox.null_descriptor_unreadable: 没能读取 NUL 设备现在的安全设置，上次中断的兼容环境操作按结果不明处理；请点“修复兼容环境”重新检查。")?,
             ),
             None => None,
         };

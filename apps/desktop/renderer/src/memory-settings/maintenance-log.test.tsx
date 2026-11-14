@@ -78,7 +78,7 @@ test('the page previews the three newest runs; all of them open in the log dialo
   const first = within(dialog).getAllByRole('listitem')[0]!.textContent ?? '';
   expect(first).toContain('已完成');
   expect(first).toContain('新增 0 条');
-  expect(first).toContain('ses_0');
+  expect(first).not.toContain('ses_');
   expect(first).toContain('输入 100');
   await userEvent.click(within(dialog).getByRole('button', { name: '显示更早的 5 条' }));
   expect(within(dialog).getAllByRole('listitem')).toHaveLength(25);

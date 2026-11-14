@@ -81,6 +81,7 @@ fn running_grants(
                 BackendClass::Native,
                 approved.snapshot.session_permission_revision,
                 runtime,
+                None,
                 at,
             )
         })

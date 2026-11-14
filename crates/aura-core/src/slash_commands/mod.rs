@@ -43,14 +43,17 @@ impl CommandContext {
             "agent.commands.delete" => {
                 serde_json::to_value(self.delete(serde_json::from_value(params)?)?)?
             }
-            _ => anyhow::bail!("commands.unknown_route"),
+            _ => anyhow::bail!(
+                "commands.unknown_route: 命令设置不认识这个操作，没有执行；请更新 Aura 后重试。"
+            ),
         })
     }
 
     /// The verified root of a registered workspace.
     pub(crate) fn workspace_root(&self, workspace_id: WorkspaceId) -> anyhow::Result<PathBuf> {
-        let runtime =
-            self.workspace.as_ref().ok_or_else(|| anyhow::anyhow!("workspace.unavailable"))?;
+        let runtime = self.workspace.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("workspace.unavailable: 工作区现在不可用，没有执行；请稍后重试。")
+        })?;
         let resolver = runtime.resolver(workspace_id)?;
         resolver.verify_root_identity()?;
         Ok(resolver.canonical_root().to_path_buf())

@@ -1,4 +1,10 @@
+import {
+  HOST_ACTION_TITLE,
+  hostPlanLines,
+  hostPlanValidUntil,
+} from '../../shared/host-preparation-text';
 import { useSecurityControl } from './security-control-store';
+import { hostOperationState } from './security/host-preparation-words';
 
 type SecurityControl = ReturnType<typeof useSecurityControl>;
 
@@ -32,6 +38,7 @@ function Fact({
  */
 export function HostPreparationPanel({ security }: { security: SecurityControl }) {
   const summary = security.host?.summary;
+  const operation = security.host?.active_operation;
   const state = (available: boolean | undefined, yes: string, no: string) =>
     summary === undefined ? '正在读取…' : available ? yes : no;
   const compatible =
@@ -64,7 +71,7 @@ export function HostPreparationPanel({ security }: { security: SecurityControl }
       </dl>
 
       {security.host?.active_operation === null ? (
-        <div className="host-actions" aria-label="Host Preparation 操作">
+        <div className="host-actions" aria-label="兼容环境操作">
           <button
             className="button is-small"
             onClick={() => void security.requestHostPreparation('prepare')}
@@ -90,35 +97,20 @@ export function HostPreparationPanel({ security }: { security: SecurityControl }
         </div>
       ) : null}
 
-      {security.host?.active_operation !== null && security.host?.active_operation !== undefined ? (
-        <div className="host-preparation-plan" role="status" aria-label="Host Preparation 状态">
-          <strong>
-            {security.host.active_operation.action === 'remove'
-              ? '移除 Host Preparation'
-              : security.host.active_operation.action === 'repair'
-                ? '修复 Host Preparation'
-                : '配置 Host Preparation'}
-          </strong>
-          <p>
-            当前状态：{security.host.active_operation.state}。确认与管理员权限请求由受信任的
-            Electron Main 原生对话框处理。
-          </p>
+      {operation === null || operation === undefined ? null : (
+        <div className="host-preparation-plan" role="status" aria-label="兼容环境状态">
+          <strong>{HOST_ACTION_TITLE[operation.action]}</strong>
+          <p>{hostOperationState(operation)}</p>
           <ul>
-            {security.host.active_operation.add_all_application_packages_ace ? (
-              <li>添加 ALL APPLICATION PACKAGES 精确兼容 ACE</li>
-            ) : null}
-            {security.host.active_operation.add_all_restricted_application_packages_ace ? (
-              <li>添加 ALL RESTRICTED APPLICATION PACKAGES 精确兼容 ACE</li>
-            ) : null}
-            {security.host.active_operation.update_null_device_security ? (
-              <li>更新或恢复 NUL 设备兼容安全描述符</li>
-            ) : null}
+            {hostPlanLines(operation).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
           </ul>
-          <p className="plan-expiry">
-            到期时间：{new Date(security.host.active_operation.expires_at).toLocaleString()}
-          </p>
+          {operation.state === 'prepared' || operation.state === 'awaiting_elevation' ? (
+            <p className="plan-expiry">{hostPlanValidUntil(operation.expires_at)}</p>
+          ) : null}
         </div>
-      ) : null}
+      )}
     </section>
   );
 }

@@ -174,7 +174,19 @@ const MATCH = /^(.+?):(\d+) · (.*)$/su;
  * One line of a call's expanded row: what a lookup found and where a search matched open as
  * files; every other line is text.
  */
-export function DetailLine({ tool, line, call }: { tool: string; line: string; call: string }) {
+export function DetailLine({
+  tool,
+  line,
+  call,
+  found = true,
+}: {
+  tool: string;
+  line: string;
+  call: string;
+  /** The call succeeded, so its lines are what it found; a failed call's lines are its reason. */
+  found?: boolean;
+}) {
+  if (!found) return <>{line}</>;
   if (tool === 'fs.find' && !line.endsWith(CUT))
     return <FileButton call={call} className="agent-detail-file" text={line} />;
   const match = tool === 'fs.search' ? MATCH.exec(line) : null;

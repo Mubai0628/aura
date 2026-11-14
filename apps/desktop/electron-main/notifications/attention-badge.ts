@@ -1,12 +1,16 @@
 export interface AttentionBadgeDeps {
-  /** Shows the dot for this many conversations, or takes it away at none. */
-  apply(count: number): void;
+  /**
+   * Shows the dot for these conversations, or takes it away at none; the window's sidebar marks
+   * the same ones.
+   */
+  apply(unseen: readonly string[]): void;
   inFront(sessionId: string): boolean;
 }
 
 /**
- * The red dot on Aura's taskbar button: on while a conversation has a notification the user has
- * not looked at, gone once each such conversation has been in front.
+ * The red dot on Aura's taskbar button and on the conversations in the sidebar: on while a
+ * conversation has a notification the user has not looked at, gone once each such conversation
+ * has been in front.
  */
 export class AttentionBadge {
   readonly #unseen = new Set<string>();
@@ -20,10 +24,15 @@ export class AttentionBadge {
     return this.#unseen.size;
   }
 
+  /** The conversations with a notification not looked at, oldest first. */
+  get unseen(): string[] {
+    return [...this.#unseen];
+  }
+
   add(sessionId: string): void {
     if (this.#unseen.has(sessionId)) return;
     this.#unseen.add(sessionId);
-    this.#deps.apply(this.#unseen.size);
+    this.#deps.apply(this.unseen);
   }
 
   /** Forgets the conversations in front now. */
@@ -34,7 +43,7 @@ export class AttentionBadge {
         this.#unseen.delete(sessionId);
         changed = true;
       }
-    if (changed) this.#deps.apply(this.#unseen.size);
+    if (changed) this.#deps.apply(this.unseen);
   }
 }
 

@@ -35,6 +35,18 @@ const MAX_WAIT_MS: u32 = 10_000;
 /// The most elements one screenshot numbers.
 const MAX_MARKS: usize = 300;
 
+/// The call's arguments in the tool's own input type; arguments that do not fit are refused in
+/// Core's words, with what did not fit.
+fn arguments<T: serde::de::DeserializeOwned>(handler: H, input: Value) -> anyhow::Result<T> {
+    serde_json::from_value(input).map_err(|error| {
+        anyhow!(
+            "computer.input_invalid: {} 的参数不符合要求（{}），什么都没做；按工具说明改正后再调用。",
+            handler.name(),
+            super::super::browser::outside_detail(&error.to_string(), 120)
+        )
+    })
+}
+
 /// The program a call names, from the catalog the step's listing read.
 pub(super) fn program(desktop: &DesktopControl, app: &str) -> anyhow::Result<AppEntry> {
     if let Some(why) = desktop.catalog_issue() {
@@ -314,13 +326,13 @@ pub(super) fn command(
     };
     Ok(match handler {
         H::ComputerOpen => {
-            let input: ComputerOpenInput = serde_json::from_value(input)?;
+            let input: ComputerOpenInput = arguments(handler, input)?;
             let app = program(desktop, &input.app)?;
             let command = HostCommand::Launch { app: app.clone(), timeout_ms: LAUNCH_MS };
             (frozen(command, None), app)
         }
         H::ComputerSnapshot => {
-            let input: ComputerSnapshotInput = serde_json::from_value(input)?;
+            let input: ComputerSnapshotInput = arguments(handler, input)?;
             let app = program(desktop, &input.app)?;
             let (window, root) = match input.root.as_deref() {
                 Some(reference) => {
@@ -346,7 +358,7 @@ pub(super) fn command(
             (frozen(command, None), app)
         }
         H::ComputerScreenshot => {
-            let input: ComputerScreenshotInput = serde_json::from_value(input)?;
+            let input: ComputerScreenshotInput = arguments(handler, input)?;
             let app = program(desktop, &input.app)?;
             let region = match &input.region {
                 Some(region) => Some(region_on_screen(
@@ -359,7 +371,7 @@ pub(super) fn command(
             (frozen(screenshot(&app, settings, region, marks), None), app)
         }
         H::ComputerAct => {
-            let input: ComputerActInput = serde_json::from_value(input)?;
+            let input: ComputerActInput = arguments(handler, input)?;
             let app = program(desktop, &input.app)?;
             ensure!(
                 (1..=MAX_ACT_STEPS).contains(&input.steps.len()),
@@ -386,7 +398,7 @@ pub(super) fn command(
             (Frozen { mode: Default::default(), command, after, refs, safety: None }, app)
         }
         H::ComputerInput => {
-            let input: ComputerInputInput = serde_json::from_value(input)?;
+            let input: ComputerInputInput = arguments(handler, input)?;
             let app = program(desktop, &input.app)?;
             ensure!(
                 (1..=MAX_INPUT_STEPS).contains(&input.steps.len()),
@@ -412,7 +424,7 @@ pub(super) fn command(
             (frozen(command, after), app)
         }
         H::ComputerWindow => {
-            let input: ComputerWindowInput = serde_json::from_value(input)?;
+            let input: ComputerWindowInput = arguments(handler, input)?;
             let app = program(desktop, &input.app)?;
             let command = HostCommand::Window {
                 app: app.clone(),
@@ -421,7 +433,10 @@ pub(super) fn command(
             };
             (frozen(command, None), app)
         }
-        _ => bail!("computer.unsupported_tool"),
+        other => bail!(
+            "computer.unsupported_tool: 这个版本的 Aura 不能执行 {}，什么都没做。",
+            other.name()
+        ),
     })
 }
 

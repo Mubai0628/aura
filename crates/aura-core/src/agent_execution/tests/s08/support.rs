@@ -69,6 +69,7 @@ pub(in crate::agent_execution::tests) async fn approve(
                 backend.class,
                 call.snapshot.session_permission_revision,
                 engine.runtime,
+                None,
                 now,
             )
         })

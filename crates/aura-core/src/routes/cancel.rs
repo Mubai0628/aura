@@ -1,5 +1,6 @@
 //! Dedicated user-opening gate first; every other cancellation keeps its original semantics.
 use crate::*;
+use aura_core_base::route_failures as failure;
 use aura_runtime_contract::CancelDisposition;
 
 pub(crate) async fn dispatch(
@@ -9,12 +10,12 @@ pub(crate) async fn dispatch(
     request: &JsonRpcRequest,
 ) -> Result<IpcRequestTerminal> {
     let cancellation: CancellationRequest =
-        serde_json::from_value(request.params.clone()).context("invalid aura.cancel params")?;
+        serde_json::from_value(request.params.clone()).context(failure::CANCEL_INVALID)?;
     let (opening, general) = {
         // Registration takes this same ledger lock before installing its gate.
         // An accepted queued intent is therefore visible even before registration.
         let mut requests =
-            ledger.lock().map_err(|_| anyhow::anyhow!("request ledger was poisoned"))?;
+            ledger.lock().map_err(|_| anyhow::anyhow!(failure::CANCEL_LEDGER_UNAVAILABLE))?;
         let opening = state.terminal_openings.cancel(
             cancellation.request_id,
             requests.terminal(cancellation.request_id).is_some(),
@@ -32,7 +33,7 @@ pub(crate) async fn dispatch(
     let disposition = if let Some(opening) = opening {
         opening
     } else {
-        let outcome = general.context("missing cancellation classification")?;
+        let outcome = general.context(failure::CANCEL_UNCLASSIFIED)?;
         // Accepted remains intent-only for all existing non-opening handlers.
         aura_ipc::trace(
             "core.cancel.recorded",

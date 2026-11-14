@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
@@ -97,7 +97,7 @@ describe('Provider Catalog grouping', () => {
   test('an unavailable catalog says so where its Providers would be', () => {
     render(
       <ProviderCatalog
-        catalogUnavailable
+        catalogUnavailable="models.dev 目录暂不可用（连不上 models.dev），服务商列表无法显示。请检查网络或代理后刷新目录。"
         onAddCustom={vi.fn()}
         onConfigure={vi.fn()}
         onSelect={vi.fn()}
@@ -106,7 +106,9 @@ describe('Provider Catalog grouping', () => {
       />,
     );
     const directory = screen.getByRole('region', { name: '未配置目录' });
-    expect(directory.textContent).toContain('models.dev 目录暂不可用');
+    expect(within(directory).getByRole('status').textContent).toBe(
+      'models.dev 目录暂不可用（连不上 models.dev），服务商列表无法显示。请检查网络或代理后刷新目录。',
+    );
     expect(screen.getByRole('region', { name: '已配置 Provider' }).textContent).not.toContain(
       '不可用',
     );

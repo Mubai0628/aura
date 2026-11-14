@@ -7,7 +7,7 @@ use aura_chrome_domain::commands::{
 };
 use aura_domain_common::SessionId;
 
-struct Titles(Vec<(SessionId, &'static str)>);
+pub(super) struct Titles(pub(super) Vec<(SessionId, &'static str)>);
 
 impl ChromeSessions for Titles {
     fn list(&self) -> Vec<ChromeSessionChoice> {

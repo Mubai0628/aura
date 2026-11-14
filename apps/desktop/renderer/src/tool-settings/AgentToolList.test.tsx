@@ -99,7 +99,9 @@ test('a rejected save keeps the unsaved selection selected', async () => {
   render(<Harness />);
   fireEvent.click(await screen.findByRole('switch', { name: 'fs.list 默认加载' }));
   fireEvent.click(screen.getByRole('button', { name: '保存配置' }));
-  await screen.findByRole('alert');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '工具选择没有保存（设置刚在别处被改过），仍按原来的选择运行。请重新打开这一页，核对后再改。',
+  );
   expect(
     screen.getByRole('switch', { name: 'fs.list 默认加载' }).getAttribute('aria-checked') ===
       'true',
@@ -174,7 +176,9 @@ test('a failed initial read shows a real error and a retry instead of loading fo
     value: { v1: { readAgentToolSettings, configureAgentTools: configure } },
   });
   render(<Harness />);
-  await screen.findByRole('alert');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '工具配置没有读到（Aura 内部出错），现在不能修改工具；请稍后点“重新读取工具配置”。',
+  );
   expect(screen.queryByText('正在读取工具…')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: '重新读取工具配置' }));
   await screen.findByRole('switch', { name: 'fs.list 默认加载' });

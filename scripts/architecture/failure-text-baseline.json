@@ -1,0 +1,5 @@
+{
+  "adopted_on": "2026-11-11",
+  "rule": "failure texts in bail!/anyhow!/ensure!/#[error]/.context under FAILURE_TEXT_ROOTS, the &str constants those calls name, code-prefixed &str constants, and every constant of a failures module read `code: 中文句`; the files below may only lower their count",
+  "files": {}
+}

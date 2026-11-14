@@ -45,7 +45,11 @@ async fn shot(takes_images: bool) -> Shot {
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
     images(&runtime, model, takes_images).await;
-    services(&runtime).agent_required().browser().note_page(session, "http://127.0.0.1:9/game");
+    services(&runtime).agent_required().browser().note_page(
+        session,
+        "model",
+        "http://127.0.0.1:9/game",
+    );
     let (seen, _) = play_host(&runtime, Host::Answers);
     let started = waiting::start(&runtime, session, model, AgentTaskMode::Normal).await;
     let request = AgentRunRequest { session_id: session, agent_run_id: started.run.agent_run_id };

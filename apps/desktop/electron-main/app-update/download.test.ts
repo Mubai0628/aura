@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
@@ -102,4 +103,74 @@ test('a server that ignores ranges is read from the start, and a wrong size is r
       onProgress: () => undefined,
     }),
   ).rejects.toThrow(/比更新包大/u);
+});
+
+test('a part that cannot be written ends the download with the system’s code instead of waiting', async () => {
+  const { url } = await serve();
+  const target = await folder();
+  const name = 'Aura-Update-0.1.4-x64.aura-update';
+  // A folder where the part goes cannot be opened for writing.
+  await mkdir(join(target, `${name}.part`));
+  await expect(
+    downloadPackage({
+      fetch,
+      url,
+      size: BODY.length,
+      folder: target,
+      name,
+      signal: new AbortController().signal,
+      onProgress: () => undefined,
+    }),
+  ).rejects.toMatchObject({ code: expect.stringMatching(/^E[A-Z]+$/u) });
+});
+
+test('a whole package an earlier download could not rename is used without asking again', async () => {
+  const { url, seen } = await serve();
+  const target = await folder();
+  const name = 'Aura-Update-0.1.5-x64.aura-update';
+  await writeFile(join(target, `${name}.part`), BODY);
+  const file = await downloadPackage({
+    fetch,
+    url,
+    size: BODY.length,
+    folder: target,
+    name,
+    signal: new AbortController().signal,
+    onProgress: () => undefined,
+  });
+  expect(Buffer.compare(await readFile(file), BODY)).toBe(0);
+  expect(seen).toEqual([]);
+});
+
+test('a package GitHub does not give says why in words, and a part it does not match is dropped', async () => {
+  const target = await folder();
+  const name = 'Aura-Update-0.1.6-x64.aura-update';
+  const part = join(target, `${name}.part`);
+  await writeFile(part, BODY.subarray(0, 10));
+  const answered = (status: number) =>
+    downloadPackage({
+      fetch: async () => new Response('', { status }),
+      url: 'https://example.test/package',
+      size: BODY.length,
+      folder: target,
+      name,
+      signal: new AbortController().signal,
+      onProgress: () => undefined,
+    });
+  await expect(answered(416)).rejects.toThrow(
+    '已下载的部分和 GitHub 上的更新包对不上，已删掉；点“继续下载”会从头重新下载。',
+  );
+  expect(existsSync(part)).toBe(false);
+  await expect(answered(404)).rejects.toThrow(
+    '这个版本的更新包在 GitHub 上找不到了，这次没下载；请稍后重新检查更新。',
+  );
+  await expect(answered(503)).rejects.toThrow(
+    'GitHub 暂时不可用，下载暂停了；已下载的部分会保留，稍后点“继续下载”。',
+  );
+  await expect(answered(429)).rejects.toThrow(
+    'GitHub 暂时限制了下载（同一网络请求太频繁），下载暂停了；已下载的部分会保留，约一小时后点“继续下载”。',
+  );
+  await expect(answered(418)).rejects.toThrow(
+    'GitHub 没有给出更新包，下载暂停了；已下载的部分会保留，稍后点“继续下载”，仍然不行请重新检查更新。',
+  );
 });

@@ -6,6 +6,14 @@ use super::{runtime, tool_for};
 use anyhow::{Result, ensure};
 use aura_domain_common::{ContentHash, ContentHashAlgorithm};
 
+// Why a call was not started, for the model.
+const CALL_IDENTITY: &str = "agent.call_identity: this call was not started: it does not match \
+    the turn and tool list it was made with. Nothing was changed. Call it again.";
+const LIVE_IDENTITY: &str = "agent.live_identity: this call was not started: the turn it belongs \
+    to has ended. Nothing was changed.";
+const INVALID_INPUT: &str = "agent.invalid_input: this call was not started: its arguments did \
+    not pass the checks before it. Nothing was changed. Correct the arguments and call it again.";
+
 impl AgentExecution {
     /// [`AgentExecution::resolve_call`] for an MCP tool: the same identity checks and durable
     /// facts, plus the live server and tool check.
@@ -21,7 +29,7 @@ impl AgentExecution {
             batch.calls.contains(&call.call)
                 && batch.registry_snapshot_ref == registry.snapshot_ref
                 && snapshot.session_id == id.session_id,
-            "agent.call_identity"
+            CALL_IDENTITY
         );
         let runtime = runtime(self)?;
         let store = self.journal.lock()?;
@@ -34,7 +42,7 @@ impl AgentExecution {
                 && turn.session_id == id.session_id
                 && turn.workspace_id == snapshot.workspace_id
                 && !turn.state.terminal(),
-            "agent.live_identity"
+            LIVE_IDENTITY
         );
         let tool = tool_for(&runtime, db, &call.definition)?;
         drop(store);
@@ -43,16 +51,20 @@ impl AgentExecution {
                 && tool.instance.tool_version == call.binding.tool_version
                 && tool.instance.source_contract_fingerprint
                     == call.binding.source_contract_fingerprint,
-            "mcp.tool_changed: 这个 MCP 工具已更新，请重新发起调用"
+            super::candidates::TOOL_CHANGED
         );
         let (purpose, arguments) = match &call.call.input {
             NormalizedToolCallInputStateV1::Ready { purpose, arguments, .. } => {
                 (purpose.to_string(), arguments.clone())
             }
-            _ => anyhow::bail!("agent.invalid_input"),
+            _ => anyhow::bail!(INVALID_INPUT),
         };
         let fingerprint = ContentHash::new(ContentHashAlgorithm::Blake3, &tool.config_fingerprint)
-            .map_err(|_| anyhow::anyhow!("mcp.invalid_fingerprint"))?;
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "mcp.invalid_fingerprint: 这个 MCP 工具的配置记录不完整，调用没有发给服务器。请用 tools.search 重新找到它再调用。"
+                )
+            })?;
         let content = OperationContent {
             identity: InvocationIdentity {
                 principal_id: PrincipalId::from_bytes(id.session_id.to_bytes()),
@@ -95,6 +107,7 @@ impl AgentExecution {
             verified_external_capabilities: vec![],
             verified_external_grants: vec![],
             observed_resources: Arc::new(std::sync::Mutex::new(Vec::new())),
+            own_folders: Arc::default(),
         })
     }
 }

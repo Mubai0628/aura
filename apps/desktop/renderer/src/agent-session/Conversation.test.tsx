@@ -132,6 +132,28 @@ test('completed plan keeps the implement entry', async () => {
   });
 });
 
+test('a plan that could not be implemented says why and what to do', async () => {
+  related.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'task_lineage.revision_conflict', message: 'revision conflict' },
+  });
+  show('completed', true);
+  fireEvent.click(screen.getByRole('button', { name: '实施计划' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '计划刚刚有了变化，这次没有开始实施；请看最新的计划后再点“实施”。',
+  );
+  cleanup();
+  related.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'agent.store_busy', message: 'agent.store_busy' },
+  });
+  show('completed', true);
+  fireEvent.click(screen.getByRole('button', { name: '实施计划' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '没能开始实施计划，计划保持原样；请稍后再点“实施”。',
+  );
+});
+
 test('reaching the top pages earlier turns with no button and no jump', async () => {
   const loadOlder = vi.fn().mockResolvedValue(true);
   const viewport = document.createElement('div');

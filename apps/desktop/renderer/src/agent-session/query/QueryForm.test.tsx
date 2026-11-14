@@ -133,6 +133,19 @@ test('declining answers every question as declined', async () => {
   ]);
 });
 
+test('an answer to a question that already ended says it was not delivered and what to do', async () => {
+  answer.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'agent.query_missing', message: 'agent.query_missing' },
+  });
+  const user = userEvent.setup();
+  render(<QueryForm query={query} sessionId="ses_1" onChanged={vi.fn()} />);
+  await user.click(screen.getByRole('button', { name: '拒绝回答' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '这个问题已经结束（超时、任务已停止或问题已更新），你的回答没有送达；请看最新的问题，或在输入框说明。',
+  );
+});
+
 test('left alone for 30 s the countdown shows, and a touch starts the time again', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: false });
   vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));

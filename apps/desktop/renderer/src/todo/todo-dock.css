@@ -1,5 +1,5 @@
 /* The model's task list. Its heading counts what is done, a hairline bar
-   shows it, the item being worked on turns and shimmers; folded it is one line. A part of the 近期活动 card (activity-summary.css gives it the card's line and title). */
+   shows it, the item being worked on turns and shimmers while the turn runs; folded it is one line. A part of the 近期活动 card (activity-summary.css gives it the card's line and title). */
 .todo-head {
   display: flex;
   min-width: 0;
@@ -122,9 +122,13 @@
   color: var(--warning);
 }
 
-/* The item being worked on: darker words with a light passing across them. */
+/* The item being worked on: darker words, with a light passing across them while the turn runs. */
 .todo-item.is-in_progress .todo-label {
   font-weight: 600;
+  color: var(--ink);
+}
+
+.todo-dock[data-running] .todo-item.is-in_progress .todo-label {
   color: transparent;
   background: linear-gradient(
       100deg,
@@ -167,12 +171,12 @@
   color: var(--quiet);
 }
 
-/* A ring that turns while the item is worked on. */
+/* A ring that turns while the item is worked on and the turn runs. */
 .todo-mark.is-in_progress {
   border-color: var(--accent-soft);
 }
 
-.todo-mark.is-in_progress::after {
+.todo-dock[data-running] .todo-mark.is-in_progress::after {
   position: absolute;
   inset: -1px;
   border: 1px solid transparent;
@@ -200,12 +204,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .todo-mark.is-in_progress::after,
-  .todo-item.is-in_progress .todo-label {
+  .todo-dock[data-running] .todo-mark.is-in_progress::after,
+  .todo-dock[data-running] .todo-item.is-in_progress .todo-label {
     animation: none;
   }
 
-  .todo-item.is-in_progress .todo-label {
+  .todo-dock[data-running] .todo-item.is-in_progress .todo-label {
     color: var(--ink);
     background: none;
   }

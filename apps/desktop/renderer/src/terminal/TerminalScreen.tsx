@@ -3,8 +3,32 @@ import { useEffect, useRef, useState } from 'react';
 import { addTerminal, terminalApi, type TerminalRecord } from './store';
 import { mountTerminal, terminalEngine } from './xterm-runtime';
 import { ProjectionCompatibilityNotice } from '../ProjectionCompatibilityNotice';
+import type { TerminalEnd } from '@aura/contracts/generated';
 
-/** One terminal's screen with its status line and, for the model's terminal, takeover. */
+/** Why a terminal ended, and what to do when it will not come back. */
+const endedBecause = (end: TerminalEnd): string => {
+  switch (end.reason) {
+    case 'exited':
+      return `退出码 ${end.exit_code ?? '未知'}`;
+    case 'core_stopped':
+      return 'Aura Core 重启过，这个终端不会恢复，请新开一个终端';
+    case 'output_failed':
+      return '终端输出出错，请关闭这个页签后新开一个终端';
+    case 'agent_closed':
+      return '模型关闭了它';
+    case 'session_deleted':
+      return '所属会话已删除';
+    case 'owner_dropped':
+      return '打开它的会话已结束';
+    case 'user_closed':
+      return '已关闭';
+  }
+};
+
+/**
+ * One terminal's screen with its status line and, for the model's terminal or one the user handed
+ * to it, takeover.
+ */
 export function TerminalScreen({ record, active }: { record: TerminalRecord; active: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -41,10 +65,8 @@ export function TerminalScreen({ record, active }: { record: TerminalRecord; act
     <div className="terminal-view" hidden={!active}>
       <div className="terminal-status" role="status">
         控制：{record.view.controller === 'agent' ? 'Agent' : '用户'} ·{' '}
-        {record.view.end
-          ? `已结束（${record.view.end.reason === 'core_stopped' ? 'Core 已停止' : record.view.end.reason === 'exited' ? `退出码 ${record.view.end.exit_code ?? '未知'}` : '已关闭'}）`
-          : '运行中'}
-        {record.view.owner === 'agent' && !record.view.end ? (
+        {record.view.end ? `已结束（${endedBecause(record.view.end)}）` : '运行中'}
+        {(record.view.owner === 'agent' || record.view.handed_over === true) && !record.view.end ? (
           <button
             type="button"
             aria-busy={transferring || undefined}

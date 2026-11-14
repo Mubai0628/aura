@@ -166,14 +166,31 @@ fn rejection_message(rejection: &ToolPreflightRejectionV1) -> String {
             .map(|issue| {
                 format!(
                     "{}: {} (schema {})",
-                    issue.instance_path,
+                    match issue.instance_path.as_str() {
+                        "" => "the top level",
+                        path => path,
+                    },
                     issue.issue_kind.chars().take(512).collect::<String>(),
                     issue.schema_path
                 )
             })
             .collect::<Vec<_>>()
             .join("; ");
-        return format!("Arguments were not executed. Correct the following fields: {fields}");
+        let mut message =
+            format!("Arguments were not executed. Correct the following fields: {fields}");
+        // A tool's own arguments never take `aura_purpose`: one there was written inside the
+        // `arguments` of tools.call.
+        if report.errors.iter().any(|issue| issue.issue_kind.contains("`/aura_purpose`")) {
+            message.push_str(
+                " `aura_purpose` is not a field of the tool: with tools.call it goes once beside `tool` and `arguments`, not inside `arguments`.",
+            );
+        }
+        return message;
+    }
+    if let Some(message) =
+        rejection.error_code.as_ref().and_then(|code| code_message(code.as_str()))
+    {
+        return message;
     }
     if matches!(
         rejection.reason,
@@ -207,7 +224,23 @@ fn rejection_message(rejection: &ToolPreflightRejectionV1) -> String {
             return "The path was not executed because no resolver is available in this session's current state. Check the workspace's state before retrying.".into();
         }
     }
-    "The tool call was not executed during preflight.".into()
+    aura_tool_contract::not_run_message(rejection.reason)
+}
+
+/// A sentence for the catalog codes whose cause the code alone says.
+fn code_message(code: &str) -> Option<String> {
+    Some(match code {
+        "tool.schema.arguments_too_large" => format!(
+            "This call was not run: its arguments are larger than the {} KiB one call may carry. Nothing was changed. Send large content in several smaller calls.",
+            aura_tool_contract::MAX_PROVIDER_ARGUMENTS_BYTES / 1024
+        ),
+        "tool.schema.hash_mismatch" | "tool.schema.validator_compilation_failed" => "This call was not run: Aura could not check its arguments (an internal error). Nothing was changed. Try it again; if it fails again, tell the user.".into(),
+        "tool.batch.completion_batch_invalid" => "No call of this response ran: a call that ends the turn goes in a response of its own. normal.complete goes alone (task_lineage.review_completion may come with it), goal.check and goal.complete go in different responses, and mode.disposition goes alone. Nothing was changed. Send the other calls first, then the finishing call on its own.".into(),
+        "tool.batch.registry_snapshot_mismatch" | "tool.batch.plan_invalidated" | "tool.registry.version_mismatch" => "No call of this response ran: the tool list changed while the response was being written. Nothing was changed. Call them again.".into(),
+        "tool.batch.dependency_cycle" | "tool.batch.atomic_group_invalid" => "No call of this response ran: its calls could not be put in an order to run (their dependencies or groups did not fit together). Nothing was changed. Call them again, in separate responses where one needs another's result.".into(),
+        batch if batch.starts_with("tool.batch.") => "No call of this response ran: Aura could not match its calls to this turn (an internal check failed). Nothing was changed. Call them again; if it happens again, tell the user.".into(),
+        _ => return None,
+    })
 }
 
 /// The correction for an argument envelope the normalizer refused.
@@ -404,6 +437,40 @@ mod tests {
         assert!(generic.contains("aura_purpose") && !generic.contains("\"_aura\""), "{generic}");
     }
 
+    /// A tool's own arguments never take `aura_purpose`: one there was written inside the
+    /// `arguments` of tools.call, and the model is told where it goes. The top level of the
+    /// arguments is named, not left as an empty path.
+    #[test]
+    fn a_purpose_inside_the_arguments_of_tools_call_is_moved_beside_them() {
+        let issue = |path: &str, field: &str| aura_tool_contract::ToolSchemaValidationIssueV1 {
+            instance_path: path.into(),
+            schema_path: "/additionalProperties".into(),
+            issue_kind: format!(
+                "additionalproperties: expected only the fields `page`, `url`; remove unexpected field(s) `{path}/{field}`"
+            ),
+        };
+        let refused = |issue| {
+            rejection_message(&ToolPreflightRejectionV1 {
+                reason: ToolNotExecutedReasonV1::SchemaValidationFailed,
+                error_code: Some(
+                    aura_tool_contract::ToolSchemaErrorCode::ArgumentsInvalid.error_code(),
+                ),
+                schema_validation: Some(aura_tool_contract::ToolSchemaValidationReportV1 {
+                    valid: false,
+                    errors: vec![issue],
+                    total_error_count: 1,
+                }),
+                ..rejection(ToolResourceErrorCode::ScopeResolutionFailed)
+            })
+        };
+        let purpose = refused(issue("", "aura_purpose"));
+        assert!(purpose.contains("the top level: additionalproperties"), "{purpose}");
+        assert!(purpose.contains("beside `tool` and `arguments`"), "{purpose}");
+        let other = refused(issue("/page", "aura_purpose"));
+        assert!(other.contains("/page: additionalproperties"), "{other}");
+        assert!(!other.contains("beside `tool` and `arguments`"), "{other}");
+    }
+
     /// Each class of resource failure tells the model what to change. Collapsing
     /// them into one generic sentence is the behaviour this guards against.
     #[test]
@@ -422,10 +489,37 @@ mod tests {
         assert!(resolver.contains("resolver"), "{resolver}");
 
         // A class with no specific guidance still says something true rather than
-        // borrowing another class's wording.
+        // borrowing another class's wording: the sentence of its reason.
         let generic =
             rejection_message(&rejection(ToolResourceErrorCode::IdentityResolutionFailed));
-        assert_eq!(generic, "The tool call was not executed during preflight.");
+        assert_eq!(
+            generic,
+            aura_tool_contract::not_run_message(
+                ToolNotExecutedReasonV1::ResourceClaimResolutionFailed
+            )
+        );
+        assert!(generic.contains("Nothing was changed"), "{generic}");
+    }
+
+    /// The finishing-call rules were read as "not executed during preflight", so the model
+    /// sent the same response again.
+    #[test]
+    fn a_response_that_breaks_the_finishing_call_rules_is_told_the_rules() {
+        let mut refused = rejection(ToolResourceErrorCode::IdentityResolutionFailed);
+        refused.reason = ToolNotExecutedReasonV1::BatchRejected;
+        refused.error_code =
+            Some(aura_tool_contract::ToolBatchErrorCode::CompletionBatchInvalid.error_code());
+        let message = rejection_message(&refused);
+        assert!(
+            message.contains("normal.complete goes alone")
+                && message.contains("Nothing was changed"),
+            "{message}"
+        );
+        refused.error_code =
+            Some(aura_tool_contract::ToolSchemaErrorCode::ArgumentsTooLarge.error_code());
+        refused.reason = ToolNotExecutedReasonV1::SchemaValidationFailed;
+        let large = rejection_message(&refused);
+        assert!(large.contains("512 KiB") && large.contains("smaller calls"), "{large}");
     }
 
     /// Different classes must not share one message, or the model cannot tell them

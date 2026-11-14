@@ -50,10 +50,11 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
         if native_cache {
             history::mark_cacheable_tail(&mut history);
         }
-        // The task state follows the history in the last user turn. A question asked after the
-        // step's request - a compaction - is a text block of its own after it, and what followed it
-        // when the model called tools comes next, so all before them is the step's request as it
-        // was sent. No `tool_choice` is sent: changing it drops Anthropic's cache of the messages.
+        // The task state follows the history in the last user turn. A message after the step's
+        // request - a compaction's question or a retry's note - is a text block of its own after
+        // it, and what followed a question when the model called tools comes next, so all before
+        // them is the step's request as it was sent. No `tool_choice` is sent: changing it drops
+        // Anthropic's cache of the messages.
         let mut turn = vec![json!({"type":"text","text":layout.current})];
         if let Some(question) = &input.request.closing_question {
             turn.push(json!({"type":"text","text":question}));

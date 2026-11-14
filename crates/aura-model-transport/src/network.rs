@@ -1,9 +1,9 @@
-use std::{future::Future, sync::Arc};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use aura_domain_common::{NetworkRequestId, TransportAttemptId};
 use aura_model_domain::ModelExecutionSnapshot;
 use aura_network_control::{
-    CoreHttpClientGateway, GatewayBodyStream, GatewayStreamResponse,
+    CoreHttpClientGateway, GatewayBodyStream, GatewayStreamResponse, NetworkControlError,
     ProviderTransportGatewayRequest, ProviderTransportRequestAuthority,
 };
 use aura_security_contract::NetworkCallerKind;
@@ -88,9 +88,19 @@ where
             .await?;
         validate_gateway_binding(snapshot, request_plan, client_request_id, &request)?;
         let GatewayStreamResponse { status, headers, body, .. } =
-            self.gateway.execute_provider_transport_stream(request).await?;
+            stream(&self.gateway, request).await?;
         Ok(TransportHttpResponse { status, headers, body })
     }
+}
+
+/// The gateway's request future, boxed by a plain function. Model requests run deep inside a
+/// turn's futures, and in debug builds every level would otherwise carry, and build in its own
+/// frame, the gateway's whole request.
+fn stream(
+    gateway: &CoreHttpClientGateway,
+    request: ProviderTransportGatewayRequest,
+) -> Pin<Box<dyn Future<Output = Result<GatewayStreamResponse, NetworkControlError>> + Send + '_>> {
+    Box::pin(gateway.execute_provider_transport_stream(request))
 }
 
 fn validate_provider_request_plan(

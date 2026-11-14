@@ -28,6 +28,8 @@
 //! `cancelled <id>`, `pong` or `refused <id>` for the client's answer to a ping,
 //! `deleted <session>`), so a test can see what really happened.
 mod oauth;
+#[cfg(test)]
+mod tests;
 
 use serde_json::{Value, json};
 use std::{
@@ -176,6 +178,9 @@ fn tools(grown: bool) -> Value {
 struct Server {
     state: Mutex<State>,
     marker: Option<String>,
+    /// Held while one line is noted: every connection has its own thread, and a test counts the
+    /// lines by how they start.
+    noting: Mutex<()>,
     /// The header (lowercase name, value) every MCP request must carry.
     auth: Option<(String, String)>,
     /// `--oauth`: the authorization server and the tokens it issued.
@@ -183,13 +188,15 @@ struct Server {
 }
 
 impl Server {
+    /// One line and its end in a single write, one line at a time.
     fn note(&self, line: &str) {
         if let Some(marker) = &self.marker {
+            let _noting = self.noting.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             let _ = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(marker)
-                .and_then(|mut file| writeln!(file, "{line}"));
+                .and_then(|mut file| file.write_all(format!("{line}\n").as_bytes()));
         }
     }
 
@@ -454,7 +461,13 @@ fn main() {
             quirks,
         ))
     });
-    let server = Arc::new(Server { state: Mutex::new(State::default()), marker, auth, oauth });
+    let server = Arc::new(Server {
+        state: Mutex::new(State::default()),
+        marker,
+        noting: Mutex::new(()),
+        auth,
+        oauth,
+    });
     for stream in listener.incoming().flatten() {
         let server = Arc::clone(&server);
         std::thread::spawn(move || server.serve(stream));

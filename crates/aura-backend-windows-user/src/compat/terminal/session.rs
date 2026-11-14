@@ -15,6 +15,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// A write or interrupt to a terminal that has ended. The Agent terminal's caller classifies the
+/// input effect from its own Chinese wording, so this one claims nothing about it.
+const ENDED: &str =
+    "terminal.ended: the terminal has already ended; open a new terminal (terminal.open).";
+
 struct Lifetime {
     native: Arc<NativeTerminal>,
     end: Mutex<Option<TerminalEnd>>,
@@ -144,19 +149,31 @@ impl TerminalSession {
             .map_err(|_| anyhow::anyhow!("terminal.output_lock"))?
             .read(offset, max_bytes)
     }
+    /// The offset the next output will start at.
+    pub fn output_end(&self) -> Result<u64> {
+        Ok(self.output.lock().map_err(|_| anyhow::anyhow!("terminal.output_lock"))?.end())
+    }
     pub fn write(&self, bytes: &[u8]) -> Result<()> {
-        ensure!(bytes.len() <= 65_536, "terminal.input_too_large");
-        ensure!(self.end()?.is_none(), "terminal.ended; open another terminal");
+        ensure!(
+            bytes.len() <= 65_536,
+            "terminal.input_too_large: one input is at most 65536 bytes (this one is {} bytes); nothing was written. Send it in several parts.",
+            bytes.len()
+        );
+        ensure!(self.end()?.is_none(), ENDED);
         self.lifetime.native.write(bytes)?;
         Ok(())
     }
     pub fn interrupt(&self) -> Result<()> {
-        ensure!(self.end()?.is_none(), "terminal.ended; open another terminal");
+        ensure!(self.end()?.is_none(), ENDED);
         self.lifetime.native.interrupt()?;
         Ok(())
     }
     pub fn resize(&self, size: TerminalSize) -> Result<bool> {
         Ok(self.lifetime.native.resize(size)?)
+    }
+    /// The size the terminal has now: the one it opened with, or the last resize.
+    pub fn size(&self) -> Result<TerminalSize> {
+        Ok(self.lifetime.native.size()?)
     }
     pub fn close(&self, reason: TerminalEndReason) -> Result<TerminalEnd> {
         let result = self.lifetime.finish(reason);
@@ -166,7 +183,10 @@ impl TerminalSession {
             monitor.join().map_err(|_| anyhow::anyhow!("terminal.monitor_panicked"))?;
         }
         let end = result?;
-        ensure!(end.stop_confirmed, "terminal.stop_unconfirmed");
+        ensure!(
+            end.stop_confirmed,
+            "terminal.stop_unconfirmed: Aura could not confirm that every process the terminal started has stopped; some may still be running. Do not replay its input."
+        );
         Ok(end)
     }
     pub fn wait_ended(&self, timeout: Duration) -> Result<TerminalEnd> {

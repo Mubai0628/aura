@@ -269,3 +269,98 @@ test('an unavailable option says why in words, not with a code', async () => {
   expect(await screen.findByText('原因：没有可以恢复的上一版有效设置')).toBeTruthy();
   expect(screen.queryByText(/config\.recovery\./u)).toBeNull();
 });
+
+const refused = (code: string) => ({
+  ok: false,
+  error: { code, message: 'English diagnostic', category: 'conflict', retryable: false },
+});
+
+test('a recovery Core did not apply says why and what to do', async () => {
+  for (const [code, words] of [
+    ['config.recovery.action_not_previewed', '这项恢复还没有预览，没有执行；请先预览再恢复。'],
+    ['config.recovery.apply_failed', '恢复没有写入，设置保持原样；请重新预览后再试。'],
+    [
+      'config.recovery.apply_boundary_refused',
+      '恢复没有开始（配置写入正忙），设置保持原样；请重新预览后再试。',
+    ],
+  ] as const) {
+    setup({ applyConfigRecovery: vi.fn().mockResolvedValue(refused(code)) });
+    await userEvent.click(await screen.findByRole('button', { name: '查看恢复选项' }));
+    await userEvent.click(await screen.findByRole('button', { name: '确认重试当前配置' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(words);
+    cleanup();
+  }
+});
+
+test('a preview that was not made says why and that nothing was recovered', async () => {
+  for (const [error, words] of [
+    [
+      { ok: false, error: { code: 'ipc.request_timeout', message: 'Core request timed out' } },
+      '无法生成恢复预览（Aura Core 没有及时回复），没有执行恢复；请稍后重试。',
+    ],
+    [
+      refused('config.recovery.plan_boundary_unknown'),
+      '无法生成恢复预览（配置读取没有及时完成），没有执行恢复；请稍后重试。',
+    ],
+  ] as const) {
+    setup({ planConfigRecovery: vi.fn().mockResolvedValue(error) });
+    await userEvent.click(await screen.findByRole('button', { name: '查看恢复选项' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(words);
+    cleanup();
+  }
+});
+
+test('the preview names what needs relinking in words, and no revisions', async () => {
+  setup({
+    planConfigRecovery: vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        ...plan,
+        domains: [
+          {
+            ...domain,
+            references_needing_rebinding: [
+              'credential_id',
+              'credential_revision',
+              'default_model_profile_id',
+            ],
+          },
+        ],
+      },
+    }),
+  });
+  await userEvent.click(await screen.findByRole('button', { name: '查看恢复选项' }));
+  expect(await screen.findByText('恢复后需重新关联：凭据、默认模型')).toBeTruthy();
+  expect(screen.queryByText(/修订|credential_id|→/u)).toBeNull();
+});
+
+test('a recovery that only partly applied names what did not recover and why', async () => {
+  setup({
+    applyConfigRecovery: vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        action: 'retry',
+        outcomes: [
+          {
+            module: 'tools',
+            action: 'retry',
+            applied: false,
+            reason_code: 'config.recovery.default_fails_validation',
+          },
+          { module: 'settings-network', action: 'retry', applied: false, reason_code: null },
+          { module: 'ui', action: 'retry', applied: true, revision: 5, reason_code: null },
+        ],
+        restored_capabilities: [],
+        unavailable_capabilities: [],
+        reason_code: null,
+      },
+    }),
+  });
+  await userEvent.click(await screen.findByRole('button', { name: '查看恢复选项' }));
+  await userEvent.click(await screen.findByRole('button', { name: '确认重试当前配置' }));
+  expect(
+    await screen.findByText(
+      '工具、网络代理没有恢复（默认值也通不过当前校验），其余已恢复。请对这几项重新预览后再恢复。',
+    ),
+  ).toBeTruthy();
+});

@@ -2,6 +2,7 @@ use super::patch::{normalize_hunk_counts, parse_patch};
 
 mod hunk_order;
 mod placement;
+mod shared_lines;
 
 #[test]
 fn both_hunks_recount_lines_without_changing_positions_or_context() {

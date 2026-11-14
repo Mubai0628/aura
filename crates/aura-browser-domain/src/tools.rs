@@ -1,5 +1,6 @@
 //! The `browser.*` tools the model calls. They act on the session's model page in Aura's
-//! built-in browser; a page the user opened in another tab is out of their reach.
+//! built-in browser; a page the user opened in another tab is out of their reach until the user
+//! hands it over, and then the tools that name it act on it.
 use aura_domain_common::ArtifactId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,13 @@ pub struct BrowserOpenInput {
     /// A workspace file to open instead, such as index.html or dist/game.html.
     #[serde(default)]
     pub path: Option<String>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
+    /// With path: a sub-agent of this conversation (A1, A2…) whose worktree holds the file, to
+    /// look at its changes before they are merged.
+    #[serde(default)]
+    pub agent: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -27,6 +35,9 @@ pub enum BrowserHistoryAction {
 #[serde(deny_unknown_fields)]
 pub struct BrowserNavigateInput {
     pub action: BrowserHistoryAction,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -35,6 +46,9 @@ pub struct BrowserSnapshotInput {
     /// Longest snapshot to return, in characters (default 12000, at most 60000).
     #[serde(default)]
     pub max_chars: Option<u32>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -46,6 +60,9 @@ pub struct BrowserScreenshotInput {
     /// The whole page instead of what is on screen.
     #[serde(default)]
     pub full_page: bool,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -72,6 +89,9 @@ pub struct BrowserClickInput {
     pub button: BrowserMouseButton,
     #[serde(default)]
     pub double: bool,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -87,6 +107,9 @@ pub struct BrowserTypeInput {
     /// Press Enter afterwards.
     #[serde(default)]
     pub submit: bool,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -100,6 +123,9 @@ pub struct BrowserPressInput {
     /// Keep it held this long, in milliseconds, as a game expects (at most 3000).
     #[serde(default)]
     pub hold_ms: Option<u32>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -121,6 +147,9 @@ pub struct BrowserScrollInput {
     /// How far, in CSS pixels (default 600).
     #[serde(default)]
     pub amount: Option<u32>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -128,6 +157,9 @@ pub struct BrowserScrollInput {
 pub struct BrowserHoverInput {
     #[serde(rename = "ref")]
     pub element: String,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -138,6 +170,9 @@ pub struct BrowserSelectInput {
     pub element: String,
     /// The options to choose, by value or by visible text.
     pub values: Vec<String>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -155,6 +190,9 @@ pub struct BrowserWaitInput {
     /// Give up after this long, in milliseconds (default 10000, at most 30000).
     #[serde(default)]
     pub timeout_ms: Option<u32>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -175,6 +213,9 @@ pub struct BrowserConsoleInput {
     /// The latest this many entries (default 50, at most 200).
     #[serde(default)]
     pub max_entries: Option<u32>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -189,6 +230,9 @@ pub struct BrowserRequestUserInput {
     /// How long to wait for them, in seconds (default 180, at most 300).
     #[serde(default)]
     pub timeout_seconds: Option<u32>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -214,6 +258,9 @@ pub struct BrowserAssistResult {
 pub struct BrowserEvaluateInput {
     /// A JavaScript expression, run in the page; a promise is awaited (at most 10 seconds).
     pub expression: String,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -236,6 +283,9 @@ pub struct BrowserNetworkInput {
     /// The latest this many requests (default 50, at most 200).
     #[serde(default)]
     pub max_entries: Option<u32>,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 /// One request the page made. Cookie and authorization header values are not shown.
@@ -267,6 +317,9 @@ pub struct BrowserNetworkResult {
 pub struct BrowserInspectInput {
     /// The element's ref in the latest snapshot (e3).
     pub element: String,
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
 }
 
 /// Where an element is drawn, in CSS pixels of the page's viewport, rounded.
@@ -295,7 +348,11 @@ pub struct BrowserInspectResult {
 /// The page's performance counters, as Chromium keeps them.
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct BrowserPerformanceInput {}
+pub struct BrowserPerformanceInput {
+    /// A page the user handed you with @ (p1, p2…); without it, this session's own page.
+    #[serde(default)]
+    pub page: Option<String>,
+}
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

@@ -28,17 +28,25 @@ use aura_security_contract::AuthorizationGrant;
 /// this route to probe which session holds a grant.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum NativeSessionConsentError {
-    #[error("permission.session_not_found")]
+    #[error(
+        "permission.session_not_found: 找不到这个会话（可能已删除），没有改动任何批准；请刷新列表。"
+    )]
     SessionNotFound,
-    #[error("permission.grant_not_found")]
+    #[error("permission.grant_not_found: 这项批准不存在或不属于这个会话，没有改动；请刷新列表。")]
     NotFound,
-    #[error("permission.grant_state_changed")]
+    #[error(
+        "permission.grant_state_changed: 这项批准的状态刚变化（可能已撤销或到期），没有改动；请刷新列表后按最新状态处理。"
+    )]
     RevisionConflict,
-    #[error("permission.grant_not_applicable")]
+    #[error("permission.grant_not_applicable: 没能读出这项批准的最新状态，请刷新列表核对。")]
     Unusable,
-    #[error("agent.journal_unbound")]
+    #[error(
+        "security.journal_unbound: Aura 的批准记录还没准备好（刚启动或正在恢复），这次没有完成；请稍后再试。"
+    )]
     JournalUnbound,
-    #[error("permission.store_unavailable")]
+    #[error(
+        "security.store_unavailable: 读写批准记录时出错，这次没有完成；请刷新列表后再试，一直这样请重启 Aura。"
+    )]
     Store,
 }
 

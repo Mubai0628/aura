@@ -149,6 +149,8 @@ test('recent changes say what happened and who did it, in local time', async () 
         recent_changes: [
           {
             ...change,
+            session_id: 'ses_01J00000000000000000000000',
+            before_hash: 'b'.repeat(64),
             path: 'rules/a.md',
             action: 'interrupted_undo',
             actor: 'recovery',
@@ -180,5 +182,42 @@ test('recent changes say what happened and who did it, in local time', async () 
   expect(within(project).getByText(/Aura 恢复/)).toBeTruthy();
   expect(within(project).getByText(/在外部修改/)).toBeTruthy();
   expect(project.textContent).not.toMatch(/interrupted_undo|external_edit|recovery/);
+  expect(project.textContent).not.toMatch(/ses_|哈希|bbbb/u);
   expect(project.textContent).toContain(new Date(at).toLocaleString());
+});
+
+test('each memory action that did not go through names itself and what did not change', async () => {
+  const invoke = vi.fn(async (command: string) => {
+    if (command === 'memory.vaults.get') return { ok: true, value: snapshot };
+    if (command === 'memory.settings.get') return { ok: true, value: configuration };
+    if (command === 'memory.vault.rebuild')
+      return { ok: false, error: { code: 'memory.index_failed', message: 'index failed' } };
+    if (command === 'memory.vault.validate')
+      return {
+        ok: false,
+        error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+      };
+    if (command === 'memory.vault.export')
+      return {
+        ok: false,
+        error: {
+          code: 'ipc.main_request_failed',
+          message: '磁盘空间不够，Vault 没有导出；腾出空间后再试。',
+        },
+      };
+    return { ok: true, value: null };
+  });
+  vi.stubGlobal('aura', { v1: { memory: { invoke } } });
+  render(<MemorySettings coreReady workspaceId="workspace-test" />);
+  const project = await screen.findByRole('region', { name: '项目记忆' });
+  await userEvent.click(within(project).getByRole('button', { name: '重建索引' }));
+  expect(await screen.findByText('索引没有重建，记忆内容没有改变；请稍后重试。')).toBeTruthy();
+  await userEvent.click(within(project).getByRole('button', { name: '校验' }));
+  expect(
+    await screen.findByText(
+      '校验没有完成（Aura Core 没有及时回复），记忆内容没有改变；请稍后重试。',
+    ),
+  ).toBeTruthy();
+  await userEvent.click(within(project).getByRole('button', { name: '导出 ZIP' }));
+  expect(await screen.findByText('磁盘空间不够，Vault 没有导出；腾出空间后再试。')).toBeTruthy();
 });

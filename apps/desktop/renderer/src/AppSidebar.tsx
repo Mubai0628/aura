@@ -9,7 +9,9 @@ import { SidebarItemMenu } from './SidebarItemMenu';
 import type { AppScreen, WorkspaceNavigationItem } from './app-shell-types';
 import type { NotificationInput } from './notification-center-store';
 import { useSessionActivity } from './session-activity';
+import { useUnseenSessions } from './unseen-sessions';
 import { UpdateDot } from './app-updates/UpdateDot';
+import { WorkspaceRelocateButton } from './workspace-relocate/WorkspaceRelocateButton';
 
 interface AppSidebarProps {
   activeScreen: AppScreen;
@@ -37,6 +39,7 @@ export function AppSidebar({
   workspaces,
 }: AppSidebarProps) {
   const activity = useSessionActivity();
+  const unseen = useUnseenSessions();
   // What the user left open or closed wins over the selection, including a closed selected one.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(readExpandedWorkspaces() ?? [selectedWorkspaceId].filter(Boolean)),
@@ -84,7 +87,15 @@ export function AppSidebar({
 
           return (
             <div className="workspace-tree" key={workspace.id}>
-              <div className={isActiveWorkspace ? 'workspace-row is-active' : 'workspace-row'}>
+              <div
+                className={[
+                  'workspace-row',
+                  isActiveWorkspace && 'is-active',
+                  workspace.offline && 'is-offline',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
                 <button
                   aria-expanded={isExpanded}
                   aria-label={`${isExpanded ? '收起' : '展开'} ${workspace.name}`}
@@ -102,9 +113,15 @@ export function AppSidebar({
                 >
                   <AppIcon name="workspace" />
                   <span>{workspace.name}</span>
+                  {!isExpanded && workspace.sessions.some((session) => unseen.has(session.id)) ? (
+                    <span className="workspace-notice" role="img" aria-label="有新通知" />
+                  ) : null}
                   {demoMode ? null : <WorkspaceIndexBadge workspaceId={workspace.id} />}
                 </button>
-                <SidebarItemMenu workspace={workspace} />
+                {workspace.offline && !demoMode ? (
+                  <WorkspaceRelocateButton workspace={workspace} onNotify={onNotify} />
+                ) : null}
+                <SidebarItemMenu workspace={workspace} onNotify={onNotify} />
                 <button
                   aria-label={`在 ${workspace.name} 新建会话`}
                   title="新建会话"
@@ -122,6 +139,7 @@ export function AppSidebar({
                   activity={activity}
                   onSelectSession={onSelectSession}
                   selectedSessionId={selectedSessionId}
+                  unseen={unseen}
                   workspace={workspace}
                 />
               ) : null}

@@ -1,6 +1,10 @@
 import { useLayoutEffect, useState, type RefObject } from 'react';
 
-/** Keep the transcript above the floating composer as attachments and quick menus change size. */
+/**
+ * Keep the transcript above the floating composer as its attachments change its size. A menu
+ * opened from the composer floats over the transcript and leaves this room as it is, so a
+ * transcript scrolled to its end stays where it is.
+ */
 export function useComposerDockClearance(dockRef: RefObject<HTMLDivElement | null>) {
   const [clearance, setClearance] = useState<number>();
   useLayoutEffect(() => {
@@ -9,14 +13,7 @@ export function useComposerDockClearance(dockRef: RefObject<HTMLDivElement | nul
     let animationFrame: number | undefined;
     const measure = () => {
       const dockRect = dock.getBoundingClientRect();
-      let visibleTop = dockRect.top;
-      for (const popover of dock.querySelectorAll<HTMLElement>(
-        '.attachment-menu, .composer-popover',
-      )) {
-        const popoverRect = popover.getBoundingClientRect();
-        if (popoverRect.height > 0) visibleTop = Math.min(visibleTop, popoverRect.top);
-      }
-      const measured = Math.ceil(dockRect.bottom - visibleTop);
+      const measured = Math.ceil(dockRect.bottom - dockRect.top);
       if (measured > 0) setClearance((current) => (current === measured ? current : measured));
     };
     const scheduleMeasurement = () => {

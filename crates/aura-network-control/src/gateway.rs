@@ -1,7 +1,9 @@
 mod client;
+mod model_proxy;
 mod ordinary;
 mod user_proxy;
 use client::{CoreClientCacheKey, HopClient, pinned_client};
+pub use model_proxy::ModelProxySource;
 pub use user_proxy::{
     GatewayHopRouteV1, GatewayRouteV1, UserProxyFailureKindV1, UserProxyFailureV1, probe_user_proxy,
 };
@@ -216,6 +218,7 @@ pub struct CoreHttpClientGateway {
     credentials: Option<Arc<dyn CredentialResolver>>,
     provider_credentials: Option<Arc<dyn ProviderCredentialResolver>>,
     tool_credentials: Option<Arc<dyn ToolCredentialResolver>>,
+    model_proxy: Option<Arc<dyn ModelProxySource>>,
     options: NetworkControlOptions,
     limiter: RateLimiter,
     scanner: SecretScanner,
@@ -236,6 +239,7 @@ impl CoreHttpClientGateway {
             credentials,
             provider_credentials: None,
             tool_credentials: None,
+            model_proxy: None,
             options,
             limiter,
             scanner: SecretScanner,
@@ -441,13 +445,21 @@ impl CoreHttpClientGateway {
                 &origin,
                 &mut headers,
             )?;
-            let response = client
-                .request(method, &request.requested_url)
-                .headers(headers)
-                .body(request.body.clone())
-                .send()
-                .await
-                .map_err(map_reqwest_error)?;
+            // Nothing of the proxy is held across an await here: every future a turn builds
+            // around this one would carry it.
+            let response = if let Some(hop) =
+                self.proxied_model_hop(&destination, &request, &method, &headers, &client)
+            {
+                hop.await?
+            } else {
+                client
+                    .request(method, &request.requested_url)
+                    .headers(headers)
+                    .body(request.body.clone())
+                    .send()
+                    .await
+                    .map_err(map_reqwest_error)?
+            };
             let status = response.status();
             let location = response
                 .headers()

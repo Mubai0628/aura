@@ -3,35 +3,56 @@ import { useEffect, useState } from 'react';
 import { MODEL_PAGE_ID, type BrowserAssistState } from '../../../shared/browser-api';
 import { AppIcon } from '../app-icons';
 import { remainingText } from './assist-time';
-import { browserApi, useBrowserPage } from './browser-store';
-import { revealModelPage } from './browser-tabs';
+import { browserApi, useAssistedPage } from './browser-store';
+import { reveal, revealModelPage } from './browser-tabs';
 import './browser-assist.css';
 
 /**
- * The model waits for the user to act on its browser page. The request
- * sits on top of the composer, which stays usable: the user can still send or steer. Done and
- * Cancel are the user's answer; Aura does not check what they did on the page.
+ * The model waits for the user to act on its browser page, or on a page the user handed to it.
+ * The request sits on top of the composer, which stays usable: the user can still send or steer.
+ * Done and Cancel are the user's answer; Aura does not check what they did on the page.
  */
 export function BrowserAssist({ sessionId }: { sessionId: string }) {
-  const state = useBrowserPage(sessionId, MODEL_PAGE_ID);
-  const assist = state?.closed ? undefined : state?.assist;
+  const state = useAssistedPage(sessionId);
+  const assist = state?.assist;
   // A new request starts its own clock.
-  return assist === undefined ? null : (
-    <AssistRequest assist={assist} key={assist.deadline} sessionId={sessionId} />
+  return assist === undefined || state === undefined ? null : (
+    <AssistRequest
+      assist={assist}
+      key={assist.deadline}
+      pageId={state.pageId}
+      sessionId={sessionId}
+    />
   );
 }
 
-function AssistRequest({ assist, sessionId }: { assist: BrowserAssistState; sessionId: string }) {
+function AssistRequest({
+  assist,
+  pageId,
+  sessionId,
+}: {
+  assist: BrowserAssistState;
+  pageId: string;
+  sessionId: string;
+}) {
   const [now, setNow] = useState(Date.now);
   const [busy, setBusy] = useState(false);
+  /** Why the last answer was not taken. */
+  const [refused, setRefused] = useState<string>();
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
   const answer = (kind: 'assist-done' | 'assist-decline') => {
+    const api = browserApi();
+    if (api === undefined) return;
     setBusy(true);
-    void browserApi()
-      ?.command({ kind, sessionId, pageId: MODEL_PAGE_ID })
+    setRefused(undefined);
+    void api
+      .command({ kind, sessionId, pageId })
+      .then((result) => {
+        if (!result.ok) setRefused(result.message);
+      })
       .finally(() => setBusy(false));
   };
   return (
@@ -46,10 +67,17 @@ function AssistRequest({ assist, sessionId }: { assist: BrowserAssistState; sess
         </span>
       </header>
       <p className="browser-assist-reason">{assist.reason}</p>
+      {refused === undefined ? null : (
+        <p className="browser-assist-refused" role="alert">
+          {refused}
+        </p>
+      )}
       <footer className="browser-assist-actions">
         <button
           className="button is-ghost"
-          onClick={() => revealModelPage(sessionId)}
+          onClick={() =>
+            pageId === MODEL_PAGE_ID ? revealModelPage(sessionId) : reveal(sessionId, pageId)
+          }
           type="button"
         >
           打开浏览器

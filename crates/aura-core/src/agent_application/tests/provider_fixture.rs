@@ -38,6 +38,8 @@ impl Provider {
     }
 }
 mod chat_reply;
+mod context_read;
+pub use context_read::READ_RESULT_MARK;
 mod responses;
 mod server;
 use responses::*;
@@ -46,7 +48,4 @@ use wire::*;
 pub(super) use wire::{flat_call, recovery_response, send_with, state};
 mod scenario;
 use super::activity_provider;
-pub use scenario::{
-    COMPACTION_SOURCE_FILE, COMPACTION_TOOL_FILE, HELD_DELTAS, HOOK_SOURCE, INIT_COMMAND,
-    INIT_EVIDENCE_FILE, Scenario, sized_in_bytes,
-};
+pub use scenario::*;

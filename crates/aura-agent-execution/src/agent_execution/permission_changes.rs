@@ -85,7 +85,15 @@ impl AgentExecution {
         {
             return Ok(true);
         }
-        let externally_covered = self.external_authority(operation);
+        let mut externally_covered = self.external_authority(operation);
+        if let (Some(session), Some(workspace)) = (c.identity.session_id, c.identity.workspace_id) {
+            let own = self.own_places(session, workspace)?.folders;
+            for capability in super::own_places::own_authority(operation, &own, mode) {
+                if !externally_covered.contains(&capability) {
+                    externally_covered.push(capability);
+                }
+            }
+        }
         let external_grants = self.external_authority_slices(operation);
         if !c.capabilities.is_empty()
             && c.capabilities.iter().all(|capability| externally_covered.contains(capability))
@@ -116,6 +124,7 @@ impl AgentExecution {
             now: UtcTimestamp::now(),
             expires_at: UtcTimestamp::now(),
             core_runtime_instance_id: Some(self.runtime),
+            workspace: self.approval_workspace(operation),
         };
         Ok(aura_permission_engine::network::permitted_now(&input)
             || grants.iter().any(|grant| policy::explicit_grant_covers_operation(grant, &input)))

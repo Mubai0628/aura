@@ -60,12 +60,17 @@ function base64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/** A picture redrawn at most MAX_IMAGE_SIDE on its longest side, as PNG or JPEG. */
+/**
+ * A picture redrawn at most MAX_IMAGE_SIDE on its longest side, as PNG or JPEG: undefined when it
+ * cannot be decoded, `too_large` when even the smallest JPEG is over MAX_IMAGE_BYTES.
+ */
 export type PictureEncoder = (
   file: File,
-) => Promise<{ mediaType: 'image/png' | 'image/jpeg'; bytes: Uint8Array } | undefined>;
+) => Promise<
+  { mediaType: 'image/png' | 'image/jpeg'; bytes: Uint8Array } | 'too_large' | undefined
+>;
 
-/** The browser's own decoder and canvas; a picture it cannot decode is undefined. */
+/** The browser's own decoder and canvas. */
 export const encodePicture: PictureEncoder = async (file) => {
   const original = new Uint8Array(await file.arrayBuffer());
   let bitmap: ImageBitmap;
@@ -93,12 +98,14 @@ export const encodePicture: PictureEncoder = async (file) => {
     if (png && png.size <= MAX_IMAGE_BYTES)
       return { mediaType: 'image/png', bytes: new Uint8Array(await png.arrayBuffer()) };
   }
+  let drawn = false;
   for (const quality of [0.9, 0.8, 0.65]) {
     const jpeg = await encode('image/jpeg', quality);
     if (jpeg && jpeg.size <= MAX_IMAGE_BYTES)
       return { mediaType: 'image/jpeg', bytes: new Uint8Array(await jpeg.arrayBuffer()) };
+    drawn ||= jpeg !== null;
   }
-  return undefined;
+  return drawn ? 'too_large' : undefined;
 };
 
 /**
@@ -113,7 +120,12 @@ export async function readAttachment(
   const name = file.name || (isPicture(file) ? '粘贴的图片.png' : '文件');
   if (isPicture(file)) {
     const picture = await encode(file);
-    if (!picture) return { error: `「${name}」无法作为图片读取。` };
+    if (picture === 'too_large')
+      return { error: `「${name}」压缩后仍超过 3 MB，没有附加。请缩小图片后再试。` };
+    if (!picture)
+      return {
+        error: `「${name}」不能作为图片附加：无法识别这个图片格式。没有附加；可以另存为 PNG 或 JPEG 再试。`,
+      };
     return {
       id: id(),
       kind: 'image',
@@ -139,7 +151,10 @@ export async function readAttachment(
     }
   }
   const path = place(file);
-  if (!path) return { error: `「${name}」没有可用的位置，无法附加。` };
+  if (!path)
+    return {
+      error: `「${name}」不是这台电脑上的文件（例如从网页拖来的），无法附加。请先保存到电脑上再附加。`,
+    };
   return { id: id(), kind: 'file', name, path, bytes: file.size };
 }
 

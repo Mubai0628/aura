@@ -6928,6 +6928,20 @@ export type ActivityToolGroup = 'file_read' | 'file_write' | 'shell' | 'web' | '
 export type ActivityResourceRelation =
   'read' | 'write' | 'unknown_write_set' | 'unknown_write_set_outside_workspace';
 /**
+ * An answer to a sub-agent's question.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentApprovalAnswer".
+ */
+export type AgentApprovalAnswer = 'allow' | 'allow_workspace' | 'deny' | 'ask_user';
+/**
+ * Who answered a sub-agent's question in the user's place.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentApprovalAnsweredBy".
+ */
+export type AgentApprovalAnsweredBy = 'main_agent' | 'settings';
+/**
  * One picture or file the composer sends with a message.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -7414,7 +7428,7 @@ export type AgentSessionActivityState = 'running' | 'waiting';
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentSessionWaitingFor".
  */
-export type AgentSessionWaitingFor = ('approval' | 'question') | 'context';
+export type AgentSessionWaitingFor = ('approval' | 'question') | 'sensitive_input' | 'context';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TodoItemId".
@@ -7462,6 +7476,35 @@ export type AgentTurnOutcome = ('completed' | 'failed' | 'cancelled') | 'recover
  * via the `definition` "AgentTaskPurpose".
  */
 export type AgentTaskPurpose = 'conversation' | 'workspace_init' | 'compaction';
+/**
+ * What a sub-agent's commands may do without asking, one kind at a time.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamAllowanceKind".
+ */
+export type AgentTeamAllowanceKind = 'deletions' | 'outside_writes' | 'downloads';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorktreeChangeKind".
+ */
+export type WorktreeChangeKind = 'added' | 'modified' | 'deleted';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamMemberState".
+ */
+export type AgentTeamMemberState = 'running' | 'reported' | 'stopped';
+/**
+ * Where a worktree is in its life.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorktreeState".
+ */
+export type WorktreeState = 'active' | 'merged' | 'discarded';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamReportStatus".
+ */
+export type AgentTeamReportStatus = 'progress' | 'waiting' | 'ready' | 'blocked' | 'failed';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TerminalEndReason".
@@ -8135,7 +8178,8 @@ export type ConfigModule =
   | 'diagnostics'
   | 'update'
   | 'chrome'
-  | 'computer';
+  | 'computer'
+  | 'network';
 /**
  * Which recovery action the user is asking for.
  *
@@ -8997,6 +9041,10 @@ export type MediaHostCompletedV1 =
       has_audio?: boolean | null;
       height: number;
       kind: 'probe';
+      /**
+       * Why codec or frame_rate is null: what kept the file's header from naming them.
+       */
+      note?: string | null;
       width: number;
     }
   | {
@@ -9167,6 +9215,11 @@ export type NormalCompletionRecordId = string;
  * via the `definition` "NormalizedIssueCode".
  */
 export type NormalizedIssueCode = string;
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "OldDataKind".
+ */
+export type OldDataKind = 'early_layout' | 'namespace' | 'unfinished';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TaskLineageState".
@@ -9584,6 +9637,16 @@ export type SourceMembership =
       membership: 'reclassified_to_lineage';
       target_lineage_id: TaskLineageId;
     };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageMovedPart".
+ */
+export type StorageMovedPart = ('data' | 'core_log') | 'window_profile' | 'global_memory';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StoragePart".
+ */
+export type StoragePart = 'data' | 'install';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TaskLineageRelationKind".
@@ -11847,11 +11910,11 @@ export interface LogicalModelRequest {
    */
   closing_exchange?: LogicalConversationItem[];
   /**
-   * A question asked after the whole request the step would have sent - a compaction asked on
-   * that request, so the provider reads it from its cache. It is a user message of its own
-   * after the conversation and the task state, which stay where the step put them. The tools
-   * the request carries for the cache stay declared; the question itself says none may be
-   * called.
+   * A user message of Core's own after the whole request the step would have sent, so the
+   * provider reads all before it from its cache: a compaction asked on that request, or the
+   * note of a step asking again after its provider went silent mid-answer. It comes after the
+   * conversation and the task state, which stay where the step put them. The tools the request
+   * carries for the cache stay declared; a compaction's question says none may be called.
    */
   closing_question?: string | null;
   context_snapshot_id: ContextProjectionSnapshotId;
@@ -12056,6 +12119,10 @@ export interface ProviderBulkAvailabilityResult {
   changed_model_profile_ids: ModelProfileId[];
   provider_id: ProviderId;
   revision: Revision;
+  /**
+   * Models left as they were: allowing sub-agents needs an output limit they do not have.
+   */
+  skipped_model_profile_ids?: ModelProfileId[];
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -12391,6 +12458,11 @@ export interface CoreWaitingV1 {
 export interface WorkspaceSessionProjection {
   sessions: SessionSummary[];
   workspaces: WorkspaceSummary[];
+  /**
+   * Workspaces that are worktrees: not listed on their own, their conversations listed under
+   * the workspace each was made from.
+   */
+  worktrees?: WorkspaceWorktreeLink[];
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -12424,6 +12496,16 @@ export interface WorkspaceSummary {
 export interface FileIdentity {
   file_id: string;
   volume_serial_number: string;
+}
+/**
+ * A worktree's workspace and the workspace it was made from.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorkspaceWorktreeLink".
+ */
+export interface WorkspaceWorktreeLink {
+  parent_workspace_id: WorkspaceId;
+  workspace_id: WorkspaceId;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -13729,6 +13811,13 @@ export interface RuntimeContractFixture {
  */
 export interface ActiveInstallState {
   active: string;
+  /**
+   * The installation's copy of where its data was moved to; it must name the same folder as
+   * the location record. Left out while the data is in its default place, so the file stays
+   * the same as before; a version that does not know it refuses the file instead of starting
+   * without the moved data.
+   */
+  data_location?: string | null;
   last_known_good?: string | null;
   pending?: string | null;
   previous?: string | null;
@@ -14628,6 +14717,13 @@ export interface FileSessionConsentRef {
   revoked_grant_revision?: Revision | null;
   session_id: SessionId;
   targets: FileConsentTarget[];
+  /**
+   * The folder its Workspace was at when the user answered. Once a move points the Workspace
+   * at another folder the approval covers nothing, whether or not its withdrawal after the
+   * move ran; archiving and restoring keep the folder. Absent on an approval recorded before
+   * the folder was: that one covers only a Workspace still at its first authorization epoch.
+   */
+  workspace_root?: string | null;
 }
 /**
  * Original approval audit identity, never rewritten on publication.
@@ -17223,6 +17319,10 @@ export interface FsSearchTextResult {
   catalog_revision: Revision;
   completion: FsSearchCompletion;
   /**
+   * The lines around the matches, by file, when the call asked for them.
+   */
+  context?: FsSearchContext[];
+  /**
    * Present when this search ran outside the workspace. There is no external index to
    * read, so the match paths are relative to `external.display_path` and
    * `catalog_revision` stays the workspace's own revision, which an external search
@@ -17244,6 +17344,29 @@ export interface FsSearchTextResult {
    */
   skipped_file_count: number;
   skipped_scopes?: FsSkippedScope[];
+}
+/**
+ * The lines near one file's matches that are not matches themselves, read from the text the
+ * search matched.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "FsSearchContext".
+ */
+export interface FsSearchContext {
+  lines: FsSearchContextLine[];
+  path: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "FsSearchContextLine".
+ */
+export interface FsSearchContextLine {
+  line_index: number;
+  text: string;
+  /**
+   * The line goes on past `text`.
+   */
+  truncated?: boolean;
 }
 /**
  * The authorized external directory one text search used.
@@ -17888,6 +18011,30 @@ export interface ActivityResource {
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentApprovalAnswered".
+ */
+export interface AgentApprovalAnswered {
+  answer: AgentApprovalAnswer;
+  at: UtcTimestamp;
+  by: AgentApprovalAnsweredBy;
+  reason: string;
+}
+/**
+ * A question of the sub-agent's that went to the main agent, or that the settings answered.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentApprovalReview".
+ */
+export interface AgentApprovalReview {
+  answered?: AgentApprovalAnswered | null;
+  approval_id: ApprovalRequestId;
+  /**
+   * When agents.wait or agents.status first gave it to the main agent.
+   */
+  presented_at?: UtcTimestamp | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentAssistantView".
  */
 export interface AgentAssistantView {
@@ -18359,6 +18506,10 @@ export interface AgentFileReadInput {
  * via the `definition` "AgentFileSearchInput".
  */
 export interface AgentFileSearchInput {
+  /**
+   * Lines shown before and after each match in a workspace file, 0..=10 (default 0).
+   */
+  context_lines?: number;
   /**
    * Default false.
    */
@@ -19277,11 +19428,497 @@ export interface AgentSubmitRequest {
   text: string;
 }
 /**
+ * The user takes back one thing a sub-agent's commands could do without asking.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamAllowanceRevokeRequest".
+ */
+export interface AgentTeamAllowanceRevokeRequest {
+  /**
+   * Its handle: `A1`, `A2`…
+   */
+  agent: string;
+  allowance: AgentTeamAllowanceKind;
+  /**
+   * The conversation that started it.
+   */
+  session_id: string;
+}
+/**
+ * The changes of a sub-agent's worktree, or of the conversation's own when `agent` is none.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamChangesRequest".
+ */
+export interface AgentTeamChangesRequest {
+  agent?: string | null;
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamChangesView".
+ */
+export interface AgentTeamChangesView {
+  agent?: string | null;
+  branch: string;
+  /**
+   * The checks of its newest final report: each command with its exit code.
+   */
+  checks?: string[];
+  files: WorktreeChange[];
+  member_state?: AgentTeamMemberState | null;
+  name?: string | null;
+  /**
+   * What its newest final report says is not done.
+   */
+  remaining?: string | null;
+  size_bytes?: number | null;
+  state: WorktreeState;
+}
+/**
+ * One file a worktree changed since it started.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorktreeChange".
+ */
+export interface WorktreeChange {
+  /**
+   * Lines added and removed; none for a binary or very large file.
+   */
+  added?: number | null;
+  kind: WorktreeChangeKind;
+  path: string;
+  removed?: number | null;
+}
+/**
+ * The conversation's own agent.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamLeadView".
+ */
+export interface AgentTeamLeadView {
+  /**
+   * Its name, while it is enabled.
+   */
+  model?: string | null;
+  /**
+   * The model the conversation uses, when it has one.
+   */
+  model_profile_id?: ModelProfileId | null;
+  /**
+   * What the conversation's answers used so far, as their providers counted.
+   */
+  tokens: number;
+  tool?: string | null;
+  working: boolean;
+}
+/**
+ * The limits under 设置 → 智能能力 → 多 Agent; they hold for every conversation.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamLimits".
+ */
+export interface AgentTeamLimits {
+  /**
+   * Share of all processors, in percent, that every sub-agent's commands take together.
+   */
+  cpu_percent: number;
+  /**
+   * Sub-agents of one conversation working at once. One waiting for an approval does not
+   * count.
+   */
+  max_running: number;
+  /**
+   * Minutes one sub-agent may work on what it was last given, not counting the time it waits
+   * for an approval.
+   */
+  minutes_per_task: number;
+  /**
+   * Tokens one sub-agent's answers may use in all, as their providers counted them; none
+   * when they are not limited.
+   */
+  token_budget?: number | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamListRequest".
+ */
+export interface AgentTeamListRequest {
+  session_id: SessionId;
+}
+/**
+ * What the user lets a sub-agent's commands do without asking, beyond its mode: from the
+ * settings when it started, or the user's answer on one of its questions. They go with it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamMemberAllowances".
+ */
+export interface AgentTeamMemberAllowances {
+  /**
+   * Its commands delete without asking where their targets lie in its worktree or temporary
+   * folder, or are left to a variable or the pipeline while the command stands there. Only a
+   * sub-agent with a worktree has it.
+   */
+  deletions?: boolean;
+  /**
+   * Its downloads run without asking.
+   */
+  downloads?: boolean;
+  /**
+   * Its commands write outside its workspace without asking; a deletion there still asks.
+   */
+  outside_writes?: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamMemberView".
+ */
+export interface AgentTeamMemberView {
+  agent: string;
+  allowed?: AgentTeamMemberAllowances1;
+  /**
+   * Approvals it waits for the user to decide, in the conversation that started it.
+   */
+  approvals: ApprovalRequestId[];
+  last_report?: AgentTeamReportStatus | null;
+  /**
+   * Its permission mode now, which the user may change while it works.
+   */
+  mode?: PermissionMode | null;
+  model: string;
+  model_profile_id: ModelProfileId;
+  name: string;
+  /**
+   * The newest report's question for the main agent.
+   */
+  question?: string | null;
+  /**
+   * Approvals it waits for the main agent to decide first.
+   */
+  reviewing?: ApprovalRequestId[];
+  /**
+   * Its questions the main agent or the settings answered, newest last.
+   */
+  reviews?: AgentApprovalReview[];
+  /**
+   * The conversation it works in.
+   */
+  session_id: string;
+  state: AgentTeamMemberState;
+  /**
+   * The newest report's summary, cut to [`LIST_SUMMARY_CHARS`].
+   */
+  summary?: string | null;
+  /**
+   * What its answers used so far, as their providers counted.
+   */
+  tokens: number;
+  tool?: string | null;
+  working: boolean;
+  /**
+   * The workspace that conversation works in: its worktree's, or the starting conversation's.
+   */
+  workspace_id?: WorkspaceId | null;
+  /**
+   * The worktree it changes files in, when it has one.
+   */
+  worktree?: AgentWorktreeView | null;
+}
+/**
+ * What the user lets its commands do without asking.
+ */
+export interface AgentTeamMemberAllowances1 {
+  /**
+   * Its commands delete without asking where their targets lie in its worktree or temporary
+   * folder, or are left to a variable or the pipeline while the command stands there. Only a
+   * sub-agent with a worktree has it.
+   */
+  deletions?: boolean;
+  /**
+   * Its downloads run without asking.
+   */
+  downloads?: boolean;
+  /**
+   * Its commands write outside its workspace without asking; a deletion there still asks.
+   */
+  outside_writes?: boolean;
+}
+/**
+ * A sub-agent's worktree as the 多 Agent page shows it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentWorktreeView".
+ */
+export interface AgentWorktreeView {
+  branch: string;
+  /**
+   * Bytes on disk, build outputs included; none until counted.
+   */
+  size_bytes?: number | null;
+  state: WorktreeState;
+}
+/**
+ * Under 设置 → 智能能力 → 多 Agent. A sub-agent already working keeps its mode and grants; the
+ * user changes them on that sub-agent.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamPermissions".
+ */
+export interface AgentTeamPermissions {
+  /**
+   * A new sub-agent may delete files with its commands without asking, where a command names
+   * no place outside its worktree and temporary folder.
+   */
+  allow_deletions: boolean;
+  /**
+   * The same for downloads.
+   */
+  allow_downloads: boolean;
+  /**
+   * The same for commands that write outside its workspace.
+   */
+  allow_outside_writes: boolean;
+  /**
+   * The main agent answers a sub-agent's approval first, where it may: a deletion or a write
+   * that names no place outside the sub-agent's own.
+   */
+  main_agent_approves: boolean;
+  /**
+   * The mode a sub-agent working in the starting conversation's workspace starts in.
+   */
+  shared_mode: 'read_only' | 'workspace_read_write' | 'full_access';
+  /**
+   * The mode a sub-agent with a worktree of its own starts in; its workspace is that worktree.
+   */
+  worktree_mode: 'read_only' | 'workspace_read_write' | 'full_access';
+}
+/**
+ * The user saves the limits, and the permissions when given, at the revision the page read.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamSettingsSetRequest".
+ */
+export interface AgentTeamSettingsSetRequest {
+  expected_revision: number;
+  limits: AgentTeamLimits;
+  /**
+   * None keeps the permissions saved before.
+   */
+  permissions?: AgentTeamPermissions | null;
+}
+/**
+ * The limits and permissions as the settings page reads them.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamSettingsView".
+ */
+export interface AgentTeamSettingsView {
+  defaults: AgentTeamLimits1;
+  limits: AgentTeamLimits;
+  maximum: AgentTeamLimits;
+  minimum: AgentTeamLimits2;
+  permission_defaults: AgentTeamPermissions1;
+  permissions: AgentTeamPermissions;
+  /**
+   * The settings revision a change names; 0 until the user saved any.
+   */
+  revision: number;
+}
+/**
+ * The limits under 设置 → 智能能力 → 多 Agent; they hold for every conversation.
+ */
+export interface AgentTeamLimits1 {
+  /**
+   * Share of all processors, in percent, that every sub-agent's commands take together.
+   */
+  cpu_percent: number;
+  /**
+   * Sub-agents of one conversation working at once. One waiting for an approval does not
+   * count.
+   */
+  max_running: number;
+  /**
+   * Minutes one sub-agent may work on what it was last given, not counting the time it waits
+   * for an approval.
+   */
+  minutes_per_task: number;
+  /**
+   * Tokens one sub-agent's answers may use in all, as their providers counted them; none
+   * when they are not limited.
+   */
+  token_budget?: number | null;
+}
+/**
+ * The limits under 设置 → 智能能力 → 多 Agent; they hold for every conversation.
+ */
+export interface AgentTeamLimits2 {
+  /**
+   * Share of all processors, in percent, that every sub-agent's commands take together.
+   */
+  cpu_percent: number;
+  /**
+   * Sub-agents of one conversation working at once. One waiting for an approval does not
+   * count.
+   */
+  max_running: number;
+  /**
+   * Minutes one sub-agent may work on what it was last given, not counting the time it waits
+   * for an approval.
+   */
+  minutes_per_task: number;
+  /**
+   * Tokens one sub-agent's answers may use in all, as their providers counted them; none
+   * when they are not limited.
+   */
+  token_budget?: number | null;
+}
+/**
+ * Under 设置 → 智能能力 → 多 Agent. A sub-agent already working keeps its mode and grants; the
+ * user changes them on that sub-agent.
+ */
+export interface AgentTeamPermissions1 {
+  /**
+   * A new sub-agent may delete files with its commands without asking, where a command names
+   * no place outside its worktree and temporary folder.
+   */
+  allow_deletions: boolean;
+  /**
+   * The same for downloads.
+   */
+  allow_downloads: boolean;
+  /**
+   * The same for commands that write outside its workspace.
+   */
+  allow_outside_writes: boolean;
+  /**
+   * The main agent answers a sub-agent's approval first, where it may: a deletion or a write
+   * that names no place outside the sub-agent's own.
+   */
+  main_agent_approves: boolean;
+  /**
+   * The mode a sub-agent working in the starting conversation's workspace starts in.
+   */
+  shared_mode: 'read_only' | 'workspace_read_write' | 'full_access';
+  /**
+   * The mode a sub-agent with a worktree of its own starts in; its workspace is that worktree.
+   */
+  worktree_mode: 'read_only' | 'workspace_read_write' | 'full_access';
+}
+/**
+ * The user stops one sub-agent of a conversation.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamStopRequest".
+ */
+export interface AgentTeamStopRequest {
+  /**
+   * Its handle: `A1`, `A2`…
+   */
+  agent: string;
+  /**
+   * The conversation that started it.
+   */
+  session_id: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamView".
+ */
+export interface AgentTeamView {
+  lead: AgentTeamLeadView1;
+  members: AgentTeamMemberView[];
+}
+/**
+ * The conversation's own agent, first in the list.
+ */
+export interface AgentTeamLeadView1 {
+  /**
+   * Its name, while it is enabled.
+   */
+  model?: string | null;
+  /**
+   * The model the conversation uses, when it has one.
+   */
+  model_profile_id?: ModelProfileId | null;
+  /**
+   * What the conversation's answers used so far, as their providers counted.
+   */
+  tokens: number;
+  tool?: string | null;
+  working: boolean;
+}
+/**
+ * The folder of a sub-agent's worktree still in use, for Main to open.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamWorktreeFolder".
+ */
+export interface AgentTeamWorktreeFolder {
+  path: string;
+}
+/**
+ * One sub-agent of a conversation, for its worktree's folder.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamWorktreeRequest".
+ */
+export interface AgentTeamWorktreeRequest {
+  /**
+   * Its handle: `A1`, `A2`…
+   */
+  agent: string;
+  /**
+   * The conversation that started it.
+   */
+  session_id: string;
+}
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentTerminalCloseInput".
  */
 export interface AgentTerminalCloseInput {
   terminal_id: string;
+}
+/**
+ * A page of the lines an Agent terminal shows, numbered from its first line with text.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTerminalLinesV1".
+ */
+export interface AgentTerminalLinesV1 {
+  /**
+   * The oldest line still kept; earlier ones are gone.
+   */
+  earliest_line: number;
+  end?: TerminalEnd | null;
+  /**
+   * The number of the first line in `lines`.
+   */
+  first_line: number;
+  /**
+   * The number of the terminal's newest line.
+   */
+  last_line: number;
+  /**
+   * The lines as the terminal shows them, joined with line breaks.
+   */
+  lines: string;
+  /**
+   * The `line` that reads on after this page; absent when the page reaches the newest line.
+   */
+  next_line?: number | null;
+  running: boolean;
+  terminal_id: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "TerminalEnd".
+ */
+export interface TerminalEnd {
+  error?: string | null;
+  exit_code?: number | null;
+  reason: TerminalEndReason;
+  stop_confirmed: boolean;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -19305,8 +19942,12 @@ export interface AgentTerminalOpenInput {
  * via the `definition` "AgentTerminalReadInput".
  */
 export interface AgentTerminalReadInput {
-  max_bytes?: number;
-  offset?: number;
+  /**
+   * The first line to read; the terminal's first line with text is line 1. Without it the
+   * newest lines are read.
+   */
+  line?: number | null;
+  max_lines?: number;
   terminal_id: string;
 }
 /**
@@ -19321,16 +19962,6 @@ export interface AgentTerminalResultV1 {
   start_offset: number;
   terminal_id: string;
   truncated: boolean;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "TerminalEnd".
- */
-export interface TerminalEnd {
-  error?: string | null;
-  exit_code?: number | null;
-  reason: TerminalEndReason;
-  stop_confirmed: boolean;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -19461,6 +20092,11 @@ export interface AgentToolSettingsUpdate {
    */
   network_proxy?: ToolNetworkProxyV1 | null;
   /**
+   * Read so that an older client's request still decodes; it changes nothing. Model requests
+   * and tools follow the proxy Windows names whenever `network_proxy` is switched off.
+   */
+  network_proxy_follows_system?: boolean | null;
+  /**
    * Restore the recommended default tool list instead of `fixed_tool_ids`.
    *
    * A user who once saved their own list keeps it across upgrades, so the
@@ -19484,7 +20120,9 @@ export interface AgentToolSettingsView {
   max_dynamic_tool_schemas: number;
   max_retries: number;
   /**
-   * The proxy that tools will actually use. Empty when disabled or the stored field is unusable.
+   * The proxy stored in Aura's settings, switched on or off. While it is switched on, model
+   * requests and tools use it instead of the system's. Empty when none is stored or the stored
+   * field is unusable.
    */
   network_proxy?: ToolNetworkProxyV1 | null;
   /**
@@ -19496,10 +20134,19 @@ export interface AgentToolSettingsView {
    */
   network_proxy_draft?: AgentNetworkProxyDraftV1 | null;
   /**
+   * Always false; kept so older readers still decode the view. Following the system needs no
+   * choice: it is what happens while `network_proxy` is switched off.
+   */
+  network_proxy_follows_system?: boolean;
+  /**
    * A field-only recovery preview. Applying it must use this preview's Tools revision.
    */
   network_proxy_recovery?: AgentNetworkProxyRecoveryPreviewV1 | null;
   revision: Revision;
+  /**
+   * What Windows names now, followed while `network_proxy` is switched off.
+   */
+  system_network_proxy?: SystemNetworkProxyV1 | null;
   tools: AgentToolCatalogEntry[];
   /**
    * The service `web.search` and `web.fetch` use.
@@ -19519,6 +20166,23 @@ export interface AgentToolSettingsView {
    * The DeepSeek connections with a key it can use.
    */
   web_service_connections?: WebServiceConnectionV1[];
+}
+/**
+ * The proxy Windows names for the current user, which model requests and tools follow while
+ * Aura's own proxy is switched off.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "SystemNetworkProxyV1".
+ */
+export interface SystemNetworkProxyV1 {
+  /**
+   * Why it is not used, and what to do instead.
+   */
+  issue?: string | null;
+  /**
+   * The proxy they use; absent when Windows names none that Aura can use.
+   */
+  proxy?: ToolNetworkProxyV1 | null;
 }
 /**
  * A model connection the web service can use: DeepSeek's own API, with a key.
@@ -20149,6 +20813,10 @@ export interface BrowserClickInput {
   button?: 'left' | 'right' | 'middle';
   double?: boolean;
   /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
+  /**
    * The element to click: a ref from the latest snapshot, such as e12.
    */
   ref?: string | null;
@@ -20183,6 +20851,10 @@ export interface BrowserConsoleInput {
    * The latest this many entries (default 50, at most 200).
    */
   max_entries?: number | null;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -20217,6 +20889,10 @@ export interface BrowserEvaluateInput {
    * A JavaScript expression, run in the page; a promise is awaited (at most 10 seconds).
    */
   expression: string;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -20264,6 +20940,11 @@ export interface BrowserHostCommandV1 {
    * An input action on a page that has since moved elsewhere is refused, not carried out.
    */
   expected_host?: string | null;
+  /**
+   * A page the user handed over, by the id Main gave it (p1, p2…); none is the session's model
+   * page.
+   */
+  page?: string | null;
   runtime_instance_id: RuntimeInstanceId;
   session_id: SessionId;
   /**
@@ -20330,6 +21011,10 @@ export interface BrowserHostResultV1 {
  * via the `definition` "BrowserHoverInput".
  */
 export interface BrowserHoverInput {
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
   ref: string;
 }
 /**
@@ -20343,6 +21028,10 @@ export interface BrowserInspectInput {
    * The element's ref in the latest snapshot (e3).
    */
   element: string;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -20370,6 +21059,10 @@ export interface BrowserInspectResult {
  */
 export interface BrowserNavigateInput {
   action: BrowserHistoryAction;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
 }
 /**
  * One request the page made. Cookie and authorization header values are not shown.
@@ -20403,6 +21096,10 @@ export interface BrowserNetworkInput {
    * The latest this many requests (default 50, at most 200).
    */
   max_entries?: number | null;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -20419,6 +21116,15 @@ export interface BrowserNetworkResult {
  */
 export interface BrowserOpenInput {
   /**
+   * With path: a sub-agent of this conversation (A1, A2…) whose worktree holds the file, to
+   * look at its changes before they are merged.
+   */
+  agent?: string | null;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
+  /**
    * A workspace file to open instead, such as index.html or dist/game.html.
    */
   path?: string | null;
@@ -20433,7 +21139,12 @@ export interface BrowserOpenInput {
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "BrowserPerformanceInput".
  */
-export interface BrowserPerformanceInput {}
+export interface BrowserPerformanceInput {
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
+}
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "BrowserPerformanceResult".
@@ -20459,6 +21170,10 @@ export interface BrowserPressInput {
    */
   key: string;
   /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
+  /**
    * Press it this many times (default 1, at most 20).
    */
   repeat?: number | null;
@@ -20468,6 +21183,10 @@ export interface BrowserPressInput {
  * via the `definition` "BrowserRequestUserInput".
  */
 export interface BrowserRequestUserInput {
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
   /**
    * What the user should do on the page, in a sentence (sign in, solve a check, choose).
    */
@@ -20494,6 +21213,10 @@ export interface BrowserScreenshotInput {
    * The whole page instead of what is on screen.
    */
   full_page?: boolean;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
   /**
    * Only this element (a ref from the latest snapshot, such as e7).
    */
@@ -20540,6 +21263,10 @@ export interface BrowserScrollInput {
   amount?: number | null;
   direction: BrowserScrollDirection;
   /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
+  /**
    * Scroll inside this element (a ref) instead of the page.
    */
   ref?: string | null;
@@ -20549,6 +21276,10 @@ export interface BrowserScrollInput {
  * via the `definition` "BrowserSelectInput".
  */
 export interface BrowserSelectInput {
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
   /**
    * The select element (a ref).
    */
@@ -20606,6 +21337,10 @@ export interface BrowserSnapshotInput {
    * Longest snapshot to return, in characters (default 12000, at most 60000).
    */
   max_chars?: number | null;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -20616,6 +21351,10 @@ export interface BrowserTypeInput {
    * Replace the field's current text instead of adding to it.
    */
   clear?: boolean;
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
   /**
    * The field to type into (a ref); without it, the focused element.
    */
@@ -20631,6 +21370,10 @@ export interface BrowserTypeInput {
  * via the `definition` "BrowserWaitInput".
  */
 export interface BrowserWaitInput {
+  /**
+   * A page the user handed you with @ (p1, p2…); without it, this session's own page.
+   */
+  page?: string | null;
   /**
    * Wait until this text is on the page.
    */
@@ -21005,6 +21748,23 @@ export interface ChromeExtensionFolder {
   path: string;
 }
 /**
+ * The tab handed over: shared with the conversation until the user stops sharing it, and read
+ * once for the message it goes with.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeHandedTab".
+ */
+export interface ChromeHandedTab {
+  snapshot: string;
+  snapshot_truncated: boolean;
+  /**
+   * The conversation's name for the tab (t1, t2…), which Chrome's tools take.
+   */
+  tab: string;
+  title: string;
+  url: string;
+}
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ChromeHoverInput".
  */
@@ -21237,6 +21997,47 @@ export interface ChromeSnapshotInput {
   tab?: string | null;
 }
 /**
+ * One of the user's ordinary Chrome tabs, as Aura's @ menu offers it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTabChoice".
+ */
+export interface ChromeTabChoice {
+  /**
+   * Chrome's own id for the tab; it never reaches a model.
+   */
+  tab_id: number;
+  title: string;
+  url: string;
+}
+/**
+ * The user's Chrome tabs for Aura's @ menu.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTabChoices".
+ */
+export interface ChromeTabChoices {
+  /**
+   * Whether the extension is connected now.
+   */
+  connected: boolean;
+  /**
+   * Why the connected extension could not list them, in the user's words.
+   */
+  issue?: string | null;
+  tabs: ChromeTabChoice[];
+}
+/**
+ * The user hands one of their Chrome tabs to a conversation with @.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "ChromeTabHandOverRequest".
+ */
+export interface ChromeTabHandOverRequest {
+  session_id: SessionId;
+  tab_id: number;
+}
+/**
  * One tab the session may act on.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -21268,6 +22069,10 @@ export interface ChromeTabsInput {}
  * via the `definition` "ChromeTabsResult".
  */
 export interface ChromeTabsResult {
+  /**
+   * Why no tab is listed: Chrome is not connected, or nothing is shared with this conversation.
+   */
+  notice?: string | null;
   tabs: ChromeTabV1[];
 }
 /**
@@ -23489,6 +24294,11 @@ export interface McpSetEnabledRequest {
 export interface McpSignInBegun {
   authorization_server: string;
   authorization_url: string;
+  /**
+   * Set by Main: `false` when the system browser did not open, so the link has to be copied.
+   * Core leaves it out.
+   */
+  browser_opened?: boolean | null;
 }
 /**
  * Sign in to a trusted OAuth server. Core prepares the sign-in and answers with the
@@ -23660,6 +24470,10 @@ export interface MediaProbeResult {
   frame_rate?: number | null;
   has_audio?: boolean | null;
   height: number;
+  /**
+   * Why codec or frame_rate is null: what kept the file's header from naming them.
+   */
+  note?: string | null;
   width: number;
 }
 /**
@@ -23694,6 +24508,9 @@ export interface MemoryCreateInput {
  */
 export interface MemoryCreateItem {
   body: string;
+  /**
+   * 1 to 64 lowercase ASCII letters, digits or '-', such as rules or project-notes.
+   */
   category: string;
   /**
    * 0 to 1: how sure the note is.
@@ -24135,6 +24952,9 @@ export interface MemoryUpdateInput {
  */
 export interface MemoryUpdateItem {
   body?: string | null;
+  /**
+   * 1 to 64 lowercase ASCII letters, digits or '-', such as rules or project-notes.
+   */
   category?: string | null;
   /**
    * 0 to 1: how sure the note is.
@@ -24328,6 +25148,67 @@ export interface NormalCompletionRecord {
    */
   review_id?: CompletionReviewId | null;
   turn_task_id: TurnTaskId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "OldDataEntry".
+ */
+export interface OldDataEntry {
+  bytes: number;
+  /**
+   * What a removal names it by; it stays the same while the item is there.
+   */
+  id: string;
+  kind: OldDataKind;
+  /**
+   * The newest change to anything in it.
+   */
+  modified_at?: UtcTimestamp | null;
+  /**
+   * The folders and files removing it deletes.
+   */
+  paths: string[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "OldDataFailure".
+ */
+export interface OldDataFailure {
+  id: string;
+  reason: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "OldDataListing".
+ */
+export interface OldDataListing {
+  items: OldDataEntry[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "OldDataRemoval".
+ */
+export interface OldDataRemoval {
+  failed: OldDataFailure[];
+  /**
+   * Kept whole: a file in it is open, or a program works in it.
+   */
+  in_use: string[];
+  /**
+   * What is left over after the removal.
+   */
+  items: OldDataEntry[];
+  removed: string[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "OldDataRemoveRequest".
+ */
+export interface OldDataRemoveRequest {
+  /**
+   * The ids of the items to remove, from the listing.
+   */
+  ids: string[];
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -26325,6 +27206,169 @@ export interface SourceRecheckFacts {
   used_steer: boolean;
 }
 /**
+ * What checking a choice found.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageCheck".
+ */
+export interface StorageCheck {
+  /**
+   * What the move copies, in bytes.
+   */
+  bytes: number;
+  /**
+   * Where the data would go: the folder chosen or an `Aura` folder inside it; absent: the
+   * default places.
+   */
+  destination?: string | null;
+  free: number;
+  /**
+   * The room the copy needs on the destination's disk, and the room there is.
+   */
+  needed: number;
+  /**
+   * What it copies part by part; empty when the data cannot go there.
+   */
+  parts: StorageMovePart[];
+  /**
+   * Why the data cannot go there, in the user's words; empty when it can.
+   */
+  refusals: string[];
+}
+/**
+ * One part of what a move copies, and its size.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageMovePart".
+ */
+export interface StorageMovePart {
+  bytes: number;
+  part: StorageMovedPart;
+}
+/**
+ * A folder the user chose, or the default places.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageChoice".
+ */
+export interface StorageChoice {
+  /**
+   * Absent: back to the default places.
+   */
+  folder?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageFolderOpened".
+ */
+export interface StorageFolderOpened {
+  completed: boolean;
+  message: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageMoveFailure".
+ */
+export interface StorageMoveFailure {
+  at: string;
+  /**
+   * Where the data was to go; absent: back to the default places.
+   */
+  destination?: string | null;
+  reason: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageMoveRequest".
+ */
+export interface StorageMoveRequest {
+  /**
+   * Where the data goes; absent: back to the default places.
+   */
+  destination?: string | null;
+}
+/**
+ * Opens the folder of one part the overview names; the window never supplies a path.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageOpenFolderRequest".
+ */
+export interface StorageOpenFolderRequest {
+  part: StoragePart;
+}
+/**
+ * Where the data and the installation are, how big they are, and what waits.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageOverview".
+ */
+export interface StorageOverview {
+  data: StoragePlace;
+  /**
+   * The data is in a folder the user chose rather than at the default places.
+   */
+  data_moved: boolean;
+  /**
+   * Why the last move did not happen, until it is dismissed or a move succeeds.
+   */
+  failure?: StorageMoveFailure | null;
+  /**
+   * The installation's folder; absent in a development run.
+   */
+  install?: StoragePlace1 | null;
+  /**
+   * The copy the last move left behind is still to be removed.
+   */
+  old_copies: boolean;
+  /**
+   * A move asked for and waiting for the next start.
+   */
+  requested?: StorageMoveRequest | null;
+}
+/**
+ * The data's folder: the one it was moved to, or the default data folder.
+ */
+export interface StoragePlace {
+  /**
+   * What a move would copy from it, or what the folder holds, in bytes.
+   */
+  bytes: number;
+  path: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StoragePlace".
+ */
+export interface StoragePlace1 {
+  /**
+   * What a move would copy from it, or what the folder holds, in bytes.
+   */
+  bytes: number;
+  path: string;
+}
+/**
+ * Aura closes so the launcher starts it again and does the move first; a development run has
+ * no launcher and does not close.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageRestart".
+ */
+export interface StorageRestart {
+  restarting: boolean;
+}
+/**
+ * Main's own folder dialog for choosing where the data goes.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "StorageSelectedFolder".
+ */
+export interface StorageSelectedFolder {
+  /**
+   * Absent when the user cancelled.
+   */
+  path?: string | null;
+}
+/**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TaskLineage".
  */
@@ -26471,6 +27515,12 @@ export interface TerminalListV1 {
 export interface TerminalViewV1 {
   controller: TerminalControllerV1;
   end?: TerminalEnd | null;
+  /**
+   * A user's own terminal the user handed to the model with @: while the model controls it,
+   * the model's terminal tools act on it; it stays the user's. Sent only when set; the terminal
+   * store keeps it as the record's owner, never as this field.
+   */
+  handed_over?: boolean;
   owner: TerminalOwnerV1;
   process_id: number;
   revision: Revision;
@@ -26983,3 +28033,52 @@ export interface WorkspaceIndexRebuildStarted {
  * via the `definition` "WorkspaceSelectDirectoryRequest".
  */
 export interface WorkspaceSelectDirectoryRequest {}
+/**
+ * The folder the user picked in Main's own dialog for new worktrees; none when cancelled.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorktreeLocationSelected".
+ */
+export interface WorktreeLocationSelected {
+  path?: string | null;
+}
+/**
+ * Choose the folder for new worktrees, or go back to the default with `location` none.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorktreeLocationSetRequest".
+ */
+export interface WorktreeLocationSetRequest {
+  expected_revision: number;
+  location?: string | null;
+}
+/**
+ * Where new worktrees go.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorktreeLocationView".
+ */
+export interface WorktreeLocationView {
+  /**
+   * The user chose it; otherwise it is the default.
+   */
+  chosen: boolean;
+  default_location: string;
+  /**
+   * Free bytes on its drive.
+   */
+  free_bytes?: number | null;
+  /**
+   * The folder new worktrees go under.
+   */
+  location: string;
+  /**
+   * The settings revision a change names.
+   */
+  revision: number;
+  size_bytes?: number | null;
+  /**
+   * Worktrees there now, and their bytes on disk; none until counted.
+   */
+  worktrees: number;
+}

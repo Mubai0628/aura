@@ -91,6 +91,7 @@ test('the sidebar archives a Workspace, answering its preparation with no buffer
   expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
     '工作区信息',
     '复制路径',
+    '更改位置…',
     '归档工作区',
   ]);
   fireEvent.click(screen.getByRole('menuitem', { name: '归档工作区' }));

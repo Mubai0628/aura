@@ -8,7 +8,8 @@
 - `agent_mode:normal|plan|goal`：按会话当前的任务方式下发（`modes/`）。
 - `capability:<名字>`：加载了能产生这个能力名的工具时下发（`capabilities/`）。工具名到能力名的对应在 `crates/aura-core/src/agent_application/context/` 里组装激活输入的地方。
 - `compaction`、`maintenance:memory`：压缩和记忆维护按模块 id 直接取用。
-- `child_agent`、`recovery:*`、`maintenance:failure_summary`、`maintenance:environment_update`：产品里没有任何路径会触发，在清单里用 `# UNWIRED:` 标出。
+- `child_agent`：子 Agent 的会话下发（它的任务单是第一条消息）。
+- `recovery:*`、`maintenance:failure_summary`、`maintenance:environment_update`：产品里没有任何路径会触发，在清单里用 `# UNWIRED:` 标出。
 
 ## 修改模块
 

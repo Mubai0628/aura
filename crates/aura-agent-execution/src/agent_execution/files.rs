@@ -4,8 +4,11 @@ mod external_read;
 mod external_write;
 mod fresh_facts;
 pub(super) mod invocation;
+mod picture;
 pub(crate) mod publication;
 mod rejection;
+mod same_response;
+mod search_context;
 mod traversal;
 use super::*;
 use anyhow::{Result, ensure};
@@ -15,7 +18,9 @@ pub use external_write::external_side_effect;
 use external_write::*;
 pub(super) use fresh_facts::still_hold;
 pub(super) use publication::invoke;
+pub(super) use same_response::replaced_since;
 use serde_json::{Value, json};
+use traversal::join_display;
 
 /// The canonical workspace paths one call really names.
 ///
@@ -178,19 +183,17 @@ pub(super) fn inspect(service: &AgentExecution, call: &CallContext) -> Result<Va
         &service.fs,
         &service.workspace,
         call.snapshot.workspace_id,
-        call.snapshot.session_id,
+        Some(call.snapshot.session_id),
         &paths(call),
     );
+    let action = call.operation.content.action_kind.as_str();
     match facts {
-        Err(error) if is_read(call) => {
-            let action = call.operation.content.action_kind.as_str();
-            match rejection::rejection(action, &Value::Null, &error) {
-                Some(rejection) => Ok(json!({"read_refusal": rejection})),
-                None => Err(error),
-            }
-        }
+        Err(error) if is_read(call) => match rejection::rejection(action, &Value::Null, &error) {
+            Some(rejection) => Ok(json!({"read_refusal": rejection})),
+            None => Err(error),
+        },
         Ok(facts) if is_read(call) && facts_absent(&facts) => {
-            Ok(json!({"read_refusal": rejection::not_found()}))
+            Ok(json!({"read_refusal": rejection::not_found(action, &facts)}))
         }
         result => result,
     }
@@ -219,6 +222,9 @@ fn invoke_inner(service: &AgentExecution, call: &CallContext) -> Result<Value> {
             }
         }
         "fs.read" => {
+            if let Some(found) = picture::open(service, call)? {
+                return picture::result(service, call, found);
+            }
             let i: AgentFileReadInput = serde_json::from_value(content.action.clone())?;
             match external_grant(call) {
                 Some(grant_id) => serde_json::to_value(read_external(service, call, grant_id, i)?)?,
@@ -252,24 +258,27 @@ fn invoke_inner(service: &AgentExecution, call: &CallContext) -> Result<Value> {
                     }
                 }
                 let _unregister = Unregister(correlation);
-                serde_json::to_value(
-                    service
-                        .fs
-                        .search_text_with_cancel(
-                            FsSearchTextRequest {
-                                workspace_id,
-                                session_id,
-                                pattern: i.pattern,
-                                root: i.root.into_relative(),
-                                path_glob: i.path_glob,
-                                include_ignored: i.include_ignored,
-                                include_generated: i.include_generated,
-                                limit: i.limit,
-                            },
-                            &cancel,
-                        )
-                        .map(|(result, _)| result)?,
-                )?
+                let (mut result, _) = service.fs.search_text_with_cancel(
+                    FsSearchTextRequest {
+                        workspace_id,
+                        session_id,
+                        pattern: i.pattern,
+                        root: i.root.into_relative(),
+                        path_glob: i.path_glob,
+                        include_ignored: i.include_ignored,
+                        include_generated: i.include_generated,
+                        limit: i.limit,
+                    },
+                    &cancel,
+                )?;
+                search_context::add(
+                    service,
+                    workspace_id,
+                    session_id,
+                    &mut result,
+                    i.context_lines,
+                );
+                serde_json::to_value(result)?
             }
         }
         "fs.write" => {
@@ -317,7 +326,8 @@ fn invoke_inner(service: &AgentExecution, call: &CallContext) -> Result<Value> {
             }
         }
         "fs.patch" => {
-            let i: AgentFilePatchInput = serde_json::from_value(content.action.clone())?;
+            let mut i: AgentFilePatchInput = serde_json::from_value(content.action.clone())?;
+            i.expected_hash = same_response::base_hash(service, call, i.expected_hash)?;
             match external_grant(call) {
                 Some(grant_id) => {
                     serde_json::to_value(patch_external(service, call, grant_id, i)?)?
@@ -421,18 +431,6 @@ fn read_external(
             display_path: read.display_path,
         }),
     })
-}
-
-/// The absolute display path of one file inside an authorized root.
-fn join_display(root: &str, relative: &WorkspacePath) -> String {
-    let mut text = root.trim_end_matches(['\\', '/']).to_owned();
-    if !relative.is_root() {
-        for component in relative.as_str().split('/') {
-            text.push(std::path::MAIN_SEPARATOR);
-            text.push_str(component);
-        }
-    }
-    text
 }
 
 fn list_external(

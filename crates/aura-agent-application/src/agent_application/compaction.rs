@@ -461,6 +461,7 @@ impl CompactionModelCaller for Execution {
                     _ => Arc::from([]),
                 },
                 backup_waiting: false,
+                idle_retry: false,
             };
             match super::provider::execute(&self.app, request, &self.cancel).await {
                 Ok(TransportRunTerminal::Completed { output, attempts }) => match attempts.last() {

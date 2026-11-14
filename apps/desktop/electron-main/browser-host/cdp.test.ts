@@ -105,6 +105,22 @@ describe("a page's DevTools connection", () => {
     expect(page.all('all', 2)).toMatchObject({ truncated: true });
   });
 
+  it("leaves out the cache reads DevTools makes for itself, not the page's own", () => {
+    const devtools = new FakeDevTools();
+    const page = new PageDebugger(devtools);
+    // Reading a no-store page's styles looks in the cache for a request the page never sent.
+    devtools.emit('Network.loadingFailed', { requestId: '99.1', errorText: 'net::ERR_CACHE_MISS' });
+    expect(page.takeNew()).toEqual([]);
+    devtools.emit('Network.requestWillBeSent', {
+      requestId: '7',
+      request: { url: 'http://127.0.0.1:9/form' },
+    });
+    devtools.emit('Network.loadingFailed', { requestId: '7', errorText: 'net::ERR_CACHE_MISS' });
+    expect(page.takeNew()).toEqual([
+      { level: 'failed_load', text: 'net::ERR_CACHE_MISS http://127.0.0.1:9/form', source: null },
+    ]);
+  });
+
   it('answers dialogs so a page never waits on one, and says how', () => {
     const devtools = new FakeDevTools();
     const page = new PageDebugger(devtools);

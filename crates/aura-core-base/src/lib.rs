@@ -1,9 +1,9 @@
-//! What the services inside the Core process share: Core's diagnostics log, the bounded blocking
-//! pool and synchronous boundary, disk pressure and busy records, configuration degradation,
-//! credential reads, the command ledger and settlement, outbound watch and JSON frames onto the
-//! outbound queue, the per-connection request lanes, Core's release identity, the backends'
-//! readiness store, the startup guard, the Recycle Bin, a web address's network origin and,
-//! behind its feature, the acceptance barrier.
+//! What the services inside the Core process share: Core's options and locations, its
+//! diagnostics log, the bounded blocking pool and synchronous boundary, disk pressure and busy
+//! records, configuration degradation, credential reads, the command ledger and settlement,
+//! outbound watch and JSON frames onto the outbound queue, the per-connection request lanes,
+//! Core's release identity, the backends' readiness store, the startup guard, the Recycle Bin, a
+//! web address's network origin and, behind its feature, the acceptance barrier.
 #![forbid(unsafe_code)]
 
 /// The default-off S02-E acceptance boundary. Compiled only with `--features acceptance-barrier`;
@@ -21,23 +21,24 @@ pub mod credential_io;
 pub mod disk_pressure;
 pub mod envelope;
 pub mod ipc_session;
+pub mod locations;
+pub mod options;
 pub mod outbound_json;
 pub mod outbound_watch;
 pub mod readiness;
 pub mod recycle;
 pub mod release;
+pub mod route_failures;
+pub mod settings_routes;
 pub mod startup_recovery;
 pub mod sync_boundary;
 pub mod web_origin;
 
 pub use core_log::append_core_log;
 
-// `core_log` reads these through `use super::*`, as it read them from aura-core's root. Its
-// test-hook build has no use for `env`: a test never writes under `LOCALAPPDATA`.
+// `core_log` reads these through `use super::*`, as it read them from aura-core's root.
 use aura_domain_common::UtcTimestamp;
 use serde_json::{Value, json};
-#[cfg(not(any(test, feature = "test-hooks")))]
-use std::env;
 use std::{
     fs,
     path::{Path, PathBuf},

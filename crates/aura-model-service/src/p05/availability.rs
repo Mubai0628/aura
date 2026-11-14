@@ -36,7 +36,6 @@ use aura_persistence::{
 };
 use aura_projection_contract::ProjectionChange;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use super::{
     P05OperationControl, P05Services,
@@ -48,7 +47,10 @@ use super::{
     },
 };
 
+mod error;
 mod results;
+
+pub(crate) use error::ModelAvailabilityServiceError;
 
 #[cfg(test)]
 use results::provider_status_issue;
@@ -94,34 +96,6 @@ enum AliasPersistenceOutcome {
     Persisted(ChatOutputTokenFieldAlias),
     AlreadyPresent(ChatOutputTokenFieldAlias),
     NotPersistedBeforeForwardPoint,
-}
-
-#[derive(Debug, Error)]
-pub(crate) enum ModelAvailabilityServiceError {
-    #[error("model availability prerequisite failed: {0:?}")]
-    Prerequisite(ModelAvailabilityPrerequisiteFailure),
-    #[error("model availability persistence failed: {0}")]
-    Persistence(#[from] PersistenceError),
-    #[error("model availability transport failed: {0}")]
-    Transport(#[from] ConfigurationTransportError),
-    #[error("model availability adapter failed: {0}")]
-    Adapter(#[from] ModelAdapterError),
-    #[error("model availability compatibility learning failed after its forward point: {0}")]
-    ConfigJournal(#[from] ModelConfigJournalError),
-    #[error("compatibility.output_token_field_conflict")]
-    OutputTokenFieldAliasConflict,
-    #[error("model availability record revision overflow")]
-    RevisionOverflow,
-    #[error("model availability operation did not publish its scoped projection")]
-    MissingProjection,
-    #[error("model availability operation was not found")]
-    OperationNotFound,
-    #[error("model availability worker terminated unexpectedly")]
-    WorkerTerminated,
-    #[error(
-        "model availability operational revision conflict: expected {expected}, actual {actual}"
-    )]
-    OperationRevisionConflict { expected: u64, actual: u64 },
 }
 
 impl P05Services {

@@ -1,5 +1,6 @@
 //! Main decodes only the bytes of one Core-verified, authorized read handle.
 mod bridge;
+mod header;
 mod invoke;
 mod read;
 mod result;

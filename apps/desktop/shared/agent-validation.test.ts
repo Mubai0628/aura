@@ -252,6 +252,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'getUiSettings',
       'importPlugin',
       'importSkill',
+      'listAgentTeam',
       'listCommands',
       'listHookInvocations',
       'listHooks',
@@ -263,6 +264,8 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'messagePicture',
       'moveHook',
       'mutateAgentInbox',
+      // A sub-agent's worktree in the file manager, from its menu on the canvas or its record.
+      'openAgentTeamWorktree',
       'openCommandDirectory',
       'openExternalLink',
       'openPluginDirectory',
@@ -284,11 +287,17 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'readAgentMessageText',
       'readAgentResult',
       'readAgentSessionsActivity',
+      // What a worktree changed, for the 多 Agent page and a merge's approval.
+      'readAgentTeamChanges',
+      // 设置 → 智能能力 → 多 Agent: the sub-agents' limits.
+      'readAgentTeamSettings',
       'readAgentToolActivity',
       'readAgentToolSettings',
       // The text of a text file a message carried.
       'readAttachmentText',
       'readShellExecution',
+      // 设置 → 存储 → 工作副本: where new worktrees go.
+      'readWorktreeLocation',
       'rebuildWorkspaceIndex',
       'recheckAgentContext',
       'refreshMcpServer',
@@ -299,6 +308,8 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'resolveAgentApproval',
       'resolveAgentContextWindow',
       'restoreMcpPluginDefault',
+      // Takes back what a sub-agent's commands could do without asking.
+      'revokeAgentTeamAllowance',
       'saveMcpServer',
       'selectAgentQueryFile',
       'selectHookDirectory',
@@ -306,6 +317,8 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'selectPluginDirectory',
       'selectSkillArchive',
       'selectSkillDirectory',
+      'selectWorktreeLocation',
+      'setAgentTeamSettings',
       'setCommandEnabled',
       'setHookEnabled',
       'setMcpSecret',
@@ -315,6 +328,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'setPluginSecret',
       'setSkillEnabled',
       'setSkillPinned',
+      'setWorktreeLocation',
       'signInMcpServer',
       'signOutMcpServer',
       'startAgent',
@@ -322,7 +336,11 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'startAgentCompaction',
       'startRelatedAgentTurn',
       'startWorkspaceInit',
+      // The 多 Agent page's 停止.
+      'stopAgentTeamMember',
       'stopShellExecution',
+      // 设置 → 系统 → 存储: where the data is and moving it.
+      'storage',
       'submitAgentMessage',
       'terminal',
       'testAgentNetworkProxy',

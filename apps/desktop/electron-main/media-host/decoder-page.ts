@@ -150,6 +150,7 @@ export async function mediaPageRun(input: {
           has_audio: hasAudio,
           container: input.container,
           codec: null,
+          note: null,
           byte_length: input.size,
         },
       };

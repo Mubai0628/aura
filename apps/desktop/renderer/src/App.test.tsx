@@ -239,6 +239,36 @@ describe('P05 prerequisite desktop shell', () => {
     });
   });
 
+  test("a sub-agent's conversation is not listed: the conversation that started it shows it", async () => {
+    const workspace = workspaceSessionProjection.payload.workspaces[0]!.workspace_id;
+    vi.mocked(window.aura.v1.getWorkspaceSessions).mockResolvedValue({
+      ok: true,
+      value: {
+        ...workspaceSessionProjection,
+        payload: {
+          ...workspaceSessionProjection.payload,
+          sessions: [
+            ...workspaceSessionProjection.payload.sessions,
+            {
+              session_id: 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+              workspace_id: workspace,
+              title: '子 Agent：读代码',
+              state: 'subagent',
+            },
+          ],
+        },
+      },
+    });
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: '合成工作区' })).toBeTruthy();
+    expect(screen.queryByText('子 Agent：读代码')).toBeNull();
+    vi.mocked(window.aura.v1.getWorkspaceSessions).mockResolvedValue({
+      ok: true,
+      value: workspaceSessionProjection,
+    });
+  });
+
   test('keeps the P04 security control surface under Settings and preserves Core authority', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -283,8 +313,10 @@ describe('P05 prerequisite desktop shell', () => {
     expect(window.aura.v1.prepareHostPreparation).toHaveBeenCalledTimes(1);
 
     const alert = screen.getByRole('alert');
-    expect(alert.textContent).toContain('当前 Release Bundle 未通过 Aura Production Root 信任验证');
-    expect(alert.textContent).toContain('fail-closed');
+    expect(alert.textContent).toContain(
+      '这个 Aura 安装包没有通过签名校验，所以没有请求管理员权限，系统没有被修改。请从官方发布页重新下载安装。',
+    );
+    expect(alert.textContent).not.toMatch(/Release Bundle|fail-closed|Production Root/u);
     expect(container.querySelector('.security-error')).toBeNull();
     await user.click(within(alert).getByRole('button', { name: '关闭消息' }));
     expect(screen.queryByRole('alert')).toBeNull();

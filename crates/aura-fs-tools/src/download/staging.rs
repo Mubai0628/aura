@@ -1,4 +1,4 @@
-use super::{DownloadTarget, target::invalid};
+use super::{DownloadTarget, lines, target::invalid};
 use crate::{FilePublicationReceipt, FsToolError, FsToolService};
 use aura_domain_common::{CorrelationId, SessionId, WorkspaceId, WorkspacePath};
 use aura_workspace_domain::{
@@ -13,6 +13,7 @@ pub struct DownloadStaging {
     hash: blake3::Hasher,
     owner: Arc<EligibilityOwner>,
     commit: Option<ResourceCommit>,
+    folders: super::folders::DownloadFolders,
 }
 pub struct DownloadPublication {
     pub bytes_written: u64,
@@ -39,11 +40,7 @@ impl FsToolService {
             }
         } else {
             let parent = target.parent()?;
-            let leaf = target
-                .path
-                .file_name()
-                .ok_or_else(|| invalid("http.target_leaf"))?
-                .to_string_lossy();
+            let leaf = target.path.file_name().ok_or_else(lines::no_leaf)?.to_string_lossy();
             let owner = ResourceOwner {
                 workspace_id: workspace,
                 session_id: session,
@@ -93,19 +90,21 @@ impl FsToolService {
             hash: blake3::Hasher::new(),
             owner,
             commit: Some(commit),
+            folders: super::folders::DownloadFolders::default(),
         };
-        let parent = result.target.parent()?;
-        let leaf = result.target.path.file_name().ok_or_else(|| invalid("http.target_leaf"))?;
+        let anchor = result.target.parent()?;
+        let parent = result.folders.make(&mut result.target, anchor)?;
+        let leaf = result.target.path.file_name().ok_or_else(lines::no_leaf)?;
         let expected = match (&result.target.identity, &result.target.blake3) {
             (Some(identity), Some(hash)) => {
                 Some((aura_workspace::native_identity(identity).map_err(invalid)?, hash.clone()))
             }
             (None, None) => None,
-            _ => return Err(invalid("http.inconsistent_target")),
+            _ => return Err(lines::inconsistent()),
         };
         result.staging = Some(
             aura_windows_platform::StagedFilePublication::new(&parent, leaf, expected)
-                .map_err(invalid)?,
+                .map_err(|error| lines::staging_failed(&parent.info().final_path, &error))?,
         );
         Ok(result)
     }
@@ -115,7 +114,7 @@ impl FsToolService {
         workspace: WorkspaceId,
         correlation: CorrelationId,
     ) -> Result<DownloadPublication, FsToolError> {
-        let stage = download.staging.take().ok_or_else(|| invalid("http.staging_finished"))?;
+        let stage = download.staging.take().ok_or_else(lines::staging_finished)?;
         let bytes_written = stage.bytes_written();
         let max_chunk_bytes = stage.max_chunk_bytes();
         let hash = aura_domain_common::ContentHash::new(
@@ -136,13 +135,14 @@ impl FsToolService {
                 .map_err(invalid)?;
             crate::publication_receipt::published(
                 &parent,
-                download.target.path.file_name().ok_or_else(|| invalid("http.target_leaf"))?,
+                download.target.path.file_name().ok_or_else(lines::no_leaf)?,
                 previous.as_ref(),
                 &info,
             );
             Ok::<_, FsToolError>(())
         });
         published?;
+        download.folders.keep();
         if let Some(path) = &download.target.workspace_path {
             let catalog = self.catalog(workspace)?;
             let resolver = self.resolver(workspace)?;
@@ -181,9 +181,9 @@ impl DownloadStaging {
     pub fn append(&mut self, bytes: &[u8]) -> Result<(), FsToolError> {
         self.staging
             .as_mut()
-            .ok_or_else(|| invalid("http.staging_finished"))?
+            .ok_or_else(lines::staging_finished)?
             .append(bytes)
-            .map_err(invalid)?;
+            .map_err(|error| lines::staging_write_failed(&error))?;
         self.hash.update(bytes);
         Ok(())
     }
@@ -191,6 +191,8 @@ impl DownloadStaging {
 impl Drop for DownloadStaging {
     fn drop(&mut self) {
         self.staging.take();
+        // After the staged file is gone, so the folders it was in are empty again.
+        self.folders.take_back();
         if let Some(commit) = self.commit.take() {
             self.owner.release_commit(commit);
         }

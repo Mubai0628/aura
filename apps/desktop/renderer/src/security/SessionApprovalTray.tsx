@@ -1,10 +1,13 @@
-import { userMessage } from '../agent-session/user-message';
+import { failedAction, isConflict } from '../agent-session/failure-text';
 import type { ApprovalDecisionKind, ApprovalView } from '@aura/contracts/generated';
 import { useState } from 'react';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import { AppIcon } from '../app-icons';
 import type { useSecurityControl } from '../security-control-store';
 import './security-ui.css';
+
+/** An approval answered elsewhere, expired or no longer there. */
+const GONE = ['approval.stale_request', 'approval.already_resolved', 'approval.not_found'];
 
 const LABELS: Record<ApprovalDecisionKind, string> = {
   allow_for_current_turn: '本轮允许',
@@ -32,7 +35,11 @@ export function SessionApprovalTray({
     try {
       await security.resolveApproval(approval, decision);
     } catch (reason) {
-      setError(userMessage(reason, '审批未提交，请检查连接。'));
+      setError(
+        GONE.includes((reason as { code?: unknown } | null)?.code as string) || isConflict(reason)
+          ? '这项审批已经处理过或已过期，你的选择没有生效；请看最新的审批。'
+          : failedAction(reason, '你的选择没有提交', '这项审批仍在等你确认；请再选一次。'),
+      );
     } finally {
       setPending(undefined);
     }

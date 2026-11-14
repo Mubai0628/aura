@@ -18,6 +18,7 @@ fn update_from(
         max_retries: view.max_retries,
         use_recommended_fixed_tool_ids: false,
         network_proxy: proxy,
+        network_proxy_follows_system: None,
         web_service: None,
     }
 }
@@ -155,4 +156,89 @@ async fn l01_proxy_save_is_field_scoped_and_the_probe_stays_on_the_loopback_port
         .expect("rejected host");
     assert!(!remote.ok);
     assert!(remote.message.contains("回环"));
+}
+
+/// Tools and model requests follow the proxy Windows names (injected here, never the machine's
+/// own) until a proxy is switched on in the settings, which then replaces it for both. The view
+/// shows the typed-in proxy as stored and what Windows names beside it.
+#[tokio::test]
+async fn the_system_proxy_is_followed_until_a_proxy_is_switched_on() {
+    use aura_config::ConfigModule;
+    let host = crate::r03_tests::Fixture::new();
+    let runtime = host.start().await;
+    let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
+    let windows = |server: &str| {
+        std::sync::Arc::new(aura_system_proxy::FixedSystemProxy(Ok(
+            aura_system_proxy::InternetSettingsValues {
+                proxy_enable: Some(1),
+                proxy_server: Some(server.into()),
+                auto_config_url: None,
+            },
+        )))
+    };
+    services._settings.use_system_proxy_source(windows("http=127.0.0.1:7890;https=127.0.0.1:7890"));
+    let agent = services.agent_required();
+    let settings = &services._settings;
+    let step = || settings.tool_settings_snapshot().expect("step").network_proxy;
+    let system =
+        ToolNetworkProxyV1::new(true, ToolNetworkProxyProtocolV1::Http, "127.0.0.1".into(), 7890)
+            .expect("system proxy");
+    let first = agent.tool_settings().expect("settings");
+    assert!(!first.network_proxy_follows_system, "no separate choice to follow");
+    assert_eq!(first.network_proxy, None, "nothing typed in");
+    assert_eq!(
+        first.system_network_proxy.as_ref().and_then(|found| found.proxy.as_ref()),
+        Some(&system)
+    );
+    assert_eq!(step(), Some(system.clone()), "each step freezes the system's proxy");
+    assert_eq!(settings.model_proxy(), Some(system.clone()), "model requests take it too");
+
+    // A typed-in proxy switched on replaces it for both.
+    let typed = ToolNetworkProxyV1::new(
+        true,
+        ToolNetworkProxyProtocolV1::Socks5,
+        "127.0.0.1".into(),
+        10808,
+    )
+    .expect("proxy");
+    let saved = agent
+        .update_tool_settings(
+            CommandInvocationId::new(),
+            update_from(&first, Some(Some(typed.clone()))),
+        )
+        .await
+        .expect("switched on");
+    assert_eq!(saved.network_proxy, Some(typed.clone()));
+    assert_eq!(step(), Some(typed.clone()));
+    assert_eq!(settings.model_proxy(), Some(typed.clone()));
+
+    // Switched off it stays stored, and both follow the system again. An older client's
+    // request to follow changes nothing more.
+    let off = ToolNetworkProxyV1 { enabled: false, ..typed.clone() };
+    let mut request = update_from(&saved, Some(Some(off.clone())));
+    request.network_proxy_follows_system = Some(true);
+    let switched_off = agent
+        .update_tool_settings(CommandInvocationId::new(), request)
+        .await
+        .expect("switched off");
+    assert!(!switched_off.network_proxy_follows_system);
+    assert_eq!(switched_off.network_proxy, Some(off));
+    assert_eq!(step(), Some(system.clone()));
+    assert_eq!(settings.model_proxy(), Some(system));
+    let network = std::fs::read_to_string(settings.paths().config_path(ConfigModule::Network))
+        .unwrap_or_default();
+    assert!(!network.contains("tools_proxy"), "no older Core's choice is written: {network}");
+
+    // A system proxy Aura cannot use says why and what to do, and both go direct.
+    settings.use_system_proxy_source(windows("proxy.corp.example:8080"));
+    let elsewhere = agent.tool_settings().expect("settings");
+    let issue = elsewhere.system_network_proxy.and_then(|found| found.issue).expect("why");
+    assert!(
+        issue.contains("proxy.corp.example:8080")
+            && issue.contains("直连")
+            && issue.contains("启用网络代理"),
+        "{issue}"
+    );
+    assert_eq!(step(), None);
+    assert_eq!(settings.model_proxy(), None);
 }

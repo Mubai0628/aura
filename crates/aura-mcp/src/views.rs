@@ -193,6 +193,10 @@ pub struct McpSignInRequest {
 pub struct McpSignInBegun {
     pub authorization_url: String,
     pub authorization_server: String,
+    /// Set by Main: `false` when the system browser did not open, so the link has to be copied.
+    /// Core leaves it out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser_opened: Option<bool>,
 }
 
 /// Forget a server's sign-in.

@@ -38,7 +38,9 @@ fn validate_command_matches_runtime(
 
 #[derive(Debug, Error)]
 pub enum ToolSandboxAssemblyErrorV1 {
-    #[error("the Sandbox command descriptor differs from the approved non-secret Runtime facts")]
+    #[error(
+        "tool.sandbox.runtime_facts_mismatch: 要在沙箱里运行的命令与批准时记录的不一致，没有运行；请重新发起这次调用。"
+    )]
     RuntimeFactsMismatch,
     #[error(transparent)]
     Authorization(#[from] ToolRuntimeAuthorizationErrorV1),

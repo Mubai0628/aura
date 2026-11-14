@@ -8,6 +8,10 @@ import { ScrollBox } from '../ui/ScrollBox';
 import { remoteDecisionText } from './remote-decision';
 import { callUnderWay, stateOf, toneOf } from './tool-call-tone';
 import { DetailLine, TargetLabel } from './ToolFileLinks';
+import { shownDetails } from './tool-activity-details';
+import { useUiSettings } from '../ui-settings-store';
+import { useContext } from 'react';
+import { ToolCallsUnreadable } from './useToolCallDirectory';
 
 export function ToolActivity({
   entry,
@@ -17,13 +21,15 @@ export function ToolActivity({
   /** The turn is over: a call with no record by then never ran. */
   ended?: boolean;
 }) {
+  const debug = useUiSettings().settings.show_debug_information;
   // A call Core has not recorded yet (its batch not admitted) is shown with its state.
   if (!entry) return <UnrecordedCall ended={ended} />;
   if (entry.display.internal) return null;
+  const details = shownDetails(entry.display.details, debug);
   return (
     <>
-      {entry.display.details.length > 0 || entry.display.image ? (
-        <ExpandableToolActivity entry={entry} />
+      {details.length > 0 || entry.display.image ? (
+        <ExpandableToolActivity entry={entry} details={details} />
       ) : (
         <ToolActivityLine entry={entry} />
       )}
@@ -84,9 +90,16 @@ function ToolActivityBody({ entry, open }: { entry: AgentToolActivityEntry; open
 
 /** A call with bounded diagnostics: the row stays a real disclosure, and its
  *  full detail opens in the expanded body. */
-function ExpandableToolActivity({ entry }: { entry: AgentToolActivityEntry }) {
+function ExpandableToolActivity({
+  entry,
+  details,
+}: {
+  entry: AgentToolActivityEntry;
+  details: readonly string[];
+}) {
   const { onToggle, open } = useDisclosureOpen();
   const { outcome } = stateOf(entry);
+  const found = entry.summary.outcome?.type === 'succeeded';
   return (
     <details
       className="agent-tool-activity"
@@ -105,13 +118,14 @@ function ExpandableToolActivity({ entry }: { entry: AgentToolActivityEntry }) {
             name={screenshotName(entry.summary.display_name)}
           />
         ) : null}
-        {entry.display.details.length ? (
+        {details.length ? (
           <ScrollBox label={`${entry.display.title}的详情`}>
             <ul>
-              {entry.display.details.map((line, index) => (
+              {details.map((line, index) => (
                 <li key={index}>
                   <DetailLine
                     call={entry.summary.tool_call_id}
+                    found={found}
                     line={line}
                     tool={entry.summary.display_name}
                   />
@@ -125,18 +139,30 @@ function ExpandableToolActivity({ entry }: { entry: AgentToolActivityEntry }) {
   );
 }
 
-/** A call the model wrote that Core has no record of: being prepared, or never run. */
+/** A call the model wrote that Core has no record of: being prepared, never run, or of unknown
+ *  state when its record could not be read. */
 function UnrecordedCall({ ended }: { ended: boolean }) {
+  const unreadable = useContext(ToolCallsUnreadable);
+  const [state, brief] = unreadable
+    ? ['状态未知', '读不到这个调用的记录，状态未知；稍后会自动再试。']
+    : ended
+      ? ['未执行', '这个调用在开始前随这一步结束了，没有执行，什么都没改。']
+      : ['准备中', undefined];
+  const tone = ended || unreadable ? 'unknown' : 'running';
   return (
-    <div className="agent-tool-activity" data-outcome={ended ? 'not_executed' : 'queued'}>
-      <div className="agent-tool-row" data-running={ended ? undefined : true}>
+    <div
+      className="agent-tool-activity"
+      data-outcome={tone === 'unknown' ? 'not_executed' : 'queued'}
+    >
+      <div className="agent-tool-row" data-running={tone === 'running' ? true : undefined}>
         <LeadingSlot kind={toolTypeIcon('')} />
         <span className="agent-tool-main">
           <span className="agent-tool-title">工具调用</span>
-          <span className="agent-tool-state" data-tone={ended ? 'unknown' : 'running'}>
-            <ToolIcon name={toolStateIcon(ended ? 'unknown' : 'running')} size={14} />
-            {ended ? '未执行' : '准备中'}
+          <span className="agent-tool-state" data-tone={tone}>
+            <ToolIcon name={toolStateIcon(tone)} size={14} />
+            {state}
           </span>
+          {brief ? <span className="agent-tool-brief">{brief}</span> : null}
         </span>
       </div>
     </div>

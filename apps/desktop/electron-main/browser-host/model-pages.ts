@@ -2,12 +2,12 @@
  * The model's side of the browser host — Core's commands, one at a time per conversation,
  * and their withdrawals; the page's DevTools connection; its fixed 1280x800 viewport drawn at the
  * sidebar's width; the user's own touch on the page while the model works, which takes the page
- * over; and the model's requests for the user's help, which the user answers.
+ * over; and the model's requests for the user's help, which the user answers. A page the user
+ * handed over is driven as the model's own page is.
  */
 import type { WebContents } from 'electron';
 import type { BrowserHostCommandV1, BrowserHostResultV1 } from '@aura/contracts/generated';
-import { MODEL_PAGE_ID } from '../../shared/browser-api.js';
-import { execute, VIEWPORT, type ExecutorDeps } from './actions.js';
+import { commandPage, execute, VIEWPORT, type ExecutorDeps } from './actions.js';
 import { Assists } from './assist.js';
 import { PageDebugger, type DevTools } from './cdp.js';
 import { PagePresses, keepKeyboardForUser } from './page-focus.js';
@@ -25,8 +25,13 @@ export interface CoreLink {
 export interface ModelPages {
   /** Takes Core's commands from this supervisor's connection. */
   bind(owner: object): void;
-  /** The user's answer to the model's request for help on this conversation's page. */
-  answerAssist(sessionId: string, outcome: 'done' | 'declined'): boolean;
+  /**
+   * The user's answer to the model's request for help on this conversation's page, or on the
+   * page named.
+   */
+  answerAssist(sessionId: string, outcome: 'done' | 'declined', pageId?: string): boolean;
+  /** The user handed the page over: it is drawn as the model's page from now on. */
+  handedOver(sessionId: string, pageId: string): void;
 }
 
 export function modelPages(
@@ -38,7 +43,9 @@ export function modelPages(
   giveBackFocus: () => void = () => undefined,
 ): ModelPages {
   const debuggers = new WeakMap<object, PageDebugger>();
+  /** When the model last acted on each page it drives, by conversation and page. */
   const lastCommand = new Map<string, number>();
+  const pageKey = (sessionId: string, pageId: string) => `${sessionId}\u0000${pageId}`;
   const queues = new Map<string, Promise<void>>();
   const assists = new Assists(pages);
   /** Commands waiting their turn, and those of them Core withdrew. */
@@ -51,26 +58,34 @@ export function modelPages(
     const electron = contents as unknown as WebContents;
     const devtools = new PageDebugger(electron.debugger as unknown as DevTools);
     const presses = new PagePresses();
+    const driven = () => {
+      const owner = pages.owner(electron.id);
+      return owner !== undefined && pages.driven(owner.sessionId, owner.pageId) ? owner : undefined;
+    };
     keepKeyboardForUser(electron, presses, () => {
-      if (pages.owner(electron.id)?.pageId === MODEL_PAGE_ID) giveBackFocus();
+      if (driven() !== undefined) giveBackFocus();
     });
     electron.on('input-event', (_event, input) => {
       if (devtools.synthetic > 0) return;
       if (input.type === 'mouseDown' || input.type === 'touchStart') presses.pressed();
       if (!USER_INPUT.has(input.type)) return;
-      const owner = pages.owner(electron.id);
-      if (owner?.pageId !== MODEL_PAGE_ID) return;
+      const owner = driven();
+      if (owner === undefined) return;
       // Asked for help, the user is meant to touch the page.
-      if (pages.state(owner.sessionId, MODEL_PAGE_ID)?.assist !== undefined) return;
-      if (Date.now() - (lastCommand.get(owner.sessionId) ?? 0) < WORKING_MS)
-        pages.setUserControl(owner.sessionId, MODEL_PAGE_ID, true);
+      if (pages.state(owner.sessionId, owner.pageId)?.assist !== undefined) return;
+      const last = lastCommand.get(pageKey(owner.sessionId, owner.pageId)) ?? 0;
+      if (Date.now() - last < WORKING_MS) pages.setUserControl(owner.sessionId, owner.pageId, true);
     });
     debuggers.set(contents, devtools);
     return devtools;
   };
 
-  const emulate = async (sessionId: string, devtools: PageDebugger): Promise<number> => {
-    const bounds = pages.bounds(sessionId, MODEL_PAGE_ID);
+  const emulate = async (
+    sessionId: string,
+    pageId: string,
+    devtools: PageDebugger,
+  ): Promise<number> => {
+    const bounds = pages.bounds(sessionId, pageId);
     const scale =
       bounds === undefined ? 0.5 : Math.min(1, Math.max(0.2, bounds.width / VIEWPORT.width));
     await devtools.send('Emulation.setDeviceMetricsOverride', {
@@ -85,18 +100,27 @@ export function modelPages(
   };
 
   pages.onShown((sessionId, pageId) => {
-    if (pageId !== MODEL_PAGE_ID) return;
+    if (!pages.driven(sessionId, pageId)) return;
     const contents = pages.contents(sessionId, pageId);
     const devtools = contents === undefined ? undefined : debuggers.get(contents);
-    if (devtools !== undefined) void emulate(sessionId, devtools).catch(() => undefined);
+    if (devtools !== undefined) void emulate(sessionId, pageId, devtools).catch(() => undefined);
   });
+  const handedOver = (sessionId: string, pageId: string): void => {
+    const contents = pages.contents(sessionId, pageId);
+    if (contents === undefined || !pages.driven(sessionId, pageId)) return;
+    const devtools = debuggerFor(contents);
+    void devtools
+      .ready()
+      .then(() => emulate(sessionId, pageId, devtools))
+      .catch(() => undefined);
+  };
 
   const deps: ExecutorDeps = {
     pages,
     debuggerFor,
     emulate,
-    assist: (sessionId, commandId, reason, timeoutMs) =>
-      assists.wait(sessionId, commandId, reason, timeoutMs),
+    assist: (sessionId, pageId, commandId, reason, timeoutMs) =>
+      assists.wait(sessionId, commandId, reason, timeoutMs, pageId),
   };
   const answer = async (result: BrowserHostResultV1): Promise<void> => {
     try {
@@ -120,9 +144,10 @@ export function modelPages(
         queued.delete(id);
         // Core gave up on it before its turn came: it never runs.
         if (withdrawn.delete(id)) return;
-        lastCommand.set(session, Date.now());
+        const page = pageKey(session, commandPage(pages, command) ?? '');
+        lastCommand.set(page, Date.now());
         const result = await execute(deps, command);
-        lastCommand.set(session, Date.now());
+        lastCommand.set(page, Date.now());
         await answer(result);
       })
       .catch(() => undefined);
@@ -137,6 +162,7 @@ export function modelPages(
   };
   return {
     bind: (owner) => registerBrowserCommands(owner, { run, withdraw }),
-    answerAssist: (sessionId, outcome) => assists.answer(sessionId, outcome),
+    answerAssist: (sessionId, outcome, pageId) => assists.answer(sessionId, outcome, pageId),
+    handedOver,
   };
 }

@@ -133,3 +133,18 @@ test('背景动画 under 外观 follows the system until 开启 or 关闭 is cho
     },
   });
 });
+
+test('interface settings that were not read say what cannot be changed, and read again from 重试', async () => {
+  const read = window.aura.v1.getUiSettings as unknown as ReturnType<typeof vi.fn>;
+  read.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  render(<EnvironmentSettings />);
+  const alert = (await screen.findByText(/界面设置没有读到/u)).closest('p') as HTMLElement;
+  expect(alert.textContent).toBe(
+    '界面设置没有读到（Aura Core 没有及时回复），终端、主题和调试选项暂时不能改；请点“重试”。重试',
+  );
+  await userEvent.click(within(alert).getByRole('button', { name: '重试' }));
+  await vi.waitFor(() => expect(screen.queryByText(/界面设置没有读到/u)).toBeNull());
+});

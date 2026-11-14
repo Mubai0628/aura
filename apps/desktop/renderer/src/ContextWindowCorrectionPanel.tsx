@@ -5,7 +5,11 @@ import type {
 import { useEffect, useRef, useState } from 'react';
 
 import { isUnconfirmedCommandOutcome } from '../../shared/ipc-request-failure';
-import { userMessage } from './agent-session/user-message';
+import { failedAction } from './agent-session/failure-text';
+
+/** What a correction that did not change the window says; the task stays paused. */
+const WINDOW_UNCHANGED = '上下文窗口没有改';
+const WINDOW_NEXT = '任务仍暂停着；请核对数值后再试。';
 
 const uncertain = new Set<string>();
 const drafts = new Map<string, string>();
@@ -73,7 +77,7 @@ export function ContextWindowCorrectionPanel({
         const settings = await window.aura.v1.getModelSettings();
         if (!alive.current) return;
         if (!settings.ok) {
-          fail(userMessage(settings.error, '上下文窗口的处理没有完成，请刷新后核对。'), false);
+          fail(failedAction(settings.error, WINDOW_UNCHANGED, WINDOW_NEXT), false);
           return;
         }
         outcomePending = true;
@@ -84,7 +88,7 @@ export function ContextWindowCorrectionPanel({
         });
         if (!saved.ok) {
           fail(
-            userMessage(saved.error, '上下文窗口的处理没有完成，请刷新后核对。'),
+            failedAction(saved.error, WINDOW_UNCHANGED, WINDOW_NEXT),
             isUnconfirmedCommandOutcome(saved.error),
           );
           return;
@@ -102,7 +106,11 @@ export function ContextWindowCorrectionPanel({
       });
       if (!result.ok) {
         fail(
-          userMessage(result.error, '上下文窗口的处理没有完成，请刷新后核对。'),
+          failedAction(
+            result.error,
+            save ? '上下文窗口已经保存，但任务没有重新检查' : '这次处理没有生效',
+            '任务仍暂停着；可以再点一次。',
+          ),
           isUnconfirmedCommandOutcome(result.error),
         );
         return;
@@ -111,7 +119,7 @@ export function ContextWindowCorrectionPanel({
         result.value.session_id !== sessionId ||
         result.value.agent_run_id !== correction.agent_run_id
       ) {
-        fail('返回状态与当前任务不一致，请刷新核对。', true);
+        fail('返回的是另一个任务的结果，没有采用；请重新打开这个会话核对。', true);
         return;
       }
       outcomePending = false;
@@ -119,7 +127,10 @@ export function ContextWindowCorrectionPanel({
       uncertain.delete(key);
       if (alive.current) setUnknown(false);
     } catch {
-      fail('操作结果未确认，请刷新并核对模型配置和任务状态。', outcomePending);
+      fail(
+        '这次处理的结果没有确认（与 Aura Core 的连接出了问题），没有自动重发；请重新打开这个会话，并到模型设置里核对上下文窗口。',
+        outcomePending,
+      );
     } finally {
       sending.current = false;
       if (alive.current) {
@@ -157,7 +168,11 @@ export function ContextWindowCorrectionPanel({
         />
       </label>
       {error ? <p role="alert">{error}</p> : null}
-      {unknown ? <p role="alert">上次操作结果未确认，请核对后再试。</p> : null}
+      {unknown ? (
+        <p role="alert">
+          上次处理的结果没有确认，没有自动重发；请先到模型设置里核对上下文窗口，再看任务是否还在等你处理。
+        </p>
+      ) : null}
       <div className="agent-actions">
         <button
           type="button"

@@ -41,17 +41,19 @@ const AURA_NEUTRAL_FOREGROUND: &str = "#5f6b66";
 
 #[derive(Debug, Error)]
 pub(crate) enum ProviderIconError {
-    #[error("provider catalog icon request could not be authorized or completed")]
+    #[error("provider.icon_download_failed: 服务商图标没能下载，先用默认图标，不影响使用。")]
     Network(#[from] aura_network_control::NetworkControlError),
-    #[error("provider catalog icon cache operation failed")]
+    #[error("provider.icon_cache_failed: 服务商图标没能存进缓存，先用默认图标，不影响使用。")]
     Persistence(#[from] PersistenceError),
-    #[error("provider catalog icon URL is invalid")]
+    #[error("provider.icon_url_invalid: 服务商目录给的图标地址不对，先用默认图标，不影响使用。")]
     InvalidUrl,
-    #[error("provider catalog icon response is invalid")]
+    #[error("provider.icon_response_invalid: 下载到的服务商图标不对，先用默认图标，不影响使用。")]
     InvalidResponse,
-    #[error("provider catalog icon SVG is unsafe or invalid")]
+    #[error(
+        "provider.icon_svg_unsafe: 服务商图标的 SVG 不安全或格式不对，没有采用，先用默认图标，不影响使用。"
+    )]
     InvalidSvg,
-    #[error("provider catalog icon PNG encoding failed")]
+    #[error("provider.icon_png_failed: 服务商图标没能转换成 PNG，先用默认图标，不影响使用。")]
     InvalidPng,
 }
 

@@ -1,6 +1,7 @@
 //! A command refused because its prepared facts changed: retried as a new Operation by a route
 //! that opts in, refused as before by one that does not, and refused with a retryable answer once
-//! the facts never settle.
+//! the facts never settle. Any refusal before the handler ran answers with the refusing step's own
+//! code and words.
 use super::completion::PostExecutionOwners;
 use super::journal::BrokerJournal;
 use super::run::{MainChannel, OnChangedFacts, RunContext, run};
@@ -272,4 +273,29 @@ async fn facts_that_never_settle_end_in_a_retryable_refusal_after_three_retries(
         "every refused attempt is recorded as not run"
     );
     assert_eq!(fixture.settlements.pending(), 0);
+}
+
+/// A step that refused before anything ran answers with its own code and sentence, not a debug
+/// dump under the ordinary dispatch code, so a window can tell the kinds of refusal apart.
+#[tokio::test]
+async fn a_refusal_before_anything_ran_answers_with_its_own_code_and_words() {
+    let fixture = Fixture::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let not_a_repository: OwnedInspect =
+        Arc::new(|| Err(anyhow::anyhow!("git.not_repository: 这个文件夹不是 Git 仓库。")));
+    let refused = fixture
+        .run("not-a-repository", OnChangedFacts::Refuse, not_a_repository, &calls)
+        .await
+        .expect_err("a preparation that fails refuses the command");
+    assert_eq!(refused.code.as_str(), "git.not_repository");
+    assert_eq!(refused.message, "git.not_repository: 这个文件夹不是 Git 仓库。");
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let (reads, calls) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+    let changed = fixture
+        .run("changed", OnChangedFacts::Refuse, changed_once(&reads), &calls)
+        .await
+        .expect_err("a changed fact refuses the command");
+    assert_eq!(changed.code.as_str(), "broker.dispatch_unavailable");
+    assert!(changed.message.contains("这次请求没有执行"), "{}", changed.message);
 }

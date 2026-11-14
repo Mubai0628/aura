@@ -54,10 +54,18 @@ impl CompletionVerdict {
 }
 
 impl BrokerJournal {
+    /// A journal whose memory has no global vault of its own: a test's.
     pub fn open(root: &Path) -> anyhow::Result<Self> {
+        Self::open_at(root, None)
+    }
+
+    /// `global_memory` is where this installation's global memory lives; a product build does
+    /// not open without it.
+    pub fn open_at(root: &Path, global_memory: Option<&Path>) -> anyhow::Result<Self> {
         let store = if root.exists() { V2Store::open(root)? } else { V2Store::create(root)? };
         let memory = crate::memory_services::open(
             root.parent().ok_or_else(|| anyhow::anyhow!("memory.data_directory"))?,
+            global_memory,
         )?;
         let check =
             super::store_check::StoreCheck::start(store.pending_check(), store.database_path());

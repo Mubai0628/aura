@@ -8,15 +8,21 @@ pub(crate) use format_check::check as check_format;
 
 pub(crate) fn check(root: &Path) -> Result<()> {
     super::run(root, "node", &["scripts/architecture/check-file-size.mjs"])?;
+    super::run(root, "node", &["scripts/architecture/check-data-locations.mjs"])?;
+    super::run(root, "node", &["scripts/architecture/check-test-layout.mjs"])?;
+    super::run(root, "node", &["scripts/architecture/check-failure-text.mjs"])?;
     super::run(
         root,
         "node",
         &[
             "--test",
             "--test-isolation=none",
+            "scripts/architecture/data-locations.test.mjs",
             "scripts/architecture/graph.test.mjs",
             "scripts/architecture/features.test.mjs",
             "scripts/architecture/file-size.test.mjs",
+            "scripts/architecture/test-layout.test.mjs",
+            "scripts/architecture/failure-text.test.mjs",
             "scripts/architecture/renderer.test.mjs",
             "scripts/architecture/contract-baseline.test.mjs",
             "scripts/architecture/contract-invariants.test.mjs",

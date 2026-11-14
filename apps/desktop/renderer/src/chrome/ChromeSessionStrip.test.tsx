@@ -75,7 +75,9 @@ describe('the conversation’s Chrome tabs above the message box', () => {
     } as never);
     render(<ChromeSessionStrip sessionId={S} />);
     await userEvent.click(await screen.findByRole('button', { name: '停止' }));
-    expect((await screen.findByRole('alert')).textContent).toBe('Chrome 没有停止，请重试。');
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '没有停止共享，这些标签页仍共享给这个会话，模型仍可操作；请再点一次“停止”。',
+    );
     expect((screen.getByRole('button', { name: '停止' }) as HTMLButtonElement).disabled).toBe(
       false,
     );
@@ -83,6 +85,19 @@ describe('the conversation’s Chrome tabs above the message box', () => {
     current = { connected: true, tabs: [] };
     await userEvent.click(screen.getByRole('button', { name: '停止' }));
     await vi.waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+  });
+
+  it('say why Stop was not confirmed when Core did not answer in time', async () => {
+    current = { connected: true, tabs: [tab()] };
+    stop.mockResolvedValueOnce({
+      ok: false as const,
+      error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+    } as never);
+    render(<ChromeSessionStrip sessionId={S} />);
+    await userEvent.click(await screen.findByRole('button', { name: '停止' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '没有停止共享（Aura Core 没有及时回复），这些标签页仍共享给这个会话，模型仍可操作；请再点一次“停止”。',
+    );
   });
 
   it('show Stop and 完成 as pending until they settle, and say when 完成 failed', async () => {
@@ -103,7 +118,9 @@ describe('the conversation’s Chrome tabs above the message box', () => {
     expect((waiting as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: '停止' }) as HTMLButtonElement).disabled).toBe(true);
     settle();
-    expect((await screen.findByRole('alert')).textContent).toBe('没有交还给 Aura，请重试。');
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '没有交还给 Aura，模型仍在等你完成。请再点一次“完成”。',
+    );
     expect(screen.getByRole('button', { name: '完成' })).toBeTruthy();
   });
 

@@ -1,4 +1,13 @@
 use super::*;
+#[path = "team.rs"]
+pub(super) mod team;
+pub use team::allowance::{ALLOWANCE_FIRST, ALLOWANCE_SECOND, ALLOWANCE_WRITTEN};
+pub use team::own::{MAIN_DELETED, OWN_DELETED, OWN_NOTE, OWN_PICTURE};
+pub use team::review::{REVIEW_REASON, REVIEWED_FILE, REVIEWED_SECOND};
+pub use team::{
+    ADDED_FILE, ADDED_TEXT, ANSWER, BUDGET_ANSWER, QUESTION, RATE_LIMITED, SKILL_NAME, SUMMARY,
+    TeamPlan, offers,
+};
 
 /// The workspace file the compaction-after-tool scenario reads; the test writes it larger than
 /// the retention budget so the reading call is the part compaction replaces.
@@ -56,6 +65,9 @@ pub enum Scenario {
     /// A PowerShell command with a long output, then `shell.query` for the part the result did
     /// not show, with the `tool_call_id` and `stdout_next` that result gave, then an answer.
     ShellReadRest,
+    /// A short PowerShell command, then `context.read_tool_result` of that call through the
+    /// unified entry, with the `tool_call_id` its result gave, then an answer.
+    ShellThenReadResult,
     /// `goal.complete` citing the files it wrote
     /// as its evidence, then - if that was refused - `normal.complete`, as DeepSeek did.
     GoalWithPaths,
@@ -192,6 +204,11 @@ pub enum Scenario {
     OverloadedThenText {
         failures: usize,
     },
+    /// The first `silences` requests stream one delta and then nothing more, until the step's
+    /// stream idle time ends them; the next streams a delta, pauses [`SILENT_PAUSE`] and answers.
+    SilentThenText {
+        silences: usize,
+    },
     /// A real late answer: every request is parked until the test releases the
     /// window, which it does only **after** the caller's own budget has already
     /// ended the step. The answer is written into a socket nothing is reading.
@@ -217,6 +234,10 @@ pub enum Scenario {
     /// `PlainMeasured`, except that the second request is refused outright, so that
     /// step ends with no count.
     PlainMeasuredRefusingSecond,
+    /// A conversation that starts sub-agent A1 and follows the plan, and A1's own requests.
+    Team {
+        plan: TeamPlan,
+    },
 }
 
 impl Scenario {
@@ -270,6 +291,9 @@ pub fn sized_in_bytes(url: &str) -> bool {
 
 /// How many deltas the `DeltasThenHold` scenario streams; the n-th says `piece n. `.
 pub const HELD_DELTAS: usize = 40;
+
+/// How long the answer after the `SilentThenText` silences pauses after its first delta.
+pub const SILENT_PAUSE: std::time::Duration = std::time::Duration::from_millis(2_500);
 
 /// The file the `HookRead` scenario asks to read.
 pub const HOOK_SOURCE: &str = "hook-source.txt";

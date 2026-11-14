@@ -1,4 +1,5 @@
 use super::{ProgramContext, ProgramInvocationIdentity, run_case};
+use crate::failures::{chain_has, code_of};
 use anyhow::{Result, ensure};
 use aura_domain_common::{ToolConformanceRunId, UtcTimestamp, jcs::CanonicalSha256HashV1};
 use aura_tool_domain::{
@@ -44,11 +45,11 @@ pub fn run_conformance(
     ensure!(
         content.package_fingerprint == version.package_fingerprint
             && content.manifest.package_version == version.package_version,
-        "package.conformance_version_changed"
+        crate::failures::CONFORMANCE_VERSION_CHANGED
     );
     ensure!(
         canonical_package_settings_v1(&content.manifest, &settings)? == settings,
-        "package.settings_not_canonical"
+        crate::failures::SETTINGS_NOT_CANONICAL
     );
     let settings_hash = package_settings_hash_v1(&settings)?;
     let settings_for =
@@ -120,18 +121,14 @@ pub fn run_conformance(
                             value
                         }
                         Err(error) => {
-                            let reason = if error.to_string()
+                            let reason = if code_of(&error.to_string())
                                 == "package.execution_report_unconfirmed"
-                                || error
-                                    .chain()
-                                    .any(|cause| cause.to_string() == "package.cleanup_unconfirmed")
+                                || chain_has(&error, "package.cleanup_unconfirmed")
                             {
                                 cleanup_verified = false;
                                 blocked = true;
                                 Reason::CleanupUnconfirmed
-                            } else if error.chain().any(|cause| {
-                                cause.to_string() == "package.program_credentials_unsupported"
-                            }) {
+                            } else if chain_has(&error, "package.program_credentials_unsupported") {
                                 Reason::ProgramCredentialUnsupported
                             } else {
                                 Reason::ProcessFailed

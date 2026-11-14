@@ -100,7 +100,12 @@ pub(super) fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) 
                 })
                 .collect();
             match value["notice"].as_str() {
-                Some(notice) if apps.is_empty() => notice.to_owned(),
+                Some(notice) if apps.is_empty() && notice.starts_with("computer.off") => {
+                    "电脑操控没有打开，没有读取程序列表；需要时在 设置 → 电脑操控 打开。".into()
+                }
+                Some(notice) if apps.is_empty() => {
+                    notice.split_once(": ").map_or(notice, |(_, sentence)| sentence).to_owned()
+                }
                 _ => format!("{} 个程序", apps.len() as u64 + count("more")),
             }
         }

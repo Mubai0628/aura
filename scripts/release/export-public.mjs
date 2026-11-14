@@ -11,7 +11,7 @@
 // - credentials, by Aura's own scanner (cargo xtask scan-secrets), except the reviewed synthetic
 //   test values listed in public-secrets.json;
 // - local paths and personal details of the machine the tree was made on;
-// - files over 8 MB;
+// - files over 8 MB, generated contract validators over 16 MB;
 // - comments that record stages, dates or people (comment-hygiene.mjs);
 // - mentions of files and folders that stay in the development repository;
 // - relative imports and Rust includes of files the tree does not hold;
@@ -28,6 +28,9 @@ import { EXCLUDE, OVERLAY, TRANSFORMS, isPublic } from './public-tree.mjs';
 
 const REPOSITORY = resolve(import.meta.dirname, '../..');
 const LARGEST = 8 * 1024 * 1024;
+// Generated contract validators grow with the contracts; the contract checks keep them exact.
+const LARGEST_GENERATED = 16 * 1024 * 1024;
+const GENERATED_VALIDATOR = /^apps\/desktop\/shared\/generated\/[^/]+\.ts$/u;
 const TEXT = new Set([
   '.rs',
   '.ts',
@@ -210,10 +213,15 @@ function checkPersonal(out, files) {
   return findings;
 }
 
+/** The largest size a file of the public tree may have. */
+export function sizeLimit(path) {
+  return GENERATED_VALIDATOR.test(path) ? LARGEST_GENERATED : LARGEST;
+}
+
 function checkSizes(out, files) {
   return files
     .map((path) => ({ path, bytes: statSync(join(out, path)).size }))
-    .filter((file) => file.bytes > LARGEST);
+    .filter((file) => file.bytes > sizeLimit(file.path));
 }
 
 function checkComments(out) {

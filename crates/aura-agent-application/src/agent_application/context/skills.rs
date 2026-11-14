@@ -6,6 +6,21 @@ use super::*;
 use aura_extension_service::skills::instructions;
 use aura_persistence_v2::agent::skills::TurnSkills;
 
+/// What the instructions say in place of the Skills list when the user's Skills could not be read
+/// at the run's first step. It is recorded as the run's list, so every step of the turn says it.
+const UNREADABLE: &str = "The user's Skills could not be read for this turn, so none of them is listed or loaded here. If the task needs one, tell the user.";
+
+/// What a step says in place of the pinned Skills when they could not be read again for it.
+const PINNED_UNREADABLE: &str = "The Skills the user pinned for this turn could not be read for this step, so their instructions are not here. If the task needs them, tell the user.";
+
+/// Writes why the Skills could not be read to the Core log, where the user can find it.
+fn log_unreadable(stage: &str, error: &anyhow::Error) {
+    aura_core_base::append_core_log(
+        "agent.skills_unreadable",
+        serde_json::json!({ "stage": stage, "error": format!("{error:#}") }),
+    );
+}
+
 fn skill_fragment(state_kind: &str, revision: Revision, content: String) -> ContextFragment {
     ContextFragment {
         source_ref: ContextSourceRef::RuntimeState {
@@ -24,7 +39,7 @@ impl AgentApplication {
     /// AGENTS.md. The run's first step decides both and records the decision, so a Skill added,
     /// pinned or switched on while the turn runs changes nothing until the next turn; a pinned
     /// Skill is read again each step and left out once it is no longer usable. A Skill folder
-    /// that cannot be read leaves the Skills out rather than the step.
+    /// that cannot be read leaves the Skills out rather than the step, and the step says so.
     pub(super) async fn turn_skill_fragments(
         &self,
         run: AgentRunId,
@@ -49,7 +64,10 @@ impl AgentApplication {
                 .map_err(anyhow::Error::from)
                 .and_then(|decided| decided)
                 .map(|decided| TurnSkills { pinned: decided.pinned, list: decided.list })
-                .unwrap_or_default();
+                .unwrap_or_else(|error| {
+                    log_unreadable("turn", &error);
+                    TurnSkills { pinned: Vec::new(), list: Some(UNREADABLE.to_owned()) }
+                });
                 let journal = Arc::clone(&self.execution.journal);
                 let record = decided.clone();
                 let at = UtcTimestamp::now();
@@ -79,7 +97,10 @@ impl AgentApplication {
             .await
             .map_err(anyhow::Error::from)
             .and_then(|texts| texts)
-            .unwrap_or_default()
+            .unwrap_or_else(|error| {
+                log_unreadable("pinned", &error);
+                vec![PINNED_UNREADABLE.to_owned()]
+            })
         };
         Ok(pinned
             .into_iter()

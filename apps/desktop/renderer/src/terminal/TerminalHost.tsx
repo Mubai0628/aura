@@ -1,4 +1,3 @@
-import { userMessage } from '../agent-session/user-message';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   addTerminal,
@@ -12,6 +11,7 @@ import { useTerminalOpening } from './useTerminalOpening';
 import { useUiSettings } from '../ui-settings-store';
 import { toolTabs, type ToolTab } from '../right-workspace/tool-tabs';
 import './terminal.css';
+import { listFailure, TERMINAL_GONE } from './failure-words';
 
 /**
  * The conversation's terminal tabs. A new tab opens the default terminal
@@ -58,13 +58,16 @@ export function TerminalHost({
       if (!api) return;
       let cursor: string | null | undefined;
       do {
-        const result = await api.list({ session_id: sessionId, cursor: cursor ?? null });
+        let result: Awaited<ReturnType<typeof api.list>>;
+        try {
+          result = await api.list({ session_id: sessionId, cursor: cursor ?? null });
+        } catch (reason) {
+          if (live) setListError({ session: sessionId, message: listFailure(reason) });
+          return;
+        }
         if (!live) return;
         if (!result.ok) {
-          setListError({
-            session: sessionId,
-            message: userMessage(result.error, '终端列表读取失败，请重试。'),
-          });
+          setListError({ session: sessionId, message: listFailure(result.error) });
           return;
         }
         for (const view of result.value.terminals) {
@@ -158,7 +161,7 @@ export function TerminalHost({
       ) : null}
       {tab?.terminalId && !records.some((record) => record.view.terminal_id === shown) ? (
         <p className="terminal-status" role="status">
-          {listed === sessionId ? '这个终端已不可用。' : '正在连接终端…'}
+          {listed === sessionId ? TERMINAL_GONE : '正在连接终端…'}
         </p>
       ) : null}
       {listError && listError.session === sessionId ? (

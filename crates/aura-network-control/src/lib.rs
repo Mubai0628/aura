@@ -19,6 +19,7 @@ mod proxy;
 mod quarantine;
 mod resolver;
 mod secret;
+mod system_route;
 mod tool_grant;
 
 use std::time::Duration;
@@ -39,9 +40,10 @@ pub use aura_permission_domain::{
 pub use gateway::{
     CoreHttpClientGateway, GatewayBodyStream, GatewayGrantPurpose, GatewayHopRouteV1,
     GatewayRequest, GatewayResponse, GatewayRetryAfterV1, GatewayRouteV1, GatewayStreamResponse,
-    OrdinaryGatewayResponse, OrdinaryGatewayStream, ProviderTransportGatewayRequest,
-    ProviderTransportImmutableRequest, ProviderTransportObservedResponse,
-    ToolHttpGatewayResponseV1, UserProxyFailureKindV1, UserProxyFailureV1, probe_user_proxy,
+    ModelProxySource, OrdinaryGatewayResponse, OrdinaryGatewayStream,
+    ProviderTransportGatewayRequest, ProviderTransportImmutableRequest,
+    ProviderTransportObservedResponse, ToolHttpGatewayResponseV1, UserProxyFailureKindV1,
+    UserProxyFailureV1, probe_user_proxy,
 };
 pub use grant::{
     InMemoryNetworkGrantStore, NetworkGrantStore, PersistenceNetworkGrantStore, RateLimitConfig,

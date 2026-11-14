@@ -1,0 +1,20 @@
+[package]
+name = "aura-store-maintenance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-persistence = { path = "../aura-persistence" }
+aura-persistence-core = { path = "../aura-persistence-core" }
+aura-persistence-v2 = { path = "../aura-persistence-v2" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+aura-domain-common = { path = "../aura-domain-common" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -224,7 +224,7 @@ impl P04Services {
                 .status
                 .active_operation
                 .clone()
-                .context("consumed Host Preparation operation disappeared")
+                .context("sandbox.host_preparation_state_missing: 刚开始的兼容环境操作找不到了（Aura 内部出错），没有请求管理员权限，系统没有被修改；请重启 Aura 后再试。")
                 .map_err(|error| internal_error(error, correlation_id))?;
             let expected_host_preparation_revision = consumed.status.revision;
             execute_elevated_host_preparation(

@@ -27,7 +27,7 @@ export function useReviewData(
     files: snapshot?.files ?? [],
     partial: snapshot?.partial ?? false,
     /** Nothing was read of this comparison yet. */
-    loading: !snapshot?.runtime && !snapshot?.error,
+    loading: !snapshot?.runtime && !snapshot?.error && !snapshot?.notRepository,
     /** Git is being read, maybe behind what is shown. */
     checking: snapshot?.checking ?? true,
     defaultBranch: snapshot?.status

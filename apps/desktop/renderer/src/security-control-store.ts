@@ -2,7 +2,6 @@ import type {
   ApprovalDecisionKind,
   ApprovalView,
   HostPreparationStatus,
-  IpcErrorEnvelope,
   PermissionGrant,
   PermissionMode,
   QuarantineRecordDetails,
@@ -12,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ResultEnvelope } from '../../shared/aura-api';
 import { readCoreHealthSnapshot, useCoreHealth } from './core-health-store';
+import { hostRequestFailure } from './security/host-preparation-words';
 
 interface SecurityControlSnapshot {
   approvals: ApprovalView[];
@@ -328,8 +328,13 @@ export const useSecurityControl = (workspaceId?: string, sessionId?: string) => 
         decision,
         expected_request_revision: approval.request_revision,
       });
-      if (result.ok) await refresh();
-      else setSnapshot((state) => ({ ...state, error: result.error.message }));
+      await refresh();
+      // The tray says why next to the approval, from the code and Core's text.
+      if (!result.ok)
+        throw Object.assign(new Error(result.error.message), {
+          code: result.error.code,
+          details: result.error.details,
+        });
     },
     [refresh],
   );
@@ -361,7 +366,7 @@ export const useSecurityControl = (workspaceId?: string, sessionId?: string) => 
       if (result.ok) {
         setSnapshot((state) => ({ ...withoutError(state), host: result.value }));
       } else {
-        setHostPreparationError(hostPreparationErrorMessage(result.error));
+        setHostPreparationError(hostRequestFailure(result.error, action));
         await refresh();
       }
     },
@@ -437,8 +442,3 @@ const withoutError = (snapshot: SecurityControlSnapshot): SecurityControlSnapsho
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : '安全控制面刷新失败。';
-
-const hostPreparationErrorMessage = (error: IpcErrorEnvelope): string =>
-  error.code === 'sandbox.host_preparation_release_trust_failed'
-    ? '当前 Release Bundle 未通过 Aura Production Root 信任验证；Aura 已按 fail-closed 阻止管理员权限请求，Development/Test Bundle 不会回退到其他信任根。'
-    : error.message;

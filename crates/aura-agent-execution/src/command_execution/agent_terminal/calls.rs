@@ -1,6 +1,6 @@
 //! One tool invocation has a finite wait; the terminal owns its longer Job lifetime.
 use super::handback;
-use super::wait::wait;
+use super::wait::{Typed, wait};
 use super::*;
 use aura_backend_windows_user::compat::{TerminalKind, TerminalOptions};
 use aura_execution_contract::{DispatchRequest, OperationNetwork, SideEffectStateV1};
@@ -69,6 +69,7 @@ impl CommandExecution {
                         title: input.title,
                         tool_call_id: Some(call.validated.call.tool_call_id),
                         revision: Revision::INITIAL,
+                        handed_over: false,
                     },
                     operation_id: request.operation.operation_id,
                     runtime_instance_id: owner.runtime,
@@ -83,7 +84,7 @@ impl CommandExecution {
                     .run_critical(
                         StoreStep::operation("terminal.register"),
                         StoreAccess::Write,
-                        move || registrar.register(registered, terminal),
+                        move || registrar.register(registered, terminal, 0),
                     )
                     .await;
                 if result.is_err() {
@@ -101,14 +102,18 @@ impl CommandExecution {
                 }
                 drop(start_lease);
                 owner.publish(&record.view).await?;
-                let output = wait(owner, session, entry.id, 0, 2000, None).await?;
-                Ok(serde_json::to_value(output)?)
+                let output =
+                    wait(owner.clone(), session, entry.id.clone(), 0, 2000, None, Typed::Nothing)
+                        .await?;
+                Ok(serde_json::to_value(owner.on_screen(&entry.id, Some(0), output)?)?)
             }
             "terminal.write" => {
                 let input: AgentTerminalWriteInput = serde_json::from_value(action.clone())?;
                 ensure!(
                     input.input.len() <= 65536 && input.wait_ms <= 30000,
-                    "terminal.write: input is limited to 65536 bytes and wait_ms to 30000"
+                    "terminal.write: input is limited to 65536 bytes and wait_ms to 30000 (this call: {} bytes, wait_ms {}); nothing was typed. Split the input into several writes or lower wait_ms.",
+                    input.input.len(),
+                    input.wait_ms
                 );
                 // An empty write to a terminal the user took over waits for its handback.
                 if input.input.is_empty() && !input.interrupt {
@@ -134,30 +139,37 @@ impl CommandExecution {
                 let id = input.terminal_id.clone();
                 let text = input.input.replace("\r\n", "\n").replace('\n', "\r");
                 let interrupt = input.interrupt;
+                let typed = Typed::of(&text, interrupt);
                 let started=owner.store.run_critical(StoreStep::operation("terminal.write"),StoreAccess::Write,move || {
                     let before=writer.model_read(session,&id,0,1)?;
-                    ensure!(before.running,"终端已结束（可能是 Core 已停止）；请调用 terminal.open 新建终端，不要自动重放输入。");
+                    ensure!(before.running,"terminal.ended: 终端已结束（可能是 Core 已停止），这次没有输入任何内容。请调用 terminal.open 新建终端，不要自动重放输入。");
                     let record=writer.record(session,&id)?;
                     let end=records::read(writer.journal.lock()?.database.connection(),&record,u64::MAX,1)?.next_offset;
                     let live=writer.entry(&id)?;
                     let live=live.lock().map_err(|_|anyhow::anyhow!("terminal.owner_lock"))?;
                     ensure!(live.controller==TerminalControllerV1::Agent,handback::TAKEN_OVER);
-                    let terminal=live.terminal.as_ref().context("终端已结束，请新建终端。")?;
+                    let terminal=live.terminal.as_ref().context("terminal.ended: 终端已结束，这次没有输入任何内容。请调用 terminal.open 新建终端。")?;
+                    // The answer shows the screen from the line the typed text goes to.
+                    let from=live.lines.last_line(&live.lines.shown(&live.privacy));
                     if interrupt {terminal.interrupt()?;}
                     if !text.is_empty() {terminal.write(text.as_bytes())?;}
-                    Ok(end)
+                    Ok((end,from))
                 }).await;
                 // A refusal has no input effect. Any pipe failure may have
                 // written a prefix, so it must keep Unknown rather than replay.
-                let offset = match started {
-                    Ok(offset) => {
+                let (offset, from) = match started {
+                    Ok(started) => {
                         *side_effect = SideEffectStateV1::FullyApplied;
-                        offset
+                        started
                     }
                     Err(error) => {
-                        if !error.to_string().contains("接管")
-                            && !error.to_string().contains("已结束")
-                        {
+                        // A terminal that had ended, or that the user had taken over, was given
+                        // nothing; its refusal says so by its code or in words.
+                        let said = format!("{error:#}");
+                        let refused = ["terminal.ended", "terminal.taken_over", "接管", "已结束"]
+                            .iter()
+                            .any(|mark| said.contains(mark));
+                        if !refused {
                             *side_effect = SideEffectStateV1::Unknown;
                         }
                         return Err(error);
@@ -166,10 +178,18 @@ impl CommandExecution {
                 drop(start_lease);
                 // The common scheduler also enforces the configured tool limit.
                 let limit = input.wait_ms;
-                Ok(serde_json::to_value(
-                    wait(owner, session, input.terminal_id, offset, limit, input.until_text)
-                        .await?,
-                )?)
+                let id = input.terminal_id;
+                let output = wait(
+                    owner.clone(),
+                    session,
+                    id.clone(),
+                    offset,
+                    limit,
+                    input.until_text,
+                    typed,
+                )
+                .await?;
+                Ok(serde_json::to_value(owner.on_screen(&id, Some(from), output)?)?)
             }
             "terminal.read" => {
                 drop(start_lease);
@@ -182,11 +202,11 @@ impl CommandExecution {
                             StoreStep::operation("terminal.read"),
                             StoreAccess::Read,
                             move || {
-                                reader.model_read(
+                                reader.model_lines(
                                     session,
                                     &input.terminal_id,
-                                    input.offset,
-                                    input.max_bytes,
+                                    input.line,
+                                    input.max_lines as usize,
                                 )
                             },
                         )
@@ -195,6 +215,17 @@ impl CommandExecution {
             }
             "terminal.close" => {
                 let input: AgentTerminalCloseInput = serde_json::from_value(action.clone())?;
+                let reader = owner.clone();
+                let target = input.terminal_id.clone();
+                let users = owner
+                    .store
+                    .run_critical(
+                        StoreStep::operation("terminal.close"),
+                        StoreAccess::Read,
+                        move || reader.users(session, &target),
+                    )
+                    .await?;
+                ensure!(!users, super::handover::USER_OWNED);
                 *side_effect = SideEffectStateV1::Unknown;
                 let view = owner
                     .close(session, input.terminal_id.clone(), TerminalEndReason::AgentClosed)
@@ -213,18 +244,21 @@ impl CommandExecution {
                     })?);
                 }
                 let reader = owner.clone();
-                Ok(serde_json::to_value(
-                    owner
-                        .store
-                        .run_critical(
-                            StoreStep::operation("terminal.close.output"),
-                            StoreAccess::Read,
-                            move || reader.model_read(session, &input.terminal_id, 0, 8192),
-                        )
-                        .await?,
-                )?)
+                let id = input.terminal_id.clone();
+                let output = owner
+                    .store
+                    .run_critical(
+                        StoreStep::operation("terminal.close.output"),
+                        StoreAccess::Read,
+                        move || reader.model_read(session, &id, 0, 8192),
+                    )
+                    .await?;
+                // What the screen showed last.
+                Ok(serde_json::to_value(owner.on_screen(&input.terminal_id, None, output)?)?)
             }
-            _ => anyhow::bail!("terminal.tool_unknown"),
+            _ => anyhow::bail!(
+                "terminal.tool_unknown: Aura 不认识这个终端工具，没有执行。请改用 terminal.open、terminal.write、terminal.read 或 terminal.close。"
+            ),
         }
     }
 }

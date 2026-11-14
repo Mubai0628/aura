@@ -54,3 +54,43 @@ test('S06 F2 shows persistent file scope and withdraws the exact revision', asyn
   );
   expect(await screen.findByText(/已撤销/)).toBeTruthy();
 });
+
+test('a file approval whose state changed says so and that the list was read again', async () => {
+  const grant = {
+    grant_id: 'file-grant',
+    grant_revision: '2',
+    availability: 'in_force',
+    scope: {
+      session_id: 'session',
+      capabilities: ['workspace_file_write'],
+      targets: [{ canonical_path: 'C:\\fixture\\note.txt', recursive: false }],
+    },
+  };
+  Object.assign(window, {
+    aura: {
+      v1: {
+        listNativeSessionConsents: async () => ({ ok: true, value: [] }),
+        listExternalGrants: async () => ({ ok: true, value: [] }),
+        listFileSessionConsents: vi.fn().mockResolvedValue({ ok: true, value: [grant] }),
+        listMemorySessionConsents: async () => ({ ok: true, value: [] }),
+        listNetworkSessionConsents: async () => ({ ok: true, value: [] }),
+        revokeFileSessionConsent: vi.fn().mockResolvedValue({
+          ok: false,
+          error: { code: 'file.grant_state_changed', message: 'file.grant_state_changed' },
+        }),
+      },
+    },
+  });
+  const security = {
+    permission: { session_id: 'session' },
+    loading: false,
+    grants: [],
+  } as unknown as ReturnType<typeof useSecurityControl>;
+  render(<SessionGrantDialog security={security} sessionId="session" onClose={() => undefined} />);
+  await userEvent.click(await screen.findByRole('button', { name: '撤销文件批准' }));
+  expect(
+    await screen.findByText(
+      '这项批准的状态刚变化（可能已撤销或到期），列表已重新读取，请按最新状态处理。',
+    ),
+  ).toBeTruthy();
+});

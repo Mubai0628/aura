@@ -34,6 +34,21 @@ describe('notification switches', () => {
     expect(file.schema_version).toBe(1);
   });
 
+  it('a write that failed is undone in memory, says why, and does not block the next', async () => {
+    const data = await root();
+    const store = new NotificationPreferencesStore(data);
+    await store.read();
+    // A file where the folder goes makes the write fail.
+    await writeFile(join(data, 'desktop'), 'not a folder');
+    const off = { ...DEFAULT_NOTIFICATION_PREFERENCES, completions: false };
+    await expect(store.save(off)).rejects.toThrow(
+      '通知设置没能写入磁盘（磁盘已满或没有写入权限），这次改动没有保存；腾出空间或检查 Aura 数据文件夹的权限后再切换一次。',
+    );
+    expect(store.current).toEqual(DEFAULT_NOTIFICATION_PREFERENCES);
+    await rm(join(data, 'desktop'));
+    await expect(store.save(off)).resolves.toEqual(off);
+  });
+
   it('read a damaged file as every switch on', async () => {
     const data = await root();
     await mkdir(join(data, 'desktop'), { recursive: true });

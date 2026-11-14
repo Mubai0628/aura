@@ -21,7 +21,7 @@ export const DEFAULT_TIMEOUTS: {
 } = {
   connect_ms: 15_000,
   first_event_ms: 120_000,
-  stream_idle_ms: 120_000,
+  stream_idle_ms: 300_000,
   total_ms: null,
 } as const;
 

@@ -192,7 +192,10 @@ test('L16 "@" refers to a workspace file, a terminal and an MCP resource; the mo
       .toContain('E2E-TERM-77');
     await finished(page, session);
     expect(model.facts.sent.terminal).toContain('v2-message-captures');
-    expect(model.facts.read.terminal).toContain('Terminal "终端 1" (PowerShell 7)');
+    // Handed to the model as the message went, by the id its terminal tools take.
+    expect(model.facts.read.terminal).toContain(
+      'Terminal "终端 1" (PowerShell 7; the user handed it to you as terminal `',
+    );
     await expect(chips).toHaveCount(0);
     await expect(page.getByRole('list', { name: '发送的文件' }).last()).toContainText('终端 1.txt');
 

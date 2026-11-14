@@ -39,16 +39,14 @@ impl ControlResources {
         ] {
             self.register(path.clone());
         }
-        // This Core's data, and Aura's data of every
-        // namespace, ask each time a model reaches into them. The global Memory Vault is not
-        // among them (`%USERPROFILE%\.aura\memories`): it stays an ordinary external folder.
-        for root in [&paths.config_root, &paths.local_root] {
-            self.register_data_root(root.clone());
+        // This Core's data wherever it is, the files that say where it is, and Aura's data of
+        // every namespace ask each time a model reaches into them. The global Memory Vault is not
+        // among them: it stays an ordinary external folder.
+        for root in paths.locations.protected_folders() {
+            self.register_data_root(root);
         }
-        for base in ["APPDATA", "LOCALAPPDATA"] {
-            if let Some(base) = std::env::var_os(base) {
-                self.register_data_root(PathBuf::from(base).join("Aura"));
-            }
+        for file in paths.locations.control_files() {
+            self.register(file);
         }
         // The running Core itself is an actual bound runtime resource, even
         // when the surrounding source checkout is a user's ordinary workspace.

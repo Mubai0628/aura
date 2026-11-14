@@ -1,16 +1,27 @@
 //! Field-scoped proxy projection and recovery; never reads credentials.
-use aura_config::ConfigModule;
+use aura_config::{ConfigModule, NetworkProxyConfigState};
 use aura_tool_contract::*;
 
+/// The proxy part of the settings view.
+pub(super) struct ProxyView {
+    /// The proxy typed in, as stored. Model requests and tools take it while it is switched on.
+    pub own: Option<ToolNetworkProxyV1>,
+    pub diagnostic: Option<String>,
+    pub draft: Option<AgentNetworkProxyDraftV1>,
+    /// What Windows names, followed while the typed-in proxy is switched off.
+    pub system: SystemNetworkProxyV1,
+}
+
 pub(super) fn proxy_view(
+    settings: &aura_config::SettingsFacade,
     document: &aura_config::ModuleConfigDocument,
-) -> (Option<ToolNetworkProxyV1>, Option<String>, Option<AgentNetworkProxyDraftV1>) {
-    use aura_config::{ConfigValidationError, NetworkProxyConfigState};
+) -> ProxyView {
+    use aura_config::ConfigValidationError;
     let draft = document
         .values
         .get(aura_config::NETWORK_PROXY_FIELD)
         .and_then(aura_config::network_proxy_draft_from_value);
-    match aura_config::network_proxy_state_from_document(document) {
+    let (own, diagnostic, draft) = match aura_config::network_proxy_state_from_document(document) {
         NetworkProxyConfigState::Disabled => (None, None, None),
         NetworkProxyConfigState::Configured(proxy) => (Some(proxy), None, draft),
         NetworkProxyConfigState::Unavailable(error) => {
@@ -20,7 +31,8 @@ pub(super) fn proxy_view(
             };
             (None, Some(message), draft)
         }
-    }
+    };
+    ProxyView { own, diagnostic, draft, system: settings.system_proxy().view() }
 }
 
 pub(super) fn proxy_unchanged(

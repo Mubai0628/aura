@@ -193,8 +193,20 @@ pub fn run(
     }
     let memory_limit_reached = super::session::memory_limit_reached(&job, spec.limits);
     // Close the owning Job before waiting for a blocked input writer. Even an
-    // accounting/query failure still closes the kill-on-close boundary here.
-    drop(job);
+    // accounting/query failure still closes the kill-on-close boundary here. A group that may
+    // still have processes in it is told to stop instead, as closing it would, and is kept open
+    // under its call until it is seen empty: the call's locks wait for that.
+    if stopped && timing.created_in_job {
+        drop(job);
+    } else {
+        let _ = job.terminate_tree();
+        if timing.created_in_job {
+            crate::lingering::keep(job);
+        } else {
+            crate::lingering::keep(crate::lingering::Untracked);
+            drop(job);
+        }
+    }
     let (input_stopped, input_written) = input.map_or((true, true), Input::finish);
     if reason == ProgramStop::Exited && !input_written && matches!(spec.input, ProgramInput::Frames)
     {

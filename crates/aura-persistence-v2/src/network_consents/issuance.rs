@@ -10,6 +10,7 @@ pub(crate) fn attach(
     operation: &SecuredOperation,
     approval: ApprovalRequestId,
     grant: PermissionGrantId,
+    workspace_root: Option<&str>,
 ) -> StoreResult<()> {
     if !matches!(scope.lifetime, AuthorizationLifetime::Session { .. }) {
         return Ok(());
@@ -119,6 +120,7 @@ pub(crate) fn attach(
             approved_operation_fingerprint: operation.fingerprint.clone(),
             grant_revision: Revision::INITIAL,
             revoked_grant_revision: None,
+            workspace_root: workspace_root.map(str::to_owned),
         });
     }
     Ok(())

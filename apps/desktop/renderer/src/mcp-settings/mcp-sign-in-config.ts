@@ -75,6 +75,16 @@ export const secretEnvironment = (rows: SecretRow[]): McpSecretEnvironment[] =>
  * by; with nothing typed the saved secret stays. A secret the server needs but never got is
  * the user's to fill in.
  */
+/** A secret Core did not take while a server was saved: its name and the failure. */
+export class SecretNotSaved extends Error {
+  constructor(
+    readonly label: string,
+    readonly failure: unknown,
+  ) {
+    super('mcp.secret_not_saved');
+  }
+}
+
 export async function writeSecret(
   serverId: string,
   input: McpSecretInputHandle | null | undefined,
@@ -90,6 +100,6 @@ export async function writeSecret(
     { server_id: serverId, secret_id: existing ?? null },
     bytes,
   );
-  if (!result.ok) throw new Error(result.error.message);
+  if (!result.ok) throw new SecretNotSaved(label, result.error);
   return result.value.secret_id;
 }

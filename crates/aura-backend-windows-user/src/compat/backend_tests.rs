@@ -40,6 +40,28 @@ fn aura_powershell_is_read_in_full_once_and_then_only_compared() {
 }
 
 #[test]
+fn a_command_with_the_users_rights_finds_modules_as_the_users_powershell_does() {
+    // Windows' own modules (NetTCPIP's Get-NetIPAddress) are found; Aura's package stays first.
+    let _serial = checked_program::TEST_SERIAL.lock().unwrap_or_else(|error| error.into_inner());
+    let backend = backend();
+    let root = tempfile::tempdir().expect("owned compat workspace");
+    let mut command = command(root.path());
+    command.script = [
+        "$first = ($env:PSModulePath -split ';')[0]",
+        "if ($first -ne [IO.Path]::Combine($PSHOME, 'Modules')) { throw \"first: $first\" }",
+        "Get-Command -Name Get-NetIPAddress -ErrorAction Stop | Out-Null",
+        "[Console]::WriteLine('MODULES-OK')",
+    ]
+    .join("\n");
+    let mut execution = backend.launch(&command, None).expect("launch in Job");
+    let result = execution.run_direct(&std::sync::atomic::AtomicBool::new(false)).expect("ran");
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    assert_eq!(result.exit_code, Some(0), "stdout={stdout}\nstderr={stderr}");
+    assert!(stdout.contains("MODULES-OK"), "stdout={stdout}\nstderr={stderr}");
+}
+
+#[test]
 fn a_powershell_launch_that_failed_checks_it_again_and_says_so() {
     let _serial = checked_program::TEST_SERIAL.lock().unwrap_or_else(|error| error.into_inner());
     let backend = backend();

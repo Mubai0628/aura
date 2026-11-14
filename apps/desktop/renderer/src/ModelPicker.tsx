@@ -1,10 +1,32 @@
 import type { ReasoningEffort } from '@aura/contracts/generated';
-import { useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { AppIcon } from './app-icons';
 import { useDismissablePopover } from './useDismissablePopover';
 import { userMessage } from './agent-session/user-message';
+import { failedAction } from './agent-session/failure-text';
+import {
+  clippingBox,
+  placeSubmenu,
+  shiftInside,
+  type SubmenuPlacement,
+} from './model-submenu-placement';
 import './styles/model-picker.css';
+
+/** The models list's position for where it was placed; the stylesheet's is the left side. */
+function submenuStyle(placement: SubmenuPlacement | undefined): CSSProperties | undefined {
+  if (!placement) return undefined;
+  if (placement.side === 'left') return { width: placement.width };
+  if (placement.side === 'right')
+    return { width: placement.width, right: 'auto', left: 'calc(100% + 6px)' };
+  return {
+    width: placement.width,
+    top: 'auto',
+    bottom: 'calc(100% + 6px)',
+    right: -placement.shift,
+    ['--model-submenu-max' as string]: `${Math.max(120, placement.maxHeight - 14)}px`,
+  };
+}
 
 export interface ModelChoice {
   id: string;
@@ -22,6 +44,8 @@ export interface ModelPickerState {
   selectedId?: string | undefined;
   loading: boolean;
   error?: string | undefined;
+  /** Reads a list that could not be read again; opening the list calls it. */
+  retry?: (() => void) | undefined;
 }
 
 interface ProviderGroup {
@@ -42,8 +66,10 @@ function providerGroups(choices: ModelChoice[]): ProviderGroup[] {
 
 /**
  * The menu lists the providers; pointing at
- * one, clicking it or pressing → opens its models beside it. Both lists keep within a height and
- * scroll, so the menu never leaves the window. A single provider lists its models at once.
+ * one, clicking it or pressing → opens its models beside it, on the side the conversation has room
+ * for them, or above the providers when neither side has, where only a click or a key opens
+ * another (pointing up at the models would cross the providers above). Both lists keep within a
+ * height and scroll, so the menu never leaves the window. A single provider lists its models at once.
  */
 export function ModelPicker({
   state,
@@ -74,6 +100,31 @@ export function ModelPicker({
   const groups = providerGroups(state.choices);
   const cascade = groups.length > 1;
   const opened = groups.find((group) => group.name === (shown ?? selected?.provider));
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<SubmenuPlacement>();
+  const [menuShift, setMenuShift] = useState(0);
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    const anchor = ref.current;
+    if (!open || !menu || !anchor) return;
+    // Measured from the button, so a shift already applied is not counted again.
+    const place = () => {
+      const bounds = clippingBox(menu);
+      const { right, top, bottom } = anchor.getBoundingClientRect();
+      const shift = shiftInside(right - menu.offsetWidth, right, bounds);
+      setMenuShift(shift);
+      const { top: menuTop, bottom: menuBottom } = menu.getBoundingClientRect();
+      const box = { left: right - menu.offsetWidth + shift, right: right + shift };
+      setPlacement(
+        cascade
+          ? placeSubmenu({ ...box, top: menuTop || top, bottom: menuBottom || bottom }, bounds)
+          : undefined,
+      );
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open, cascade, ref]);
   async function select(id: string) {
     if (pending) return;
     setPending(id);
@@ -82,7 +133,11 @@ export function ModelPicker({
       await onSelect(id);
       setOpen(false);
     } catch (reason) {
-      setError(userMessage(reason, '模型切换未完成，请刷新后重试。'));
+      setError(
+        failedAction(reason, '模型没有切换', '这个会话仍使用原来的模型；请重新选择一次。', {
+          conflict: '这个会话的模型刚刚在别处改过，这次没有切换；请看现在用的模型后再选。',
+        }),
+      );
     } finally {
       setPending(undefined);
     }
@@ -90,6 +145,7 @@ export function ModelPicker({
   const toggle = () => {
     // Each opening starts at the provider of the model in use.
     if (!open) setShown(undefined);
+    if (!open && state.error) state.retry?.();
     setOpen(!open);
   };
   const models = (group: ProviderGroup, focusFirst = false) => (
@@ -121,7 +177,9 @@ export function ModelPicker({
         <div
           aria-label="快速选择模型"
           className={`composer-popover model-popover${cascade ? ' is-cascade' : ''}`}
+          ref={menuRef}
           role="menu"
+          style={menuShift ? { right: -menuShift } : undefined}
         >
           {state.loading && !state.choices.length ? (
             <span className="composer-menu-empty" role="status">
@@ -137,6 +195,7 @@ export function ModelPicker({
           {cascade ? (
             <ProviderList
               groups={groups}
+              hover={placement?.side !== 'above'}
               opened={opened?.name}
               selectedProvider={selected?.provider}
               onOpen={(name, key) => {
@@ -160,7 +219,11 @@ export function ModelPicker({
             管理模型 <AppIcon name="chevron-right" size={14} />
           </button>
           {cascade && opened ? (
-            <div className="composer-popover model-submenu">
+            <div
+              className="composer-popover model-submenu"
+              data-side={placement?.side}
+              style={submenuStyle(placement)}
+            >
               {models(opened, shown === opened.name && byKey)}
             </div>
           ) : null}
@@ -172,11 +235,14 @@ export function ModelPicker({
 
 function ProviderList({
   groups,
+  hover,
   opened,
   selectedProvider,
   onOpen,
 }: {
   groups: ProviderGroup[];
+  /** Pointing at a provider opens it. */
+  hover: boolean;
   opened: string | undefined;
   selectedProvider: string | undefined;
   onOpen: (name: string, byKey: boolean) => void;
@@ -207,7 +273,7 @@ function ProviderList({
           onClick={() => open(group.name, false)}
           onFocus={() => open(group.name, false)}
           onKeyDown={(event) => onKeyDown(event, group.name)}
-          onMouseEnter={() => open(group.name, false)}
+          onMouseEnter={hover ? () => open(group.name, false) : undefined}
           role="menuitem"
           type="button"
         >

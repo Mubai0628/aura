@@ -115,6 +115,7 @@ async fn os_kill_after_publication_keeps_original_binding_and_never_replays() {
             parent_process_id: process::id(),
             runtime_instance_id: RuntimeInstanceId::new(),
             component_manifest_path: root.join("manifest.json"),
+            data_root: root.join("local"),
             allow_dev_component_mismatch: false,
             safe_mode: false,
             test_mode: crate::CoreTestMode::Normal,

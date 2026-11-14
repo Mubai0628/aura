@@ -31,6 +31,14 @@ import {
 import { endpointFieldIssueFromIpc } from './endpoint-errors';
 import { ALL_ROUTES_VARIANT, byModelVariants, missingVariants } from './model-routes';
 import { notifyCredentialFailure, notifyDeletion, notifyFailure } from './notices';
+import {
+  clearCredentialFailure,
+  COMPATIBILITY_TEXT,
+  CREDENTIAL_CLEARED,
+  credentialStateRefusal,
+  routeSaveFailure,
+  saveCredentialFailure,
+} from './model-failure-words';
 import { createRouteConnections } from './route-connections';
 import { useRouteParameters } from './route-parameters';
 
@@ -94,6 +102,8 @@ export function useProviderConnection({
     endpointId: string;
     value: EndpointCompatibilitySnapshot;
   }>();
+  // The connection whose compatibility record could not be read.
+  const [compatibilityUnreadId, setCompatibilityUnreadId] = useState<string>();
   const secretInputRef = useRef<SecretApiKeyInputHandle>(null);
   const addConnectionButtonRef = useRef<HTMLButtonElement>(null);
   const deletionTriggerRef = useRef<HTMLElement>(null);
@@ -183,13 +193,17 @@ export function useProviderConnection({
   useEffect(() => {
     if (existingEndpointId === undefined) return;
     let active = true;
-    void window.aura.v1
-      .getModelCompatibility({ endpoint_id: existingEndpointId })
-      .then((result) => {
-        if (active && result.ok) {
+    void window.aura.v1.getModelCompatibility({ endpoint_id: existingEndpointId }).then(
+      (result) => {
+        if (!active) return;
+        setCompatibilityUnreadId(result.ok ? undefined : existingEndpointId);
+        if (result.ok)
           setCompatibilityState({ endpointId: existingEndpointId, value: result.value });
-        }
-      });
+      },
+      () => {
+        if (active) setCompatibilityUnreadId(existingEndpointId);
+      },
+    );
     return () => {
       active = false;
     };
@@ -318,14 +332,14 @@ export function useProviderConnection({
     });
     setBusy(false);
     if (!result.ok) {
-      notifyFailure(onNotify, 'Provider 未添加', 'model-provider-add', result.error);
+      notifyFailure(onNotify, '服务商未添加', 'model-provider-add', result.error);
       return;
     }
     await onSaved();
     onNotify({
       dedupeKey: `model-provider-added:${result.value.value.id}`,
-      message: `${provider.name} 已保存，现在可以添加 Endpoint。`,
-      title: 'Provider 已添加',
+      message: `${provider.name} 已保存，现在可以添加连接。`,
+      title: '服务商已添加',
       tone: 'success',
     });
   };
@@ -348,14 +362,14 @@ export function useProviderConnection({
     });
     setBusy(false);
     if (!result.ok) {
-      notifyFailure(onNotify, 'Provider 未重命名', 'model-provider-rename', result.error);
+      notifyFailure(onNotify, '服务商未重命名', 'model-provider-rename', result.error);
       return;
     }
     await onSaved();
     onNotify({
       dedupeKey: `model-provider-renamed:${result.value.value.id}:${result.value.revision}`,
-      message: `Provider 已重命名为 ${result.value.value.display_name}。`,
-      title: 'Provider 已更新',
+      message: `服务商已重命名为 ${result.value.value.display_name}。`,
+      title: '服务商已更新',
       tone: 'success',
     });
   };
@@ -390,7 +404,7 @@ export function useProviderConnection({
     setBusy(false);
     if (!result.ok) {
       setPendingDeletion(undefined);
-      notifyFailure(onNotify, 'Provider 未删除', 'model-provider-delete', result.error);
+      notifyFailure(onNotify, '服务商未删除', 'model-provider-delete', result.error);
       return;
     }
     await onSaved();
@@ -415,7 +429,7 @@ export function useProviderConnection({
     setBusy(false);
     if (!result.ok) {
       setPendingDeletion(undefined);
-      notifyFailure(onNotify, 'Endpoint 未删除', 'model-endpoint-delete', result.error);
+      notifyFailure(onNotify, '连接未删除', 'model-endpoint-delete', result.error);
       return;
     }
     await onSaved();
@@ -438,9 +452,15 @@ export function useProviderConnection({
     });
     setBusy(false);
     if (!result.ok) {
-      notifyFailure(onNotify, 'Compatibility 未重置', 'model-compatibility-reset', result.error);
+      notifyFailure(
+        onNotify,
+        COMPATIBILITY_TEXT.resetFailed,
+        'model-compatibility-reset',
+        result.error,
+      );
       return;
     }
+    setCompatibilityUnreadId(undefined);
     setCompatibilityState({
       endpointId: existingEndpoint.id,
       value: {
@@ -452,10 +472,8 @@ export function useProviderConnection({
     if (result.value.changed) await onSaved();
     onNotify({
       dedupeKey: `model-compatibility-reset:${existingEndpoint.id}:${result.value.revision}`,
-      message: result.value.changed
-        ? '当前 Endpoint Fingerprint 的兼容学习已原子清除。'
-        : '当前没有兼容学习记录。',
-      title: 'Compatibility Reset',
+      message: result.value.changed ? COMPATIBILITY_TEXT.cleared : COMPATIBILITY_TEXT.nothing,
+      title: COMPATIBILITY_TEXT.resetDone,
       tone: result.value.changed ? 'success' : 'info',
     });
   };
@@ -596,7 +614,7 @@ export function useProviderConnection({
         setBusy(false);
         if (!result.ok) {
           if (showCoreFieldError(result.error)) return;
-          notifyFailure(onNotify, 'Endpoint 未保存', 'model-endpoint-save', result.error);
+          notifyFailure(onNotify, '连接未保存', 'model-endpoint-save', result.error);
           return;
         }
         await finishEndpointSave(result.value.value.display_name, result.value.value.id);
@@ -610,7 +628,7 @@ export function useProviderConnection({
         setBusy(false);
         if (!result.ok) {
           if (showCoreFieldError(result.error)) return;
-          notifyFailure(onNotify, 'Endpoint 未保存', 'model-endpoint-save', result.error);
+          notifyFailure(onNotify, '连接未保存', 'model-endpoint-save', result.error);
           return;
         }
         await finishEndpointSave(
@@ -636,12 +654,12 @@ export function useProviderConnection({
           onNotify({
             dedupeKey: `model-endpoint-save-conflict:${existingEndpoint.id}`,
             message: '配置已在其他操作中更新。已刷新最新版本并保留当前表单草稿，请核对后再次保存。',
-            title: 'Endpoint 配置已变化',
+            title: '连接设置已变化',
             tone: 'warning',
           });
           return;
         }
-        notifyFailure(onNotify, 'Endpoint 未保存', 'model-endpoint-save', result.error);
+        notifyFailure(onNotify, '连接未保存', 'model-endpoint-save', result.error);
         return;
       }
       await finishEndpointSave(result.value.value.display_name, result.value.value.id);
@@ -673,18 +691,24 @@ export function useProviderConnection({
     setBusy(false);
     if (result.created.length > 0) await onSaved();
     if (result.failure !== undefined) {
-      notifyFailure(
-        onNotify,
-        `${result.failure.variant.display_name} 未保存`,
-        'model-endpoint-save',
-        result.failure.error,
-      );
+      const failed = result.failure.variant.display_name;
+      onNotify({
+        dedupeKey: `model-endpoint-save:${result.failure.error.code}`,
+        message: routeSaveFailure(
+          result.created,
+          failed,
+          result.failure.untried,
+          result.failure.error,
+        ),
+        title: `${failed} 未保存`,
+        tone: 'danger',
+      });
       return;
     }
     onNotify({
       dedupeKey: `model-endpoints-saved:${localProvider.id}:${result.created.join(',')}`,
       message: `${result.created.join('、')} 已写入 Core 模型配置。`,
-      title: 'Endpoint 已保存',
+      title: '连接已保存',
       tone: 'success',
     });
     setEditorTarget(undefined);
@@ -695,7 +719,7 @@ export function useProviderConnection({
     onNotify({
       dedupeKey: `model-endpoint-saved:${endpointKey}`,
       message: `${displayName} 已写入 Core 模型配置。`,
-      title: 'Endpoint 已保存',
+      title: '连接已保存',
       tone: 'success',
     });
     setEditorTarget(undefined);
@@ -720,10 +744,13 @@ export function useProviderConnection({
           ? 'configure'
           : undefined;
     if (writable === undefined) {
-      notifyCredentialFailure(onNotify, 'API Key 未保存', 'model-credential-save', {
-        code: 'credential.state_conflict',
-        message: '',
-      });
+      notifyCredentialFailure(
+        onNotify,
+        'API Key 未保存',
+        'model-credential-save',
+        `credential.${credentialStatus.state}`,
+        credentialStateRefusal(credentialStatus.state),
+      );
       return;
     }
     const secretBytes = secretInputRef.current?.takeBytes();
@@ -749,13 +776,19 @@ export function useProviderConnection({
     }
     setBusy(false);
     if (!result.ok) {
-      notifyCredentialFailure(onNotify, 'API Key 未保存', 'model-credential-save', result.error);
+      notifyCredentialFailure(
+        onNotify,
+        'API Key 未保存',
+        'model-credential-save',
+        result.error.code,
+        saveCredentialFailure(result.error),
+      );
       return;
     }
     await onSaved();
     onNotify({
       dedupeKey: `model-credential-saved:${result.value.endpoint_id}:${result.value.credential_status.row_revision}`,
-      message: 'API Key 已通过专用 SecretInput 通道写入 Core 凭据槽位。',
+      message: 'API Key 已保存到 Windows 凭据管理器。',
       title: 'API Key 已保存',
       tone: 'success',
     });
@@ -775,13 +808,19 @@ export function useProviderConnection({
     });
     setBusy(false);
     if (!result.ok) {
-      notifyCredentialFailure(onNotify, 'API Key 未清除', 'model-credential-clear', result.error);
+      notifyCredentialFailure(
+        onNotify,
+        'API Key 未清除',
+        'model-credential-clear',
+        result.error.code,
+        clearCredentialFailure(result.error),
+      );
       return;
     }
     await onSaved();
     onNotify({
       dedupeKey: `model-credential-cleared:${result.value.endpoint_id}:${result.value.credential_status.row_revision}`,
-      message: '凭据已清除；CredentialId 与最后提交代次按冻结 Contract 保留。',
+      message: CREDENTIAL_CLEARED,
       title: 'API Key 已清除',
       tone: 'success',
     });
@@ -888,6 +927,8 @@ export function useProviderConnection({
     saveIssueId,
     providerDisplayName,
     compatibility,
+    compatibilityUnread:
+      existingEndpointId !== undefined && compatibilityUnreadId === existingEndpointId,
     existingEndpointId,
     writesDisabled,
     presetVariants,

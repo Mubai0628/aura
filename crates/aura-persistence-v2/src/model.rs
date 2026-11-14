@@ -5,6 +5,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 pub mod agent_transport;
 pub mod connections;
 pub mod context_window;
+pub mod failure_text;
 pub mod images;
 pub mod memory_maintenance;
 pub(crate) mod recovery;

@@ -131,3 +131,14 @@ test('a web link opens in the browser: http(s) only, never one with an account i
   }
   expect(shell.openExternal).toHaveBeenCalledTimes(1);
 });
+
+// The system's own English reason for a file it could not open is not shown.
+test('a file Windows could not open says so in words, with the way to choose a program', async () => {
+  const { supervisor } = await fixture();
+  vi.mocked(shell.openPath).mockResolvedValueOnce('Failed to open path');
+  expect(await open(supervisor, 'docs/plan.pdf')).toMatchObject({
+    completed: false,
+    message:
+      'Windows 没能用默认应用打开这个文件（可能没有关联的程序），文件没有打开；可以在文件资源管理器中显示它，再右键选择打开方式。',
+  });
+});

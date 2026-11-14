@@ -1,7 +1,7 @@
-import { userMessage } from '../agent-session/user-message';
-import { typeLabel } from '../composer-attachments/attachment-files';
+import { binaryKind } from './file-kind';
 import { mediaKind } from './file-paths';
 import type { AttachmentFileTarget } from '../../../shared/attachment-files';
+import { attachmentUnreadable, fileFailure } from './failure-words';
 import { fileSource, outsideTarget } from './file-sources';
 
 /** The lines one ranged read asks for: Core's small-range limit for files over 2 MiB. */
@@ -18,22 +18,7 @@ interface Where {
   workspace: string;
 }
 
-const FAILURES: Record<string, string> = {
-  'file.not_found': '找不到这个文件，它可能已被移动或删除。',
-  'file.wrong_kind': '这是一个文件夹，不是文件。',
-  'file.scope_unavailable': '这个文件不在当前工作区里。',
-  'file.encoding_ambiguous': '这个文件的编码无法确定，暂不能显示。',
-  'workspace.offline': '工作区现在不可用，请稍后重试。',
-  'workspace.catalog_unavailable': '工作区还在建立文件索引，请稍后重试。',
-};
-
-export function fileFailure(error: unknown): string {
-  const code =
-    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
-  return (
-    (typeof code === 'string' && FAILURES[code]) || userMessage(error, '文件暂时读不出来，请重试。')
-  );
-}
+export { fileFailure } from './failure-words';
 
 export function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`;
@@ -72,7 +57,7 @@ export async function readLines(where: Where, path: string, start: number) {
 async function describe(where: Where, path: string, note?: string): Promise<FileContent> {
   const info = await window.aura.v1.inspectWorkspaceFile(target(where, path));
   if (!info.ok) return { kind: 'error', message: fileFailure(info.error) };
-  const description = info.value.magic_description || info.value.media_type;
+  const description = binaryKind(path, info.value.media_type);
   return note === undefined
     ? { kind: 'binary', description, size: info.value.byte_length }
     : { kind: 'binary', description, size: info.value.byte_length, note };
@@ -112,7 +97,7 @@ async function readOutside(target: AttachmentFileTarget, name: string): Promise<
   const head = await window.aura.v1.attachmentFile({ ...target, action: 'text' });
   if (!head.ok) return { kind: 'error', message: head.message };
   if (head.kind === 'binary')
-    return { kind: 'binary', description: typeLabel(name), size: head.size };
+    return { kind: 'binary', description: binaryKind(name), size: head.size };
   if (head.kind !== 'text') return { kind: 'error', message: '没能打开这个附件，请重试。' };
   const lines = linesOf(head.text, !head.truncated);
   return head.truncated
@@ -126,7 +111,7 @@ async function readRecord(where: Where, artifact: string): Promise<FileContent> 
     session_id: where.session,
     artifact_id: artifact,
   });
-  if (!read.ok) return { kind: 'error', message: userMessage(read.error, '这个附件已不可用。') };
+  if (!read.ok) return { kind: 'error', message: attachmentUnreadable(read.error) };
   const lines = linesOf(read.value.text, true);
   return { kind: 'text', lines, total: lines.length, paged: false };
 }

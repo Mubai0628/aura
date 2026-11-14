@@ -7,19 +7,19 @@
 //!   does, and asks the launcher to start again (exit 75);
 //! - anything else exits 0 without reporting.
 //!
+//! As the desktop, it keeps the arguments it was started with in `fake-desktop-args.txt` and takes
+//! its data folder from `--aura-data-root=`; without one it closes at once (exit 0) and touches no data.
+//!
 //! Copied in as `aura-core.exe` it answers `--store-migration-check` with the
 //! `fake-migration.json` beside it, as the new version's Core tells the launcher which stores
 //! it would migrate, and keeps the arguments it was asked with in `fake-migration-args.txt`. Asked
-//! `--store-slim`, it marks the execution store as slimmed and reports the run.
+//! `--store-slim`, it marks the execution store as slimmed, ends a run `aura.db` owes and reports.
 use std::{env, fs, path::PathBuf, process::ExitCode};
 
 use aura_runtime_contract::{ActiveInstallState, BuildComponentManifest};
 
-fn data_root(manifest: &BuildComponentManifest) -> PathBuf {
-    PathBuf::from(env::var_os("LOCALAPPDATA").unwrap_or_default())
-        .join("Aura")
-        .join("namespaces")
-        .join(manifest.bundle_namespace.object_name_hash())
+fn passed_data_root() -> Option<PathBuf> {
+    env::args().find_map(|argument| argument.strip_prefix("--aura-data-root=").map(PathBuf::from))
 }
 
 fn main() -> ExitCode {
@@ -38,12 +38,23 @@ fn main() -> ExitCode {
         };
     }
     if env::args().nth(1).as_deref() == Some("--store-slim") {
-        let store = PathBuf::from(env::args().nth(2).unwrap_or_default())
-            .join("data")
-            .join("v2-execution")
-            .join("aura-v2.db");
+        let began = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| since.as_millis());
+        let _ = env::current_exe().and_then(|program| {
+            fs::write(program.with_file_name("fake-slim-began.txt"), began.to_string())
+        });
+        let data = PathBuf::from(env::args().nth(2).unwrap_or_default()).join("data");
+        let store = data.join("v2-execution").join("aura-v2.db");
+        let marker = data.join("aura-db-slimming.json");
         let slimmed = fs::read_to_string(&store)
-            .and_then(|stored| fs::write(&store, format!("slimmed {stored}")));
+            .and_then(|stored| fs::write(&store, format!("slimmed {stored}")))
+            .and_then(|()| match marker.is_file() {
+                true => {
+                    fs::write(&marker, r#"{"schema_version":1,"kept_bytes":1,"owed_runs":null}"#)
+                }
+                false => Ok(()),
+            });
         return match slimmed {
             Ok(()) => {
                 println!("{}", serde_json::json!({ "report": { "rebuild": { "state": "done" } } }));
@@ -59,10 +70,14 @@ fn main() -> ExitCode {
     else {
         return ExitCode::from(4);
     };
+    let _ = fs::write("fake-desktop-args.txt", env::args().skip(1).collect::<Vec<_>>().join("\n"));
+    let Some(data_root) = passed_data_root() else {
+        return ExitCode::SUCCESS;
+    };
     match mode.trim() {
         "crash" => ExitCode::from(3),
         "crash-after-writing" => {
-            let store = data_root(&manifest).join("data").join("aura.db");
+            let store = data_root.join("data").join("aura.db");
             let written = fs::create_dir_all(store.parent().unwrap_or(&store)).and_then(|()| {
                 fs::write(&store, format!("written by {}", manifest.product_version))
             });
@@ -86,7 +101,7 @@ fn main() -> ExitCode {
             ExitCode::from(75)
         }
         "ready" => {
-            let launcher = data_root(&manifest).join("launcher");
+            let launcher = data_root.join("launcher");
             let ready = serde_json::json!({ "release_bundle_id": manifest.release_bundle_id });
             if fs::create_dir_all(&launcher).is_err()
                 || fs::write(launcher.join("ready.v1.json"), ready.to_string()).is_err()

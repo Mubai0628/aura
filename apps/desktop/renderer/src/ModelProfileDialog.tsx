@@ -13,8 +13,8 @@ import { ModalDialog } from './ModalDialog';
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import './model-dialogs.css';
 import type { NotificationInput } from './notification-center-store';
-import { userMessage } from './agent-session/user-message';
-import { MODEL_FAILURE_FALLBACK } from './provider-connection/notices';
+import { modelFailureText } from './provider-connection/model-failure-words';
+import { profileFieldIssues, type ProfileField } from './model-profile-fields';
 import { REASONING_LABELS, levelToSend } from './reasoning-effort';
 import { speedModesOf } from './speed-mode';
 import { HelpTip } from './ui/HelpTip';
@@ -108,12 +108,46 @@ export function ModelProfileDialog({
   const [enabled, setEnabled] = useState(profile?.enabled ?? true);
   const [busy, setBusy] = useState(false);
   const titleId = `model-profile-${profile?.id ?? endpoint.id}`;
-  const valid =
-    providerModelName.length > 0 &&
-    displayName.trim().length > 0 &&
-    (contextWindow === '' || contextWindow > 0) &&
-    (maxOutputTokens === '' || maxOutputTokens > 0) &&
-    historicalTokens >= 0;
+  // Fields changed in this dialog: an empty name is marked once it was edited, so a new
+  // profile does not open with every field marked.
+  const [edited, setEdited] = useState<ReadonlySet<ProfileField>>(() => new Set());
+  const markEdited = (field: ProfileField) =>
+    setEdited((current) => (current.has(field) ? current : new Set(current).add(field)));
+  const issues = profileFieldIssues({
+    contextWindow,
+    displayName,
+    historicalTokens,
+    maxOutputTokens,
+    providerModelName,
+  });
+  const firstIssue = Object.values(issues)[0];
+  const valid = firstIssue === undefined;
+  const shownIssue = (field: ProfileField): string | undefined => {
+    const issue = issues[field];
+    if (issue === undefined) return undefined;
+    const required = field === 'provider_model_name' || field === 'display_name';
+    return !required || edited.has(field) ? issue : undefined;
+  };
+  const issueId = (field: ProfileField) => `${titleId}-${field}-issue`;
+  const fieldProps = (field: ProfileField, label: string) => {
+    const issue = shownIssue(field);
+    return {
+      'aria-describedby': issue === undefined ? undefined : issueId(field),
+      'aria-invalid': issue !== undefined,
+      'aria-label': label,
+    };
+  };
+  const fieldIssue = (field: ProfileField) => {
+    const issue = shownIssue(field);
+    return issue === undefined ? null : (
+      <small className="field-validation-error" id={issueId(field)}>
+        {issue}
+      </small>
+    );
+  };
+
+  // Why 保存 is grey: the connection to Core first, then the first field to fix.
+  const saveBlocked = busy ? undefined : (writeUnavailableReason ?? firstIssue);
 
   const save = async () => {
     if (!valid || busy || writeUnavailableReason !== undefined) return;
@@ -153,7 +187,7 @@ export function ModelProfileDialog({
           });
     if (!result.ok) {
       setBusy(false);
-      notifyFailure(onNotify, 'Model Profile 未保存', result.error);
+      notifyFailure(onNotify, '模型配置未保存', result.error);
       return;
     }
     // The profile update carries no context window; a changed one is the user's own window,
@@ -175,7 +209,7 @@ export function ModelProfileDialog({
         await onSaved();
         onNotify({
           dedupeKey: `上下文窗口未保存:${written.error.code}`,
-          message: `其他设置已保存。${userMessage(written.error, MODEL_FAILURE_FALLBACK)}`,
+          message: `其他设置已保存。${modelFailureText(written.error)}`,
           title: '上下文窗口未保存',
           tone: 'danger',
         });
@@ -187,7 +221,7 @@ export function ModelProfileDialog({
     onNotify({
       dedupeKey: `model-profile-saved:${result.value.value.id}:${result.value.revision}`,
       message: `${result.value.value.display_name} 已写入 Core 模型配置。`,
-      title: 'Model Profile 已保存',
+      title: '模型配置已保存',
       tone: 'success',
     });
     onClose();
@@ -257,15 +291,28 @@ export function ModelProfileDialog({
           <label>
             <span>Provider 模型标识</span>
             <input
+              {...fieldProps('provider_model_name', 'Provider 模型标识')}
               disabled={profile !== undefined}
-              onChange={(event) => setProviderModelName(event.target.value)}
+              onChange={(event) => {
+                markEdited('provider_model_name');
+                setProviderModelName(event.target.value);
+              }}
               type="text"
               value={providerModelName}
             />
+            {fieldIssue('provider_model_name')}
           </label>
           <label>
             <span>显示名称</span>
-            <input onChange={(event) => setDisplayName(event.target.value)} value={displayName} />
+            <input
+              {...fieldProps('display_name', '显示名称')}
+              onChange={(event) => {
+                markEdited('display_name');
+                setDisplayName(event.target.value);
+              }}
+              value={displayName}
+            />
+            {fieldIssue('display_name')}
           </label>
           {profile === undefined ? null : (
             <CatalogEntryChoice
@@ -279,11 +326,13 @@ export function ModelProfileDialog({
           <label>
             <span>上下文窗口 Tokens</span>
             <input
+              {...fieldProps('context_window', '上下文窗口 Tokens')}
               min={1}
               onChange={(event) => setContextEdit(numberOrBlank(event.target.value))}
               type="number"
               value={contextWindow}
             />
+            {fieldIssue('context_window')}
           </label>
           {profile === undefined ? (
             <p className="span-two settings-form-hint">
@@ -294,20 +343,24 @@ export function ModelProfileDialog({
               <label>
                 <span>最大输出 Tokens</span>
                 <input
+                  {...fieldProps('max_output_tokens', '最大输出 Tokens')}
                   min={1}
                   onChange={(event) => setMaxOutputTokens(numberOrBlank(event.target.value))}
                   type="number"
                   value={maxOutputTokens}
                 />
+                {fieldIssue('max_output_tokens')}
               </label>
               <label>
                 <span>历史快照 Tokens</span>
                 <input
+                  {...fieldProps('historical_tokens', '历史快照 Tokens')}
                   min={0}
                   onChange={(event) => setHistoricalTokens(Number(event.target.value))}
                   type="number"
                   value={historicalTokens}
                 />
+                {fieldIssue('historical_tokens')}
               </label>
               <label>
                 <span>Temperature（可选）</span>
@@ -462,10 +515,7 @@ export function ModelProfileDialog({
             取消
           </button>
           <span className="modal-action-spacer" />
-          <span
-            className="disabled-action-wrapper"
-            tabIndex={writeUnavailableReason === undefined ? -1 : 0}
-          >
+          <span className="disabled-action-wrapper" tabIndex={saveBlocked === undefined ? -1 : 0}>
             <button
               className="primary-button"
               disabled={!valid || busy || writeUnavailableReason !== undefined}
@@ -473,9 +523,7 @@ export function ModelProfileDialog({
             >
               {busy ? '保存中…' : '保存 Profile'}
             </button>
-            {writeUnavailableReason === undefined ? null : (
-              <span role="tooltip">{writeUnavailableReason}</span>
-            )}
+            {saveBlocked === undefined ? null : <span role="tooltip">{saveBlocked}</span>}
           </span>
         </footer>
       </form>
@@ -492,7 +540,7 @@ const notifyFailure = (
 ) => {
   notify({
     dedupeKey: `${title}:${error.code}`,
-    message: userMessage(error, MODEL_FAILURE_FALLBACK),
+    message: modelFailureText(error),
     title,
     tone: 'danger',
   });

@@ -4,10 +4,10 @@ export async function armReadOnlyWrite(
   page: ElectronPage,
   workspaceRoot: string,
   providerUrl: string,
-  message: { title: string; text: string },
+  message: { title: string; text: string; subagents?: boolean },
 ): Promise<Record<string, unknown>> {
   return page.evaluate(
-    async ({ selectedRoot, url, title, text }) => {
+    async ({ selectedRoot, url, title, text, subagents }) => {
       const api = window.aura.v1;
       const workspace = await api.createWorkspace({
         display_name: title,
@@ -89,6 +89,17 @@ export async function armReadOnlyWrite(
       });
       if (!enabled.ok) return { error: `profile enable: ${JSON.stringify(enabled)}` };
       const profileId = profile.value.value.id;
+      if (subagents) {
+        // The model may also work as a sub-agent, so the conversation is offered `agents.*`.
+        const current = await api.getModelSettings();
+        if (!current.ok) return { error: 'model settings unavailable' };
+        const allowed = await api.setModelProfileSubagentAvailability({
+          expected_revision: current.value.models_revision,
+          model_profile_id: profileId,
+          available_for_subagents: true,
+        });
+        if (!allowed.ok) return { error: `subagents: ${JSON.stringify(allowed)}` };
+      }
       // A brand-new session has never been bound, so its binding revision is 0.
       const binding = await api.setSessionModelBinding({
         session_id: sessionId,
@@ -104,6 +115,12 @@ export async function armReadOnlyWrite(
       if (!submitted.ok) return { error: `submit: ${JSON.stringify(submitted)}` };
       return { workspaceId, sessionId, mode: mode.value.mode, profileId };
     },
-    { selectedRoot: workspaceRoot, url: providerUrl, title: message.title, text: message.text },
+    {
+      selectedRoot: workspaceRoot,
+      url: providerUrl,
+      title: message.title,
+      text: message.text,
+      subagents: message.subagents ?? false,
+    },
   );
 }

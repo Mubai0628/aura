@@ -1,10 +1,10 @@
 use super::*;
 use aura_security_contract::ResolvedCapability as C;
 
-/// Two Skill tools, a search and a load by name: parent-only Core reads that change nothing and
-/// name no file, process or network capability.
+/// Two Skill tools, a search and a load by name: Core reads that change nothing and name no file,
+/// process or network capability, which a sub-agent may be given too.
 #[test]
-fn skill_tools_are_a_parent_only_search_and_load() {
+fn skill_tools_are_a_search_and_load_a_sub_agent_may_be_given() {
     let at = "2026-09-09T00:00:00Z".parse().expect("release timestamp");
     let entries = definitions::entries(at).expect("domain-owned definitions");
     let skills = entries
@@ -20,7 +20,7 @@ fn skill_tools_are_a_parent_only_search_and_load() {
         assert_eq!(entry.definition.capabilities, [C::ToolRegistryRead], "{name}");
         assert_eq!(
             entry.definition.audience,
-            aura_tool_contract::ToolAudienceV1::ParentAgentOnly,
+            aura_tool_contract::ToolAudienceV1::SubagentConfigurable,
             "{name}"
         );
         let semantics = &entry.definition.execution_semantics;

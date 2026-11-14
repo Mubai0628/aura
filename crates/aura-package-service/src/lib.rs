@@ -2,6 +2,7 @@
 //! and the one service that imports, verifies, installs, lists and runs them.
 #![forbid(unsafe_code)]
 
+pub mod failures;
 pub mod package_http;
 pub mod package_lifecycle;
 pub mod package_program;

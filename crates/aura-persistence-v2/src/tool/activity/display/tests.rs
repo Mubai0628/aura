@@ -102,8 +102,13 @@ fn a_short_line_carries_the_diagnostic_into_the_details_instead_of_cutting_it() 
         error: Some(failure),
     });
     assert_eq!(outcome_summary_text(&result.outcome), "未执行：参数错误");
-    let details = error_detail(&result);
-    assert!(details.iter().any(|line| line.contains("fs.not_found")), "{details:?}");
+    let details = error_detail("fs.read", &result);
+    assert!(
+        details[0].starts_with("找不到这个文件或文件夹")
+            && details[0].contains("没有执行，什么都没改"),
+        "the first line says in Chinese what happened and what it changed: {details:?}"
+    );
+    assert!(details.iter().any(|line| line == "错误码：fs.not_found"), "{details:?}");
     assert!(
         details.iter().any(|line| line.contains("_aura")),
         "the stored correction is what the reader expands: {details:?}"
@@ -131,7 +136,7 @@ fn a_legacy_result_without_an_error_projects_a_neutral_line() {
     });
     assert_eq!(outcome_summary_text(&result.outcome), "未执行：参数错误");
     assert!(
-        error_detail(&result).is_empty(),
+        error_detail("fs.read", &result).is_empty(),
         "no stored error means no diagnostic to expand, not a fabricated one"
     );
 }
@@ -201,6 +206,52 @@ fn a_skill_row_names_the_skill_or_the_words_and_what_came_back() {
     );
     assert_eq!(loaded.summary, "已加载，另有 1 个文件");
     assert_eq!(loaded.details, vec!["文件夹：C:\\Users\\me\\.agents\\skills\\notes"]);
+}
+
+/// The team's rows showed the tools' names, and a run of reports read only "执行成功". They are
+/// named in words; a report shows its status and the first line it said, another call the
+/// sub-agent it names.
+#[test]
+fn a_team_row_is_named_in_words_and_a_report_shows_its_status_and_first_line() {
+    use serde_json::json;
+    assert_eq!(title("agent.report"), "交报告");
+    assert_eq!(title("agents.spawn"), "派子 Agent");
+    assert_eq!(title("agents.wait"), "等子 Agent 报告");
+    assert_eq!(title("agents.send"), "给子 Agent 发消息");
+    assert_eq!(title("agents.result"), "读子 Agent 结果");
+    assert_eq!(title("agents.status"), "查看子 Agent");
+    assert_eq!(title("agents.stop"), "停止子 Agent");
+    assert_eq!(title("agents.merge"), "合回工作副本");
+    assert_eq!(title("agents.discard"), "丢弃工作副本");
+    let report =
+        json!({"status":"ready","summary":"\n  已写好 gold-miner-b.html。  \n第二行不显示"});
+    assert_eq!(target("agent.report", Some(&report)).as_deref(), Some("完成"));
+    assert_eq!(
+        super::super::team::report_line(Some(&report)).as_deref(),
+        Some("已写好 gold-miner-b.html。")
+    );
+    for (status, label) in
+        [("progress", "进展"), ("waiting", "提问"), ("blocked", "受阻"), ("failed", "没做成")]
+    {
+        let one = json!({"status": status, "summary": "x"});
+        assert_eq!(target("agent.report", Some(&one)).as_deref(), Some(label), "{status}");
+    }
+    let long = json!({"status":"progress","summary":"长".repeat(300)});
+    let line = super::super::team::report_line(Some(&long)).expect("a line");
+    assert!(line.chars().count() <= 121 && line.ends_with('…'), "{line}");
+    assert_eq!(
+        target("agents.spawn", Some(&json!({"name":" B 矿场控制台 ","task":{}}))).as_deref(),
+        Some("B 矿场控制台")
+    );
+    assert_eq!(
+        target("agents.send", Some(&json!({"agent":"A2","text":"继续"}))).as_deref(),
+        Some("A2")
+    );
+    assert_eq!(
+        target("agents.wait", Some(&json!({"agents":["A2","A3"]}))).as_deref(),
+        Some("A2、A3")
+    );
+    assert_eq!(target("agents.wait", Some(&json!({}))), None, "every sub-agent");
 }
 
 /// A Shell row showed only `.`, the working directory, so nobody saw what ran. It
@@ -284,7 +335,7 @@ fn a_computer_call_the_user_ended_says_so() {
             "computer.busy: x",
         ),
     };
-    assert_eq!(summary_line("computer.input", &failed), "执行失败：当前不可用");
+    assert_eq!(summary_line("computer.input", &failed), "执行失败：另一个对话正在使用电脑");
 }
 
 /// The row names what took the desktop over when the refusal says it, from admission and from
@@ -381,4 +432,38 @@ fn a_page_debugging_call_stopped_by_the_switch_offers_it() {
     assert_eq!(row_offer("browser.evaluate", &refused("browser.refused: 已接管")), None);
     assert_eq!(row_offer("fs.read", &off), None);
     assert_eq!(row_offer("browser.evaluate", &result(ToolResultOutcomeV1::Succeeded)), None);
+}
+
+/// A call its stopped turn never started reads 会话中断 wherever the stop found it: before its
+/// attempt, or in the moment after it was marked started. One the turn cut while it ran does not.
+#[test]
+fn a_call_its_stopped_turn_never_started_reads_as_interrupted_and_not_run() {
+    let before = result(ToolResultOutcomeV1::NotExecuted {
+        reason: ToolNotExecutedReasonV1::CancelledBeforeDispatch,
+        error: None,
+    });
+    assert_eq!(outcome_summary_text(&before.outcome), "未执行：会话中断");
+    let mut after = result(ToolResultOutcomeV1::Cancelled {
+        reason: ToolCancellationReasonV1::TurnInterrupted,
+    });
+    after.side_effect_state = SideEffectStateV1::NoEffect;
+    assert_eq!(result_line("computer.click", &after), "未执行：会话中断");
+    after.side_effect_state = SideEffectStateV1::PartiallyApplied;
+    assert_eq!(result_line("computer.click", &after), "已中断：任务被中断");
+}
+
+/// Every tool a row shows has a Chinese name: the registry's display names are the model's, in
+/// English, and a row titled with the tool's own name reads as code.
+#[test]
+fn every_shown_tool_has_a_chinese_title() {
+    let release = aura_tool_registry::agent_release::release().expect("release");
+    let missing = release
+        .manifest()
+        .entries
+        .iter()
+        .map(|entry| entry.handler.name())
+        .filter(|name| !internal(name))
+        .filter(|name| title(name) == *name || title(name).is_ascii())
+        .collect::<Vec<_>>();
+    assert!(missing.is_empty(), "no Chinese title: {missing:?}");
 }

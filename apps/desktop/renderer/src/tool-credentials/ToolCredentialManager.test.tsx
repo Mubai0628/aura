@@ -232,3 +232,25 @@ test.each(['committed', 'unknown'])(
     expect(api.createToolCredential).toHaveBeenCalledTimes(1);
   },
 );
+
+test('a clear Core refused without a sentence names the action and that the key is kept', async () => {
+  setup({
+    clearToolCredential: vi.fn().mockResolvedValue({
+      ok: false,
+      error: {
+        category: 'internal',
+        code: 'tool_credentials.failed',
+        message: 'failed',
+        details: {},
+      },
+    }),
+  });
+  await userEvent.click(screen.getByRole('button', { name: '读取凭据管理状态' }));
+  await userEvent.selectOptions(screen.getByLabelText('操作'), 'clear');
+  await userEvent.selectOptions(screen.getByLabelText('凭据'), record.credential_id);
+  await userEvent.click(screen.getByRole('checkbox'));
+  await userEvent.click(screen.getByRole('button', { name: '确认清除密钥' }));
+  expect(
+    await screen.findByText('清除密钥没有完成，凭据保持原样；请点“读取凭据管理状态”后再试。'),
+  ).toBeTruthy();
+});

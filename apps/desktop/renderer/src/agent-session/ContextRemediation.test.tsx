@@ -157,3 +157,25 @@ test('a late status from another session cannot replace the selected task', asyn
     ),
   );
 });
+
+test('a diagnosis that was not read, or a recheck refused, says why, that the task waits, and what to do', async () => {
+  read.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  const first = render(<ContextRemediation {...props} runId="unread" />);
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '上下文诊断没有读到（Aura Core 没有及时回复），任务仍暂停着；请稍后重新打开这个会话。',
+  );
+  first.unmount();
+  recheck.mockResolvedValue({
+    ok: false,
+    error: { code: 'agent.context_recheck_refused', message: 'recheck refused' },
+  });
+  render(<ContextRemediation {...props} runId="refused" />);
+  await screen.findByText(/预计输入/);
+  fireEvent.click(screen.getByRole('button', { name: '重新检查' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '重新检查没有完成，任务仍暂停着；可以再点“重新检查”。',
+  );
+});

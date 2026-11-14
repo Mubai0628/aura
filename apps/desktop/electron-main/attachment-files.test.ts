@@ -11,6 +11,20 @@ import { WorkspaceMedia } from './workspace-media.js';
 // file outside the workspace is found by Core, never by a path the renderer sends; Main streams
 // it, reads its beginning, or opens it — never a program.
 
+// A file another program holds is refused by the system when it is opened.
+const fsControl = vi.hoisted(() => ({ refuseOpen: undefined as Error | undefined }));
+vi.mock('node:fs/promises', async (original) => {
+  const actual = await original<typeof import('node:fs/promises')>();
+  return {
+    ...actual,
+    open: (...args: Parameters<typeof actual.open>) => {
+      const refusal = fsControl.refuseOpen;
+      fsControl.refuseOpen = undefined;
+      return refusal ? Promise.reject(refusal) : actual.open(...args);
+    },
+  };
+});
+
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
   shell: { openPath: vi.fn(async () => ''), showItemInFolder: vi.fn() },
@@ -232,4 +246,43 @@ test('a file the user picked is viewed where it is, and only once the preload sa
   expect(await files.handle(asked, request)).toMatchObject({ ok: true, kind: 'opened' });
   expect(shell.showItemInFolder).toHaveBeenCalledWith(picked);
   expect(asked.requestWithBudget).not.toHaveBeenCalled();
+});
+
+// A Core that did not answer, and a file another program holds, are not a file that is gone.
+test('an attachment that could not be opened says whether Core did not answer or the file is held', async () => {
+  const files = new AttachmentFiles(new WorkspaceMedia());
+  const silent = {
+    requestWithBudget: vi.fn(async () => {
+      throw Object.assign(new Error('Core request timed out'), {
+        envelope: { code: 'ipc.request_timeout', details: {} },
+      });
+    }),
+  };
+  expect(await files.handle(silent, { action: 'text', session_id, external_grant_id })).toEqual({
+    ok: false,
+    message: 'Aura Core 暂时没有回应，附件没有打开；稍后再试。',
+  });
+  const held = join(base, 'held.txt');
+  await writeFile(held, 'x');
+  fsControl.refuseOpen = Object.assign(new Error('EBUSY: resource busy or locked'), {
+    code: 'EBUSY',
+  });
+  expect(
+    await files.handle(core(held, 1), { action: 'text', session_id, external_grant_id }),
+  ).toEqual({
+    ok: false,
+    message: '这个附件正被其他程序占用或没有读取权限，没有打开；关闭占用它的程序后再试。',
+  });
+  vi.mocked(shell.openPath).mockResolvedValueOnce('Failed to open path');
+  expect(
+    await files.handle(core(join(base, 'held.txt'), 1), {
+      action: 'default_application',
+      session_id,
+      external_grant_id,
+    }),
+  ).toEqual({
+    ok: false,
+    message:
+      'Windows 没能用默认应用打开这个文件（可能没有关联的程序），文件没有打开；可以在文件资源管理器中显示它，再右键选择打开方式。',
+  });
 });

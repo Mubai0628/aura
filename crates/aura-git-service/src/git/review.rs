@@ -12,17 +12,24 @@ const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 impl GitReader {
     pub(super) fn review_diff(&self, input: &GitReviewDiffInputV1) -> Result<GitDiffResultV1> {
-        ensure!(input.max_bytes > 0 && input.max_bytes <= 65536, "git.diff_page_limit");
+        super::diff::page_limit(input.max_bytes)?;
         let base = match &input.base {
             None => self.head()?.unwrap_or_else(|| EMPTY_TREE.into()),
             Some(branch) => {
-                let head = self
-                    .head()?
-                    .ok_or_else(|| anyhow::anyhow!("git.no_commit: 还没有提交，无法与分支比较"))?;
+                let head = self.head()?.ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "git.no_commit: 这个仓库还没有任何提交，无法与分支比较。可以先查看未提交的改动，或提交一次后再比较。"
+                    )
+                })?;
                 let other = self.oid(branch)?;
-                let base = String::from_utf8(self.command(&["merge-base", &head, &other])?)?;
+                let base = String::from_utf8(self.command(&["merge-base", &head, &other])?)
+                    .map_err(|_| config::unreadable_output("merge_base_format", "共同提交"))?;
                 let base = base.trim();
-                ensure!(!base.is_empty(), "git.no_merge_base: 当前分支与 {branch} 没有共同的提交");
+                ensure!(
+                    !base.is_empty(),
+                    "git.no_merge_base: 当前分支与「{}」没有共同的提交，无法比较。请换一个分支比较。",
+                    config::shown(branch)
+                );
                 base.to_owned()
             }
         };
@@ -54,7 +61,8 @@ impl GitReader {
             });
         }
         self.annotate_stats(&mut files)?;
-        paginate(files, String::from_utf8(patch.to_vec())?, input.offset_bytes, input.max_bytes)
+        let patch = super::diff::patch_text(patch.to_vec())?;
+        paginate(files, patch, input.offset_bytes, input.max_bytes)
     }
 
     /// HEAD's commit, or None in a repository with no commit yet.
@@ -67,7 +75,9 @@ impl GitReader {
             "HEAD^{commit}".into(),
         ])?;
         if result.exit_code == Some(0) {
-            return Ok(Some(String::from_utf8(result.stdout)?.trim().to_owned()));
+            let head = String::from_utf8(result.stdout)
+                .map_err(|_| config::unreadable_output("head_format", "HEAD 提交号"))?;
+            return Ok(Some(head.trim().to_owned()));
         }
         // An unborn HEAD answers 1 and says nothing; anything else is a real failure.
         ensure!(

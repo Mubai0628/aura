@@ -15,6 +15,13 @@ use serde_json::json;
 
 const HARD_CHARS: usize = 262_144;
 const RESULT_PAGE: usize = 65_536;
+/// A cursor that is not one this read gave.
+const CURSOR_UNKNOWN: &str = "context.cursor: it is not a cursor this read gave; pass next_cursor \
+                              exactly as the last page returned it, or leave it out to start again";
+/// A selector that names nothing in this conversation.
+const SOURCE_NOT_FOUND: &str = "context.read_events.selectors: no event of this conversation \
+                                matches a selector; take event and turn ids from this \
+                                conversation's history";
 #[derive(Deserialize, Serialize)]
 struct Cursor {
     operation: String,
@@ -43,10 +50,17 @@ pub fn compaction(
     let id =
         crate::agent::branch::carried_compaction(db, session, input.source_context_snapshot_id)?
             .unwrap_or(input.source_context_snapshot_id);
-    let value = super::compaction::load(db, id)?;
+    let unknown = "context.read_compaction: no completed compaction of this conversation has this \
+                   source_context_snapshot_id and sequence; copy both from the compaction summary";
+    let value = match super::compaction::load(db, id) {
+        Err(Error::Sqlite(rusqlite::Error::QueryReturnedNoRows)) => {
+            return Err(Error::Invalid(unknown));
+        }
+        loaded => loaded?,
+    };
     if value.session_id != session || value.sequence != input.sequence || value.state != "completed"
     {
-        return Err(Error::Conflict);
+        return Err(Error::Invalid(unknown));
     }
     let result = value.result.ok_or(Error::Conflict)?;
     let bytes = artifact::read(
@@ -68,12 +82,18 @@ fn cursor(
 ) -> StoreResult<Cursor> {
     if let Some(token) = token {
         if token.len() > 4096 {
-            return Err(Error::Invalid("context cursor too long"));
+            return Err(Error::Invalid(CURSOR_UNKNOWN));
         }
-        let raw:String=db.query_row("SELECT payload FROM events WHERE owner=?1 AND kind='context.read_cursor' AND event_id=?2 AND version=1",params![run.to_string(),token],|r|r.get(0))?;
-        let value: Cursor = record::decode(&raw)?;
-        if value.operation != operation || value.request != request || value.cutoff < 0 {
+        let raw:Option<String>=db.query_row("SELECT payload FROM events WHERE owner=?1 AND kind='context.read_cursor' AND event_id=?2 AND version=1",params![run.to_string(),token],|r|r.get(0)).optional()?;
+        let value: Cursor = record::decode(&raw.ok_or(Error::Invalid(CURSOR_UNKNOWN))?)?;
+        if value.cutoff < 0 {
             return Err(Error::Conflict);
+        }
+        if value.operation != operation || value.request != request {
+            return Err(Error::Invalid(
+                "context.cursor: it belongs to another read; repeat the read that gave it with the \
+                 same arguments, or leave the cursor out to start again",
+            ));
         }
         Ok(value)
     } else {
@@ -120,7 +140,9 @@ pub fn events(
         || input.character_limit == 0
         || input.character_limit > HARD_CHARS as u64
     {
-        return Err(Error::Invalid("context read limits"));
+        return Err(Error::Invalid(
+            "context.read_events: give 1 to 32 selectors and a character_limit of 1 to 262,144",
+        ));
     }
     if let Some(offset) = input.content_offset {
         return part(tx, session, input, offset);
@@ -140,7 +162,10 @@ pub fn events(
                 ContextEventSelector::Event { event_id } => row.view.event_id == *event_id,
                 ContextEventSelector::SequenceRange { start, end } => {
                     if start > end {
-                        return Err(Error::Conflict);
+                        return Err(Error::Invalid(
+                            "context.read_events.selectors: a sequence_range starts after its end; \
+                             give a start no greater than the end",
+                        ));
                     }
                     row.view.session_sequence >= *start && row.view.session_sequence <= *end
                 }
@@ -149,9 +174,14 @@ pub fn events(
                         || if let Some(root) = carried.get(turn_task_id) {
                             *root == row.view.event_id
                         } else {
-                            let turn = crate::agent::turns::load(tx, *turn_task_id)?;
+                            let turn = match crate::agent::turns::load(tx, *turn_task_id) {
+                                Err(Error::Sqlite(rusqlite::Error::QueryReturnedNoRows)) => {
+                                    return Err(Error::Invalid(SOURCE_NOT_FOUND));
+                                }
+                                loaded => loaded?,
+                            };
                             if turn.session_id != session {
-                                return Err(Error::Conflict);
+                                return Err(Error::Invalid(SOURCE_NOT_FOUND));
                             }
                             turn.root_user_event_id == row.view.event_id
                         }
@@ -169,7 +199,7 @@ pub fn events(
             }
         }
         if !found && !matches!(selector, ContextEventSelector::SequenceRange { .. }) {
-            return Err(Error::Invalid("context source not found"));
+            return Err(Error::Invalid(SOURCE_NOT_FOUND));
         }
     }
     let selected = selected.into_iter().collect::<Vec<_>>();
@@ -220,7 +250,7 @@ fn part(
     let mut view = rows(tx, session, cutoff)?
         .into_iter()
         .find(|row| row.view.event_id == *event_id)
-        .ok_or(Error::Invalid("context source not found"))?
+        .ok_or(Error::Invalid(SOURCE_NOT_FOUND))?
         .view;
     let chars = view.content.chars().count();
     let start = usize::try_from(offset).ok().filter(|start| *start <= chars).ok_or(
@@ -373,7 +403,8 @@ pub fn tool_result(
     // A call of a turn a branch carried is read from what the branch kept of it.
     let whole = match crate::agent::branch::carried_tool_result(tx, session, input.tool_call_id)? {
         Some(carried) => carried,
-        None => whole_tool_result(tx, session, input.tool_call_id)?,
+        None => whole_tool_result(tx, session, input.tool_call_id)
+            .map_err(|error| unreadable(tx, input.tool_call_id, error))?,
     };
     let content = whole.result;
     let hash = ContentHash::blake3(content.as_bytes());
@@ -391,7 +422,10 @@ pub fn tool_result(
     let arguments = if input.include_input && page.position == 0 {
         let value = whole.input.ok_or(Error::Conflict)?;
         if value.chars().count() > HARD_CHARS {
-            return Err(Error::Invalid("context Tool input too large"));
+            return Err(Error::Invalid(
+                "context.read_tool_result.include_input: this call's input is longer than 262,144 \
+                 characters, too long to include; read its result with include_input set to false",
+            ));
         }
         Some(value)
     } else {
@@ -415,6 +449,25 @@ pub fn tool_result(
     })
 }
 
+/// The words for a call whose result cannot be read, when the call itself is why: it is not one
+/// of this conversation's calls, or it has no result yet. Anything else stays as it was.
+fn unreadable(db: &Connection, id: ToolCallId, error: Error) -> Error {
+    match error {
+        // The first lookup joins the call to this session's batches; no row means no such call.
+        Error::Sqlite(rusqlite::Error::QueryReturnedNoRows) => Error::Invalid(
+            "context.read_tool_result.tool_call_id: no tool call of this conversation has this \
+             id; copy the id exactly from the call whose result you want",
+        ),
+        Error::Conflict => match crate::tool::execution::call(db, id) {
+            Ok(call) if call.result.is_none() => {
+                Error::Invalid("context.read_tool_result.unfinished")
+            }
+            _ => Error::Conflict,
+        },
+        error => error,
+    }
+}
+
 /// One tool call's whole stored result, its input and its name, as `context.read_tool_result`
 /// pages them. A branch keeps this for each call of the turns it carries.
 pub(crate) fn whole_tool_result(
@@ -435,10 +488,8 @@ pub(crate) fn whole_tool_result(
         result.model_visible_result_ref.ok_or(Error::Conflict)?,
         &tool_call_id.to_string(),
     )?;
-    // Read again, a result shows the model what it showed the first time.
-    let content =
-        serde_json::from_slice::<aura_tool_contract::ModelVisibleToolResultEnvelopeV1>(&bytes)?
-            .model_text();
+    let envelope =
+        serde_json::from_slice::<aura_tool_contract::ModelVisibleToolResultEnvelopeV1>(&bytes)?;
     let input = match &call.call.input {
         NormalizedToolCallInputStateV1::Ready { arguments, .. } => {
             serde_json::to_string(arguments)?
@@ -459,6 +510,8 @@ pub(crate) fn whole_tool_result(
     } else {
         crate::tool::call_name::unbound(db, &batch, &call.call)?
     };
+    // Read again, a result reads as the model's history shows it.
+    let content = crate::agent::model_context::result_text::model_text(&name, &envelope);
     Ok(crate::agent::branch::CarriedToolResult {
         tool_call_id,
         tool_name: name,

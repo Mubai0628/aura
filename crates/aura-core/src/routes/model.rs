@@ -75,6 +75,6 @@ pub(crate) async fn dispatch(
             }
         }
 
-        _ => bail!("registered model route has no handler"),
+        _ => bail!(aura_core_base::route_failures::ROUTE_UNHANDLED),
     }
 }

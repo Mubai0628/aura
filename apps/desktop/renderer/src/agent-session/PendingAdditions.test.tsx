@@ -71,6 +71,19 @@ test('a withdrawal Core refuses says so on the message', async () => {
   expect(screen.getByRole('alert').textContent).toContain('消息已被模型读取');
 });
 
+test('a withdrawal refused without a sentence of its own says the message stays the turn’s input', async () => {
+  const user = userEvent.setup();
+  mutate.mockResolvedValue({
+    ok: false,
+    error: { code: 'agent.inbox_revision_conflict', message: 'revision or identity conflict' },
+  });
+  render(<PendingAdditions inbox={inbox} turnTaskId="trn_1" onChanged={vi.fn()} />);
+  await user.click(screen.getByRole('button', { name: '撤回到队列' }));
+  expect(screen.getByRole('alert').textContent).toBe(
+    '这条消息已经交给模型（或队列刚刚变化），没能撤回；它会作为这一轮的输入。',
+  );
+});
+
 test('the queue over the composer keeps only what waits for the next turn', () => {
   render(<InboxPanel inbox={inbox} activeTurn="trn_1" onChanged={vi.fn()} />);
   const tray = screen.getByRole('region', { name: '消息队列' });

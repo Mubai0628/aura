@@ -197,7 +197,7 @@ test('cancelled caller timeout with an unknown outcome never becomes confirmed o
     }),
   );
   expect(screen.queryByText('已取消打开。')).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('结果未确认');
+  expect(screen.getByRole('alert').textContent).toContain('是否已生效还不确定');
 });
 
 test('waiting for a launch slot is cancellable and never reports verification still running', async () => {

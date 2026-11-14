@@ -62,7 +62,7 @@ impl PackageServices {
         let installed = summary
             .installed
             .filter(|installed| installed.trusted)
-            .ok_or_else(|| anyhow::anyhow!("package.not_installed"))?;
+            .ok_or_else(|| anyhow::anyhow!(crate::failures::NOT_INSTALLED))?;
         installed
             .tools
             .into_iter()

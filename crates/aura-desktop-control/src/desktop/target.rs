@@ -76,7 +76,11 @@ pub fn read_error(name: &str, error: &UiError) -> HostError {
     match error {
         UiError::Gone => stale(),
         UiError::Timeout => not_responding(name, None, Delivery::NotDelivered, None),
-        other => HostError::new(HostErrorCode::Internal, other.to_string(), Delivery::NotDelivered),
+        other => HostError::new(
+            HostErrorCode::Internal,
+            format!("读取 {name} 的界面时出错：{other}；什么都没改动，可以再试一次"),
+            Delivery::NotDelivered,
+        ),
     }
 }
 

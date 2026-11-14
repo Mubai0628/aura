@@ -8,6 +8,18 @@ use aura_security_contract::SecuritySourceRef;
 use aura_tool_projection::AgentToolDisplay;
 use rusqlite::Connection;
 
+/// An MCP call's row title: what the call is, then the tool's name on its server. Server ids
+/// and tool segments never contain a dot, so the canonical name splits in three.
+pub(super) fn title(name: &str) -> Option<String> {
+    let mut parts = name.splitn(3, '.');
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some("mcp"), Some(server), Some(tool)) if !server.is_empty() && !tool.is_empty() => {
+            Some(format!("调用 MCP 工具 {tool}"))
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn notice(server_id: &str) -> String {
     format!("由 MCP 服务器“{server_id}”执行，Aura 不检查它做了什么")
 }
@@ -45,4 +57,19 @@ pub(super) fn decorate(
         view.summary.push_str(&notice(server_id));
     }
     Ok(view)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn an_mcp_row_is_titled_with_the_tool_on_its_server() {
+        assert_eq!(super::title("mcp.files.echo").as_deref(), Some("调用 MCP 工具 echo"));
+        assert_eq!(
+            super::title("mcp.livecheck.get_weather").as_deref(),
+            Some("调用 MCP 工具 get_weather")
+        );
+        for name in ["mcp.files", "mcp..echo", "fs.read", "memory.create"] {
+            assert_eq!(super::title(name), None, "{name}");
+        }
+    }
 }

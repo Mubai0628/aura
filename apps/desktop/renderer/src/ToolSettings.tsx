@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 
 import { AppIcon } from './app-icons';
-import { useScopedToolProjection } from './tool-projection-store';
+import { useScopedToolProjection, useScopedToolProjectionFailure } from './tool-projection-store';
+import { SETTINGS_FILE_REJECTED } from './tool-settings/failure-words';
 import { AgentToolList } from './tool-settings/AgentToolList';
-import { ToolPolicySections } from './tool-settings/NetworkProxy';
+import { ToolPolicySections } from './tool-settings/ToolPolicySections';
 import { useAgentConfiguration } from './tool-settings/useAgentConfiguration';
 import { ToolPackagesPanel } from './tool-packages/ToolPackagesPanel';
 
@@ -21,6 +22,7 @@ export function ToolSettings() {
     [],
   );
   const settings = useScopedToolProjection(settingsRoute)?.payload;
+  const settingsFailure = useScopedToolProjectionFailure(settingsRoute);
 
   return (
     <section className="tool-settings settings-page">
@@ -28,9 +30,6 @@ export function ToolSettings() {
         <div>
           <h2>工具与扩展</h2>
         </div>
-        {settings === undefined ? null : (
-          <span className="projection-revision-badge">策略修订 {settings.settings.revision}</span>
-        )}
       </div>
 
       <AgentToolList configuration={configuration} />
@@ -41,14 +40,18 @@ export function ToolSettings() {
         <div className="tool-settings-issue" role="alert">
           <AppIcon name="warning" />
           <span>
-            <strong>工具策略仍使用最后有效配置</strong>
-            {settings.configuration_issue.message}
+            <strong>{SETTINGS_FILE_REJECTED.title}</strong>
+            {SETTINGS_FILE_REJECTED.body}
           </span>
         </div>
       )}
 
       <div className="tool-settings-grid">
-        <ToolPolicySections configuration={configuration} strategyReady={settings !== undefined} />
+        <ToolPolicySections
+          configuration={configuration}
+          strategyFailure={settings === undefined ? settingsFailure : undefined}
+          strategyReady={settings !== undefined}
+        />
       </div>
     </section>
   );

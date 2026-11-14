@@ -13,6 +13,16 @@ use std::{
 };
 use tokio::sync::oneshot;
 
+const INTERRUPTED: &str = "media.interrupted: 视频解码连接已中断，什么都没改动；可以再调用一次。";
+
+/// A file whose size cannot be read, named with what the system said.
+fn unreadable(error: std::io::Error) -> anyhow::Error {
+    anyhow::anyhow!(
+        "media.source_unavailable: 读不到视频文件的大小（{}），什么都没读；请确认文件还在后再调用。",
+        super::super::browser::outside_detail(&error.to_string(), 200)
+    )
+}
+
 pub(super) struct Pending {
     pub runtime: RuntimeInstanceId,
     pub session: SessionId,
@@ -80,7 +90,8 @@ impl MediaBridge {
             "media.timeout_invalid: 视频解码的时间上限不可用。"
         );
         anyhow::ensure!(
-            !file.info().is_directory && file.file().metadata()?.len() == command.file_size,
+            !file.info().is_directory
+                && file.file().metadata().map_err(unreadable)?.len() == command.file_size,
             "media.source_changed: 视频文件已改变，请重新读取。"
         );
         let queue = self.publisher.lock().ok().and_then(|slot| slot.clone()).ok_or_else(|| {
@@ -89,23 +100,30 @@ impl MediaBridge {
         command.command_id = format!("mcm-{}", CorrelationId::new());
         let id = command.command_id.clone();
         let (sender, receiver) = oneshot::channel();
-        self.pending.lock().map_err(|_| anyhow::anyhow!("media.interrupted"))?.insert(
-            id.clone(),
-            Pending {
-                runtime: command.runtime_instance_id,
-                session: command.session_id,
-                size: command.file_size,
-                file: Arc::new(file),
-                sender,
-            },
-        );
+        self.pending
+            .lock()
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "media.interrupted: Aura 内部出错，视频解码没有开始；可以再调用一次。"
+                )
+            })?
+            .insert(
+                id.clone(),
+                Pending {
+                    runtime: command.runtime_instance_id,
+                    session: command.session_id,
+                    size: command.file_size,
+                    file: Arc::new(file),
+                    sender,
+                },
+            );
         let lifetime = Lifetime { bridge: self, id };
         let wait = std::time::Duration::from_millis(u64::from(command.timeout_ms));
         let work = async {
             send_notification(&queue, QueuePriority::P1, "media.command.v1", &command)
                 .await
-                .map_err(|_| anyhow::anyhow!("media.interrupted: 视频解码连接已中断。"))?;
-            receiver.await.map_err(|_| anyhow::anyhow!("media.interrupted: 视频解码连接已中断。"))
+                .map_err(|_| anyhow::anyhow!(INTERRUPTED))?;
+            receiver.await.map_err(|_| anyhow::anyhow!(INTERRUPTED))
         };
         let stopped = async {
             while !*stop.borrow_and_update() {
@@ -116,9 +134,9 @@ impl MediaBridge {
         };
         let result = tokio::select! {
             result = tokio::time::timeout(wait, work) => result
-                .unwrap_or_else(|_| Err(anyhow::anyhow!("media.no_answer: 视频解码在限定时间内没有回应。"))),
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("media.no_answer: 视频解码在限定时间内没有回应，已停止这次读取，什么都没改动；可以少取几帧或稍后再试。"))),
             () = stopped => Err(anyhow::anyhow!("media.stopped: 这一步已停止。")),
-            () = queue.closed() => Err(anyhow::anyhow!("media.interrupted: 视频解码连接已中断。")),
+            () = queue.closed() => Err(anyhow::anyhow!(INTERRUPTED)),
         };
         drop(lifetime);
         if result.is_err() {

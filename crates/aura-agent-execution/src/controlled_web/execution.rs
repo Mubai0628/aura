@@ -57,9 +57,12 @@ impl ControlledWeb {
     ) -> Result<serde_json::Value> {
         let request = dispatch.request();
         let identity = &request.operation.content.identity;
-        let session = identity.session_id.ok_or_else(|| anyhow::anyhow!("web.session_required"))?;
-        let run =
-            identity.agent_run_id.ok_or_else(|| anyhow::anyhow!("web.agent_authority_required"))?;
+        let session = identity
+            .session_id
+            .ok_or_else(|| anyhow::anyhow!(super::inspection::SESSION_REQUIRED))?;
+        let run = identity
+            .agent_run_id
+            .ok_or_else(|| anyhow::anyhow!(super::inspection::AGENT_AUTHORITY_REQUIRED))?;
         // Boundary: the claim is ONE indivisible ordered section - the session
         // permission authority first, then the journal, with the prepared-preparation
         // re-check, the dispatch authority, the dispatched mark and the activity
@@ -75,7 +78,7 @@ impl ControlledWeb {
                         use aura_persistence_core::PersistenceCoreError as Error;
                         ensure!(
                             web.inspect(&request.operation)? == request.plan.prepared.preparation,
-                            "web.preparation_changed"
+                            super::inspection::PREPARATION_CHANGED
                         );
                         web.journal.lock()?.database.unit_of_work(|tx| {
                             let now = UtcTimestamp::now();
@@ -237,11 +240,9 @@ impl ControlledWeb {
                 result.outcome = aura_execution_contract::ExecutionOutcome::Unknown;
             } else if output.is_ok() {
                 result.side_effect = aura_execution_contract::SideEffectStateV1::FullyApplied;
-            } else if output
-                .as_ref()
-                .err()
-                .is_some_and(|e| e.to_string() == "http.publication_rolled_back")
-            {
+            } else if output.as_ref().err().is_some_and(|e| {
+                e.to_string().split(':').next() == Some(super::download::ROLLED_BACK)
+            }) {
                 result.side_effect = aura_execution_contract::SideEffectStateV1::Compensated;
                 result.receipt.rollback =
                     aura_execution_contract::RollbackEvidence::Completed { evidence_ref: id };

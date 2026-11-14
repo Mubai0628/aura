@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { expect, test } from 'vitest';
-import { readPanelCommand, readPanelSite, shownMessage } from './commands.js';
+import { notOpened, readPanelCommand, readPanelSite, shownMessage } from './commands.js';
 
 const S = 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAV';
 const bounds = { x: 10, y: 20, width: 300, height: 400 };
@@ -66,4 +66,26 @@ test('the user reads a refusal without its code', () => {
     'Aura Core 还没有就绪',
   );
   expect(shownMessage(undefined, '插件面板没有打开')).toBe('插件面板没有打开');
+});
+
+test('a panel that did not open says why in words, never in English', () => {
+  const timedOut = Object.assign(new Error('Core request timed out: agent.plugin_session.panel'), {
+    envelope: {
+      code: 'ipc.request_timeout',
+      message: 'Core request timed out: agent.plugin_session.panel',
+    },
+  });
+  expect(notOpened(timedOut)).toBe('Aura Core 暂时没有回应，插件面板没有打开；稍后点“重新打开”。');
+  expect(notOpened(new Error('plugin_panel.core_unavailable: Aura Core 还没有就绪'))).toBe(
+    'Aura Core 还没有就绪，插件面板没有打开；稍后点“重新打开”。',
+  );
+  expect(
+    notOpened({
+      envelope: { message: 'plugin_session.panel_unusable: 插件 usage-panel 的面板现在不能用' },
+    }),
+  ).toBe('插件 usage-panel 的面板现在不能用');
+  expect(notOpened(new Error('socket hang up'))).toBe('插件面板没有打开；稍后点“重新打开”。');
+  expect(shownMessage(new Error('plugin_session.other: Something English'), '插件现在不能用')).toBe(
+    '插件现在不能用',
+  );
 });

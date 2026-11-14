@@ -11,9 +11,13 @@ export interface CoreHealthViewState {
 
 const INITIAL_STATE: CoreHealthViewState = { loading: true };
 
+/** How long a state read that failed waits before it is tried again. */
+const RETRY_MS = 3_000;
+
 class CoreHealthStore {
   readonly #listeners = new Set<() => void>();
   #queuedChange: CoreHealthProjectionChange | undefined;
+  #retry: ReturnType<typeof setTimeout> | undefined;
   #snapshotEpoch = 0;
   #snapshotRequest: Promise<void> | undefined;
   #started = false;
@@ -44,6 +48,17 @@ class CoreHealthStore {
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#started = false;
+    clearTimeout(this.#retry);
+    this.#retry = undefined;
+  }
+
+  /** The window says Aura reads Core's state again, so a failed read is tried again. */
+  #retryLater(): void {
+    if (!this.#started || this.#retry !== undefined) return;
+    this.#retry = setTimeout(() => {
+      this.#retry = undefined;
+      if (this.#started) void this.#requestSnapshot();
+    }, RETRY_MS);
   }
 
   resetForTests(): void {
@@ -89,6 +104,7 @@ class CoreHealthStore {
         if (epoch !== this.#snapshotEpoch) return;
         if (!result.ok) {
           this.#setState({ error: result.error, loading: false });
+          this.#retryLater();
           return;
         }
         this.#setState({ loading: false, projection: result.value });
@@ -110,6 +126,7 @@ class CoreHealthStore {
           },
           loading: false,
         });
+        this.#retryLater();
       })
       .finally(() => {
         if (epoch === this.#snapshotEpoch) this.#snapshotRequest = undefined;

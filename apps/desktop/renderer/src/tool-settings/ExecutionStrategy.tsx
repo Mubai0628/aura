@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AgentToolSettingsView } from '@aura/contracts/generated';
-import { userMessage } from '../agent-session/user-message';
+import { settingsNotRead, settingsNotSaved } from './failure-words';
 import type { ConfigurationOwner } from './useAgentConfiguration';
 import './execution-strategy.css';
 
@@ -115,7 +115,9 @@ export function ExecutionStrategy({ configuration }: { configuration: Configurat
   if (loadError !== undefined && view === undefined) {
     return (
       <div className="execution-strategy">
-        <p role="alert">{userMessage(loadError)}</p>
+        <p role="alert">
+          {settingsNotRead(loadError, '执行策略', '现在不能修改；请稍后点“重新读取执行策略”。')}
+        </p>
         <button type="button" onClick={() => void reload()}>
           重新读取执行策略
         </button>
@@ -160,9 +162,18 @@ export function ExecutionStrategy({ configuration }: { configuration: Configurat
         >
           {busy ? '保存中…' : '保存执行策略'}
         </button>
-        <span className="execution-strategy-revision">策略修订 {view.revision}</span>
       </div>
-      {error ? <p role="alert">{userMessage(error)}</p> : null}
+      {error ? (
+        <p role="alert">
+          {settingsNotSaved(
+            error,
+            '执行策略没有保存',
+            '仍按原策略执行',
+            '请检查后再保存',
+            FIELDS.find((field) => error.includes(field.name))?.label,
+          )}
+        </p>
+      ) : null}
       {saved ? <p role="status">执行策略已保存。</p> : null}
     </div>
   );

@@ -37,7 +37,11 @@ pub(super) fn runtime(service: &AgentExecution) -> anyhow::Result<Arc<mcp::McpRu
         .mcp
         .get()
         .cloned()
-        .ok_or_else(|| anyhow::anyhow!("mcp.unavailable: 这个进程里没有 MCP 服务"))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "mcp.unavailable: 这个 Aura 进程里没有运行 MCP 服务，调用没有发给任何服务器。请换别的工具。"
+            )
+        })
 }
 
 /// Whether an operation is an MCP call in its exact shape.

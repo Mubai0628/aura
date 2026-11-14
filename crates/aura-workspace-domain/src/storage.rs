@@ -18,6 +18,18 @@ pub struct SessionSummary {
 pub struct WorkspaceSessionProjection {
     pub workspaces: Vec<WorkspaceSummary>,
     pub sessions: Vec<SessionSummary>,
+    /// Workspaces that are worktrees: not listed on their own, their conversations listed under
+    /// the workspace each was made from.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub worktrees: Vec<WorkspaceWorktreeLink>,
+}
+
+/// A worktree's workspace and the workspace it was made from.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceWorktreeLink {
+    pub workspace_id: WorkspaceId,
+    pub parent_workspace_id: WorkspaceId,
 }
 /// Authenticated user command. Core allocates identity and uses the configured
 /// default permission mode; a model tool cannot call this route.

@@ -229,25 +229,25 @@ test('L01 sets a loopback proxy, reaches HTTPS through it, and explains a dead p
     const session = setup.sessionId as string;
     await finished(page, session);
     await page.getByRole('button', { name: '设置', exact: true }).click();
-    await page
-      .locator('.settings-navigation')
-      .getByRole('button', { name: '工具', exact: true })
-      .click();
+    const navigation = page.locator('.settings-navigation');
+    // The proxy lives on the model page; model requests and tools both take it.
+    await navigation.getByRole('button', { name: '模型', exact: true }).click();
     const section = page.getByRole('region', { name: '网络代理' });
-    // The section carries no explanation.
+    // The section carries no explanation and no separate switch to follow the system.
     await expect(section.getByRole('switch', { name: '启用网络代理' })).toBeVisible();
+    await expect(section.getByRole('switch', { name: '跟随系统代理' })).toHaveCount(0);
     await expect(section).not.toContainText('只用于 http');
     // A proxy filled in and saved while it stays disabled. Reopening
-    // Tool settings then receives that saved proxy again.
+    // the model page then receives that saved proxy again.
     await section.getByLabel('代理协议').selectOption('socks5');
     await section.getByLabel('代理地址').fill('127.0.0.1');
     await section.getByLabel('代理端口').fill(String(proxy.port));
     await section.getByRole('button', { name: '保存网络代理', exact: true }).click();
     await expect(section.getByText('网络代理已保存。')).toBeVisible();
-    const navigation = page.locator('.settings-navigation');
-    await navigation.getByRole('button', { name: '模型', exact: true }).click();
     await navigation.getByRole('button', { name: '工具', exact: true }).click();
     await expect(page.getByLabel('默认 Timeout（毫秒）')).toHaveValue('600000');
+    await expect(page.getByRole('region', { name: '网络代理' })).toHaveCount(0);
+    await navigation.getByRole('button', { name: '模型', exact: true }).click();
     await expect(section.getByLabel('代理端口')).toHaveValue(String(proxy.port));
     await page.waitForTimeout(1_000);
     expect(await protocolViolations(root)).toBe(0);

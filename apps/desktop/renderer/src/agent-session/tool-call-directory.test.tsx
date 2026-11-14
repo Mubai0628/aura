@@ -81,3 +81,33 @@ test('a call that never ran stops being asked for once its turn has ended', asyn
     vi.useRealTimers();
   }
 });
+
+// A read that failed does not make a call look as if it never ran: the conversation is told the
+// records could not be read, and they are asked for again, after the turn as well.
+test('a failed read is said, and asked for again after the turn ended', async () => {
+  vi.useFakeTimers();
+  try {
+    read
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+      })
+      .mockResolvedValue({
+        ok: true,
+        value: { session_id: 'ses4', calls: [call('a', '读取文件')] },
+      });
+    const unreadable = vi.fn();
+    const hook = renderHook(() =>
+      useToolCallDirectory('ses4', 'run', ['a'], 'token', true, unreadable),
+    );
+    await act(async () => undefined);
+    expect(unreadable).toHaveBeenLastCalledWith(true);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(hook.result.current.get('a')?.summary.display_name).toBe('读取文件');
+    expect(unreadable).toHaveBeenLastCalledWith(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});

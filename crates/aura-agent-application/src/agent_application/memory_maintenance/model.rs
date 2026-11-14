@@ -7,6 +7,10 @@ use aura_model_config::{
 use aura_persistence_v2::model::memory_maintenance as owner;
 use aura_security_contract::*;
 
+/// How long one memory pass may take in all. A silent stream is cut earlier by the connection's
+/// own idle limit; this only bounds an answer that keeps coming, so a slow model can still finish.
+pub(super) const MAINTENANCE_LIMIT: std::time::Duration = std::time::Duration::from_secs(600);
+
 /// The ranges the schema cannot show (it allows any byte for importance and any number for
 /// confidence); a value outside its range is not used.
 const RANGES: &str = "Field ranges: importance is an integer from 1 to 5 (3 is ordinary, 5 is \
@@ -69,19 +73,21 @@ impl AgentApplication {
         // Room for a reasoning model's thinking before the JSON.
         snapshot.request_options.effective_max_output_tokens =
             snapshot.request_options.effective_max_output_tokens.min(8192);
-        // At the session's level the thinking still used up the 8,192
-        // tokens in 6 of 37 runs. A short JSON answer is asked at the lowest level the model offers.
-        if snapshot.request_options.reasoning_effort.is_some()
-            && let Some(model) = config.registry.models.get(&profile)
-        {
+        // At the session's level the thinking still used up the 8,192 tokens in 6 of 37 runs, and
+        // at a model's own default it ran past the old time limit. Summing up a finished task needs
+        // no deep thought: a short JSON answer is asked at the lowest level the model offers.
+        if let Some(model) = config.registry.models.get(&profile) {
             let offered = aura_model_domain::offered_reasoning_efforts(
                 &model.request_defaults,
                 endpoint.api_format,
                 model.catalog.as_ref(),
             );
-            snapshot.request_options.reasoning_effort = offered
+            let lowest = offered
                 .first()
                 .and_then(|lowest| aura_model_domain::level_to_send(*lowest, &offered));
+            if lowest.is_some() || snapshot.request_options.reasoning_effort.is_some() {
+                snapshot.request_options.reasoning_effort = lowest;
+            }
         }
         let bundle_id = pending.bundle;
         let session = pending.turn.session_id;
@@ -182,12 +188,12 @@ impl AgentApplication {
             }).collect();
             let manifest=aura_context_runtime::build_model_egress_manifest(snapshot.context_snapshot_id,drafts)?;
             let mut identity=InvocationIdentity::runtime_user(pending.turn.workspace_id,pending.turn.session_id,CorrelationId::new());identity.actor=InvocationActor::ParentAgent;identity.agent_run_id=Some(run);identity.turn_task_id=Some(pending.turn.turn_task_id);
-            let request=super::super::provider::Request {p05:self.p05.clone(),endpoint,store:self.store.clone(),identity,logical,snapshot,manifest,attachments:Arc::from([]),backup_waiting:false};
+            let request=super::super::provider::Request {p05:self.p05.clone(),endpoint,store:self.store.clone(),identity,logical,snapshot,manifest,attachments:Arc::from([]),backup_waiting:false,idle_retry:false};
             let request_cancel=ModelCancellationToken::default();
-            let result=tokio::select! {result=tokio::time::timeout(std::time::Duration::from_secs(90),super::super::provider::execute(self,request,&request_cancel))=>Some(result),_=cancel.cancelled()=>None};
+            let result=tokio::select! {result=tokio::time::timeout(MAINTENANCE_LIMIT,super::super::provider::execute(self,request,&request_cancel))=>Some(result),_=cancel.cancelled()=>None};
             match result {
                 Some(Ok(Ok(TransportRunTerminal::Completed {output,..})))=>Ok(output),
-                _=>{request_cancel.cancel();anyhow::bail!("memory.model_failed_or_interrupted")}
+                other=>{request_cancel.cancel();Err(maintenance_failure(other))}
             }
         }.await;
         let usage = self
@@ -210,5 +216,56 @@ impl AgentApplication {
         }
         closed?;
         call
+    }
+}
+
+/// Why a memory pass's model request ended without an answer, as its code and the cause the user
+/// reads after it: stopped, past the time limit, or the model service's failure by its kind.
+fn maintenance_failure(
+    ended: Option<Result<anyhow::Result<TransportRunTerminal>, tokio::time::error::Elapsed>>,
+) -> anyhow::Error {
+    use aura_model_domain::ModelFailureCategory as C;
+    let cause = match ended {
+        None => return anyhow::anyhow!("memory.maintenance_stopped"),
+        Some(Err(_)) => return anyhow::anyhow!("memory.model_timed_out"),
+        Some(Ok(Ok(TransportRunTerminal::Failed { failure, .. }))) => {
+            match failure.failure.category {
+                C::Authentication | C::Authorization => "模型服务拒绝了凭据或权限",
+                C::RateLimit => "模型服务限流",
+                C::QuotaOrBalance => "模型服务的额度或余额不足",
+                C::InvalidRequest | C::UnsupportedParameter | C::UnsupportedModel => {
+                    "模型服务不接受这次请求"
+                }
+                C::ContextWindowExceeded => "要整理的内容超过了模型的上下文长度",
+                C::Transport | C::StreamInterrupted => "连接模型服务时出错或中途断开",
+                C::Protocol | C::EmptyOutput | C::InvalidToolCall => "模型的回答格式不对",
+                C::ContentFilter | C::Refusal => "模型拒绝了整理请求",
+                C::Persistence => "Aura 保存请求记录时出错",
+                C::Cancelled => "请求被取消",
+                C::Unknown => "模型服务出错",
+            }
+        }
+        Some(Ok(Ok(TransportRunTerminal::Cancelled { .. }))) => "请求被取消",
+        Some(Ok(Ok(TransportRunTerminal::Completed { .. }) | Err(_))) => "模型服务出错",
+    };
+    anyhow::anyhow!("memory.model_failed: {cause}")
+}
+
+#[cfg(test)]
+mod failure_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_pass_that_ended_without_an_answer_says_how() {
+        let elapsed = tokio::time::timeout(
+            std::time::Duration::ZERO,
+            std::future::pending::<anyhow::Result<TransportRunTerminal>>(),
+        )
+        .await;
+        assert_eq!(maintenance_failure(Some(elapsed)).to_string(), "memory.model_timed_out");
+        assert_eq!(maintenance_failure(None).to_string(), "memory.maintenance_stopped");
+        let failed = maintenance_failure(Some(Ok(Err(anyhow::anyhow!("gateway said no")))));
+        assert_eq!(failed.to_string(), "memory.model_failed: 模型服务出错");
+        assert!(MAINTENANCE_LIMIT >= std::time::Duration::from_secs(600));
     }
 }

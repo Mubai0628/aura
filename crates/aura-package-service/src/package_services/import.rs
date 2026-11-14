@@ -13,7 +13,7 @@ pub enum ImportSource {
 
 impl PackageServices {
     pub fn import(&self, source: ImportSource, path: &Path) -> Result<PackageImportOutcomeV1> {
-        anyhow::ensure!(path.is_absolute(), "package.import_path_absolute");
+        anyhow::ensure!(path.is_absolute(), crate::failures::IMPORT_PATH_ABSOLUTE);
         let staged = match source {
             ImportSource::Directory => {
                 aura_tool_package::stage_directory_package_v1(path, &self.import_root)

@@ -1,9 +1,12 @@
-import { userMessage } from '../agent-session/user-message';
 import type { ManagedProcessViewV1 } from '@aura/contracts/generated';
 import { useEffect, useRef, useState } from 'react';
 import { ShellExecutionDetails } from '../ShellExecutionDetails';
 import { terminalApi } from './store';
 import './process-panel.css';
+import { processListFailure, processStopFailure } from './failure-words';
+/** A stop Core answered without confirming the program ended. */
+const STOP_UNCONFIRMED = '停止尚未确认，进程可能仍在运行；点“刷新”查看，仍在运行就再停一次。';
+
 export function ProcessPanel({
   sessionId,
   onViewTerminal,
@@ -43,10 +46,10 @@ function Processes({
           if (result.ok) {
             setProcesses(result.value.processes);
             setError('');
-          } else setError(userMessage(result.error, '进程列表读取失败，请重试。'));
+          } else setError(processListFailure(result.error));
         }
-      } catch {
-        if (alive.current) setError('暂时无法读取进程，请刷新重试。');
+      } catch (reason) {
+        if (alive.current) setError(processListFailure(reason));
       } finally {
         pending = false;
       }
@@ -67,13 +70,9 @@ function Processes({
         tool_call_id: toolCallId,
       });
       if (alive.current && result && (!result.ok || !result.value.stopped))
-        setStopError(
-          result.ok
-            ? '停止尚未确认，请刷新查看实际状态。'
-            : userMessage(result.error, '停止没有完成，请刷新查看实际状态。'),
-        );
+        setStopError(result.ok ? STOP_UNCONFIRMED : processStopFailure(result.error));
     } catch {
-      if (alive.current) setStopError('停止尚未确认，请刷新查看实际状态。');
+      if (alive.current) setStopError(STOP_UNCONFIRMED);
     } finally {
       if (alive.current) {
         setBusy('');
@@ -98,7 +97,6 @@ function Processes({
               <strong>{process.kind === 'terminal' ? 'Agent 终端' : 'Shell 后台进程'}</strong>
               <pre>{process.command}</pre>
               <p>开始于 {new Date(process.started_at).toLocaleString()}</p>
-              <p className="process-call">工具调用 {process.tool_call_id}</p>
               <div>
                 <button
                   type="button"

@@ -4,14 +4,22 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[features]
+default = []
+# Test builds read no system proxy unless a test gives one, so a proxy switched on on the machine
+# never reaches a test's requests. Product builds read the current user's settings.
+test-system-proxy = []
+
 [dependencies]
 aura-desktop-domain = { path = "../aura-desktop-domain" }
 aura-browser-domain = { path = "../aura-browser-domain" }
 aura-mcp = { path = "../aura-mcp" }
 aura-plugins = { path = "../aura-plugins" }
 aura-skills = { path = "../aura-skills" }
+aura-data-location = { path = "../aura-data-location" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }
 aura-domain-common = { path = "../aura-domain-common" }
+aura-system-proxy = { path = "../aura-system-proxy" }
 aura-tool-contract = { path = "../aura-tool-contract" }
 aura-windows-platform = { path = "../aura-windows-platform" }
 blake3.workspace = true

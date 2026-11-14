@@ -27,6 +27,9 @@ pub struct ChromeTabV1 {
 #[serde(deny_unknown_fields)]
 pub struct ChromeTabsResult {
     pub tabs: Vec<ChromeTabV1>,
+    /// Why no tab is listed: Chrome is not connected, or nothing is shared with this conversation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

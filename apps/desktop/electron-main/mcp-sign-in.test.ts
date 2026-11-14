@@ -27,6 +27,7 @@ describe('MCP sign-in in Main', () => {
     const begun = await signInMcpServer({ id: 'web' }, supervisor(address), open);
     expect(open).toHaveBeenCalledWith(address);
     expect(begun.authorization_url).toBe(address);
+    expect(begun.browser_opened).toBeUndefined();
   });
 
   it('refuses an address it would not open, and a browser that fails still leaves the link', async () => {
@@ -44,5 +45,6 @@ describe('MCP sign-in in Main', () => {
       failing,
     );
     expect(begun.authorization_url).toBe('https://auth.example.com/authorize');
+    expect(begun.browser_opened).toBe(false);
   });
 });

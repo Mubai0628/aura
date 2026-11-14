@@ -411,8 +411,9 @@ async fn c6_a_late_completion_from_an_old_generation_cannot_touch_a_newer_one() 
 
 /// C7 - shutdown lists real residue and real clean-up separately.
 ///
-/// B's run can really end when its transport is cancelled; A's own interruption write is parked
-/// inside the production call, so A cannot end inside the shutdown budget. The report must put
+/// B's run can really end when its transport is cancelled; A's check of who stopped it (a read
+/// of whether a stop was asked for) is parked inside the production call, so A cannot end inside
+/// the shutdown budget. The report must put
 /// B in the clean-up list and A in the residue list - with where A really is and whether a real
 /// observation owner took it - instead of calling the shutdown clean.
 #[test]
@@ -430,9 +431,10 @@ fn c7_shutdown_separates_real_residue_from_real_cleanup() {
     runtime.block_on(park_at_provider(&sessions.provider_b, Duration::from_secs(20)));
     assert!(agent.supervisor().is_active(request_a.agent_run_id));
     assert!(agent.supervisor().is_active(request_b.agent_run_id));
-    // A's own interruption write is parked: its run cannot end inside the shutdown budget.
-    let hold =
-        agent.store().arm_hold(&format!("run={}/agent.interrupt", request_a.agent_run_id), HOLD_MS);
+    // A's check of who stopped it is parked: its run cannot end inside the shutdown budget.
+    let hold = agent
+        .store()
+        .arm_hold(&format!("run={}/agent.drive.shutdown_check", request_a.agent_run_id), HOLD_MS);
     // One shutdown budget for everything; it is short here so the observation is bounded.
     let outcome =
         runtime.block_on(agent.stop_all_within(Instant::now() + Duration::from_millis(300)));
@@ -454,7 +456,7 @@ fn c7_shutdown_separates_real_residue_from_real_cleanup() {
         !outcome.ended.contains(&request_a.agent_run_id),
         "a run that did not end is never listed as cleaned up"
     );
-    // Release the held write: A really ends, and the fact is recorded.
+    // Release the held read: A really ends, and the fact is recorded.
     hold.release_all();
     let released = wait_until(Duration::from_secs(25), || {
         !agent.supervisor().is_active(request_a.agent_run_id)

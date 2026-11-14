@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { moveRequestedData } from './dev/move-data.mjs';
 import { closeAuraWindows, killTree, runDevSession } from './dev/session.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -48,6 +49,7 @@ if (process.argv.slice(2).join(' ') === '--print-profile') {
   if (prepared !== 0) {
     process.exitCode = prepared;
   } else {
+    await moveRequestedData({ root, env });
     // The renderer and Electron in a process group of their own (see dev/session.mjs),
     // their output still shown here, each line marked with where it came from.
     const shown = (name, child) => {

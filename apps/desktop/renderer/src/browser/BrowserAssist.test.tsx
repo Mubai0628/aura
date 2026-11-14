@@ -84,6 +84,49 @@ describe("the model's request for help on its browser page", () => {
     ]);
   });
 
+  it('shows a request on a page the user handed over, and answers it on that page', async () => {
+    const user = userEvent.setup();
+    browserTabs.add(S, 'tab-2');
+    browserTabs.add(S, 'tab-3');
+    act(() => {
+      // The model's own page waits for nothing.
+      browserStore.put(model());
+      browserStore.put(
+        model({
+          pageId: 'tab-2',
+          handedAs: 'p1',
+          assist: { reason: '请完成验证', deadline: Date.now() + 60_000 },
+        }),
+      );
+    });
+    render(<BrowserAssist sessionId={S} />);
+    expect(screen.getByText('请完成验证')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '打开浏览器' }));
+    expect(browserTabs.get(S).shown).toBe('tab-2');
+    await user.click(screen.getByRole('button', { name: '完成' }));
+    expect(command.mock.calls.map(([value]) => value)).toEqual([
+      { kind: 'assist-done', sessionId: S, pageId: 'tab-2' },
+    ]);
+    act(() => browserStore.put(model({ pageId: 'tab-2', closed: true })));
+  });
+
+  it('says when the model no longer waits, and the buttons work again', async () => {
+    const user = userEvent.setup();
+    command.mockResolvedValue({
+      ok: false,
+      message: '模型已不再等待这次操作（可能已超时或任务已停止），无需再点。',
+    });
+    act(() =>
+      browserStore.put(model({ assist: { reason: '请登录', deadline: Date.now() + 60_000 } })),
+    );
+    render(<BrowserAssist sessionId={S} />);
+    await user.click(screen.getByRole('button', { name: '完成' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '模型已不再等待这次操作（可能已超时或任务已停止），无需再点。',
+    );
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '取消' }).disabled).toBe(false);
+  });
+
   it('is gone when nothing waits, or the page is closed', () => {
     act(() => browserStore.put(model()));
     const { container } = render(<BrowserAssist sessionId={S} />);

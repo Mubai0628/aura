@@ -1,0 +1,271 @@
+/* The 多 Agent canvas: a dotted board that pans and zooms, the agents' cards on it, a line from
+   the main agent to each sub-agent, and what passes along a line drawn as squares of light
+   running its way. Cards, lines and marks keep the window's pixel look: square corners, offset
+   shadows, and two-pixel lines on whole pixels. */
+.agent-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 160px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background-color: var(--canvas);
+  background-image:
+    linear-gradient(90deg, var(--canvas) calc(100% - 2px), transparent 0),
+    linear-gradient(var(--canvas) calc(100% - 2px), var(--line-strong) 0);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.agent-canvas:active {
+  cursor: grabbing;
+}
+.agent-canvas-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+.agent-canvas-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.agent-canvas-line-path,
+.agent-canvas-glow,
+.agent-canvas-flow {
+  fill: none;
+  shape-rendering: crispEdges;
+}
+.agent-canvas-line-path {
+  stroke: var(--line-strong);
+  stroke-width: 2;
+}
+.agent-canvas-line-path[data-chosen='true'] {
+  stroke: var(--ink);
+}
+.agent-canvas-line-path[data-ended='true'] {
+  stroke-dasharray: 4 4;
+}
+.agent-canvas-glow {
+  stroke-width: 10;
+  stroke-opacity: 0.16;
+}
+.agent-canvas-flow {
+  stroke-width: 4;
+  stroke-dasharray: 4 8;
+  animation: agent-canvas-flow 0.9s linear infinite;
+}
+.agent-canvas-glow[data-kind='task'],
+.agent-canvas-flow[data-kind='task'] {
+  stroke: var(--ink);
+}
+.agent-canvas-glow[data-kind='report'],
+.agent-canvas-flow[data-kind='report'] {
+  stroke: var(--success-dot);
+}
+.agent-canvas-glow[data-kind='question'],
+.agent-canvas-flow[data-kind='question'] {
+  stroke: var(--warning-dot);
+}
+.agent-canvas-glow[data-kind='failed'],
+.agent-canvas-flow[data-kind='failed'] {
+  stroke: var(--danger-dot);
+}
+@keyframes agent-canvas-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-canvas-flow {
+    animation: none;
+  }
+}
+.agent-canvas-node {
+  position: absolute;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-canvas-node:hover {
+  background: var(--surface-hover);
+}
+.agent-canvas-node[aria-current='true'] {
+  padding: 7px 9px;
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--line-strong);
+}
+.agent-canvas-node.is-ended {
+  border-style: dashed;
+  background: var(--surface-muted);
+  box-shadow: none;
+  color: var(--quiet);
+}
+.agent-canvas-node:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.agent-canvas-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.agent-canvas-head strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-canvas-head small {
+  color: var(--faint);
+}
+.agent-canvas-line {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-canvas-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.agent-canvas-tokens {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.agent-canvas-tab {
+  position: absolute;
+  top: -21px;
+  right: -1px;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 12px);
+  height: 20px;
+  overflow: hidden;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-bottom: none;
+  background: var(--surface-muted);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-canvas-badge {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  background: var(--warning-dot);
+  box-shadow: var(--shadow-xs);
+  color: var(--on-accent);
+}
+.agent-canvas-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.agent-canvas-chip[data-kind='task'] {
+  color: var(--ink);
+}
+.agent-canvas-chip[data-kind='report'] {
+  color: var(--success);
+}
+.agent-canvas-chip[data-kind='question'] {
+  color: var(--warning);
+}
+.agent-canvas-chip[data-kind='failed'] {
+  color: var(--danger);
+}
+.agent-canvas-zoom {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  cursor: default;
+}
+.agent-canvas-zoom > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border: none;
+  background: none;
+  color: var(--ink);
+}
+.agent-canvas-zoom > * + * {
+  border-left: 1px solid var(--line);
+}
+.agent-canvas-zoom button {
+  cursor: pointer;
+}
+.agent-canvas-zoom button:hover {
+  background: var(--surface-hover);
+}
+.agent-canvas-zoom span {
+  min-width: 46px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-canvas-problem {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.agent-canvas-problem button {
+  display: inline-flex;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}

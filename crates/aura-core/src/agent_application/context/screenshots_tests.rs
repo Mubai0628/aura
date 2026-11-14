@@ -193,7 +193,7 @@ async fn l13_3_media_images_hidden_latest_results_replace_old_frames_and_other_s
         .screenshots(AgentRunId::new(), session, &[frames(&foreign, true, None)], &[], true)
         .await
         .expect("foreign safely omitted");
-    assert!(denied.0.is_empty(), "cannot read another session's artifact");
+    assert!(denied.is_empty(), "cannot read another session's artifact");
     let mut failed = frames(&own[1..], true, None);
     if let LogicalConversationItem::ToolResult { content, content_hash, is_error, .. } = &mut failed
     {
@@ -215,7 +215,7 @@ async fn l13_3_media_images_hidden_latest_results_replace_old_frames_and_other_s
             .screenshots(AgentRunId::new(), session, &history, &[], true)
             .await
             .expect("latest result");
-        assert!(shots.0.is_empty(), "a newer unavailable result must not revive the prior frame");
+        assert!(shots.is_empty(), "a newer unavailable result must not revive the prior frame");
     }
 }
 

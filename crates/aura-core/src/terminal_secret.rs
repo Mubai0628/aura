@@ -1,5 +1,6 @@
 //! Closed terminal-only metadata and SecretInput adapter. No credential persistence.
 use crate::*;
+use aura_agent_execution::command_execution::terminal_sensitive_refusal as refusal;
 use aura_windows_user_contract::TerminalSensitiveReplyV1;
 pub(crate) const SUBMIT: &str = "terminal.user.sensitive.submit";
 pub(crate) fn binding(
@@ -10,16 +11,13 @@ pub(crate) fn binding(
         aura_ipc::SecretInputSlot::TerminalInput,
     ))
 }
-fn error(correlation: CorrelationId) -> IpcErrorEnvelope {
-    IpcErrorEnvelope { code: ErrorCode::new("terminal.sensitive.unavailable").expect("static code"), category: ErrorCategory::Validation, message: "安全输入未提交：请求已结束、会话不匹配或终端已被接管。请检查当前输入请求；不要自动重发输入。".into(), retryable: false, correlation_id: correlation, terminal: IpcRequestTerminal::Failed, details: BTreeMap::new() }
-}
 pub(crate) fn validate(
     params: &Value,
     correlation: CorrelationId,
 ) -> std::result::Result<(), IpcErrorEnvelope> {
     serde_json::from_value::<TerminalSensitiveReplyV1>(params.clone())
         .map(|_| ())
-        .map_err(|_| error(correlation))
+        .map_err(|_| refusal(correlation, None))
 }
 pub(crate) async fn dispatch(
     state: &RuntimeState,
@@ -41,5 +39,5 @@ pub(crate) async fn dispatch(
         })
     }
     .await;
-    result.map_err(|_| error(request.id))
+    result.map_err(|failure| refusal(request.id, Some(&failure)))
 }

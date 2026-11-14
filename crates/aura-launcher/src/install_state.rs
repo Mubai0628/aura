@@ -39,6 +39,7 @@ pub fn promote(
         previous: Some(state.active.clone()),
         pending: None,
         last_known_good: Some(version.to_owned()),
+        data_location: state.data_location.clone(),
     }
 }
 
@@ -147,6 +148,7 @@ mod tests {
             previous: previous.map(str::to_owned),
             pending: pending.map(str::to_owned),
             last_known_good: Some(active.to_owned()),
+            data_location: None,
         }
     }
 

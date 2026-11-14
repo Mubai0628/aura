@@ -390,29 +390,51 @@ impl ToolRegistryControlServiceV1 {
 
 #[derive(Debug, Error)]
 pub enum ToolRegistryControlErrorV1 {
-    #[error("the Built-in Tool request is invalid")]
+    #[error(
+        "tool.registry.request_invalid: 工具设置请求的内容不对（Aura 内部出错），没有执行；请刷新工具设置后再试。"
+    )]
     RequestInvalid,
-    #[error("the Built-in Tool response could not be encoded")]
+    #[error(
+        "tool.registry.response_invalid: 工具设置的结果没能整理出来（Aura 内部出错），这次改动可能已经生效；请刷新工具设置核对。"
+    )]
     ResponseInvalid,
-    #[error("a Core-owned Registry rebuild context is required for this operation")]
+    #[error(
+        "tool.registry.context_missing: 这项工具设置操作缺少 Aura Core 重建工具列表所需的信息（Aura 内部出错），没有执行；请重启 Aura 后再试。"
+    )]
     BuildContextMissing,
-    #[error("the Tool Settings Snapshot is invalid")]
+    #[error("tool.registry.settings_invalid: 读到的工具设置无效，没有执行；请刷新工具设置后再试。")]
     SettingsInvalid,
-    #[error("the Tool Settings projection transaction returned no change")]
+    #[error(
+        "tool.registry.projection_missing: 工具设置保存后没有得到更新结果，这次改动可能已经生效；请刷新工具设置核对。"
+    )]
     ProjectionMissing,
-    #[error("the Tool Settings projection transaction returned multiple changes")]
+    #[error(
+        "tool.registry.projection_ambiguous: 工具设置保存后得到了多份更新结果，这次改动可能已经生效；请刷新工具设置核对。"
+    )]
     ProjectionMultiplicity,
-    #[error("the exact Registry Snapshot is unavailable")]
+    #[error(
+        "tool.registry.snapshot_unavailable: 找不到这次请求对应的工具列表版本（可能刚更新过），没有执行；请刷新后再试。"
+    )]
     SnapshotUnavailable,
-    #[error("the exact Tool definition is unavailable in the requested Registry Snapshot")]
+    #[error(
+        "tool.registry.definition_unavailable: 这个版本的工具列表里没有这个工具，没有执行；请刷新后再试。"
+    )]
     DefinitionUnavailable,
-    #[error("TurnTask ephemeral cleanup requires a Session Registry scope")]
+    #[error(
+        "tool.registry.cleanup_scope_invalid: 清理这一轮临时加载的工具时，工具列表不是会话范围的（Aura 内部出错），这次没有清理；请重启 Aura 后再试。"
+    )]
     CleanupScopeInvalid,
-    #[error("the exact Registry Snapshot scope does not match the cleanup request")]
+    #[error(
+        "tool.registry.cleanup_scope_mismatch: 清理这一轮临时加载的工具时，工具列表版本的范围与请求不符，这次没有清理；请重启 Aura 后再试。"
+    )]
     SnapshotScopeMismatch,
-    #[error("TurnTask ephemeral authority does not match the exact Registry Snapshot")]
+    #[error(
+        "tool.registry.cleanup_authority_mismatch: 这一轮临时加载的工具与工具列表版本对不上，这次没有清理；请重启 Aura 后再试。"
+    )]
     EphemeralAuthorityMismatch,
-    #[error("the Registry scope advanced while TurnTask ephemeral cleanup was pending")]
+    #[error(
+        "tool.registry.cleanup_raced: 清理这一轮临时加载的工具时工具列表又更新了，这次没有清理；请重试。"
+    )]
     SnapshotAdvancedDuringCleanup,
     #[error(transparent)]
     Search(#[from] ToolSearchError),

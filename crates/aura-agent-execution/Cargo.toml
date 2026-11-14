@@ -23,6 +23,7 @@ anyhow.workspace = true
 aura-activity-domain = { path = "../aura-activity-domain" }
 aura-activity-runtime = { path = "../aura-activity-runtime" }
 aura-agent-domain = { path = "../aura-agent-domain" }
+aura-agent-team = { path = "../aura-agent-team" }
 aura-backend-api = { path = "../aura-backend-api" }
 aura-backend-core = { path = "../aura-backend-core" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }
@@ -44,6 +45,7 @@ aura-extension-service = { path = "../aura-extension-service" }
 aura-fs-tools = { path = "../aura-fs-tools" }
 aura-git-service = { path = "../aura-git-service" }
 aura-ipc = { path = "../aura-ipc" }
+aura-media-container = { path = "../aura-media-container" }
 aura-mcp = { path = "../aura-mcp" }
 aura-memory = { path = "../aura-memory" }
 aura-memory-domain = { path = "../aura-memory-domain" }
@@ -86,6 +88,7 @@ thiserror.workspace = true
 time.workspace = true
 tokio.workspace = true
 url.workspace = true
+vt100.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]

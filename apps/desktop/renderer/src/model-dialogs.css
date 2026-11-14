@@ -262,6 +262,11 @@
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
+/* Below the description, in the text column beside the icon. */
+.confirmation-details {
+  grid-column: 2;
+  font-size: 12px;
+}
 .confirmation-dialog .confirmation-dialog-actions {
   margin: 0;
   padding: 16px 24px;

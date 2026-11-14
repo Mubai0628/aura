@@ -6,6 +6,8 @@ import { CommandError, type AssistOutcome } from '../protocol.js';
 export interface CommandContext {
   tabs: {
     get(tabId: number): Promise<Tab>;
+    /** Every tab of every window the extension can see. */
+    query(info: Record<string, never>): Promise<Tab[]>;
     create(properties: { url: string; active?: boolean }): Promise<Tab>;
     remove(tabId: number): Promise<void>;
   };

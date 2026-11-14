@@ -1,4 +1,5 @@
-import { userMessage } from '../../agent-session/user-message';
+import { localTime } from '../../../../shared/local-time';
+import { grantsNotRead, revokeFailure } from '../grant-words';
 import { useEffect, useState } from 'react';
 import type { NetworkSessionConsentView } from '@aura/contracts/generated';
 import { packageDisplayName, usePackageSummaries } from '../../tool-packages/package-labels';
@@ -31,11 +32,11 @@ export function SessionNetworkGrants({ sessionId, open }: { sessionId: string; o
           setLoaded(
             result.ok
               ? { key, grants: result.value }
-              : { key, error: userMessage(result.error, '网络批准读取失败，请重试。') },
+              : { key, error: grantsNotRead('联网批准', result.error) },
           );
       })
-      .catch(() => {
-        if (live) setLoaded({ key, error: '读取联网批准失败，请重试。' });
+      .catch((reason: unknown) => {
+        if (live) setLoaded({ key, error: grantsNotRead('联网批准', reason) });
       });
     return () => {
       live = false;
@@ -58,11 +59,12 @@ export function SessionNetworkGrants({ sessionId, open }: { sessionId: string; o
       setMessage(
         result.ok
           ? '已撤销；依赖此批准且需要停止的请求已确认停止。'
-          : userMessage(result.error, '撤销没有完成，请刷新后核对。'),
+          : revokeFailure(result.error, '联网批准', '它仍然有效'),
       );
       setReload((value) => value + 1);
-    } catch {
-      setMessage('撤销结果未确认，请重新读取；不要假定请求已经停止。');
+    } catch (reason) {
+      setMessage(revokeFailure(reason, '联网批准', '它仍然有效'));
+      setReload((value) => value + 1);
     } finally {
       setPending(undefined);
     }
@@ -100,7 +102,7 @@ export function SessionNetworkGrants({ sessionId, open }: { sessionId: string; o
                   ? `工具包「${packageDisplayName(packages, grant.scope.destinations.package.package_id)}」（内容指纹 ${grant.scope.destinations.package.package_fingerprint.hex.slice(0, 12)}）`
                   : '全部目标'}{' '}
               · {labels[grant.availability]} ·{' '}
-              {grant.expires_at ? `到期：${grant.expires_at}` : '本会话有效'}
+              {grant.expires_at ? `到期：${localTime(grant.expires_at)}` : '本会话有效'}
             </span>
             {grant.availability === 'in_force' ? (
               <button

@@ -2,7 +2,7 @@ use super::*;
 use aura_workspace_domain::{GitDiffInput, GitDiffResultV1, GitDiffTargetV1, GitFileStatV1};
 impl GitReader {
     pub(super) fn diff(&self, input: &GitDiffInput) -> Result<GitDiffResultV1> {
-        ensure!(input.max_bytes > 0 && input.max_bytes <= 65536, "git.diff_page_limit");
+        page_limit(input.max_bytes)?;
         let base = diff_arguments(self, &input.target)?;
         let mut stat = base.clone();
         stat.extend(["--numstat".into(), "-z".into()]);
@@ -13,9 +13,25 @@ impl GitReader {
         let mut patch = base;
         patch.push("--patch".into());
         paths(&mut patch, &input.paths)?;
-        let patch = String::from_utf8(self.command_owned(patch)?)?;
+        let patch = patch_text(self.command_owned(patch)?)?;
         paginate(files, patch, input.offset_bytes, input.max_bytes)
     }
+}
+/// A patch as text. File content in another encoding cannot be paged as text.
+pub(super) fn patch_text(bytes: Vec<u8>) -> Result<String> {
+    String::from_utf8(bytes).map_err(|_| {
+        anyhow::anyhow!(
+            "git.patch_not_utf8: 补丁里有不是 UTF-8 编码的内容（例如 GBK 编码的文件），Aura 无法按文本读出，这次读取没有得到结果。请只读其他文件，或在终端用 git diff 查看这些文件。"
+        )
+    })
+}
+/// The page size a diff read accepts.
+pub(super) fn page_limit(max_bytes: u32) -> Result<()> {
+    ensure!(
+        max_bytes > 0 && max_bytes <= 65536,
+        "git.diff_page_limit: max_bytes 要在 1 到 65536 之间，这次是 {max_bytes}。请改用这个范围内的值再读。"
+    );
+    Ok(())
 }
 pub(super) fn paginate(
     files: Vec<GitFileStatV1>,
@@ -23,16 +39,20 @@ pub(super) fn paginate(
     offset: u64,
     max_bytes: u32,
 ) -> Result<GitDiffResultV1> {
-    let start = usize::try_from(offset)?;
+    let start = usize::try_from(offset).unwrap_or(usize::MAX);
     ensure!(
         start <= patch.len() && patch.is_char_boundary(start),
-        "git.diff_offset: 偏移必须位于UTF-8字符边界"
+        "git.diff_offset: offset_bytes（{offset}）不在这份补丁里，或落在一个字符的中间；补丁共 {} 字节。请用上一页结果里的 next_offset，或从 0 开始读。",
+        patch.len()
     );
     let mut end = start.saturating_add(max_bytes as usize).min(patch.len());
     while !patch.is_char_boundary(end) {
         end -= 1;
     }
-    ensure!(end > start || start == patch.len(), "git.diff_page_too_small");
+    ensure!(
+        end > start || start == patch.len(),
+        "git.diff_page_too_small: max_bytes（{max_bytes}）装不下 offset_bytes 处的一个字符，读不出内容。请把 max_bytes 调大（至少 4）再读。"
+    );
     Ok(GitDiffResultV1 {
         warnings: if files.iter().any(|file| file.comparison_note.is_some()) {
             vec![super::attributes::RAW_COMPARISON.into()]
@@ -58,7 +78,8 @@ pub(super) fn diff_arguments(reader: &GitReader, target: &GitDiffTargetV1) -> Re
         GitDiffTargetV1::Commit { commit } => {
             let oid = reader.oid(commit)?;
             let parents =
-                String::from_utf8(reader.command(&["rev-list", "--parents", "-n", "1", &oid])?)?;
+                String::from_utf8(reader.command(&["rev-list", "--parents", "-n", "1", &oid])?)
+                    .map_err(|_| super::config::unreadable_output("parents_format", "父提交"))?;
             if let Some(parent) = parents.split_whitespace().nth(1) {
                 args.extend([parent.into(), oid]);
             } else {
@@ -88,7 +109,7 @@ pub(super) fn split_numstat_patch(bytes: &[u8]) -> Result<(&[u8], &[u8])> {
             .iter()
             .position(|byte| *byte == 0)
             .map(|offset| at + offset)
-            .ok_or_else(|| anyhow::anyhow!("git.numstat_format"))
+            .ok_or_else(numstat_format)
     };
     let mut at = 0;
     while at < bytes.len() {
@@ -109,29 +130,39 @@ pub(super) fn parse_numstat(bytes: &[u8]) -> Result<Vec<GitFileStatV1>> {
     let mut files = vec![];
     let mut fields = bytes.split(|byte| *byte == 0).filter(|field| !field.is_empty());
     while let Some(field) = fields.next() {
-        let mut parts = std::str::from_utf8(field)?.splitn(3, '\t');
-        let added = parts.next().ok_or_else(|| anyhow::anyhow!("git.numstat_format"))?;
-        let deleted = parts.next().ok_or_else(|| anyhow::anyhow!("git.numstat_format"))?;
-        let path = parts.next().ok_or_else(|| anyhow::anyhow!("git.numstat_format"))?;
+        let mut parts = std::str::from_utf8(field).map_err(|_| numstat_format())?.splitn(3, '\t');
+        let added = parts.next().ok_or_else(numstat_format)?;
+        let deleted = parts.next().ok_or_else(numstat_format)?;
+        let path = parts.next().ok_or_else(numstat_format)?;
         let (path, original_path) = if path.is_empty() {
-            let old = std::str::from_utf8(
-                fields.next().ok_or_else(|| anyhow::anyhow!("git.numstat_rename"))?,
-            )?;
-            let new = std::str::from_utf8(
-                fields.next().ok_or_else(|| anyhow::anyhow!("git.numstat_rename"))?,
-            )?;
+            let rename = || super::config::unreadable_output("numstat_rename", "改名记录");
+            let old =
+                std::str::from_utf8(fields.next().ok_or_else(rename)?).map_err(|_| rename())?;
+            let new =
+                std::str::from_utf8(fields.next().ok_or_else(rename)?).map_err(|_| rename())?;
             (new, Some(old.into()))
         } else {
             (path, None)
+        };
+        let count = |value: &str| -> Result<Option<u64>> {
+            if value == "-" {
+                Ok(None)
+            } else {
+                value.parse().map(Some).map_err(|_| numstat_format())
+            }
         };
         files.push(GitFileStatV1 {
             comparison_note: None,
             path: path.into(),
             original_path,
-            added: if added == "-" { None } else { Some(added.parse()?) },
-            deleted: if deleted == "-" { None } else { Some(deleted.parse()?) },
+            added: count(added)?,
+            deleted: count(deleted)?,
             binary: added == "-" || deleted == "-",
         });
     }
     Ok(files)
+}
+
+fn numstat_format() -> anyhow::Error {
+    super::config::unreadable_output("numstat_format", "改动统计（--numstat）")
 }

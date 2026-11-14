@@ -159,6 +159,7 @@ pub(crate) fn execute(
             // A workspace search reads the workspace index, so it names no external
             // target.
             external: None,
+            context: Vec::new(),
         },
         diagnostics,
     ))

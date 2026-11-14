@@ -20,6 +20,9 @@ const count = (value: unknown, max: number) =>
 const flag = (value: unknown) => typeof value === 'boolean';
 const point = (value: unknown) =>
   value === undefined || value === null || (typeof value === 'number' && Number.isFinite(value));
+/** A page the user handed over, by the id Main gave it; none names the model's own page. */
+const handedPage = (value: unknown) =>
+  value === undefined || value === null || (isText(value) && /^p[1-9][0-9]{0,3}$/u.test(value));
 
 const ACTIONS: Readonly<Record<string, (action: Fields) => boolean>> = {
   open: (a) => isText(a.url),
@@ -73,6 +76,7 @@ export function readCommand(value: unknown, runtimeId: string): BrowserHostComma
     runtime !== runtimeId ||
     !isText(session) ||
     !optionalText(value.expected_host) ||
+    !handedPage(value.page) ||
     !count(value.timeout_ms, 600_000) ||
     !flag(access.read_only) ||
     !Array.isArray(access.approved_hosts) ||

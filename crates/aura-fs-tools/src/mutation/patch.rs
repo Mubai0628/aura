@@ -1,4 +1,4 @@
-use super::patch_place::{Region, anywhere, place};
+use super::patch_place::{Region, Shape, anywhere, place};
 use super::*;
 use diffy::{Line, Patch};
 use std::borrow::Cow;
@@ -309,18 +309,25 @@ pub(crate) fn apply_text(
             Starts::Numbered => Some(hunk.old_range().start().saturating_sub(1)),
             Starts::Running(hints) => hints.get(index).copied().flatten(),
         };
-        let at = place(&lines, cursor, &old, declared, &placed).map_err(fail)?;
-        placed.push(Region { at, len: old.len(), hunk: index });
+        let shape = Shape::of(hunk);
+        let at = place(&lines, cursor, &old, &shape, declared, &placed).map_err(fail)?;
+        placed.push(Region { at, hunk: index, shape });
         cursor = cursor.max(at + old.len());
     }
     placed.sort_by_key(|region| (region.at, region.hunk));
     let mut out = String::with_capacity(base.len());
-    let mut file_line = 0;
+    let mut file_line: usize = 0;
     for region in &placed {
-        lines[file_line..region.at].iter().for_each(|line| push_line(&mut out, line));
-        file_line = region.at;
+        // Lines a hunk before it already wrote: lines both share and keep, with nothing added
+        // among them by this one (see `place`).
+        let mut written = file_line.saturating_sub(region.at);
+        if region.at > file_line {
+            lines[file_line..region.at].iter().for_each(|line| push_line(&mut out, line));
+            file_line = region.at;
+        }
         for line in patch.hunks()[region.hunk].lines() {
             match line {
+                Line::Context(_) if written > 0 => written -= 1,
                 Line::Context(_) => {
                     push_line(&mut out, lines[file_line]);
                     file_line += 1;

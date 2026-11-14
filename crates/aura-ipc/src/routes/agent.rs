@@ -346,6 +346,48 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         ReadOnly,
         None
     ),
+    // The sub-agents a conversation started, with the approvals they wait for.
+    route!(
+        "agent.team.list",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "AgentTeamListRequest",
+        "AgentTeamView",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "agent.team.list",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "AgentTeamListRequest",
+        "AgentTeamView",
+        ReadOnly,
+        None
+    ),
+    // The user stops one of them from the 多 Agent page; the main agent is told in a report.
+    route!(
+        "agent.team.stop",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "AgentTeamStopRequest",
+        "AgentTeamView",
+        CommandInvocation,
+        DomainOperation
+    ),
+    route!(
+        "agent.team.stop",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "AgentTeamStopRequest",
+        "AgentTeamView",
+        CommandInvocation,
+        DomainOperation
+    ),
     route!(
         "agent.inbox",
         Agent,

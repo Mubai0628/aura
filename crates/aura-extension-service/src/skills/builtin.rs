@@ -82,7 +82,7 @@ pub(crate) fn write_all(local_root: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(&root)?;
     anyhow::ensure!(
         root_status(local_root, BUILTIN_SKILLS) == RootStatus::Ready,
-        "a folder on the way to {} is a link",
+        "skills.builtin_unsafe: 内置 Skill 的位置 {} 路上有链接，没有写入。",
         root.display()
     );
     for (relative, text) in FILES {
@@ -92,7 +92,10 @@ pub(crate) fn write_all(local_root: &Path) -> anyhow::Result<()> {
             path.push(folder);
             match std::fs::symlink_metadata(&path) {
                 Ok(metadata) if super::reparse_point(&metadata) || !metadata.is_dir() => {
-                    anyhow::bail!("{} is not a plain folder", path.display())
+                    anyhow::bail!(
+                        "skills.builtin_unsafe: {} 不是普通文件夹，内置 Skill 没有写入。",
+                        path.display()
+                    )
                 }
                 Ok(_) => {}
                 Err(_) => std::fs::create_dir(&path)?,
@@ -101,7 +104,10 @@ pub(crate) fn write_all(local_root: &Path) -> anyhow::Result<()> {
         path.push(parts[parts.len() - 1]);
         match std::fs::symlink_metadata(&path) {
             Ok(metadata) if super::reparse_point(&metadata) || !metadata.is_file() => {
-                anyhow::bail!("{} is not a plain file", path.display())
+                anyhow::bail!(
+                    "skills.builtin_unsafe: {} 不是普通文件，内置 Skill 没有写入。",
+                    path.display()
+                )
             }
             Ok(_) if std::fs::read(&path)? == text.as_bytes() => continue,
             _ => std::fs::write(&path, text)?,

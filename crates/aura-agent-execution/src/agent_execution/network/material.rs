@@ -36,16 +36,16 @@ pub(crate) fn gateway_request(content: &OperationContent) -> Result<GatewayReque
             8 * 1024 * 1024,
         );
     }
-    match content.action_kind.as_str() {
+    let kind = content.action_kind.as_str();
+    match kind {
         "http.request" => {
-            aura_net_tools::http_request(&serde_json::from_value(action)?, content.identity.clone())
+            aura_net_tools::http_request(&input(kind, action)?, content.identity.clone())
         }
-        "http.download" => aura_net_tools::download_request(
-            &serde_json::from_value(action)?,
-            content.identity.clone(),
-        ),
+        "http.download" => {
+            aura_net_tools::download_request(&input(kind, action)?, content.identity.clone())
+        }
         "web.fetch" => {
-            let input: aura_web_domain::WebFetchInput = serde_json::from_value(action)?;
+            let input: aura_web_domain::WebFetchInput = input(kind, action)?;
             aura_net_tools::web_request(
                 &input.url,
                 content.identity.clone(),
@@ -53,12 +53,41 @@ pub(crate) fn gateway_request(content: &OperationContent) -> Result<GatewayReque
             )
         }
         "web.search" => {
-            let input: aura_web_domain::WebSearchInput = serde_json::from_value(action)?;
+            let input: aura_web_domain::WebSearchInput = input(kind, action)?;
             let url = aura_web_runtime::search_url(&input.query, input.max_results)?;
             aura_net_tools::web_request(url.as_str(), content.identity.clone(), 2 * 1024 * 1024)
         }
-        _ => anyhow::bail!("http.unsupported_action"),
+        _ => {
+            anyhow::bail!("http.unsupported_action: Aura 的网络工具不处理这种调用，请求没有发出。")
+        }
     }
+}
+
+/// The model's arguments as the tool's input. The schema check before the call refuses
+/// arguments that do not fit first; serde's words about the field follow Core's sentence, in the
+/// language of the family's other lines.
+fn input<T: serde::de::DeserializeOwned>(kind: &str, action: serde_json::Value) -> Result<T> {
+    serde_json::from_value(action).map_err(|error| {
+        let text = error.to_string();
+        let mut detail = String::new();
+        for c in text.lines().next().unwrap_or_default().chars() {
+            if detail.len() + c.len_utf8() > 160 {
+                detail.push('…');
+                break;
+            }
+            detail.push(if c.is_control() || c == '{' || c == '}' { ' ' } else { c });
+        }
+        if kind.starts_with("web.") {
+            anyhow::anyhow!(
+                "{kind}_input: the arguments do not fit {kind}: {detail}. The call did not run; \
+                 correct the arguments and call it again."
+            )
+        } else {
+            anyhow::anyhow!(
+                "{kind}_input: 参数和 {kind} 的格式对不上（{detail}），请求没有发出。请按工具说明改好参数再调用。"
+            )
+        }
+    })
 }
 
 pub(crate) fn bind(
@@ -81,7 +110,34 @@ pub(crate) fn bind(
         &request,
         binding.as_ref().map(|(value, _)| value),
     )?;
-    ensure!(content.action.is_object(), "http.action_object_required");
+    ensure!(
+        content.action.is_object(),
+        "http.action_object_required: 这次调用的参数不是一个对象，请求没有发出。请按工具说明以对象的形式给出参数。"
+    );
     content.action["network_request_hash"] = serde_json::to_value(hash)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    /// Arguments that do not fit name the tool and serde's words about the field.
+    #[test]
+    fn arguments_that_do_not_fit_name_the_field() {
+        let fetch = super::input::<aura_web_domain::WebFetchInput>(
+            "web.fetch",
+            serde_json::json!({"max_bytes": 1}),
+        )
+        .expect_err("no url")
+        .to_string();
+        assert!(fetch.starts_with("web.fetch_input: the arguments do not fit web.fetch: "));
+        assert!(fetch.contains("url"), "{fetch}");
+        let download = super::input::<aura_web_domain::HttpDownloadInput>(
+            "http.download",
+            serde_json::json!({"url": "https://example.org/a.zip"}),
+        )
+        .expect_err("no path")
+        .to_string();
+        assert!(download.starts_with("http.download_input: 参数和 http.download 的格式对不上"));
+        assert!(download.contains("path") && download.len() <= 512, "{download}");
+    }
 }

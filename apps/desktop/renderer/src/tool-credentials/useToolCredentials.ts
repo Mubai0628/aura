@@ -9,6 +9,7 @@ import type {
 } from '@aura/contracts/generated';
 import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
 import type { ResultEnvelope } from '../../../shared/aura-api';
+import { userMessage } from '../agent-session/user-message';
 
 export function useToolCredentials(
   target: ToolCredentialManagementTargetV1,
@@ -41,7 +42,8 @@ export function useToolCredentials(
     if (result.ok) setList(result.value);
     else setMessage('无法读取凭据状态。请刷新工具详情后重试。');
   }
-  function failure(error: IpcErrorEnvelope, capturesOriginal: boolean) {
+  /** A refused change (`what`, the action) says why, or that the key is kept. */
+  function failure(error: IpcErrorEnvelope, capturesOriginal: boolean, what: string) {
     if (isUnconfirmedCommandOutcome(error)) {
       setUnknown(true);
       const id = error.details.command_invocation_id;
@@ -57,7 +59,10 @@ export function useToolCredentials(
     else if (error.code.endsWith('access_denied'))
       setMessage('Windows 拒绝访问凭据；保留原凭据，请检查系统访问条件。');
     else if (error.code.endsWith('cancelled')) setMessage('凭据操作已取消。');
-    else setMessage('凭据操作未完成。请读取当前状态后处理。');
+    else
+      setMessage(
+        userMessage(error, `${what}没有完成，凭据保持原样；请点“读取凭据管理状态”后再试。`),
+      );
   }
   function completed(value: ToolCredentialMutationResultV1) {
     setUnknown(false);
@@ -114,6 +119,7 @@ export function useToolCredentials(
       }
     });
   const mutate = (
+    what: string,
     operation: () => Promise<ResultEnvelope<ToolCredentialMutationResultV1>>,
     resolvesOriginal = true,
   ) =>
@@ -134,14 +140,14 @@ export function useToolCredentials(
         else setMessage('所选凭据已恢复；原操作仍待确认，请继续检查原操作结果。');
         await read(id);
         await onChanged();
-      } else failure(result.error, resolvesOriginal);
+      } else failure(result.error, resolvesOriginal, what);
     });
   const create = (name: string, bytes: Uint8Array, allowedOrigins: string[] = []) => {
     if (unknown || working.current) {
       bytes.fill(0);
       return Promise.resolve();
     }
-    return mutate(async () => {
+    return mutate('创建凭据', async () => {
       try {
         return await window.aura.v1.createToolCredential(
           {
@@ -171,20 +177,26 @@ export function useToolCredentials(
       credential_id: record.credential_id,
       expected_row_revision: record.row_revision,
     };
-    return mutate(async () => {
-      try {
-        if (action === 'rotate' && bytes)
-          return await window.aura.v1.rotateToolCredential(request, bytes);
-        if (action === 'clear') return await window.aura.v1.clearToolCredential(request);
-        return await window.aura.v1.recoverToolCredential(request);
-      } finally {
-        bytes?.fill(0);
-      }
-    }, !unknown);
+    const what =
+      action === 'rotate' ? '轮换密钥' : action === 'clear' ? '清除密钥' : '恢复待完成操作';
+    return mutate(
+      what,
+      async () => {
+        try {
+          if (action === 'rotate' && bytes)
+            return await window.aura.v1.rotateToolCredential(request, bytes);
+          if (action === 'clear') return await window.aura.v1.clearToolCredential(request);
+          return await window.aura.v1.recoverToolCredential(request);
+        } finally {
+          bytes?.fill(0);
+        }
+      },
+      !unknown,
+    );
   };
   const origins = (record: ToolCredentialAuthorityRecordV1, allowedOrigins: string[]) => {
     if (unknown || working.current) return Promise.resolve();
-    return mutate(() =>
+    return mutate('修改允许网站', () =>
       window.aura.v1.updateToolCredentialOrigins({
         target,
         credential_id: record.credential_id,

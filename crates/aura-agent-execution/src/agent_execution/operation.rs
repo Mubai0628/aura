@@ -57,7 +57,7 @@ impl AgentExecution {
             batch.calls.contains(&call.call)
                 && batch.registry_snapshot_ref == registry.snapshot_ref
                 && snapshot.session_id == id.session_id,
-            "agent.call_identity"
+            "agent.call_identity: This call was not started: it no longer matches the response it came from (the tool list or the session changed after it was written). Nothing was changed. Call it again if it is still needed."
         );
         let store = self.journal.lock()?;
         let run = aura_persistence_v2::agent::turns::load_run(
@@ -72,14 +72,16 @@ impl AgentExecution {
                 && turn.session_id == id.session_id
                 && turn.workspace_id == snapshot.workspace_id
                 && !turn.state.terminal(),
-            "agent.live_identity"
+            "agent.live_identity: This call was not started: its turn had already ended, or its workspace changed, before it was prepared. Nothing was changed."
         );
         drop(store);
         let (purpose, arguments) = match &call.call.input {
             NormalizedToolCallInputStateV1::Ready { purpose, arguments, .. } => {
                 (purpose.to_string(), arguments.clone())
             }
-            _ => anyhow::bail!("agent.invalid_input"),
+            _ => anyhow::bail!(
+                "agent.invalid_input: This call was not started: its arguments were not complete when it was prepared. Nothing was changed. Call it again with complete arguments."
+            ),
         };
         let source =
             aura_tool_scheduler::security_source_for_admitted_tool_call_v1(call, registry)?;
@@ -88,6 +90,7 @@ impl AgentExecution {
         let mut risks = vec![];
         let mut compatibility = Default::default();
         let workspace_id = snapshot.workspace_id;
+        let own = self.own_places(id.session_id, workspace_id)?;
         // The declared capabilities are the tool's own; an external target replaces the
         // workspace file capabilities with the external ones, so the permission engine
         // decides with the authority that is really needed and the file layer is asked
@@ -181,14 +184,11 @@ impl AgentExecution {
                 let input: aura_windows_user_contract::AgentTerminalWriteInput =
                     serde_json::from_value(action.clone())?;
                 // What is typed is read like a script; where the terminal stands is not known,
-                // so only places the text names in full are checked against the workspace.
+                // so only places the text names in full are checked against the workspace. A
+                // terminal keeps the TEMP it was opened with.
                 let root = self.workspace.resolver(workspace_id)?.canonical_root().to_path_buf();
-                let found = super::shell_risks::of_script(
-                    aura_windows_user_contract::ManagedShell::PowerShell,
-                    &input.input,
-                    None,
-                    &[root],
-                );
+                let area = super::shell_risks::Area { temp: None, ..own.area(&root) };
+                let found = super::shell_risks::of_script(&input.input, None, &area);
                 let record = aura_persistence_v2::terminal::get(
                     self.journal.lock()?.database.connection(),
                     id.session_id,
@@ -198,29 +198,33 @@ impl AgentExecution {
                     network = OperationNetwork::BroadProcess;
                     capabilities.push(ResolvedCapability::OrdinaryNetwork);
                 }
-                shell_risks(&found, &mut risks, &mut capabilities, &mut network);
+                shell_risks(&found, &own.allowed, &mut risks, &mut capabilities, &mut network);
                 compatibility = [ExecutionCompatibility::ProcessTreeCancellation].into();
                 vec![ResourceDescriptor::WorkspaceRoot { workspace_id }]
             }
             H::PowerShell | H::Cmd => {
+                let resolver = self.workspace.resolver(workspace_id)?;
+                // The folder may be named in full, as long as it is in the workspace.
+                super::path_input::normalize_action_paths(
+                    &mut action,
+                    &["working_directory"],
+                    resolver.canonical_root(),
+                )?;
                 let input: aura_windows_user_contract::ShellExecuteInput =
                     serde_json::from_value(action)?;
                 check_secret_environment(&input.secret_environment)?;
                 let relative = WorkspacePath::parse(&input.working_directory)?;
-                let resolved =
-                    self.workspace.resolver(workspace_id)?.resolve_existing(&relative)?;
+                let resolved = resolver.resolve_existing(&relative)?;
                 ensure!(resolved.info.is_directory, "agent.shell_directory");
                 let shell = if entry.handler == H::PowerShell {
                     aura_windows_user_contract::ManagedShell::PowerShell
                 } else {
                     aura_windows_user_contract::ManagedShell::Cmd
                 };
-                let resolver = self.workspace.resolver(workspace_id)?;
                 let found = super::shell_risks::of_script(
-                    shell,
                     &input.script,
                     Some(&resolved.absolute_path),
-                    &[resolver.canonical_root().to_path_buf()],
+                    &own.area(resolver.canonical_root()),
                 );
                 let mut command = input.command(shell)?;
                 command.working_directory = resolved.absolute_path.to_string_lossy().into_owned();
@@ -230,7 +234,7 @@ impl AgentExecution {
                     network = OperationNetwork::BroadProcess;
                     capabilities.push(ResolvedCapability::OrdinaryNetwork);
                 }
-                shell_risks(&found, &mut risks, &mut capabilities, &mut network);
+                shell_risks(&found, &own.allowed, &mut risks, &mut capabilities, &mut network);
                 vec![ResourceDescriptor::WorkspaceRoot { workspace_id }]
             }
             H::WebSearch | H::WebFetch => {
@@ -256,7 +260,9 @@ impl AgentExecution {
             H::HttpRequest | H::HttpDownload => {
                 network = OperationNetwork::ExactOrigins;
                 let url = aura_net_tools::request_url(
-                    action["url"].as_str().ok_or_else(|| anyhow::anyhow!("http.url_required"))?,
+                    action["url"].as_str().ok_or_else(|| anyhow::anyhow!(
+                        "http.url_required: 缺少 url：写上要请求的完整网址（例如 https://example.com/path），请求没有发出。"
+                    ))?,
                 )?;
                 let mut resources = if entry.handler == H::HttpDownload {
                     self.resolve_download(&mut action, &mut capabilities, batch, snapshot)?
@@ -396,18 +402,20 @@ impl AgentExecution {
         }
         content.action = stored_form(&content.action)?;
         let operation = SecuredOperation::new(SecurityOperationId::new(), content)?;
-        let verified_external_capabilities = self.external_authority(&operation);
         let verified_external_grants = self.external_authority_slices(&operation);
-        Ok(CallContext {
+        let mut context = CallContext {
             batch: batch.clone(),
             registry: registry.clone(),
             validated: call.clone(),
             snapshot: snapshot.clone(),
             operation,
-            verified_external_capabilities,
+            verified_external_capabilities: vec![],
             verified_external_grants,
             observed_resources: Arc::new(std::sync::Mutex::new(Vec::new())),
-        })
+            own_folders: Arc::new(own.folders),
+        };
+        context.verified_external_capabilities = self.call_authority(&context);
+        Ok(context)
     }
     /// Re-derives the call from durable facts and refuses if anything moved.
     ///
@@ -435,7 +443,13 @@ impl AgentExecution {
         // typically) anchor its target deeper; that is not a scope change.
         if content != call.operation.content
             && !directory_grant_adoption(&call.operation.content, &content)
+            && !super::shell_risks::allowed_since(&call.operation.content, &content)
             && !self.folders_created_since(&call.operation.content, &content)?
+            && !super::files::replaced_since(
+                call.batch.tool_batch_id,
+                &call.operation.content,
+                &content,
+            )
         {
             anyhow::bail!("agent.source_or_scope_changed");
         }
@@ -556,11 +570,12 @@ fn check_secret_environment(names: &[String]) -> Result<()> {
 
 fn shell_risks(
     found: &super::shell_risks::ShellRisks,
+    allowed: &aura_agent_team::Allowances,
     risks: &mut Vec<OperationRiskFlag>,
     capabilities: &mut Vec<ResolvedCapability>,
     network: &mut OperationNetwork,
 ) {
-    if found.deletes {
+    if found.deletion_asks(allowed) {
         risks.push(OperationRiskFlag::PermanentFileDeletion);
     }
     // A download uses the network, whatever the script declared.
@@ -574,7 +589,7 @@ fn shell_risks(
             }
         }
     }
-    if !found.outside.is_empty() {
+    if found.outside_asks(allowed) {
         risks.push(OperationRiskFlag::OutsideWorkspaceWrite);
     }
 }

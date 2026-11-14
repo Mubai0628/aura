@@ -10,10 +10,6 @@ use aura_core_broker::agent_store::StoreError;
 use aura_persistence_v2::agent::branch::BranchImport;
 use aura_workspace_domain::SessionCreateRequest;
 
-const TITLE_PREFIX: &str = "分支：";
-/// The primary registry's limit on a conversation's title, in characters.
-const TITLE_LIMIT: usize = 200;
-
 pub(crate) async fn dispatch(
     services: &RuntimeServices,
     request: &JsonRpcRequest,
@@ -34,7 +30,7 @@ pub(crate) async fn dispatch(
     let mode = registry(&persistence, move |p| p.session_permission_state(session)).await?.mode;
     let create = SessionCreateRequest {
         workspace_id: source.workspace_id,
-        title: branch_title(&source.title),
+        title: agent_application::branch::branch_title(&source.title),
     };
     let correlation = request.id;
     let created =
@@ -72,7 +68,7 @@ pub(crate) async fn dispatch(
                     json!({"session_id": created.session_id, "reason": cleanup.to_string()}),
                 );
             }
-            return Err(refusal(failed));
+            return Err(agent_application::branch::branch_refusal(failed));
         }
     };
     // The whole command's time beside the import's own (`session.branch_timing`).
@@ -88,34 +84,6 @@ pub(crate) async fn dispatch(
     })?)
 }
 
-/// "分支：〈原标题〉", within the registry's title limit. An untitled conversation is "新会话", as the
-/// sidebar names it.
-fn branch_title(source: &str) -> String {
-    let title = if source.trim().is_empty() { "新会话" } else { source.trim() };
-    format!("{TITLE_PREFIX}{title}").chars().take(TITLE_LIMIT).collect()
-}
-
-/// Why a branch was not made, in the user's words.
-fn refusal(
-    failed: anyhow::Result<Result<aura_agent_domain::AgentBranchOrigin, StoreError>>,
-) -> anyhow::Error {
-    let reason = match failed {
-        Ok(Err(StoreError::Failed { error, .. })) => error.to_string(),
-        Ok(Err(error)) => error.code().to_owned(),
-        Err(error) => error.to_string(),
-        Ok(Ok(_)) => String::new(),
-    };
-    if reason.contains("agent.branch_turn_unfinished") {
-        anyhow::anyhow!("agent.branch_turn_unfinished: 只能从已经完成回答的一轮新建分支。")
-    } else if reason.contains("agent.branch_turn_unknown") {
-        anyhow::anyhow!("agent.branch_turn_unknown: 这一轮不在这个会话里，请刷新后再试。")
-    } else {
-        // The store's own words stay in the log; the user is told what happened and what to do.
-        append_core_log("session.branch_failed", json!({"reason": reason}));
-        anyhow::anyhow!("agent.branch_failed: 没能新建分支，没有留下半个分支，可以重试。")
-    }
-}
-
 async fn registry<T: Send + 'static>(
     persistence: &Arc<PersistenceCoordinator>,
     work: impl FnOnce(&PersistenceCoordinator) -> Result<T, aura_persistence::PersistenceError>
@@ -124,15 +92,4 @@ async fn registry<T: Send + 'static>(
 ) -> anyhow::Result<T> {
     let persistence = Arc::clone(persistence);
     Ok(tokio::task::spawn_blocking(move || work(&persistence)).await??)
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn a_branch_is_titled_after_its_source_within_the_limit() {
-        assert_eq!(super::branch_title("修复登录"), "分支：修复登录");
-        assert_eq!(super::branch_title("  "), "分支：新会话");
-        let long = "长".repeat(300);
-        assert_eq!(super::branch_title(&long).chars().count(), 200);
-    }
 }

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import type { McpServerView } from '@aura/contracts/generated';
 import { McpSecretInput, type McpSecretInputHandle } from './McpSecretInput';
-import { mcpError } from './mcp-labels';
+import { userMessage } from '../agent-session/user-message';
+import { fillFirst } from './mcp-failure-words';
 
 type Secret = { label: string; secretId: string };
 
@@ -38,7 +39,10 @@ export function McpPluginSecrets({
   const missing = server.problems.some((problem) => problem.includes('密钥'));
   const save = async (secret: Secret) => {
     const bytes = inputs.current.get(secret.secretId)?.takeBytes();
-    if (!bytes) return;
+    if (!bytes) {
+      onSaved(fillFirst(secret.label), true);
+      return;
+    }
     setSaving(secret.secretId);
     try {
       const result = await window.aura.v1.setMcpSecret(
@@ -46,7 +50,7 @@ export function McpPluginSecrets({
         bytes,
       );
       if (result.ok) onSaved(`已保存 ${secret.label}`, false);
-      else onSaved(mcpError(result.error.message, '密钥没有确认保存，请重新填写。'), true);
+      else onSaved(userMessage(result.error, '密钥没有确认保存，请重新填写。'), true);
     } finally {
       setSaving(undefined);
     }

@@ -9,12 +9,14 @@ export type SettingsSection =
   | 'computer'
   | 'memory'
   | 'commands'
+  | 'agents'
   | 'plugins'
   | 'hooks'
   | 'mcp'
   | 'skills'
   | 'archive'
   | 'notifications'
+  | 'storage'
   | 'about';
 
 export interface CoreStatusPresentation {
@@ -38,6 +40,8 @@ export interface WorkspaceNavigationItem {
   name: string;
   root: string;
   sessions: SessionNavigationItem[];
+  /** Core could not open it at its folder: the folder is gone or is another folder now. */
+  offline?: boolean;
 }
 
 export function requiredFirst<T>(values: readonly T[], source: string): T {

@@ -307,10 +307,38 @@ pub(super) fn append_child_parent_tool(
     Ok(())
 }
 
+/// Tools no child is given, whatever their audience says: those that end or reconcile the user's
+/// turn, the team tools, and the user's own Chrome and desktop, which one agent uses at a time.
 pub(super) fn is_child_hard_denied(canonical_name: &str) -> bool {
     canonical_name.starts_with("task_lineage.")
         || canonical_name == "normal.complete"
         || canonical_name == "mode.disposition"
         || canonical_name.starts_with("plugin.chrome-control.")
-        || canonical_name.starts_with("browser.")
+        || canonical_name.starts_with("chrome.")
+        || canonical_name.starts_with("computer.")
+        || canonical_name.starts_with("agents.")
+}
+
+/// Whether a sub-agent working in a conversation of its own is given this tool: its report tool,
+/// and every tool a sub-agent may be given - built-in, MCP or a package's, never a parent-only
+/// one or a hard denial. `narrowed` is the list the main agent cut it down to, when it did; a list
+/// naming more cannot add a tool. What a call may do then is the conversation's permission mode
+/// and rules, as for the main agent.
+#[must_use]
+pub fn subagent_keeps(definition: &ToolDefinitionRecordV1, narrowed: Option<&[String]>) -> bool {
+    let name = definition.canonical_name.as_str();
+    if name == aura_agent_team_contract::policy::REPORT_TOOL {
+        return definition.source_kind == ToolSourceKindV1::BuiltIn;
+    }
+    if is_child_hard_denied(name) {
+        return false;
+    }
+    match definition.audience {
+        aura_tool_contract::ToolAudienceV1::SubagentConfigurable => {
+            narrowed.is_none_or(|tools| tools.iter().any(|granted| granted == name))
+        }
+        // The tools that find and load others: a narrowed sub-agent has its whole table loaded.
+        aura_tool_contract::ToolAudienceV1::ChildRuntimeRequired => narrowed.is_none(),
+        aura_tool_contract::ToolAudienceV1::ParentAgentOnly => false,
+    }
 }

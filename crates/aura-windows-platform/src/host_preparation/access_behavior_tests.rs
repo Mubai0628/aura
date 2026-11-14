@@ -350,7 +350,7 @@ fn an_explicit_grant_still_works_on_a_protected_object() {
 
 /// Measurement, not a gate: the facts the assertions above are written from.
 /// Run with
-/// `cargo test -p aura-windows-platform --lib measure_appcontainer_access -- --ignored --nocapture`.
+/// `cargo xtask test -p aura-windows-platform --lib -- measure_appcontainer_access --ignored --nocapture`.
 #[test]
 #[ignore = "measurement: run explicitly"]
 fn measure_appcontainer_access_to_a_temporary_object() {

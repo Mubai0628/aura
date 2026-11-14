@@ -75,7 +75,8 @@ export type WorkspaceFilesProjectionChange = Extract<
 
 export interface CoreSupervisorOptions {
   appIsPackaged: boolean;
-  localAppData: string;
+  /** The installation's data folder (`DesktopLocations.dataRoot`); Core is told it, to check. */
+  dataRoot: string;
   onEscalated: () => void;
   parentRuntimeInstanceId?: string;
   release: ReleaseContext;

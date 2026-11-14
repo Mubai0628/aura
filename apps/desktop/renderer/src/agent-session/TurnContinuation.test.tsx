@@ -60,6 +60,35 @@ test('the last turn a restart cut off has 继续, which asks Core to continue th
   expect(continueAgent).toHaveBeenCalledWith({ session_id: 'session', turn_task_id: 'cut' });
 });
 
+test('a 继续 Core refused says why, that the turn stays, and what to do', async () => {
+  continueAgent.mockResolvedValueOnce({
+    ok: false,
+    error: {
+      code: 'agent.continuation_requires_checkpoint',
+      message: 'agent.continuation_requires_checkpoint',
+    },
+  });
+  show([turn('cut', cutOff)]);
+  fireEvent.click(screen.getByRole('button', { name: '继续' }));
+  await waitFor(() =>
+    expect(document.querySelector('.agent-continue [role="alert"]')?.textContent).toBe(
+      '这一轮没有可以接着做的位置，请在输入框说明下一步。',
+    ),
+  );
+  cleanup();
+  continueAgent.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'agent.store_busy', message: 'agent.store_busy' },
+  });
+  show([turn('cut', cutOff)]);
+  fireEvent.click(screen.getByRole('button', { name: '继续' }));
+  await waitFor(() =>
+    expect(document.querySelector('.agent-continue [role="alert"]')?.textContent).toBe(
+      '没能继续，任务仍停在这里；可以再点“继续”，或在输入框说明下一步。',
+    ),
+  );
+});
+
 test('继续 is only on the last cut-off turn, and only while nothing runs', () => {
   show([turn('cut', cutOff), turn('later', { state: 'completed', final_report: '好了' })]);
   expect(screen.queryByRole('button', { name: '继续' })).toBeNull();

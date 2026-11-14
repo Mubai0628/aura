@@ -164,5 +164,9 @@ test('a screenshot that can no longer be read says so', async () => {
   const details = container.querySelector('details') as HTMLDetailsElement;
   details.open = true;
   fireEvent(details, new Event('toggle'));
-  await waitFor(() => expect(screen.getByRole('status').textContent).toBe('截图不可用'));
+  await waitFor(() =>
+    expect(screen.getByRole('status').textContent).toBe(
+      '这张截图读不出来（记录可能已被清理），不影响这一步的结果；需要时让模型重新截图。',
+    ),
+  );
 });

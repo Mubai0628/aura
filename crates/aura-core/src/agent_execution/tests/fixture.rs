@@ -5,9 +5,11 @@ mod l02_takeover_input;
 mod l02_terminal;
 mod l03_terminal_wait;
 mod l13_terminal_handback;
+mod l21_terminal_handover;
 mod mcp;
 pub use mcp::mcp_server_config;
 mod packages;
+mod sensitive_prompt;
 mod sessions;
 pub use packages::Packages;
 mod steps;
@@ -261,8 +263,8 @@ impl Fixture {
     }
 }
 fn services(state: &crate::RuntimeState) -> &crate::RuntimeServices {
-    let crate::StartupMode::Ready(service) = &state.startup_mode else {
-        panic!("Core unavailable")
-    };
-    service
+    match &state.startup_mode {
+        crate::StartupMode::Ready(service) => service,
+        crate::StartupMode::RecoveryRequired { reason } => panic!("Core unavailable: {reason}"),
+    }
 }

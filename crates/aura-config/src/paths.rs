@@ -1,12 +1,11 @@
 use std::{
-    env, fs,
+    fs,
     path::{Component, Path, PathBuf},
 };
 
+use aura_data_location::Locations;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use aura_runtime_contract::BundleNamespace;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -37,10 +36,11 @@ pub enum ConfigModule {
     Update,
     Chrome,
     Computer,
+    Network,
 }
 
 impl ConfigModule {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::Aura,
         Self::Models,
         Self::Tools,
@@ -58,6 +58,7 @@ impl ConfigModule {
         Self::Update,
         Self::Chrome,
         Self::Computer,
+        Self::Network,
     ];
 
     #[must_use]
@@ -73,7 +74,8 @@ impl ConfigModule {
             | Self::Diagnostics
             | Self::Update
             | Self::Chrome
-            | Self::Computer => ConfigFormat::Toml,
+            | Self::Computer
+            | Self::Network => ConfigFormat::Toml,
             Self::Models
             | Self::Tools
             | Self::Mcp
@@ -103,6 +105,7 @@ impl ConfigModule {
             Self::Update => "settings/update.toml",
             Self::Chrome => "settings/chrome.toml",
             Self::Computer => "settings/computer.toml",
+            Self::Network => "settings/network.toml",
         }
     }
 
@@ -126,6 +129,7 @@ impl ConfigModule {
             Self::Update => "settings-update",
             Self::Chrome => "settings-chrome",
             Self::Computer => "settings-computer",
+            Self::Network => "settings-network",
         }
     }
 
@@ -138,6 +142,8 @@ impl ConfigModule {
     }
 }
 
+/// The files and folders one Core uses, laid out under the locations `aura-data-location` gave it:
+/// the settings under `config_root`, everything else under `local_root` (the data folder).
 #[derive(Clone, Debug)]
 pub struct AuraPaths {
     pub config_root: PathBuf,
@@ -150,37 +156,27 @@ pub struct AuraPaths {
     pub config_transaction_dir: PathBuf,
     pub logs_dir: PathBuf,
     pub runtime_dir: PathBuf,
+    pub locations: Locations,
 }
 
 #[derive(Debug, Error)]
 pub enum AuraPathsError {
-    #[error("required Windows environment variable {0} is missing")]
-    MissingEnvironment(&'static str),
     #[error("failed to create Aura directory {path}: {source}")]
     CreateDirectory { path: PathBuf, source: std::io::Error },
 }
 
 impl AuraPaths {
-    pub fn from_environment() -> Result<Self, AuraPathsError> {
-        let namespace: BundleNamespace =
-            "aura.desktop.production".parse().expect("the frozen production namespace is valid");
-        Self::from_environment_for_namespace(&namespace)
+    /// The layout under an installation's confirmed locations.
+    #[must_use]
+    pub fn from_locations(locations: Locations) -> Self {
+        let mut paths =
+            Self::from_roots(locations.settings_root.clone(), locations.data_root.clone());
+        paths.locations = locations;
+        paths
     }
 
-    pub fn from_environment_for_namespace(
-        namespace: &BundleNamespace,
-    ) -> Result<Self, AuraPathsError> {
-        let app_data =
-            env::var_os("APPDATA").ok_or(AuraPathsError::MissingEnvironment("APPDATA"))?;
-        let local_app_data = env::var_os("LOCALAPPDATA")
-            .ok_or(AuraPathsError::MissingEnvironment("LOCALAPPDATA"))?;
-        let namespace_partition = namespace.object_name_hash();
-        Ok(Self::from_roots(
-            PathBuf::from(app_data).join("Aura").join("namespaces").join(&namespace_partition),
-            PathBuf::from(local_app_data).join("Aura").join("namespaces").join(namespace_partition),
-        ))
-    }
-
+    /// The layout with the settings in `config_root` and everything else in `local_root`, for
+    /// tests and tools that compose a Core over folders of their own.
     #[must_use]
     pub fn from_roots(config_root: PathBuf, local_root: PathBuf) -> Self {
         let data_dir = local_root.join("data");
@@ -192,6 +188,7 @@ impl AuraPaths {
             config_history_dir: local_root.join("config-history"),
             config_transaction_dir: runtime_dir.join("config-transactions"),
             logs_dir: local_root.join("logs"),
+            locations: Locations::within(config_root.clone(), local_root.clone()),
             config_root,
             local_root,
             data_dir,

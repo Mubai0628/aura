@@ -2,7 +2,7 @@
 use crate::*;
 use aura_domain_common::SessionId;
 use aura_projection_contract::{BackendLifecycle, CapabilityReadiness, CoreHealth};
-use aura_workspace_domain::SessionSummary;
+use aura_workspace_domain::{SessionSummary, WorkspaceSummary};
 use tempfile::TempDir;
 
 mod fixture;
@@ -10,6 +10,9 @@ pub(crate) use fixture::Fixture;
 mod restart;
 // A normal exit, announced by Main, and the Store check after it.
 mod clean_exit;
+pub(crate) mod workspace_moves;
+// A failed Workspace lifecycle operation in Core's own log.
+mod workspace_failure_log;
 
 #[tokio::test]
 #[ignore = "check-r03 supplies a source-built Sandbox Host and isolated child APPDATA/LOCALAPPDATA"]

@@ -89,11 +89,11 @@ impl P04Services {
         correlation_id: CorrelationId,
     ) -> Result<HostPreparationStatus> {
         self.reconcile_expired_host_preparation(correlation_id)?;
-        self.host_preparation.probe(correlation_id).map_err(|error| anyhow!("{error:?}"))?;
+        self.host_preparation.probe(correlation_id).map_err(probe_failure)?;
         self.persistence
             .host_preparation_state()?
             .map(|state| state.status)
-            .ok_or_else(|| anyhow!("Host Preparation has not been probed"))
+            .ok_or_else(|| anyhow!("sandbox.host_preparation_unavailable: 检查完兼容环境后没有读到它的状态记录，系统没有被修改；请稍后再试。"))
     }
 
     /// Settles an expired prepared plan from a path that already knows there is one.
@@ -111,16 +111,44 @@ impl P04Services {
         if expiry.expires_at >= UtcTimestamp::now() {
             return Ok(());
         }
-        let settled =
-            self.host_preparation.settle(expiry.operation_id, correlation_id).map_err(|error| {
-                anyhow!("expired Host Preparation plan could not be settled: {error:?}")
-            })?;
+        let settled = self
+            .host_preparation
+            .settle(expiry.operation_id, correlation_id)
+            .map_err(settle_failure)?;
         if settled.is_some() {
             self.host_preparation_nonces
                 .lock()
-                .map_err(|_| anyhow!("Host Preparation nonce state is unavailable"))?
+                .map_err(|_| anyhow!("sandbox.host_preparation_unavailable: 兼容环境操作的内部状态不可用（Aura 内部出错），系统没有被修改；请重启 Aura 后再试。"))?
                 .remove(&expiry.operation_id);
         }
         Ok(())
+    }
+}
+
+/// A probe the worker did not answer with a result, in a sentence.
+fn probe_failure(error: IpcErrorEnvelope) -> anyhow::Error {
+    if error.code.as_str() == "sandbox.host_preparation_busy" {
+        anyhow!(
+            "sandbox.host_preparation_busy: 上一次兼容环境检查还没结束，这次没有重新检查；等它结束后再试。"
+        )
+    } else {
+        anyhow!(
+            "sandbox.host_preparation_probe_failed: 没能检查系统的兼容状态，系统没有被修改；请稍后再试，一直这样请重启 Aura。（{}）",
+            error.message
+        )
+    }
+}
+
+/// An expired plan the worker did not settle, in a sentence.
+fn settle_failure(error: IpcErrorEnvelope) -> anyhow::Error {
+    if error.code.as_str() == "sandbox.host_preparation_busy" {
+        anyhow!(
+            "sandbox.host_preparation_busy: 过期的兼容环境方案还在作废中，这次没有开始，系统没有被修改；等一会儿再试。"
+        )
+    } else {
+        anyhow!(
+            "sandbox.host_preparation_unsettled: 过期的兼容环境方案没能作废，这次没有开始，系统没有被修改；请稍后再试，一直这样请重启 Aura。（{}）",
+            error.message
+        )
     }
 }

@@ -15,7 +15,9 @@ pub struct ConfigurationCredentialPreflight {
 
 #[derive(Debug, Error)]
 pub enum ConfigurationCredentialPreflightError {
-    #[error("the endpoint credential is not configured and available for its current binding")]
+    #[error(
+        "credential.unavailable: 这个连接的凭据还没有保存或暂时不可用，没有发出请求；请到模型设置里重新保存 API Key。"
+    )]
     Unavailable,
     #[error(transparent)]
     Persistence(#[from] PersistenceError),

@@ -113,6 +113,8 @@ test('a list that was not saved answers nothing and says why', async () => {
   install('computer.open', { op: 'launch', app, timeout_ms: 15000 });
   render(<ApprovalPanel sessionId="ses" approvalId="apr" onChanged={() => undefined} />);
   await userEvent.click(await screen.findByRole('button', { name: '总是允许' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('名单已满');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '没能把「记事本」加入总是允许（名单已满），这次调用仍在等你批准；可以点“本会话允许”，或再试一次。',
+  );
   expect(resolveAgentApproval).not.toHaveBeenCalled();
 });

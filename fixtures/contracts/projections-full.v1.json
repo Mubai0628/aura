@@ -48,6 +48,12 @@
             "state": "online",
             "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV"
           }
+        ],
+        "worktrees": [
+          {
+            "parent_workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "workspace_id": "wsp_01ARZ3NDEKTSV4RRFFQ69G5FAV"
+          }
         ]
       },
       "projection_kind": "workspace_session",

@@ -27,6 +27,7 @@ impl AgentExecution {
             .sessions
             .into_iter()
             .filter(|s| s.workspace_id == workspace && s.session_id != session)
+            .filter(|s| s.state != aura_persistence::SESSION_SUBAGENT)
             .map(|s| OtherConversation {
                 handle: ConversationHandle::of(s.session_id),
                 session_id: s.session_id,

@@ -63,10 +63,10 @@ impl AgentApplication {
         let mut reduction: Option<PromptInspectorReductionView> = None;
         let mut prepared = loop {
             // Only the screenshots whose results this pass still carries as they were.
-            screenshots.attach(&mut input);
+            let unread_pictures = screenshots.attach(&mut input);
             // The state as of this pass: a compaction or a clearing may have taken the result
             // that showed the to-do.
-            write_control_state(&mut input, &state)?;
+            write_control_state(&mut input, &state, &unread_pictures)?;
             // Boundary: the manual-compaction request read, one bounded section per pass.
             let manual = {
                 let journal = Arc::clone(&self.execution.journal);

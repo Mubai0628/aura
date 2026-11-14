@@ -246,7 +246,8 @@ test('the model explains first; technical facts wait under 查看详情; the ans
   const details = screen.getByText('默认权限模式').closest('details');
   expect(details?.querySelector('summary')?.textContent).toBe('查看详情');
   expect(details?.open).toBe(false);
-  expect(details?.textContent).toContain('"path": "notes"');
+  // The call's arguments are on its fact panels, never as a JSON dump.
+  expect(details?.textContent).not.toContain('"path"');
   // Only the model's explanation is in view; the lifetime and what an answer covers are
   // under 查看详情 too, and the header names the action in words, not by its code.
   const body = document.querySelector('.agent-approval-body');

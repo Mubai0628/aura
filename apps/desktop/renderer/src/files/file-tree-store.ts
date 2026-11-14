@@ -1,6 +1,7 @@
 import type { FsListEntry } from '@aura/contracts/generated';
 import { useSyncExternalStore } from 'react';
 import { userMessage } from '../agent-session/user-message';
+import { listingFailure, NOT_LOCATED_WHILE_INDEXING } from './failure-words';
 
 /** The conversation and workspace whose files a 文件 tab reads. */
 export interface FileScope {
@@ -75,15 +76,6 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'bas
 const order = (left: FsListEntry, right: FsListEntry) =>
   Number(right.kind === 'directory') - Number(left.kind === 'directory') ||
   collator.compare(left.name, right.name);
-
-function listingFailure(error: unknown): string {
-  const code =
-    typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
-  if (code === 'workspace.catalog_unavailable')
-    return '文件列表暂时读不出来：工作区还在建立文件索引，请稍后重试。';
-  if (code === 'file.not_found') return '文件列表暂时读不出来：这个文件夹已不存在。';
-  return userMessage(error, '文件列表暂时读不出来，请重试。');
-}
 
 function locateFailure(path: string, error: unknown): string {
   const code =
@@ -358,7 +350,7 @@ class FileTreeStore {
       // A listing that waits for the index to finish answers on its own later.
       else await wait(LOCATE_WAIT_MS);
     }
-    if (current()) throw new Error('文件列表暂时读不出来，请重试。');
+    if (current()) throw new Error(NOT_LOCATED_WHILE_INDEXING);
   }
 
   /** One path's row, read on its own. Below an ignored folder it is ignored too. */

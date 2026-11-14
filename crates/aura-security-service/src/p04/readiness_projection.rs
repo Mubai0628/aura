@@ -24,12 +24,12 @@ pub(super) fn build_runtime_projection(
     let residual_acl_count = u32::try_from(
         persistence
             .pending_sandbox_acl_cleanup()
-            .context("failed to inspect residual Sandbox ACLs")?
+            .context("sandbox.acl_cleanup_unreadable: 读不出待清理的沙箱文件权限记录，这次操作没有完成；请重启 Aura 后再试。")?
             .len(),
     )
     .unwrap_or(u32::MAX);
     let quarantine_count = u32::try_from(
-        persistence.list_quarantine().context("failed to count quarantined executables")?.len(),
+        persistence.list_quarantine().context("sandbox.quarantine_unreadable: 读不出被隔离的程序列表，这次操作没有完成；请重启 Aura 后再试。")?.len(),
     )
     .unwrap_or(u32::MAX);
     let sandbox_available = probe.appcontainer_api_available

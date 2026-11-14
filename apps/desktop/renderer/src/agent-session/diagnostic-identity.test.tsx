@@ -4,6 +4,11 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Conversation } from './Conversation';
 import { agentDiagnosticIdentity } from './diagnostic-identity';
 
+const ui = vi.hoisted(() => ({ debug: false }));
+vi.mock('../ui-settings-store', () => ({
+  useUiSettings: () => ({ settings: { show_debug_information: ui.debug } }),
+}));
+
 /** The bounded line Core stores for a refused Provider tool call. */
 const STORED =
   'provider_tool_call_binding_invalid: wire name _aura is not in request step=stp_01ARZ3NDEKTSV4RRFFQ69G5FAV snapshot=mes_01arz3ndektsv4rrffq69g5fav attempt=tat_01ARZ3NDEKTSV4RRFFQ69G5FAW adapter=openai_responses@1.0 item=function_call frozen_tools=sha256:9f2c count=28';
@@ -49,7 +54,7 @@ test('nothing outside the whitelisted tokens can reach the identity line', () =>
   expect(agentDiagnosticIdentity(undefined)).toBeUndefined();
 });
 
-test('the alert shows the product sentence and the bounded identity', () => {
+test('the alert shows the product sentence, and the bounded identity only with debug information on', () => {
   const projection = {
     session_id: 'session',
     runtime_instance_id: 'runtime',
@@ -83,7 +88,28 @@ test('the alert shows the product sentence and the bounded identity', () => {
   const alert = screen.getByRole('alert');
   expect(alert.textContent).toContain('模型返回的工具名称「_aura」不在这次请求的工具清单里');
   expect(alert.textContent).toContain('不会自动重放已完成的写入');
-  expect(alert.textContent).toContain('item=function_call');
-  expect(alert.textContent).toContain('attempt=tat_01ARZ3NDEKTSV4RRFFQ69G5FAW');
-  expect(alert.textContent).not.toContain('frozen_tools');
+  // The sentence above says it; the identities are for debugging.
+  expect(alert.textContent).not.toContain('item=function_call');
+  expect(alert.textContent).not.toContain('provider_tool_call_binding_invalid');
+  cleanup();
+  ui.debug = true;
+  try {
+    render(
+      <Conversation
+        projection={projection}
+        viewportRef={{ current: null }}
+        onChanged={vi.fn()}
+        loading={false}
+        error={undefined}
+        loadOlder={vi.fn()}
+        loadTurnOlder={vi.fn()}
+      />,
+    );
+    const shown = screen.getByRole('alert');
+    expect(shown.textContent).toContain('item=function_call');
+    expect(shown.textContent).toContain('attempt=tat_01ARZ3NDEKTSV4RRFFQ69G5FAW');
+    expect(shown.textContent).not.toContain('frozen_tools');
+  } finally {
+    ui.debug = false;
+  }
 });

@@ -40,6 +40,23 @@ async function openMaintenanceLog(
     : { completed: true, message: '已打开整理日志' };
 }
 
+/** Why the ZIP could not be written, by the file system's code; on Windows a locked target is EPERM too. */
+const EXPORT_NOT_WRITTEN: Readonly<Record<string, string>> = {
+  ENOSPC: '磁盘空间不够，Vault 没有导出；腾出空间后再试。',
+  EBUSY: '同名 ZIP 正被其他程序打开，Vault 没有导出；关闭它或换个文件名再试。',
+  EPERM:
+    '没有权限写入所选位置（文件夹不允许写入，或同名 ZIP 正被其他程序打开），Vault 没有导出；请换一个文件夹或文件名再试。',
+  EACCES:
+    '没有权限写入所选位置（文件夹不允许写入，或同名 ZIP 正被其他程序打开），Vault 没有导出；请换一个文件夹或文件名再试。',
+};
+
+/** A known file system failure in words; any other keeps its own error. */
+const exportNotWritten = (error: unknown): unknown => {
+  const code = (error as { code?: unknown } | null)?.code;
+  const words = typeof code === 'string' ? EXPORT_NOT_WRITTEN[code] : undefined;
+  return words === undefined ? error : new Error(words);
+};
+
 export async function dispatchMemoryCommand(
   event: IpcMainInvokeEvent,
   command: MemoryMainCommand,
@@ -71,7 +88,9 @@ export async function dispatchMemoryCommand(
     if (selected.canceled || !selected.filePath) return { completed: false, message: '已取消导出' };
     const handle = await core.domains.memory('memory.export.prepare', input);
     try {
-      await writeVaultZip(core.domains, handle, selected.filePath);
+      await writeVaultZip(core.domains, handle, selected.filePath).catch((error: unknown) => {
+        throw exportNotWritten(error);
+      });
       return { completed: true, message: 'Vault 已完整导出为 ZIP' };
     } finally {
       try {

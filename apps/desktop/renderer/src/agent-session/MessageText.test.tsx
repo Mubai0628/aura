@@ -32,7 +32,10 @@ function bridge(
       calls += 1;
       if (options.failFirst && !failed) {
         failed = true;
-        return { error: { message: '读取失败' }, ok: false };
+        return {
+          error: { code: 'agent.history_unreadable', message: 'history unreadable' },
+          ok: false,
+        };
       }
       const event = request.source.kind === 'user' ? request.source.event_id : 'step';
       fetches.push({ event, offset: request.offset });
@@ -482,7 +485,9 @@ test('a failing fetch exposes a retry path', async () => {
     />,
   );
   const retry = await screen.findByRole('button', { name: '重新读取正文' });
-  expect(screen.getByRole('alert')).toBeDefined();
+  expect(screen.getByRole('alert').textContent).toBe(
+    '这条消息后面的内容没有读到，已显示的部分不受影响；点“重新读取正文”再试。重新读取正文',
+  );
   expect(readAgentMessageText).toHaveBeenCalledTimes(1);
 
   retry.click();

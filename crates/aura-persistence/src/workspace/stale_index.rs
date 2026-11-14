@@ -13,7 +13,7 @@ use aura_domain_common::{UtcTimestamp, WorkspaceId};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
 use super::catalog_write::{BATCH, delete_old};
-use crate::{PersistenceCoordinator, PersistenceError, WorkClass};
+use crate::{PersistenceCoordinator, PersistenceError};
 
 /// Marks the workspace's stored index untrusted, inside the caller's transaction. The small
 /// per-path tables go at once; the entries and their text rows are left for jobs of [`BATCH`].
@@ -65,19 +65,18 @@ pub(super) fn more_than_one_batch(
 
 impl PersistenceCoordinator {
     /// Removes an archived workspace's stored index in jobs of [`BATCH`] rows on the index lane,
-    /// so interactive writes run between them. It stops when nothing is left or the workspace is
-    /// no longer archived (a restored workspace's walk removes the rest); returns the rows removed.
+    /// so interactive writes run between them, each waiting for room while the lane is full. It
+    /// stops when nothing is left or the workspace is no longer archived (a restored workspace's
+    /// walk removes the rest); returns the rows removed.
     pub fn clear_archived_workspace_index(
         &self,
         workspace_id: WorkspaceId,
     ) -> Result<u64, PersistenceError> {
         let mut removed = 0_u64;
         loop {
-            let workspace = workspace_id.to_string();
-            let deleted = self.dispatch_within(
-                WorkClass::Index,
-                self.index_deadline_instant(),
-                move |connection| {
+            let deleted = self.dispatch_index_with_room(self.index_deadline_instant(), || {
+                let workspace = workspace_id.to_string();
+                move |connection: &mut Connection| -> Result<usize, PersistenceError> {
                     let transaction = connection.transaction()?;
                     let archived = transaction
                         .query_row(
@@ -93,8 +92,8 @@ impl PersistenceCoordinator {
                     let deleted = delete_old(&transaction, &workspace, Some(BATCH))?;
                     transaction.commit()?;
                     Ok(deleted)
-                },
-            )?;
+                }
+            })?;
             if deleted == 0 {
                 return Ok(removed);
             }

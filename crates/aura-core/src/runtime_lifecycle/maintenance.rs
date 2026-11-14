@@ -251,7 +251,7 @@ pub(crate) fn publish_current_tool_settings(
     configuration_rejected: bool,
 ) -> Result<()> {
     let snapshot = settings
-        .tool_settings_snapshot()
+        .stored_tool_settings_snapshot()
         .context("failed to read last-known-good Tool Settings")?;
     let published = p07_registry::ToolRegistryControlServiceV1
         .publish_settings(persistence, snapshot, configuration_rejected)

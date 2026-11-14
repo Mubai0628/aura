@@ -2,6 +2,7 @@
 import type { BrowserPageState } from '../../shared/browser-api.js';
 import type { PageView } from './pages.js';
 import { navigationVerdict, refusalText, type BrowserPolicy, type PageAccess } from './policy.js';
+import { loadFailureText } from './load-failure.js';
 
 type Listener = (...args: never[]) => void;
 interface EventPage {
@@ -54,7 +55,7 @@ export function wirePage(page: EventPage, { policy, access, update }: PageEvents
       loading: false,
       notice: refused
         ? { kind: 'blocked', text: refused }
-        : { kind: 'failed', text: `无法打开 ${url}（${description}）` },
+        : { kind: 'failed', text: loadFailureText(code, description) },
     });
   }) as Listener);
   contents.on('render-process-gone', () =>

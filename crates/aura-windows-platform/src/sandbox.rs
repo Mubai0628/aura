@@ -78,7 +78,7 @@ pub use user_environment::current_user_environment;
 #[cfg(feature = "restricted-user-runtime")]
 mod new_execution_file;
 mod stdin;
-pub use launch::{JobLaunchError, JobLaunchTiming, spawn_compat_process};
+pub use launch::{JobLaunchError, JobLaunchTiming, spawn_compat_process, spawn_compat_process_in};
 #[cfg(any(test, feature = "compat-adoption"))]
 pub use launch::{JobLaunchFault, spawn_compat_process_with_fault};
 use launch::{LaunchOverrides, spawn_restricted_process_inner};

@@ -126,7 +126,11 @@ test('a failed build says why, and a finished one shows nothing', async () => {
     failure: 'workspace root identity changed',
   });
   const first = shown();
-  expect(await screen.findByText('文件索引没有建立：workspace root identity changed')).toBeTruthy();
+  expect(
+    await screen.findByText(
+      '文件索引没有建立：工作区文件夹在建立索引时被换掉或移动了。文件树和模型仍能逐层读文件夹和文件，只是暂时不能按名字查找；处理后点“重建索引”。',
+    ),
+  ).toBeTruthy();
   expect(screen.getByText('索引失败')).toBeTruthy();
   first.unmount();
   bridge(undefined);
@@ -144,4 +148,22 @@ test('a failed build offers to walk the folder again', async () => {
   shown();
   fireEvent.click(await screen.findByRole('button', { name: '重建索引' }));
   await vi.waitFor(() => expect(rebuild).toHaveBeenCalledWith({ workspace_id: WORKSPACE }));
+});
+
+// A rebuild that did not start says why and that the index stays as it was.
+test('a rebuild that did not start says why and that the index is unchanged', async () => {
+  bridge({ state: 'failed', listed_entries: 0, unindexed_directories: 0, failure: 'denied' });
+  Object.assign(window.aura.v1, {
+    rebuildWorkspaceIndex: vi.fn().mockResolvedValue({
+      ok: false,
+      error: { code: 'ipc.request_timeout', message: 'Core request timed out', details: {} },
+    }),
+  });
+  shown();
+  fireEvent.click(await screen.findByRole('button', { name: '重建索引' }));
+  expect(
+    await screen.findByText(
+      '重建没有开始（Aura Core 没有及时回复），索引保持原样；请稍后再点“重建索引”。',
+    ),
+  ).toBeTruthy();
 });

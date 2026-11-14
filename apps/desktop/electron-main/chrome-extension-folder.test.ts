@@ -70,6 +70,12 @@ test('an installed Aura opens a copy of the extension beside its resources, in i
   });
 });
 
+test("the copy is in the installation's Chrome folder, which stays put when the data moves", () => {
+  expect(chromeExtensionCopy('C:\\Users\\u\\AppData\\Local\\Aura\\namespaces\\h\\chrome')).toBe(
+    'C:\\Users\\u\\AppData\\Local\\Aura\\namespaces\\h\\chrome\\extension',
+  );
+});
+
 test('the copy becomes the running version whole, and a current copy is left alone', async () => {
   const work = await root();
   const source = await extension(join(work, 'shipped'), {

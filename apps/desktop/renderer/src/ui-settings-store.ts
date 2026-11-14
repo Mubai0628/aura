@@ -1,6 +1,11 @@
 import type { UiSettings, UiSettingsSnapshot } from '@aura/contracts/generated';
 import { useEffect, useSyncExternalStore } from 'react';
 import { userMessage } from './agent-session/user-message';
+import { refusedAction } from './agent-session/failure-text';
+
+/** The interface settings were not read: why, and what cannot be changed until they are. */
+const unread = (error: unknown): string =>
+  refusedAction(error, '界面设置没有读到', '终端、主题和调试选项暂时不能改；请点“重试”。');
 
 /**
  * 设置 → 环境: the interface settings Core keeps — whether the session shows its debugging
@@ -52,7 +57,7 @@ class UiSettingsStore {
           : {
               loading: false,
               snapshot: this.#state.snapshot,
-              error: userMessage(result.error, '界面设置读取失败，请重试。'),
+              error: unread(result.error),
             },
       );
     } catch (reason) {
@@ -60,7 +65,7 @@ class UiSettingsStore {
       this.#set({
         loading: false,
         snapshot: this.#state.snapshot,
-        error: userMessage(reason, '界面设置读取失败，请重试。'),
+        error: unread(reason),
       });
     }
   };

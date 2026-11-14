@@ -60,6 +60,18 @@ fn bounded(value: Option<u32>, default: u32, low: u32, high: u32) -> u32 {
     value.unwrap_or(default).clamp(low, high)
 }
 
+/// The call's arguments in the tool's own input type; arguments that do not fit are refused in
+/// Core's words, with what did not fit.
+fn arguments<T: serde::de::DeserializeOwned>(handler: H, input: Value) -> anyhow::Result<T> {
+    serde_json::from_value(input).map_err(|error| {
+        anyhow!(
+            "chrome.input_invalid: {} 的参数不符合要求（{}），什么都没做；按工具说明改正后再调用。",
+            handler.name(),
+            super::super::browser::outside_detail(&error.to_string(), 120)
+        )
+    })
+}
+
 /// The input action a call is, when it is one, with the element it names (its `ref`).
 fn intent(handler: H, input: &Value) -> Option<(ChromeIntent, Option<String>)> {
     let element = input["ref"].as_str().map(str::to_owned);
@@ -86,13 +98,38 @@ fn handler_named(name: &str) -> Option<H> {
     })
 }
 
-/// `chrome.tabs`: the conversation's shares from Core's own record.
+/// `chrome.tabs`: the conversation's shares from Core's own record. An empty list says why it is
+/// empty, so "no tab" is not read as "Chrome has no tabs".
 pub(in crate::agent_execution) fn tabs_result(
     service: &AgentExecution,
     session: SessionId,
 ) -> anyhow::Result<Value> {
-    let tabs = service.chrome.get().map(|chrome| chrome.tabs(session)).unwrap_or_default();
-    Ok(serde_json::to_value(ChromeTabsResult { tabs })?)
+    let chrome = service.chrome.get();
+    let tabs = chrome.map(|chrome| chrome.tabs(session)).unwrap_or_default();
+    let connected = chrome.is_some_and(|chrome| chrome.connected());
+    Ok(serde_json::to_value(ChromeTabsResult { notice: tabs_notice(&tabs, connected), tabs })?)
+}
+
+/// Why `chrome.tabs` lists no tab, as the model reads it.
+pub(in crate::agent_execution) fn tabs_notice(
+    tabs: &[aura_chrome_domain::ChromeTabV1],
+    connected: bool,
+) -> Option<String> {
+    if !tabs.is_empty() {
+        None
+    } else if !connected {
+        Some(
+            "chrome.not_connected: Chrome 没有连接 Aura，所以没有列出标签页。请用户打开装了 Aura \
+             扩展的 Chrome；连上之前 chrome 工具都用不了。"
+                .to_owned(),
+        )
+    } else {
+        Some(
+            "chrome.no_shared_tab: Chrome 已连接，但还没有标签页共享给这个对话。可以用 \
+             chrome.open 打开网址，或请用户在 Chrome 的 Aura 扩展侧栏里点“共享给 Aura”。"
+                .to_owned(),
+        )
+    }
 }
 
 /// Looks, in the tab, at what each of the step's input actions would touch, before admission
@@ -134,7 +171,7 @@ impl AgentExecution {
         let session = snapshot.session_id;
         let input = action.clone();
         let opening = if handler == H::ChromeOpen {
-            let open: ChromeOpenInput = serde_json::from_value(input.clone())?;
+            let open: ChromeOpenInput = arguments(handler, input.clone())?;
             let url = web_address(&open.url)?;
             Some((chrome_control::shares::origin_of(&url), url))
         } else {
@@ -208,7 +245,7 @@ impl AgentExecution {
         let tab_id = tab.tab_id;
         let command = match handler {
             H::ChromeNavigate => {
-                let input: ChromeNavigateInput = serde_json::from_value(input)?;
+                let input: ChromeNavigateInput = arguments(handler, input)?;
                 let url = match (&input.url, input.action) {
                     (Some(url), None) => Some(web_address(url)?),
                     (None, Some(_)) => None,
@@ -221,14 +258,14 @@ impl AgentExecution {
                 ChromeCommand::Navigate { tab_id, url, action: input.action }
             }
             H::ChromeSnapshot => {
-                let input: ChromeSnapshotInput = serde_json::from_value(input)?;
+                let input: ChromeSnapshotInput = arguments(handler, input)?;
                 ChromeCommand::Snapshot {
                     tab_id,
                     max_chars: bounded(input.max_chars, 12_000, 2_000, 60_000),
                 }
             }
             H::ChromeScreenshot => {
-                let input: ChromeScreenshotInput = serde_json::from_value(input)?;
+                let input: ChromeScreenshotInput = arguments(handler, input)?;
                 ChromeCommand::Screenshot {
                     tab_id,
                     element: element(input.element)?,
@@ -236,7 +273,7 @@ impl AgentExecution {
                 }
             }
             H::ChromeWait => {
-                let input: ChromeWaitInput = serde_json::from_value(input)?;
+                let input: ChromeWaitInput = arguments(handler, input)?;
                 ChromeCommand::Wait {
                     tab_id,
                     text: input.text,
@@ -246,7 +283,7 @@ impl AgentExecution {
                 }
             }
             H::ChromeConsole => {
-                let input: ChromeConsoleInput = serde_json::from_value(input)?;
+                let input: ChromeConsoleInput = arguments(handler, input)?;
                 ChromeCommand::Console {
                     tab_id,
                     level: input.level,
@@ -262,7 +299,7 @@ impl AgentExecution {
                 ChromeCommand::Close { tab_id }
             }
             H::ChromeRequestUser => {
-                let input: ChromeRequestUserInput = serde_json::from_value(input)?;
+                let input: ChromeRequestUserInput = arguments(handler, input)?;
                 ensure!(!input.reason.trim().is_empty(), "chrome.request_user: 说明要用户做什么");
                 ChromeCommand::Assist {
                     tab_id,
@@ -304,7 +341,7 @@ impl AgentExecution {
 fn input_command(handler: H, tab_id: u32, input: Value) -> anyhow::Result<ChromeCommand> {
     Ok(match handler {
         H::ChromeClick => {
-            let input: ChromeClickInput = serde_json::from_value(input)?;
+            let input: ChromeClickInput = arguments(handler, input)?;
             if let (Some(x), Some(y)) = (input.x, input.y) {
                 ensure!(
                     x.is_finite()
@@ -328,7 +365,7 @@ fn input_command(handler: H, tab_id: u32, input: Value) -> anyhow::Result<Chrome
             }
         }
         H::ChromeType => {
-            let input: ChromeTypeInput = serde_json::from_value(input)?;
+            let input: ChromeTypeInput = arguments(handler, input)?;
             ensure!(input.text.chars().count() <= 10_000, "chrome.type: 一次最多输入 10000 个字符");
             ChromeCommand::Type {
                 tab_id,
@@ -339,7 +376,7 @@ fn input_command(handler: H, tab_id: u32, input: Value) -> anyhow::Result<Chrome
             }
         }
         H::ChromePress => {
-            let input: ChromePressInput = serde_json::from_value(input)?;
+            let input: ChromePressInput = arguments(handler, input)?;
             ChromeCommand::Press {
                 tab_id,
                 key: input.key,
@@ -348,7 +385,7 @@ fn input_command(handler: H, tab_id: u32, input: Value) -> anyhow::Result<Chrome
             }
         }
         H::ChromeScroll => {
-            let input: ChromeScrollInput = serde_json::from_value(input)?;
+            let input: ChromeScrollInput = arguments(handler, input)?;
             ChromeCommand::Scroll {
                 tab_id,
                 direction: input.direction,
@@ -357,14 +394,14 @@ fn input_command(handler: H, tab_id: u32, input: Value) -> anyhow::Result<Chrome
             }
         }
         H::ChromeHover => {
-            let input: ChromeHoverInput = serde_json::from_value(input)?;
+            let input: ChromeHoverInput = arguments(handler, input)?;
             ChromeCommand::Hover {
                 tab_id,
                 element: element(Some(input.element))?.unwrap_or_default(),
             }
         }
         H::ChromeSelect => {
-            let input: ChromeSelectInput = serde_json::from_value(input)?;
+            let input: ChromeSelectInput = arguments(handler, input)?;
             ensure!(!input.values.is_empty(), "chrome.select: 至少给一个选项值");
             ChromeCommand::Select {
                 tab_id,
@@ -372,7 +409,10 @@ fn input_command(handler: H, tab_id: u32, input: Value) -> anyhow::Result<Chrome
                 values: input.values,
             }
         }
-        _ => bail!("chrome.unsupported_tool"),
+        other => bail!(
+            "chrome.unsupported_tool: 这个版本的 Aura 不能执行 {}，什么都没做。",
+            other.name()
+        ),
     })
 }
 

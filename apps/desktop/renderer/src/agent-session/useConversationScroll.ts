@@ -6,6 +6,11 @@ const FOLLOW_SLACK = 90;
 /** Content further below the window than this offers the way back to the latest message. */
 const AWAY_SLACK = 24;
 
+/** Whether the conversation is taller than its window, so some of it can be below. */
+function overflows(viewport: HTMLElement) {
+  return viewport.scrollHeight - viewport.clientHeight > AWAY_SLACK;
+}
+
 /**
  * Keeps the conversation at its last message while the reader follows it.
  *
@@ -30,7 +35,8 @@ export function useConversationScroll(
     const viewport = viewportRef.current;
     if (!viewport || !runtime) return;
     const key = `${session}:${runtime}`;
-    if (shown.current !== key) {
+    // A conversation that fits its window is read at its end, whatever the reader did before.
+    if (shown.current !== key || !overflows(viewport)) {
       shown.current = key;
       following.current = true;
       setHasNew(false);
@@ -59,17 +65,24 @@ export function useConversationScroll(
     // Turning the wheel up leaves the end at once; output arriving in the same frames would
     // otherwise pull the reader back to it.
     const leave = (event: WheelEvent) => {
-      if (event.deltaY < 0) following.current = false;
+      if (event.deltaY < 0 && overflows(viewport)) following.current = false;
     };
     viewport.addEventListener('scroll', save, { passive: true });
     viewport.addEventListener('wheel', leave, { passive: true });
-    // Content that grows after it is shown (tool rows, code, images) keeps a follower at the end.
+    // Content that grows after it is shown (tool rows, code, images) keeps a follower at the end;
+    // a window grown to hold the whole conversation leaves nothing below.
     const resized =
       typeof ResizeObserver === 'undefined'
         ? undefined
         : new ResizeObserver(() => {
+            if (!overflows(viewport)) {
+              following.current = true;
+              setHasNew(false);
+              setAway(false);
+            }
             if (following.current) viewport.scrollTop = viewport.scrollHeight;
           });
+    resized?.observe(viewport);
     for (const child of viewport.children) resized?.observe(child);
     return () => {
       viewport.removeEventListener('scroll', save);
@@ -79,7 +92,8 @@ export function useConversationScroll(
   }, [viewportRef, session, runtime, contentVersion]);
   return {
     stopFollowing: () => {
-      following.current = false;
+      const viewport = viewportRef.current;
+      if (viewport && overflows(viewport)) following.current = false;
     },
     hasNew,
     /** Some of the conversation is below the window. */

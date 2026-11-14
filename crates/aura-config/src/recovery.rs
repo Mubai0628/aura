@@ -463,10 +463,7 @@ pub fn loss_of(
 ) -> Vec<String> {
     let Some(current) = current else {
         // No snapshot at all: the whole document is being installed.
-        return vec![
-            "the domain is unavailable, so the restored document replaces no live values"
-                .to_owned(),
-        ];
+        return vec!["这一项现在读不到，恢复会整份写入，不会覆盖正在用的值".to_owned()];
     };
     let mut changed = current
         .values
@@ -484,13 +481,13 @@ pub fn loss_of(
     added.sort();
     let mut loss = Vec::new();
     if !changed.is_empty() {
-        loss.push(format!("changed: {}", changed.join(", ")));
+        loss.push(format!("将改回或去掉：{}", changed.join("、")));
     }
     if !added.is_empty() {
-        loss.push(format!("added: {}", added.join(", ")));
+        loss.push(format!("将加上：{}", added.join("、")));
     }
     if loss.is_empty() {
-        loss.push("no value differs from the current document".to_owned());
+        loss.push("与当前设置相同".to_owned());
     }
     loss
 }
@@ -575,4 +572,16 @@ pub fn bundle_preview_identity(plan: &BundleRecoveryPlan) -> String {
     let encoded =
         aura_domain_common::jcs::canonical_json_jcs(&facts).expect("recovery facts are valid JSON");
     format!("bundle:{}", aura_domain_common::jcs::CanonicalHashV1::sha256(&encoded).hex())
+}
+
+#[cfg(test)]
+mod loss_tests {
+    use super::*;
+
+    #[test]
+    fn what_a_recovery_would_change_is_said_in_words() {
+        assert_eq!(loss_of(None, &ModuleConfigDocument::empty())[0].chars().next(), Some('这'));
+        let current = ModuleConfigDocument::empty();
+        assert_eq!(loss_of(Some(&current), &current), ["与当前设置相同"]);
+    }
 }

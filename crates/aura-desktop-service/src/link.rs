@@ -44,7 +44,10 @@ impl LinkError {
         let (code, message, delivery) = match self {
             Self::NotStarted(why) => (
                 HostErrorCode::Internal,
-                format!("电脑操控的宿主程序没有启动：{why}"),
+                format!(
+                    "电脑操控的宿主程序没有启动（{}），这一步没有执行；可以再试一次，反复出现时请用户重启 Aura",
+                    detail(&why)
+                ),
                 Delivery::NotDelivered,
             ),
             Self::TimedOut => (
@@ -52,15 +55,34 @@ impl LinkError {
                 "电脑操控没有及时回应，已结束它，下次会重新启动".to_owned(),
                 unsure,
             ),
-            Self::Ended => {
-                (HostErrorCode::Internal, "电脑操控的宿主程序意外退出".to_owned(), unsure)
-            }
-            Self::Garbled(why) => {
-                (HostErrorCode::Internal, format!("电脑操控返回了无法识别的结果：{why}"), unsure)
-            }
+            Self::Ended => (
+                HostErrorCode::Internal,
+                "电脑操控的宿主程序在这一步进行中意外退出，下一次调用会重新启动它".to_owned(),
+                unsure,
+            ),
+            Self::Garbled(why) => (
+                HostErrorCode::Internal,
+                format!(
+                    "电脑操控的宿主程序返回了无法识别的内容（{}），已结束它，下一次调用会重新启动它",
+                    detail(&why)
+                ),
+                unsure,
+            ),
         };
         HostError::new(code, message, delivery)
     }
+}
+
+/// Text from outside Aura's sentences (a launcher's or a decoder's error) as a short detail: its
+/// first line, at most 200 characters, without control characters.
+fn detail(text: &str) -> String {
+    let line = text.lines().map(str::trim).find(|line| !line.is_empty()).unwrap_or("没有给出原因");
+    let mut short: String =
+        line.chars().take(200).map(|c| if c.is_control() { ' ' } else { c }).collect();
+    if line.chars().count() > 200 {
+        short.push('…');
+    }
+    short
 }
 
 type Message = Result<HostMessage, LinkError>;
@@ -338,7 +360,9 @@ impl HostLink {
             Ok(HostMessage::Ready { protocol }) => Err(format!("协议版本 {protocol} 不对")),
             Ok(_) => Err("第一行不是“就绪”".into()),
             Err(LinkError::TimedOut) => Err("没有及时说就绪".into()),
-            Err(error) => Err(format!("{error:?}")),
+            Err(LinkError::Ended) => Err("它还没说就绪就退出了".into()),
+            Err(LinkError::Garbled(why)) => Err(format!("它的第一行无法识别：{}", detail(&why))),
+            Err(LinkError::NotStarted(why)) => Err(why),
         };
         match ready {
             Ok(()) => Ok(Running { process, events, next_id: 0 }),

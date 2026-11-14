@@ -245,6 +245,7 @@ fn approve(f: &super::fixture::Fixture, call: &CallContext) {
                 backend.class,
                 call.snapshot.session_permission_revision,
                 engine.runtime,
+                None,
                 now,
             )
         })
@@ -389,6 +390,9 @@ async fn l01_proxy_and_direct_failure_before_http_does_not_claim_a_replay() {
     };
     assert!(error.message.contains("network.user_proxy_unavailable"), "{}", error.message);
     assert!(error.message.contains("尚未向目标发出 HTTP 请求"), "{}", error.message);
+    // The proxy's place in the settings is named; tools no longer have one of their own.
+    assert!(error.message.contains("设置 → 模型 → 网络代理"), "{}", error.message);
+    assert!(!error.message.contains("工具设置"), "{}", error.message);
     assert!(!error.message.contains("没有自动重放"), "{}", error.message);
     assert!(!error.message.contains("已经发出"), "{}", error.message);
     assert_eq!(result.side_effect_state, SideEffectStateV1::NoEffect);

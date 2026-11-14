@@ -2662,6 +2662,50 @@
     "test_only": false
   },
   {
+    "method": "agent.team.list",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "AgentTeamListRequest",
+    "response_type": "AgentTeamView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.list",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "AgentTeamListRequest",
+    "response_type": "AgentTeamView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.stop",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "AgentTeamStopRequest",
+    "response_type": "AgentTeamView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.stop",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "AgentTeamStopRequest",
+    "response_type": "AgentTeamView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
     "method": "agent.inbox",
     "owner": "agent",
     "surface": "main",
@@ -4356,6 +4400,171 @@
     "test_only": false
   },
   {
+    "method": "agent.team.changes",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "AgentTeamChangesRequest",
+    "response_type": "AgentTeamChangesView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.changes",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "AgentTeamChangesRequest",
+    "response_type": "AgentTeamChangesView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.worktrees.location",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "WorktreeLocationView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.worktrees.location",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "WorktreeLocationView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.worktrees.location.set",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "WorktreeLocationSetRequest",
+    "response_type": "WorktreeLocationView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.worktrees.location.set",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "WorktreeLocationSetRequest",
+    "response_type": "WorktreeLocationView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.worktrees.location.select",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "WorktreeLocationSelected",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.worktree.open",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "AgentTeamWorktreeRequest",
+    "response_type": "OpenedOutside",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.worktree.folder",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "AgentTeamWorktreeRequest",
+    "response_type": "AgentTeamWorktreeFolder",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.settings",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "AgentTeamSettingsView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.settings",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "AgentTeamSettingsView",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.settings.set",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "AgentTeamSettingsSetRequest",
+    "response_type": "AgentTeamSettingsView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.settings.set",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "AgentTeamSettingsSetRequest",
+    "response_type": "AgentTeamSettingsView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.allowance.revoke",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "AgentTeamAllowanceRevokeRequest",
+    "response_type": "AgentTeamView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "agent.team.allowance.revoke",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "AgentTeamAllowanceRevokeRequest",
+    "response_type": "AgentTeamView",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
     "method": "git.runtime.get",
     "owner": "git",
     "surface": "main",
@@ -5698,6 +5907,28 @@
     "test_only": false
   },
   {
+    "method": "terminal.user.hand_over",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "TerminalRequestV1",
+    "response_type": "TerminalViewV1",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
+    "method": "terminal.user.hand_over",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "TerminalRequestV1",
+    "response_type": "TerminalViewV1",
+    "idempotency": "command_invocation",
+    "cancellation": "domain_operation",
+    "test_only": false
+  },
+  {
     "method": "terminal.user.subscribe",
     "owner": "agent",
     "surface": "main",
@@ -6105,6 +6336,50 @@
     "test_only": false
   },
   {
+    "method": "chrome.tabs.list",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "ChromeTabChoices",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "chrome.tabs.list",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "ChromeTabChoices",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "chrome.tabs.hand_over",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "ChromeTabHandOverRequest",
+    "response_type": "ChromeHandedTab",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "chrome.tabs.hand_over",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "ChromeTabHandOverRequest",
+    "response_type": "ChromeHandedTab",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
     "method": "chrome.extension.open_folder",
     "owner": "agent",
     "surface": "main",
@@ -6365,6 +6640,204 @@
     "request_type": "MentionedFileRequest",
     "response_type": "AttachmentLocation",
     "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.overview",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageOverview",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.overview",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageOverview",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.check",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "StorageChoice",
+    "response_type": "StorageCheck",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.check",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "StorageChoice",
+    "response_type": "StorageCheck",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.move.request",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "StorageChoice",
+    "response_type": "StorageOverview",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.move.request",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "StorageChoice",
+    "response_type": "StorageOverview",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.move.withdraw",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageOverview",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.move.withdraw",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageOverview",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.failure.dismiss",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageOverview",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.failure.dismiss",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageOverview",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.old_data.list",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "OldDataListing",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.old_data.list",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "EmptyToolInput",
+    "response_type": "OldDataListing",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.old_data.remove",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "OldDataRemoveRequest",
+    "response_type": "OldDataRemoval",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.old_data.remove",
+    "owner": "agent",
+    "surface": "core",
+    "auth": "authenticated_main",
+    "request_type": "OldDataRemoveRequest",
+    "response_type": "OldDataRemoval",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.select_folder",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageSelectedFolder",
+    "idempotency": "read_only",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.open_folder",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "StorageOpenFolderRequest",
+    "response_type": "StorageFolderOpened",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.restart",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageRestart",
+    "idempotency": "command_invocation",
+    "cancellation": "none",
+    "test_only": false
+  },
+  {
+    "method": "storage.move_install",
+    "owner": "agent",
+    "surface": "main",
+    "auth": "trusted_renderer",
+    "request_type": "EmptyToolInput",
+    "response_type": "StorageRestart",
+    "idempotency": "command_invocation",
     "cancellation": "none",
     "test_only": false
   }

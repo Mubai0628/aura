@@ -26,7 +26,7 @@ impl ToolReadControlServiceV1 {
             safe_error(
                 ToolRegistryErrorCode::SnapshotCorrupted,
                 ErrorCategory::Validation,
-                "The Tool Credential candidate query is invalid.",
+                "可选凭据的查询条件无效，没有读到凭据列表；请刷新这一页后重试。",
                 correlation_id,
             )
         })?;
@@ -54,7 +54,7 @@ impl ToolReadControlServiceV1 {
                 safe_error(
                     ToolRegistryErrorCode::CursorUnavailable,
                     ErrorCategory::Validation,
-                    "The Tool Activity cursor is invalid.",
+                    "活动记录的翻页位置无效；请刷新后从头查看。",
                     correlation_id,
                 )
             })?;
@@ -65,7 +65,7 @@ impl ToolReadControlServiceV1 {
                 safe_error(
                     ToolRegistryErrorCode::CursorUnavailable,
                     ErrorCategory::Conflict,
-                    "The Tool Activity cursor is unavailable.",
+                    "活动记录已更新，原来的翻页位置不再可用；请刷新后从头查看。",
                     correlation_id,
                 )
             })?;
@@ -83,7 +83,7 @@ impl ToolReadControlServiceV1 {
             return Err(safe_error(
                 ToolRegistryErrorCode::CursorMismatch,
                 ErrorCategory::Permission,
-                "The Tool Activity cursor does not match a readable Session.",
+                "这页活动记录不属于当前能读的会话；请刷新后从头查看。",
                 correlation_id,
             ));
         }
@@ -106,25 +106,25 @@ fn map_activity_error(
         ToolActivityPageReadErrorV1::CursorExpired => safe_error(
             ToolRegistryErrorCode::CursorExpired,
             ErrorCategory::Conflict,
-            "The Tool Activity cursor expired because its historical boundary is unavailable.",
+            "较早的活动记录已经读不到，原来的翻页位置失效了；请刷新后从头查看。",
             correlation_id,
         ),
         ToolActivityPageReadErrorV1::CursorUnavailable => safe_error(
             ToolRegistryErrorCode::CursorUnavailable,
             ErrorCategory::Conflict,
-            "The Tool Activity cursor is unavailable.",
+            "活动记录已更新，原来的翻页位置不再可用；请刷新后从头查看。",
             correlation_id,
         ),
         ToolActivityPageReadErrorV1::CursorMismatch => safe_error(
             ToolRegistryErrorCode::CursorMismatch,
             ErrorCategory::Permission,
-            "The Tool Activity cursor does not match the authenticated Session visibility.",
+            "这页活动记录不属于当前能读的会话；请刷新后从头查看。",
             correlation_id,
         ),
         ToolActivityPageReadErrorV1::CursorCorrupted => safe_error(
             ToolRegistryErrorCode::SnapshotCorrupted,
             ErrorCategory::Internal,
-            "The Tool Activity cursor failed integrity verification.",
+            "活动记录的翻页位置没有通过校验；请刷新后从头查看。",
             correlation_id,
         ),
         ToolActivityPageReadErrorV1::Persistence(error) => {
@@ -141,25 +141,25 @@ fn map_persistence_error(
         PersistenceError::ToolActivityCursorExpired => safe_error(
             ToolRegistryErrorCode::CursorExpired,
             ErrorCategory::Conflict,
-            "The Tool Activity cursor expired because its historical boundary is unavailable.",
+            "较早的活动记录已经读不到，原来的翻页位置失效了；请刷新后从头查看。",
             correlation_id,
         ),
         PersistenceError::ToolActivityCursorUnavailable => safe_error(
             ToolRegistryErrorCode::CursorUnavailable,
             ErrorCategory::Conflict,
-            "The Tool Activity cursor is unavailable.",
+            "活动记录已更新，原来的翻页位置不再可用；请刷新后从头查看。",
             correlation_id,
         ),
         PersistenceError::ToolActivityCursorMismatch => safe_error(
             ToolRegistryErrorCode::CursorMismatch,
             ErrorCategory::Permission,
-            "The Tool Activity cursor does not match the authenticated Session visibility.",
+            "这页活动记录不属于当前能读的会话；请刷新后从头查看。",
             correlation_id,
         ),
         _ => safe_error(
             ToolRegistryErrorCode::SnapshotCorrupted,
             ErrorCategory::Internal,
-            "Tool Activity history could not be read safely.",
+            "活动记录没能安全读出；请刷新后重试，仍然不行时重启 Aura。",
             correlation_id,
         ),
     }
@@ -171,10 +171,11 @@ fn safe_error(
     message: &str,
     correlation_id: CorrelationId,
 ) -> IpcErrorEnvelope {
+    let code = code.error_code();
     IpcErrorEnvelope {
-        code: code.error_code(),
+        message: format!("{code}: {message}"),
+        code,
         category,
-        message: message.to_owned(),
         retryable: false,
         correlation_id,
         terminal: IpcRequestTerminal::Failed,

@@ -5,6 +5,7 @@ import { resetToolTabsForTests, tabLabels, toolTabs } from '../right-workspace/t
 import {
   adoptModelPage,
   browserTabs,
+  hostBrowser,
   openInBrowser,
   resetBrowserTabsForTests,
   revealModelPage,
@@ -99,5 +100,25 @@ describe('the browser in the sidebar', () => {
     const before = sent().at(-2);
     const refused = before !== undefined && 'pageId' in before ? before.pageId : '';
     expect(sent().at(-1)).toEqual({ kind: 'close', sessionId: S, pageId: refused });
+  });
+});
+
+describe("a sub-agent's pages", () => {
+  it("show in the starting conversation's sidebar while its record is shown there", () => {
+    const child = 'ses_child';
+    const revealed: string[] = [];
+    const stop = toolTabs.onReveal((session) => revealed.push(session));
+    const end = hostBrowser(child, S);
+    adoptModelPage(child);
+    // Its page is its own; the browser tab and the sidebar are the conversation's.
+    expect(browserTabs.get(child)).toEqual({ pages: [MODEL_PAGE_ID], shown: MODEL_PAGE_ID });
+    expect(activeKind()).toBe('browser');
+    expect(revealed).toEqual([S]);
+    end();
+    // Its record closed, its pages no longer take the conversation's sidebar.
+    browserTabs.close(child, MODEL_PAGE_ID);
+    adoptModelPage(child);
+    expect(revealed).toEqual([S, child]);
+    stop();
   });
 });

@@ -312,6 +312,8 @@ test('a plugin shows how its servers and Hooks are running, and reads Hook calls
   expect(within(running).getByRole('alert').textContent).toContain('程序退出（代码 7）');
   expect(within(running).queryByText('mine 服务器')).toBeNull();
   expect(within(running).getByText('guard')).toBeTruthy();
+  expect(within(running).getByText('工具调用前')).toBeTruthy();
+  expect(within(running).queryByText(/tool\.before_call/u)).toBeNull();
   expect(api.listHookInvocations).not.toHaveBeenCalled();
   await userEvent.click(within(running).getByText('最近调用'));
   await waitFor(() => expect(api.listHookInvocations).toHaveBeenCalledTimes(1));
@@ -444,4 +446,49 @@ test("a plugin's row shows the status entry the plugin shows now", async () => {
   expect(within(bridge).getByText('重连中')).toBeTruthy();
   push({ kind: 'statuses', statuses: [] });
   expect(within(bridge).queryByText('重连中')).toBeNull();
+});
+
+test('a running state that was not read says why and that the plugin is not affected', async () => {
+  api.listPlugins.mockResolvedValue(registry([view('kit')]));
+  api.listHooks.mockResolvedValue({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  render(<PluginSettings coreReady />);
+  expect(
+    await screen.findByText(
+      '运行情况暂时读不到（Aura Core 没有及时回复），插件本身不受影响；请稍后刷新再看。',
+    ),
+  ).toBeTruthy();
+});
+
+test("a plugin's Hooks in its content are named by their events in words", async () => {
+  const kit = view('kit');
+  api.listPlugins.mockResolvedValue(registry([kit]));
+  api.previewPlugin.mockResolvedValue({
+    ok: true,
+    value: {
+      ...preview(kit),
+      hooks: [
+        {
+          folder: 'guard',
+          definition: {
+            name: 'guard',
+            events: ['tool.before_call', 'turn.before_start'],
+            kind: 'security',
+          },
+          problems: [],
+        },
+      ],
+    } as unknown as PluginPreview,
+  });
+  render(<PluginSettings coreReady />);
+  const dialog = await details('kit');
+  await userEvent.click(within(dialog).getByRole('button', { name: '查看内容' }));
+  const shown = await within(dialog).findByRole('region', { name: /的内容$/u });
+  expect(
+    within(within(shown).getByRole('region', { name: 'Hook' })).getByText(
+      /事件：工具调用前、轮次开始前/u,
+    ),
+  ).toBeTruthy();
 });

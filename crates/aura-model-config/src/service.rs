@@ -722,7 +722,7 @@ impl ModelConfigService {
         provider_id: aura_domain_common::ProviderId,
         available: bool,
         updated_at: aura_domain_common::UtcTimestamp,
-    ) -> Result<(ModelConfigSnapshot, Vec<ModelProfileId>), ModelConfigError> {
+    ) -> Result<(ModelConfigSnapshot, crate::ProviderSubagentChange), ModelConfigError> {
         let mut changed = None;
         let snapshot = self.update(expected_revision, |candidate| {
             changed = Some(crate::set_provider_current_models_subagent_availability(

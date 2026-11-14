@@ -43,7 +43,10 @@ impl GitReader {
         let mut units = 64;
         for path in paths {
             let next = path.encode_utf16().count() + 4;
-            ensure!(next < 24_000, "git.attribute_path_too_long");
+            ensure!(
+                next < 24_000,
+                "git.attribute_path_too_long: 有一个文件路径太长（约 {next} 个字符），无法检查它的 Git 属性，这次读取没有得到结果。请在终端处理这个文件。"
+            );
             if units + next > 24_000 {
                 self.collect_attributes(&args, &mut selected)?;
                 args.truncate(5);
@@ -64,11 +67,11 @@ impl GitReader {
         if fields.last() == Some(&&b""[..]) {
             fields.pop();
         }
-        ensure!(fields.len() % 3 == 0, "git.attribute_format");
+        if !fields.len().is_multiple_of(3) {
+            return Err(attribute_format());
+        }
         for row in fields.chunks_exact(3) {
-            let path = std::str::from_utf8(row[0])?;
-            let attr = std::str::from_utf8(row[1])?;
-            let driver = std::str::from_utf8(row[2])?;
+            let (path, attr, driver) = (text(row[0])?, text(row[1])?, text(row[2])?);
             if (attr == "filter" && self.programs.filters.contains(driver))
                 || (attr == "diff" && self.programs.diffs.contains(driver))
             {
@@ -77,4 +80,12 @@ impl GitReader {
         }
         Ok(())
     }
+}
+
+fn text(field: &[u8]) -> Result<&str> {
+    std::str::from_utf8(field).map_err(|_| attribute_format())
+}
+
+fn attribute_format() -> anyhow::Error {
+    super::config::unreadable_output("attribute_format", "文件属性")
 }

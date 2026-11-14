@@ -11,6 +11,9 @@ pub(crate) fn validate_builtin_module_document(
         ConfigModule::Browser => crate::browser::settings_from_document(document).map(|_| ()),
         ConfigModule::Chrome => crate::chrome::settings_from_document(document).map(|_| ()),
         ConfigModule::Computer => crate::computer::settings_from_document(document).map(|_| ()),
+        ConfigModule::Network => {
+            crate::system_proxy::tools_follow_system_from_document(document).map(|_| ())
+        }
         ConfigModule::Prompt => crate::prompt::validate_prompt_document(document),
         ConfigModule::Hooks => crate::hooks::validate_hooks_document(document),
         ConfigModule::Mcp => crate::mcp::validate_mcp_document(document),

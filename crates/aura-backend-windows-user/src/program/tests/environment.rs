@@ -43,6 +43,9 @@ fn program_environment_filters_inherited_secrets_and_keeps_shell_network_semanti
                 get("HTTP_PROXY").expect("owned reject proxy").starts_with("http://127.0.0.1:")
             );
             assert_ne!(get("HTTP_PROXY").as_deref(), Some("http://127.0.0.1:9"));
+            // This computer's own addresses stay reachable.
+            assert_eq!(get("NO_PROXY").as_deref(), Some("localhost,127.0.0.1,::1"));
+            assert_eq!(get("NPM_CONFIG_NOPROXY").as_deref(), Some("localhost,127.0.0.1,::1"));
         }
     }
 }

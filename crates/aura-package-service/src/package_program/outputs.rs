@@ -19,39 +19,42 @@ pub(super) fn collect(
     observed: &[StdioArtifactReadyPayloadV1],
 ) -> Result<Vec<VerifiedProgramArtifact>> {
     let _root = aura_windows_platform::open_verified_tool_output_root(root)?;
-    ensure!(declared || observed.is_empty(), "package.artifact_not_declared");
+    ensure!(declared || observed.is_empty(), crate::failures::ARTIFACT_NOT_DECLARED);
     let mut seen = BTreeMap::<String, StdioArtifactReadyPayloadV1>::new();
     let mut identities = Vec::new();
     let mut total = 0_u64;
     let mut artifacts = Vec::new();
     for payload in observed {
         if let Some(previous) = seen.get(payload.slot.as_str()) {
-            ensure!(previous == payload, "package.artifact_slot_conflict");
+            ensure!(previous == payload, crate::failures::ARTIFACT_SLOT_CONFLICT);
             continue;
         }
         ensure!(
             artifacts.len() < MAX_TOOL_OUTPUT_ARTIFACTS_V1 as usize
                 && payload.byte_length <= MAX_TOOL_ARTIFACT_BYTES as u64,
-            "package.artifact_limit"
+            crate::failures::ARTIFACT_LIMIT
         );
-        ensure!(valid_media_type_v1(&payload.media_type), "package.artifact_media_type");
+        ensure!(valid_media_type_v1(&payload.media_type), crate::failures::ARTIFACT_MEDIA_TYPE);
         let mut file = aura_windows_platform::open_verified_tool_output_from_root(
             root,
             Path::new(payload.relative_path.as_str()),
         )?;
-        ensure!(!identities.contains(&file.info().identity), "package.artifact_alias");
-        ensure!(file.file().metadata()?.len() == payload.byte_length, "package.artifact_length");
+        ensure!(!identities.contains(&file.info().identity), crate::failures::ARTIFACT_ALIAS);
+        ensure!(
+            file.file().metadata()?.len() == payload.byte_length,
+            crate::failures::ARTIFACT_LENGTH
+        );
         total = total
             .checked_add(payload.byte_length)
-            .ok_or_else(|| anyhow::anyhow!("package.artifact_limit"))?;
-        ensure!(total <= 256 * 1024 * 1024, "package.artifact_limit");
+            .ok_or_else(|| anyhow::anyhow!(crate::failures::ARTIFACT_LIMIT))?;
+        ensure!(total <= 256 * 1024 * 1024, crate::failures::ARTIFACT_LIMIT);
         let mut bytes = Vec::with_capacity(payload.byte_length as usize);
         file.file_mut().take(MAX_TOOL_ARTIFACT_BYTES as u64 + 1).read_to_end(&mut bytes)?;
         ensure!(
             bytes.len() as u64 == payload.byte_length
                 && payload.content_hash.algorithm == ContentHashAlgorithm::Sha256
                 && ContentHash::sha256(&bytes) == payload.content_hash,
-            "package.artifact_identity"
+            crate::failures::ARTIFACT_IDENTITY
         );
         identities.push(file.info().identity.clone());
         seen.insert(payload.slot.as_str().to_owned(), payload.clone());

@@ -1,6 +1,10 @@
 import { userMessage } from '../agent-session/user-message';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GitRuntimeStatusV1 } from '@aura/contracts/generated';
+/** Git's site did not open: where to go instead. */
+const GIT_SITE_NOT_OPENED =
+  '没能打开 Git 官网，请在浏览器中访问 https://git-scm.com/download/win 下载。';
+
 export function GitRuntimePanel() {
   const [status, setStatus] = useState<GitRuntimeStatusV1>();
   const [error, setError] = useState<string>();
@@ -34,10 +38,9 @@ export function GitRuntimePanel() {
     try {
       const result = await window.aura.v1.git.openInstallation();
       if (request === sequence.current && !result.ok)
-        setError(userMessage(result.error, 'Git 重新检测没有完成，请重试。'));
+        setError(userMessage(result.error, GIT_SITE_NOT_OPENED));
     } catch {
-      if (request === sequence.current)
-        setError('无法打开 Git 官网，请访问 https://git-scm.com/download/win');
+      if (request === sequence.current) setError(GIT_SITE_NOT_OPENED);
     }
   };
   return (

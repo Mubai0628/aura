@@ -208,7 +208,7 @@ test('a timeout, a tab in the background and a stale memory read say their kind'
     call('f', entry('f', { outcome: 'cancelled', reason: 'timeout' })),
   ]);
   expect(groups.map((group) => group.state)).toEqual([
-    '超时，可重试',
+    '超时，未执行',
     '未执行：标签页在后台',
     '冲突，未写入',
     '工具暂不可用',

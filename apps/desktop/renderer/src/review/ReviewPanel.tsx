@@ -24,6 +24,7 @@ import {
   type ReviewFile,
 } from './review-model';
 import { useReviewOptions } from './review-options';
+import { NOT_A_REPOSITORY } from './review-problem';
 import { keepReviewView, reviewView } from './review-store';
 import { useReviewData } from './useReviewData';
 import './review.css';
@@ -278,10 +279,11 @@ export function ReviewPanel({
           正在读取 Git…
         </p>
       ) : null}
+      {review.notRepository ? <p className="review-note">{NOT_A_REPOSITORY}</p> : null}
       {review.error ? (
         <p className="git-review-error" role="alert">
-          {status ? '刷新失败，保留上次内容：' : '无法读取仓库：'}
-          {review.error} 请核对工作区位置和 Git 配置后重试。
+          {status ? '刷新失败，仍显示上次的内容：' : ''}
+          {review.error}
         </p>
       ) : null}
       {unavailable ? (

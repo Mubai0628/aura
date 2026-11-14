@@ -101,7 +101,9 @@ describe('交还 after the user took the desktop over', () => {
     current = [{ ...NOTEPAD, foreground: true, taken_over: true }];
     render(<Part activeTurn={TURN} />);
     await userEvent.click(await screen.findByRole('button', { name: '交还操控 记事本' }));
-    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '没有交还：电脑操控不可用。「记事本」仍由你操作。请再点一次“交还”。',
+    );
     expect(submit).not.toHaveBeenCalled();
     expect(screen.getByTestId('sending').textContent).toBe('');
     expect(screen.getByText('你已接管')).toBeTruthy();
@@ -115,7 +117,9 @@ describe('交还 after the user took the desktop over', () => {
     current = [{ ...NOTEPAD, foreground: true, taken_over: true }];
     render(<Part activeTurn={TURN} />);
     await userEvent.click(await screen.findByRole('button', { name: '交还操控 记事本' }));
-    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      '操作权已交还，但告诉模型继续的消息没有发出：模型不可用。请在输入框发送“继续”，模型才会接着做。',
+    );
     expect(giveBack).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('sending').textContent).toBe('');
   });

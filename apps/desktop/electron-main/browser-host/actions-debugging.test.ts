@@ -11,11 +11,11 @@ const open = { kind: 'open', url: 'http://127.0.0.1:9/game' } as const;
 
 describe("the model's request for the user's help", () => {
   it("leaves the page to the user, then answers with the user's word and a fresh snapshot", async () => {
-    let asked: [string, string, number] | undefined;
+    let asked: [string, string, string, number] | undefined;
     let activeWhileWaiting: boolean | undefined;
     const { deps, pages, devtools } = setup({
-      assist: async (_session, commandId, reason, timeoutMs) => {
-        asked = [commandId, reason, timeoutMs];
+      assist: async (_session, page, commandId, reason, timeoutMs) => {
+        asked = [page, commandId, reason, timeoutMs];
         activeWhileWaiting = pages.state(S, 'model')?.agentActive;
         return 'done';
       },
@@ -26,7 +26,7 @@ describe("the model's request for the user's help", () => {
       deps,
       command({ kind: 'request_user', reason: '请登录测试账号', timeout_ms: 180_000 }),
     );
-    expect(asked).toEqual(['bcm-1', '请登录测试账号', 180_000]);
+    expect(asked).toEqual(['model', 'bcm-1', '请登录测试账号', 180_000]);
     expect(activeWhileWaiting).toBe(false);
     expect(result.outcome).toMatchObject({
       outcome: 'completed',

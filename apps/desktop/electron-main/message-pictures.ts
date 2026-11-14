@@ -15,6 +15,7 @@ import {
   type MessagePictureResult,
 } from '../shared/message-pictures.js';
 import type { CoreSupervisor } from './core-supervisor.js';
+import { coreDidNotAnswer } from './request-failure-envelopes.js';
 
 type Core = Pick<CoreSupervisor, 'requestWithBudget'>;
 
@@ -69,7 +70,12 @@ export async function handleMessagePicture(
   let found: Awaited<ReturnType<typeof picture>>;
   try {
     found = await picture(core, request.session_id, request.artifact_id);
-  } catch {
+  } catch (error) {
+    if (coreDidNotAnswer(error))
+      return {
+        completed: false,
+        message: `Aura Core 暂时没有回应，图片没有${request.action === 'copy' ? '复制' : '保存'}；稍后再试。`,
+      };
     found = undefined;
   }
   if (found === undefined) return { completed: false, message: '这张图片已不可用。' };

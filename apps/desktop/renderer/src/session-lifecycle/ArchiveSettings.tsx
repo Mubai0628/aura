@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { userMessage } from '../agent-session/user-message';
 import { useWorkspaceSessions } from '../workspace-session-store';
+import { worktreeParents } from '../worktree-links';
 import { DeleteSessionDialog, DeleteWorkspaceDialog } from './LifecycleDialogs';
 import './archive-settings.css';
+import { restoreFailure } from './failure-words';
 
 type Confirm =
   { kind: 'session'; id: string; title: string } | { kind: 'workspace'; id: string; name: string };
@@ -17,12 +18,18 @@ export function ArchiveSettings() {
   const [error, setError] = useState<string>();
   const [confirm, setConfirm] = useState<Confirm>();
   const workspaces = projection?.workspaces ?? [];
-  const archivedWorkspaces = workspaces.filter((workspace) => workspace.state === 'archived');
+  // A worktree's workspace is archived with the worktree; it is not the user's to restore.
+  const worktrees = worktreeParents(projection);
+  const archivedWorkspaces = workspaces.filter(
+    (workspace) => workspace.state === 'archived' && !worktrees.has(workspace.workspace_id),
+  );
   const archivedSessions = (projection?.sessions ?? []).filter(
     (session) => session.state === 'archived',
   );
   const sessionCount = (workspaceId: string) =>
-    (projection?.sessions ?? []).filter((session) => session.workspace_id === workspaceId).length;
+    (projection?.sessions ?? []).filter(
+      (session) => session.workspace_id === workspaceId && session.state !== 'subagent',
+    ).length;
   const restore = async (key: string, run: () => Promise<{ ok: boolean; error?: unknown }>) => {
     setBusy(key);
     setError(undefined);
@@ -30,7 +37,7 @@ export function ArchiveSettings() {
       const result = await run();
       if (!result.ok) throw result.error;
     } catch (reason) {
-      setError(userMessage(reason, '恢复没有完成，请刷新后查看。'));
+      setError(restoreFailure(reason));
     } finally {
       setBusy(undefined);
     }

@@ -9,7 +9,10 @@ export const BROWSER_COMMAND_CHANNEL = 'aura:v1:browser-command';
 export const BROWSER_STATE_CHANNEL = 'aura:v1:browser-state';
 export const BROWSER_PAGES_CHANNEL = 'aura:v1:browser-pages';
 
-/** The page a session's model drives; every other page id is a tab the user opened. */
+/**
+ * The page a session's model drives; every other page id is a tab the user opened, which the
+ * model reaches only once the user hands it over.
+ */
 export const MODEL_PAGE_ID = 'model';
 
 export interface BrowserBounds {
@@ -46,6 +49,11 @@ export interface BrowserPageState {
   notice?: { kind: BrowserNoticeKind; text: string } | undefined;
   /** The page no longer exists (closed, or released to save memory). */
   closed: boolean;
+  /**
+   * The user handed this page of theirs to the conversation's model: the id the model's browser
+   * tools take for it (p1, p2…). It stays handed over until it closes.
+   */
+  handedAs?: string | undefined;
 }
 
 export type BrowserUserCommand =
@@ -69,7 +77,9 @@ export type BrowserUserCommand =
         /** A picture of the page as it is now, shown or hidden, to draw where it would be. */
         | 'picture'
         /** The page's title, address and text as it is now, for a message that refers to it. */
-        | 'text';
+        | 'text'
+        /** The user's page goes to the conversation's model, as a message that refers to it is sent. */
+        | 'hand-over';
       sessionId: string;
       pageId: string;
     }
@@ -116,4 +126,20 @@ export interface BrowserApiV1 {
   updateSettings: Request<'browser.settings.update'>;
   /** A screenshot a browser call of the conversation took. */
   readScreenshot: Request<'browser.screenshot.read'>;
+}
+
+/** What a browser command that failed did not do, as a clause. */
+export function browserNotDone(kind: BrowserUserCommand['kind']): string {
+  switch (kind) {
+    case 'open':
+    case 'open-file':
+    case 'show':
+      return '页面没有打开';
+    case 'hand-over':
+      return '页面没有交给模型';
+    case 'clear-data':
+      return '浏览数据没有清除';
+    default:
+      return '这次浏览器操作没有完成';
+  }
 }

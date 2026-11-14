@@ -104,6 +104,23 @@ pub fn request_cancel(tx: &Transaction<'_>, run: AgentRunId, at: UtcTimestamp) -
     }
     facts::append(tx, EventId::new(), &run.to_string(), "agent.cancel_requested", &true, at)
 }
+/// [`request_cancel`] for a stop made by someone other than the user, with the note the model
+/// reads in the next turn about who stopped it and why.
+pub fn request_cancel_noting(
+    tx: &Transaction<'_>,
+    run: AgentRunId,
+    note: &super::model_context::StopNote,
+    at: UtcTimestamp,
+) -> StoreResult<()> {
+    let r = turns::load_run(tx, run)?;
+    let t = turns::load(tx, r.turn_task_id)?;
+    if t.state.terminal() || cancellation_requested(tx, run)? {
+        return Ok(());
+    }
+    let owner = run.to_string();
+    facts::append(tx, EventId::new(), &owner, super::model_context::STOP_NOTE, note, at)?;
+    facts::append(tx, EventId::new(), &owner, "agent.cancel_requested", &true, at)
+}
 pub fn projection(db: &Connection, request: &AgentRunRequest) -> StoreResult<AgentRunProjection> {
     let run = turns::load_run(db, request.agent_run_id)?;
     let turn = turns::load(db, run.turn_task_id)?;

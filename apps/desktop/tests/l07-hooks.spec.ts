@@ -110,7 +110,7 @@ test('L07 a trusted Hook blocks a tool call with its reason and stops running on
     const session = setup.sessionId as string;
     await finished(page, session);
     const told = lastTool(model.requests[1]!);
-    expect(told).toContain(`被 Hook guard 阻止：${reason}`);
+    expect(told).toContain(`用户的 Hook guard 在调用前拦下了它：${reason}`);
     expect(told).not.toContain('hook-free notes');
     const activity = await page.evaluate(async (session_id) => {
       const result = await window.aura.v1.readAgentToolActivity({
@@ -122,7 +122,9 @@ test('L07 a trusted Hook blocks a tool call with its reason and stops running on
       return result.value.calls.map((call) => call.display);
     }, session);
     expect(activity[0]?.summary).toBe('未执行：被 Hook 阻止');
-    expect(activity[0]?.details.join('\n')).toContain(`被 Hook guard 阻止：${reason}`);
+    expect(activity[0]?.details.join('\n')).toContain(
+      `用户的 Hook guard 在调用前拦下了它：${reason}`,
+    );
     await page.locator('.session-row').first().click();
     await expect(page.getByText(`被 Hook guard 阻止（工具调用前）：${reason}`)).toBeVisible();
     await expect(page.getByText('Hook：调用 1 次，成功 0，失败 0，阻止 1')).toBeVisible();

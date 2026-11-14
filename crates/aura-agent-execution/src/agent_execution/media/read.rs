@@ -7,7 +7,9 @@ use std::os::windows::fs::FileExt;
 impl MediaBridge {
     pub fn read(&self, input: &MediaHostReadRequestV1) -> anyhow::Result<MediaHostReadResultV1> {
         let file = {
-            let pending = self.pending.lock().map_err(|_| anyhow::anyhow!("media.interrupted"))?;
+            let pending = self.pending.lock().map_err(|_| {
+                anyhow::anyhow!("media.interrupted: Aura 内部出错，视频读取已中断。")
+            })?;
             let entry = pending
                 .get(&input.command_id)
                 .filter(|entry| {

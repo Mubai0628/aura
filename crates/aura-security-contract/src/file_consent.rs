@@ -1,5 +1,6 @@
 //! Session file approval binds verified objects and native directory entries.
-//! Mode changes and Core restarts do not withdraw explicit file approval.
+//! Mode changes and Core restarts do not withdraw explicit file approval; pointing its
+//! Workspace at another folder does.
 use crate::{OperationFingerprint, ResolvedCapability, ResourceDescriptor};
 use aura_domain_common::{ApprovalRequestId, FileIdentity, PrincipalId, Revision, SessionId};
 use schemars::JsonSchema;
@@ -62,6 +63,12 @@ pub struct FileSessionConsentRef {
     pub grant_revision: Revision,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revoked_grant_revision: Option<Revision>,
+    /// The folder its Workspace was at when the user answered. Once a move points the Workspace
+    /// at another folder the approval covers nothing, whether or not its withdrawal after the
+    /// move ran; archiving and restoring keep the folder. Absent on an approval recorded before
+    /// the folder was: that one covers only a Workspace still at its first authorization epoch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_root: Option<String>,
 }
 
 impl FileSessionConsentRef {
@@ -69,6 +76,46 @@ impl FileSessionConsentRef {
     pub fn accepts_grant_revision(&self, revision: Revision) -> bool {
         revision == self.grant_revision || Some(revision) == self.revoked_grant_revision
     }
+}
+
+/// An operation's Workspace as Core holds it when a session file approval is used.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApprovalWorkspace {
+    pub canonical_root: String,
+    pub authorization_epoch: Revision,
+}
+
+/// Whether a session file approval still belongs to its Workspace: Core names the Workspace and
+/// it is at the folder the approval was given at. An approval recorded before the folder was
+/// covers only a Workspace still at its first authorization epoch. Every move raises the epoch,
+/// so none can have committed since that answer; archiving and restoring raise it too, so such an
+/// approval is asked again after them.
+#[must_use]
+pub fn file_consent_in_its_workspace(
+    consent: &FileSessionConsentRef,
+    workspace: Option<&ApprovalWorkspace>,
+) -> bool {
+    let Some(workspace) = workspace else { return false };
+    match consent.workspace_root.as_deref() {
+        Some(root) => root == workspace.canonical_root,
+        None => workspace.authorization_epoch == Revision::INITIAL,
+    }
+}
+
+/// Whether a Grant may cover anything for its Workspace as Core holds it now. A Grant carrying a
+/// session file approval covers nothing once that approval is out of its Workspace, including
+/// what the same answer allowed besides the files: withdrawing it after a move revokes the whole
+/// Grant as well. Every reader of a Grant's coverage applies this before its own terms.
+#[must_use]
+pub fn grant_in_its_workspace(
+    grant: &crate::AuthorizationGrant,
+    workspace: Option<&ApprovalWorkspace>,
+) -> bool {
+    grant
+        .scope
+        .file_consent
+        .as_ref()
+        .is_none_or(|file| file_consent_in_its_workspace(file, workspace))
 }
 
 /// Unbound historical operations can only receive exact-operation approvals.

@@ -43,11 +43,24 @@ function FilterResults({
             setFound(
               result.ok
                 ? { query, matches: result.value.matches }
-                : { query, error: userMessage(result.error, '没有找到，请重试。') },
+                : {
+                    query,
+                    error: userMessage(
+                      result.error,
+                      '查找没有完成：工作区还在建立文件索引（或服务没有回应），这次没有结果。稍后再输入一次。',
+                    ),
+                  },
             );
           },
           (reason: unknown) => {
-            if (live) setFound({ query, error: userMessage(reason, '没有找到，请重试。') });
+            if (live)
+              setFound({
+                query,
+                error: userMessage(
+                  reason,
+                  '查找没有完成：工作区还在建立文件索引（或服务没有回应），这次没有结果。稍后再输入一次。',
+                ),
+              });
           },
         );
     }, 200);

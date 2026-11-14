@@ -35,7 +35,12 @@ async fn a_blocked_call_never_runs_and_the_model_is_told_which_hook_stopped_it()
     })
     .await;
     let seen = last_tool_message(&turn.requests()[1]);
-    assert!(seen.contains("被 Hook guard 阻止：不许读这个文件"), "{seen}");
+    assert!(seen.contains("用户的 Hook guard 在调用前拦下了它：不许读这个文件"), "{seen}");
+    // The next step stays within the user's rule: adjust to the reason or ask, no way around it.
+    assert!(
+        seen.contains("按它给的原因调整，或者问用户") && !seen.contains("换一种做法"),
+        "{seen}"
+    );
     assert!(!seen.contains("original text"), "the blocked read never ran: {seen}");
     // The user's row says a Hook stopped it, and its details name the Hook and the reason.
     let activity = crate::r03_tests::success(
@@ -49,7 +54,9 @@ async fn a_blocked_call_never_runs_and_the_model_is_told_which_hook_stopped_it()
     assert!(
         display["details"].as_array().expect("details").iter().any(|line| line
             .as_str()
-            .is_some_and(|line| line.contains("被 Hook guard 阻止：不许读这个文件"))),
+            .is_some_and(
+                |line| line.contains("用户的 Hook guard 在调用前拦下了它：不许读这个文件")
+            )),
         "{display}"
     );
     // The turn's totals come with its calls, for the line shown when the turn ends.

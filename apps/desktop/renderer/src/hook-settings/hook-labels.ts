@@ -112,18 +112,6 @@ export const hookEffectLabel = (effect: HookEffect) =>
       ? '同一事件后面的 Hook 已停止'
       : undefined;
 
-/**
- * Core refuses Hook changes as `hooks.<reason>: <sentence>`; the sentence is the user's.
- * Anything without a readable sentence becomes the fallback.
- */
-export function hookError(value: unknown, fallback = '操作未完成，请刷新后重试。'): string {
-  const text = value instanceof Error ? value.message : typeof value === 'string' ? value : '';
-  const sentence = text.replace(/^[a-z_]+(?:\.[a-z_]+)+:\s*/u, '').trim();
-  return sentence && sentence !== text.trim() && /[㐀-鿿]/u.test(sentence)
-    ? sentence.slice(0, 400)
-    : fallback;
-}
-
 export const shortFingerprint = (fingerprint?: string | null) =>
   fingerprint ? fingerprint.slice(0, 16) : '—';
 

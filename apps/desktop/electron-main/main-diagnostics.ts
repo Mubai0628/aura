@@ -9,8 +9,7 @@ import { publishToRenderer } from './publish-to-renderer.js';
 
 /** Own Main's logging and error/quit lifecycle; the entry point only supplies live resources. */
 export function installMainDiagnostics(options: {
-  localAppData: string;
-  namespace: () => string | undefined;
+  dataRoot: string;
   contents: () => WebContents | undefined;
   trust: (event: IpcMainInvokeEvent) => void;
   stop: () => void;
@@ -18,7 +17,7 @@ export function installMainDiagnostics(options: {
   /** Set when Aura should exit with a code of its own once Core has stopped. */
   exitCode?: () => number | undefined;
 }) {
-  const logger = createMainLogger(options.localAppData, options.namespace);
+  const logger = createMainLogger(options.dataRoot);
   const reporter = new MainErrorReporter({
     log: logger.appendSync,
     logPath: logger.path,

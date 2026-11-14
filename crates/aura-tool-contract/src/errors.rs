@@ -169,14 +169,16 @@ define_error_domain!(ToolRuntimeErrorCode, {
     PersistenceOutcomeUnknown => "tool.runtime.persistence_outcome_unknown",
 });
 
-// The target of an HTTP tool could not be reached, by kind. Except after a reset, the request
-// was not sent, and trying again is the next step once the cause is fixed.
+// The target of an HTTP tool could not be reached, by kind, or did not finish in time. Except
+// after a reset or a timeout, the request was not sent, and trying again is the next step once
+// the cause is fixed.
 define_error_domain!(ToolNetworkErrorCode, {
     ConnectionRefused => "tool.network.connection_refused",
     HostNotFound => "tool.network.host_not_found",
     TlsFailed => "tool.network.tls_failed",
     ConnectionReset => "tool.network.connection_reset",
     ConnectionFailed => "tool.network.connection_failed",
+    TimedOut => "tool.network.timed_out",
 });
 
 define_error_domain!(ToolResultErrorCode, {
@@ -196,6 +198,15 @@ define_error_domain!(ToolConformanceErrorCode, {
     IsolationUnavailable => "tool.conformance.isolation_unavailable",
     RunFailed => "tool.conformance.run_failed",
     EvidenceInvalid => "tool.conformance.evidence_invalid",
+});
+
+// An approval that did not let its call run: one the user did not answer before it expired (not
+// a refusal: the same call asks again), one the user refused, and one the session's permission
+// mode replaced while it waited. Nothing ran in any of them.
+define_error_domain!(ToolApprovalErrorCode, {
+    Expired => "tool.approval.expired",
+    Denied => "tool.approval.denied",
+    Invalidated => "tool.approval.invalidated",
 });
 
 // A user's Hook stopped the call before it ran. The message names the Hook and its
@@ -335,6 +346,13 @@ pub fn tool_error_catalog_v1() -> ToolErrorCatalogV1 {
         ErrorCategory::Conflict,
         ToolErrorRetryClassV1::Never,
         None,
+    );
+    push_domain(
+        &mut entries,
+        ToolApprovalErrorCode::ALL.iter().map(|value| value.as_str()),
+        ErrorCategory::Cancelled,
+        ToolErrorRetryClassV1::Conditional,
+        Some(ToolNotExecutedReasonV1::PermissionDenied),
     );
     push_domain(
         &mut entries,

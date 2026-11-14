@@ -3,11 +3,15 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import type { ResultEnvelope } from '../../shared/aura-api';
 import { useScopedModelProjection } from './model-projection-store';
-
-/** Core refused a request because another change to the same settings was still being written. */
-export const FACTS_CHANGED = 'broker.facts_changed';
-export const MODEL_SETTINGS_CHANGING = '模型设置正在被修改，请稍后再试。';
-const CORE_RECONNECTING = 'Aura Core 正在重新连接；现有配置仍可查看，恢复连接后才能保存更改。';
+import {
+  catalogNotRefreshed,
+  catalogNotRefreshedBy,
+  catalogUnavailableText,
+  FACTS_CHANGED,
+  modelFailureText,
+  settingsChanging,
+  settingsNotReadLatest,
+} from './provider-connection/model-failure-words';
 // Core has already waited for that change; the settings are read again a little after it.
 const CHANGING_REREAD_MS = 1_000;
 const CHANGING_REREADS = 3;
@@ -49,20 +53,6 @@ const getSnapshot = () => state;
 
 const applySettingsResult = (settingsResult: ResultEnvelope<ModelSettingsProjection>) => {
   const changing = !settingsResult.ok && settingsResult.error.code === FACTS_CHANGED;
-  const settingsPatch: Partial<ModelSettingsState> = settingsResult.ok
-    ? {
-        error: undefined,
-        settings: settingsResult.value,
-        writeUnavailableReason: undefined,
-      }
-    : state.settings === undefined
-      ? { error: changing ? MODEL_SETTINGS_CHANGING : settingsResult.error.message }
-      : { writeUnavailableReason: changing ? MODEL_SETTINGS_CHANGING : CORE_RECONNECTING };
-  publish({
-    ...state,
-    ...settingsPatch,
-    loading: false,
-  });
   if (!changing) {
     changingRereads = 0;
   } else if (changingReread === undefined && changingRereads < CHANGING_REREADS) {
@@ -72,13 +62,36 @@ const applySettingsResult = (settingsResult: ResultEnvelope<ModelSettingsProject
       void window.aura.v1.getModelSettings().then(applySettingsResult, () => undefined);
     }, CHANGING_REREAD_MS);
   }
+  const rereading = changingReread !== undefined;
+  const settingsPatch: Partial<ModelSettingsState> = settingsResult.ok
+    ? {
+        error: undefined,
+        settings: settingsResult.value,
+        writeUnavailableReason: undefined,
+      }
+    : state.settings === undefined
+      ? {
+          error: changing
+            ? settingsChanging(false, rereading)
+            : modelFailureText(settingsResult.error, true),
+        }
+      : {
+          writeUnavailableReason: changing
+            ? settingsChanging(true, rereading)
+            : settingsNotReadLatest(settingsResult.error),
+        };
+  publish({
+    ...state,
+    ...settingsPatch,
+    loading: false,
+  });
 };
 
 const applyCatalogResult = (catalogResult: ResultEnvelope<ProviderCatalogProjection>) => {
   patchState(
     catalogResult.ok
       ? { catalog: catalogResult.value, catalogError: undefined }
-      : { catalogError: catalogResult.error.message },
+      : { catalogError: catalogUnavailableText(undefined, catalogResult.error) },
   );
 };
 
@@ -95,13 +108,12 @@ const refresh = async () => {
       window.aura.v1.ensureModelProviderCatalogFresh().then(applyCatalogResult),
     ]);
   } catch (error) {
-    const message = error instanceof Error ? error.message : '模型设置读取失败。';
     publish({
       ...state,
-      error: state.settings === undefined ? message : undefined,
+      error: state.settings === undefined ? modelFailureText(error, true) : undefined,
       loading: false,
       writeUnavailableReason:
-        state.settings === undefined ? state.writeUnavailableReason : CORE_RECONNECTING,
+        state.settings === undefined ? state.writeUnavailableReason : settingsNotReadLatest(error),
     });
   }
 };
@@ -113,22 +125,25 @@ const refreshCatalog = async (): Promise<{ code: string; message: string } | und
     patchState(
       result.ok
         ? { catalog: result.value, catalogError: undefined }
-        : { catalogError: result.error.message },
+        : { catalogError: catalogUnavailableText(undefined, result.error) },
     );
-    if (!result.ok) return result.error;
+    if (!result.ok)
+      return { code: result.error.code, message: catalogNotRefreshedBy(result.error) };
     if (result.value.state === 'unavailable') {
       return {
         code: 'catalog.unavailable',
-        message: 'models.dev 目录暂不可用，请检查网络后重试。',
+        message: catalogUnavailableText(result.value.last_error_code),
       };
     }
     return result.value.state === 'refresh_failed_with_lkg'
-      ? { code: 'catalog.refresh_failed', message: 'models.dev 目录没有刷新，正在使用上次的目录。' }
+      ? {
+          code: 'catalog.refresh_failed',
+          message: catalogNotRefreshed(result.value.last_error_code),
+        }
       : undefined;
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'models.dev 目录刷新失败。';
-    patchState({ catalogError: message });
-    return { code: 'catalog.refresh_failed', message };
+    patchState({ catalogError: catalogUnavailableText(undefined, error) });
+    return { code: 'catalog.refresh_failed', message: catalogNotRefreshedBy(error) };
   }
 };
 

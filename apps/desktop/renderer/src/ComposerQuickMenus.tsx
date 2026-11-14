@@ -11,12 +11,9 @@ import { SessionSpeedPicker } from './SpeedPicker';
 import { userMessage } from './agent-session/user-message';
 import { AppIcon } from './app-icons';
 import { useDismissablePopover } from './useDismissablePopover';
+import { PERMISSION_MODE_NAMES } from './security/permission-mode-names';
 
-const PERMISSION_LABELS: Record<PermissionMode, string> = {
-  full_access: '完全访问',
-  read_only: '只读',
-  workspace_read_write: '工作区读写',
-};
+const PERMISSION_LABELS = PERMISSION_MODE_NAMES;
 
 const PERMISSION_MODES = Object.keys(PERMISSION_LABELS) as PermissionMode[];
 

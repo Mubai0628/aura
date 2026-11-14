@@ -141,4 +141,34 @@ describe("carrying out Core's command on the model page", () => {
       message: expect.stringContaining('已在设置中关闭'),
     });
   });
+
+  it('tells an exception in the page in a sentence that names the step, with its first line', async () => {
+    const { deps, tools } = setup();
+    await execute(deps, command({ kind: 'open', url: 'http://127.0.0.1:9/game' }));
+    tools.answers.set('Accessibility.getFullAXTree', () => {
+      throw new Error('Execution context was destroyed.\n    at Page.snapshot');
+    });
+    const read = await execute(deps, command({ kind: 'snapshot', max_chars: 12_000 }));
+    expect(read.outcome).toEqual({
+      outcome: 'failed',
+      message: '页面执行这一步（snapshot）时出错：Execution context was destroyed。',
+      may_have_acted: false,
+    });
+    tools.answers.delete('Accessibility.getFullAXTree');
+    tools.answers.set('Input.dispatchMouseEvent', () => {
+      throw new Error('Target closed');
+    });
+    const click = await execute(
+      deps,
+      command(
+        { kind: 'click', element: 'e1', x: null, y: null, button: 'left', double: false },
+        '127.0.0.1',
+      ),
+    );
+    expect(click.outcome).toEqual({
+      outcome: 'failed',
+      message: '页面执行这一步（click）时出错：Target closed。',
+      may_have_acted: true,
+    });
+  });
 });

@@ -97,6 +97,15 @@ impl Fixture {
         mode: PermissionMode,
         configure: impl FnOnce(&std::path::Path) -> Vec<serde_json::Value>,
     ) -> Self {
+        Self::with_mcp_configs_exposing(mode, &[], configure).await
+    }
+
+    /// [`Fixture::with_mcp_configs`] whose session also exposes the built-in tools `names`.
+    pub async fn with_mcp_configs_exposing(
+        mode: PermissionMode,
+        names: &[&str],
+        configure: impl FnOnce(&std::path::Path) -> Vec<serde_json::Value>,
+    ) -> Self {
         let host = Arc::new(crate::r03_tests::Fixture::new());
         let runtime = Arc::new(host.start().await);
         let exe = server_exe(&host);
@@ -114,6 +123,6 @@ impl Fixture {
         let workspace: aura_workspace_domain::WorkspaceSummary =
             serde_json::from_value(value["workspace"].clone())
                 .expect("Agent test setup and persisted assertion");
-        Self::create_in_workspace(host, runtime, root, workspace, mode, &[], Packages::Loaded)
+        Self::create_in_workspace(host, runtime, root, workspace, mode, names, Packages::Loaded)
     }
 }

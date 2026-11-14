@@ -13,13 +13,17 @@ use serde_json::{Value, json};
 
 mod architecture;
 mod contracts;
+mod evidence;
 mod git_test_profile;
 mod manifests;
 mod process;
 mod public;
 mod r06;
+mod rust_tests;
+mod stage_tests;
+mod sweep_target;
 
-use process::{run, run_with_env};
+use process::run;
 
 /// Cargo builds with
 /// six jobs and tests run on six threads. Every cargo command xtask runs carries both.
@@ -69,24 +73,27 @@ fn main() -> Result<()> {
             ensure!(args.next().is_none(), "check-all received unexpected arguments");
             check_all(option.is_some())
         }
-        Some("test-isolated") => {
-            let arguments = args.collect::<Vec<_>>();
-            let arguments = arguments.iter().map(String::as_str).collect::<Vec<_>>();
-            git_test_profile::run_tests(&workspace_root(), &arguments)
+        Some("test" | "test-isolated") => rust_tests::test(&workspace_root(), args.collect()),
+        Some("clippy") => {
+            ensure!(args.next().is_none(), "clippy received unexpected arguments");
+            rust_tests::clippy(&workspace_root())
         }
+        Some("sweep-target") => sweep_target::run(&workspace_root(), args.collect()),
         Some("generate-contracts") => generate_contracts(&workspace_root()),
         Some("contracts") if args.next().as_deref() == Some("--check") => contracts::check(),
-        Some("test-permission") => test_permission(&workspace_root()),
-        Some("test-sandbox") => test_sandbox(&workspace_root()),
-        Some("test-network") => test_network(&workspace_root()),
+        Some("test-permission") => stage_tests::permission(&workspace_root()),
+        Some("test-sandbox") => stage_tests::sandbox(&workspace_root()),
+        Some("test-network") => stage_tests::network(&workspace_root()),
         Some("test-tool") => {
             let target = args.next().context("test-tool requires a namespace or test filter")?;
             ensure!(args.next().is_none(), "test-tool received unexpected arguments");
-            test_tool(&workspace_root(), &target)
+            stage_tests::tool(&workspace_root(), &target)
         }
-        Some("appcontainer-network-evidence") => appcontainer_network_evidence(&workspace_root()),
+        Some("appcontainer-network-evidence") => {
+            evidence::appcontainer_network_evidence(&workspace_root())
+        }
         Some("experimental-processmodel-proxy") => {
-            experimental_processmodel_proxy(&workspace_root())
+            evidence::experimental_processmodel_proxy(&workspace_root())
         }
         Some("p04-report") => p04_report(&workspace_root()),
         Some("p05-report") => p05_report(&workspace_root()),
@@ -111,6 +118,9 @@ fn print_help() {
            cargo xtask r06-mechanism\n\
            cargo xtask generate-contracts\n\
            cargo xtask contracts --check\n\
+           cargo xtask test [-p <crate>]... [--lib] [--bins] [--tests] [--test <name>]... [-- <test arguments>]\n\
+           cargo xtask clippy\n\
+           cargo xtask sweep-target [--apply] [--idle-days <n> | --idle-hours <n>] [--unused]\n\
            cargo xtask test-permission\n\
            cargo xtask test-sandbox\n\
            cargo xtask test-network\n\
@@ -123,138 +133,6 @@ fn print_help() {
     );
 }
 
-fn test_tool(root: &Path, target: &str) -> Result<()> {
-    ensure!(
-        !target.is_empty() && !target.starts_with('-'),
-        "test-tool target must be a namespace or Rust test filter"
-    );
-    match target {
-        "conformance" => {
-            run(
-                root,
-                "cargo",
-                &[
-                    "test",
-                    "-p",
-                    "aura-tool-domain",
-                    "-p",
-                    "aura-tool-package",
-                    "-p",
-                    "aura-tool-fixtures",
-                    "--no-fail-fast",
-                ],
-            )?;
-            build_tool_runtime_fixtures(root)?;
-            run(
-                root,
-                "cargo",
-                &["test", "-p", "aura-package-service", "--lib", "package_program::tests"],
-            )?;
-        }
-        // Retired the P07 Draft path; packages are imported, verified and installed
-        // through `packages.*` and tested below.
-        "package" => {
-            build_tool_runtime_fixtures(root)?;
-            run(root, "cargo", &["test", "-p", "aura-tool-package"])?;
-            let stores = ["package_install", "package_content", "package_schema_migration"];
-            for store in stores {
-                run(root, "cargo", &["test", "-p", "aura-persistence-v2", "--test", store])?;
-            }
-            let packages = ["package_program::", "package_services::"];
-            run(
-                root,
-                "cargo",
-                &["test", "-p", "aura-package-service", "--lib", "--", packages[0], packages[1]],
-            )?;
-            run(root, "cargo", &["test", "-p", "aura-core", "--lib", "l04_packages::"])?;
-        }
-        "registry" => {
-            run(
-                root,
-                "cargo",
-                &[
-                    "test",
-                    "-p",
-                    "aura-tool-contract",
-                    "-p",
-                    "aura-tool-domain",
-                    "-p",
-                    "aura-tool-registry",
-                    "-p",
-                    "aura-tool-projection",
-                    "--no-fail-fast",
-                ],
-            )?;
-            run(root, "cargo", &["test", "-p", "aura-core", "--lib", "l04_package_registry"])?;
-        }
-        "scheduler" => {
-            run(root, "cargo", &["test", "-p", "aura-tool-scheduler"])?;
-            run(
-                root,
-                "cargo",
-                &["test", "-p", "aura-persistence", "--test", "p07_tool_execution"],
-            )?;
-        }
-        "runtime" => {
-            build_tool_runtime_fixtures(root)?;
-            run(
-                root,
-                "cargo",
-                &[
-                    "test",
-                    "-p",
-                    "aura-tool-runtime",
-                    "-p",
-                    "aura-sandbox",
-                    "-p",
-                    "aura-sandbox-host",
-                    "-p",
-                    "aura-windows-platform",
-                    "--no-fail-fast",
-                ],
-            )?;
-            run(root, "cargo", &["test", "-p", "aura-core", "w7_host_adapter", "--lib"])?;
-            // The source-built fixtures run as installed package programs.
-            run(
-                root,
-                "cargo",
-                &["test", "-p", "aura-package-service", "--lib", "package_program::tests"],
-            )?;
-        }
-        test_filter => {
-            run(
-                root,
-                "cargo",
-                &[
-                    "test",
-                    "-p",
-                    "aura-tool-contract",
-                    "-p",
-                    "aura-artifact-contract",
-                    "-p",
-                    "aura-tool-domain",
-                    "-p",
-                    "aura-tool-registry",
-                    "-p",
-                    "aura-tool-scheduler",
-                    "-p",
-                    "aura-tool-runtime",
-                    "-p",
-                    "aura-tool-package",
-                    "-p",
-                    "aura-tool-projection",
-                    "-p",
-                    "aura-tool-fixtures",
-                    test_filter,
-                    "--no-fail-fast",
-                ],
-            )?;
-        }
-    }
-    println!("P07 Tool test target '{target}' passed.");
-    Ok(())
-}
-
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -262,137 +140,30 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// A named step of `check-all` that runs even after an earlier one failed.
+type CheckStep<'a> = (&'static str, Box<dyn Fn() -> Result<()> + 'a>);
+
 fn check_all(skip_e2e: bool) -> Result<()> {
     let root = workspace_root();
     architecture::check(&root)?;
     architecture::check_format(&root)?;
-    run(
-        &root,
-        "cargo",
-        &["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"],
-    )?;
-    // Package program tests run the source-built fixtures from target/debug.
-    build_tool_runtime_fixtures(&root)?;
-    git_test_profile::run_tests(&root, &["--workspace", "--all-features"])?;
-    contracts::check()?;
-    manifests::validate_manifests(&root)?;
+    rust_tests::clippy(&root)?;
+    // From the tests on, every step runs even after a failure, so one run shows them all.
     let pnpm_check = if skip_e2e { "check:no-e2e" } else { "check" };
-    run(&root, corepack_command(), &["pnpm", pnpm_check])?;
+    let steps: [CheckStep<'_>; 4] = [
+        ("Rust tests", Box::new(|| rust_tests::workspace(&root))),
+        ("contracts", Box::new(contracts::check)),
+        ("manifests", Box::new(|| manifests::validate_manifests(&root))),
+        ("pnpm", Box::new(|| run(&root, corepack_command(), &["pnpm", pnpm_check]))),
+    ];
+    let failed: Vec<String> = steps
+        .iter()
+        .filter_map(|(name, step)| step().err().map(|error| format!("{name}: {error:#}")))
+        .collect();
+    ensure!(failed.is_empty(), "check-all failed:\n  {}", failed.join("\n  "));
     println!(
         "Aura repository checks passed{}.",
         if skip_e2e { " without Electron E2E" } else { "" }
-    );
-    Ok(())
-}
-
-fn test_permission(root: &Path) -> Result<()> {
-    run(
-        root,
-        "cargo",
-        &[
-            "test",
-            "-p",
-            "aura-permission-domain",
-            "-p",
-            "aura-permission-engine",
-            "-p",
-            "aura-approval",
-        ],
-    )?;
-    run(root, "cargo", &["test", "-p", "aura-persistence", "--test", "p04_security"])?;
-    run(root, "cargo", &["test", "-p", "aura-core", "-p", "aura-security-service", "p04"])?;
-    println!("P04 permission and approval tests passed.");
-    Ok(())
-}
-
-fn test_sandbox(root: &Path) -> Result<()> {
-    run(
-        root,
-        "cargo",
-        &[
-            "test",
-            "-p",
-            "aura-sandbox",
-            "-p",
-            "aura-sandbox-host",
-            "-p",
-            "aura-elevated-helper",
-            "-p",
-            "aura-windows-platform",
-        ],
-    )?;
-    println!(
-        "P04 sandbox and elevation automated tests passed. Real AppContainer lowbox/loopback evidence is collected separately."
-    );
-    Ok(())
-}
-
-fn test_network(root: &Path) -> Result<()> {
-    run(root, "cargo", &["test", "-p", "aura-network-control", "-p", "aura-egress-proxy"])?;
-    println!("P04 network control and egress proxy tests passed.");
-    Ok(())
-}
-
-fn experimental_processmodel_proxy(root: &Path) -> Result<()> {
-    let output_path = root.join("target/experimental/processmodel-proxy/report.json");
-    if output_path.exists() {
-        fs::remove_file(&output_path)
-            .with_context(|| format!("failed to remove stale {}", output_path.display()))?;
-    }
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-
-    println!(
-        "$ cargo test -p aura-windows-platform --features experimental-processmodel-proxy --test experimental_processmodel_proxy -- --ignored --nocapture"
-    );
-    let command_status = process::command("cargo")
-        .args([
-            "test",
-            "-p",
-            "aura-windows-platform",
-            "--features",
-            "experimental-processmodel-proxy",
-            "--test",
-            "experimental_processmodel_proxy",
-            "--",
-            "--ignored",
-            "--nocapture",
-        ])
-        .env("AURA_EXPERIMENT_PROCESSMODEL_PROXY_REPORT", &output_path)
-        .current_dir(root)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .context("failed to start experimental ProcessModel proxy probe")?;
-
-    ensure!(output_path.is_file(), "experimental probe did not produce {}", output_path.display());
-    let report: Value = serde_json::from_slice(
-        &fs::read(&output_path)
-            .with_context(|| format!("failed to read {}", output_path.display()))?,
-    )
-    .with_context(|| format!("failed to parse {}", output_path.display()))?;
-    let report_status = required_string(&report, "status")?;
-    ensure!(
-        matches!(report_status, "passed" | "failed" | "unsupported" | "inconclusive"),
-        "experimental report contains unknown status: {report_status}"
-    );
-    ensure!(
-        report_status != "failed",
-        "experimental ProcessModel proxy validation found a real bypass or cleanup failure; see {}",
-        output_path.display()
-    );
-    ensure!(
-        command_status.success(),
-        "experimental probe harness failed with {command_status}; see {}",
-        output_path.display()
-    );
-
-    println!(
-        "Experimental ProcessModel proxy probe recorded {report_status}: {}",
-        output_path.display()
     );
     Ok(())
 }
@@ -403,136 +174,11 @@ struct ReportCheck<'a> {
     args: &'a [&'a str],
 }
 
-const APPCONTAINER_EVIDENCE_FILE: &str = "target/p04-report/appcontainer-network-evidence.json";
-const APPCONTAINER_EVIDENCE_TEST: &str =
-    "tests::compatibility_appcontainer_has_lowbox_token_and_denies_loopback";
 const P04_PHASE_STATUS: &str = "Pause";
 const P04_PAUSE_DECISION_DATE: &str = "2026-08-30";
 const P04_RESUME_AFTER_PHASE: &str = "P19";
 const P04_RESUME_CONDITION: &str =
     "P19 phase is complete and the user explicitly resumes P04 acceptance";
-
-fn appcontainer_network_evidence(root: &Path) -> Result<()> {
-    let evidence = collect_appcontainer_network_evidence(root)?;
-    let evidence_path = root.join(APPCONTAINER_EVIDENCE_FILE);
-    let status = required_string(&evidence, "status")?;
-    println!(
-        "AppContainer lowbox/loopback evidence recorded {status}: {}",
-        display_relative(root, &evidence_path)
-    );
-    ensure!(
-        status == "passed",
-        "required AppContainer evidence is {status}, not passed; see {}",
-        evidence_path.display()
-    );
-    Ok(())
-}
-
-fn collect_appcontainer_network_evidence(root: &Path) -> Result<Value> {
-    let evidence_path = root.join(APPCONTAINER_EVIDENCE_FILE);
-    if evidence_path.exists() {
-        fs::remove_file(&evidence_path)
-            .with_context(|| format!("failed to remove stale {}", evidence_path.display()))?;
-    }
-    if let Some(parent) = evidence_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-
-    let command = format!(
-        "cargo test -p aura-sandbox {APPCONTAINER_EVIDENCE_TEST} -- --ignored --exact --nocapture --test-threads=1"
-    );
-    println!("$ {command}");
-    let command_status = process::command("cargo")
-        .args([
-            "test",
-            "-p",
-            "aura-sandbox",
-            APPCONTAINER_EVIDENCE_TEST,
-            "--",
-            "--ignored",
-            "--exact",
-            "--nocapture",
-            "--test-threads=1",
-        ])
-        .env("AURA_APPCONTAINER_NETWORK_EVIDENCE_REPORT", &evidence_path)
-        .current_dir(root)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .context("failed to start AppContainer network evidence probe")?;
-
-    if !evidence_path.is_file() {
-        let evidence = json!({
-            "schema_version": 1,
-            "evidence_id": "appcontainer_lowbox_token_and_loopback_denial",
-            "status": "failed",
-            "gate_status": "failed",
-            "reason": "probe_did_not_write_evidence",
-            "host_preparation_available": null,
-            "required_assertions": {
-                "child_token_is_appcontainer_lowbox": null,
-                "loopback_connection_denied": null
-            },
-            "probe_command": command,
-            "probe_exit_code": command_status.code()
-        });
-        fs::write(&evidence_path, serde_json::to_vec_pretty(&evidence)?)
-            .with_context(|| format!("failed to write {}", evidence_path.display()))?;
-        return Ok(evidence);
-    }
-
-    let mut evidence: Value = serde_json::from_slice(
-        &fs::read(&evidence_path)
-            .with_context(|| format!("failed to read {}", evidence_path.display()))?,
-    )
-    .with_context(|| format!("failed to parse {}", evidence_path.display()))?;
-    let reported_status = evidence.get("status").and_then(Value::as_str).unwrap_or("failed");
-    let proves_lowbox = evidence
-        .pointer("/required_assertions/child_token_is_appcontainer_lowbox")
-        .and_then(Value::as_bool)
-        == Some(true);
-    let proves_loopback_denial = evidence
-        .pointer("/required_assertions/loopback_connection_denied")
-        .and_then(Value::as_bool)
-        == Some(true);
-    let host_preparation_available =
-        evidence.get("host_preparation_available").and_then(Value::as_bool) == Some(true);
-    let valid_pass = command_status.success()
-        && reported_status == "passed"
-        && host_preparation_available
-        && proves_lowbox
-        && proves_loopback_denial;
-    let reported_gate_status =
-        evidence.get("gate_status").and_then(Value::as_str).unwrap_or("failed");
-    let valid_pending_host_preparation = !command_status.success()
-        && reported_status == "PendingHostPreparation"
-        && reported_gate_status == "Inconclusive"
-        && !host_preparation_available
-        && !proves_lowbox
-        && !proves_loopback_denial;
-
-    let object =
-        evidence.as_object_mut().context("AppContainer evidence report must be a JSON object")?;
-    object.insert("probe_command".to_owned(), Value::String(command));
-    object.insert("probe_exit_code".to_owned(), json!(command_status.code()));
-    if valid_pass {
-        object.insert("gate_status".to_owned(), Value::String("passed".to_owned()));
-    } else if valid_pending_host_preparation {
-        object.insert("gate_status".to_owned(), Value::String("Inconclusive".to_owned()));
-    } else {
-        object.insert("status".to_owned(), Value::String("failed".to_owned()));
-        object.insert("gate_status".to_owned(), Value::String("failed".to_owned()));
-        object.insert(
-            "reason".to_owned(),
-            Value::String("probe_result_did_not_prove_both_required_assertions".to_owned()),
-        );
-    }
-    fs::write(&evidence_path, serde_json::to_vec_pretty(&evidence)?)
-        .with_context(|| format!("failed to write {}", evidence_path.display()))?;
-    Ok(evidence)
-}
 
 fn p04_report(root: &Path) -> Result<()> {
     let corepack = corepack_command();
@@ -556,9 +202,11 @@ fn p04_report(root: &Path) -> Result<()> {
             id: "p03_p04_write_gate",
             program: "cargo",
             args: &[
+                "xtask",
                 "test",
                 "-p",
                 "aura-core",
+                "--",
                 "authenticated_main_gate_covers_every_workspace_mutation_and_no_lifecycle_command",
             ],
         },
@@ -609,8 +257,8 @@ fn p04_report(root: &Path) -> Result<()> {
     }
 
     let all_passed = results.iter().all(|result| result["status"] == "passed");
-    let appcontainer_evidence =
-        collect_appcontainer_network_evidence(root).unwrap_or_else(|error| {
+    let appcontainer_evidence = evidence::collect_appcontainer_network_evidence(root)
+        .unwrap_or_else(|error| {
             json!({
                 "schema_version": 1,
                 "evidence_id": "appcontainer_lowbox_token_and_loopback_denial",
@@ -760,6 +408,7 @@ fn p05_report(root: &Path) -> Result<()> {
             id: "model_config_and_catalog",
             program: "cargo",
             args: &[
+                "xtask",
                 "test",
                 "-p",
                 "aura-model-domain",
@@ -767,13 +416,13 @@ fn p05_report(root: &Path) -> Result<()> {
                 "aura-model-config",
                 "-p",
                 "aura-model-catalog",
-                "--all-features",
             ],
         },
         ReportCheck {
             id: "transport_and_protocol_adapters",
             program: "cargo",
             args: &[
+                "xtask",
                 "test",
                 "-p",
                 "aura-model-transport",
@@ -785,25 +434,17 @@ fn p05_report(root: &Path) -> Result<()> {
                 "aura-model-adapter-anthropic",
                 "-p",
                 "aura-model-fixtures",
-                "--all-features",
             ],
         },
         ReportCheck {
             id: "gateway_and_persistence",
             program: "cargo",
-            args: &[
-                "test",
-                "-p",
-                "aura-network-control",
-                "-p",
-                "aura-persistence",
-                "--all-features",
-            ],
+            args: &["xtask", "test", "-p", "aura-network-control", "-p", "aura-persistence"],
         },
         ReportCheck {
             id: "core_p05_vertical_paths",
             program: "cargo",
-            args: &["test", "-p", "aura-core", "-p", "aura-model-service", "p05", "--all-features"],
+            args: &["xtask", "test", "-p", "aura-core", "-p", "aura-model-service", "--", "p05"],
         },
         ReportCheck {
             id: "desktop_typecheck",
@@ -989,46 +630,6 @@ pub(crate) fn required_string<'a>(value: &'a Value, field: &str) -> Result<&'a s
         .with_context(|| format!("{field} must be a non-empty string"))
 }
 
-fn build_tool_runtime_fixtures(root: &Path) -> Result<()> {
-    run(
-        root,
-        "cargo",
-        &[
-            "build",
-            "-p",
-            "aura-tool-fixtures",
-            "--bin",
-            "aura-stdio-fixture",
-            "--bin",
-            "aura-command-fixture",
-        ],
-    )?;
-    let target_root = env::var_os("CARGO_TARGET_DIR").map_or_else(
-        || root.join("target"),
-        |value| {
-            let path = PathBuf::from(value);
-            if path.is_absolute() { path } else { root.join(path) }
-        },
-    );
-    let stdio = target_root.join("debug").join(if cfg!(windows) {
-        "aura-stdio-fixture.exe"
-    } else {
-        "aura-stdio-fixture"
-    });
-    ensure!(stdio.is_file(), "source-built Aura Stdio fixture is missing at {}", stdio.display());
-    let command = target_root.join("debug").join(if cfg!(windows) {
-        "aura-command-fixture.exe"
-    } else {
-        "aura-command-fixture"
-    });
-    ensure!(
-        command.is_file(),
-        "source-built declarative command fixture is missing at {}",
-        command.display()
-    );
-    Ok(())
-}
-
 #[cfg(windows)]
 const fn corepack_command() -> &'static str {
     "corepack.cmd"
@@ -1039,6 +640,6 @@ const fn corepack_command() -> &'static str {
     "corepack"
 }
 
-fn display_relative(root: &Path, path: &Path) -> String {
+pub(crate) fn display_relative(root: &Path, path: &Path) -> String {
     path.strip_prefix(root).unwrap_or(path).display().to_string()
 }

@@ -32,7 +32,7 @@ impl SecurityConfig {
     pub(super) fn from_document(document: &ModuleConfigDocument) -> Result<Self> {
         let object = document.values.clone().into_iter().collect();
         let config: Self =
-            serde_json::from_value(Value::Object(object)).context("invalid P04 security config")?;
+            serde_json::from_value(Value::Object(object)).context("config.security_invalid: 安全设置（security.toml）里有不认识的项或值的格式不对，没有采用；请改正后再保存，或到设置里查看恢复选项。")?;
         config.validate()?;
         Ok(config)
     }
@@ -40,7 +40,7 @@ impl SecurityConfig {
     pub(super) fn validate(&self) -> Result<()> {
         ensure!(
             self.native_sandbox.default_mode == "compatibility_appcontainer",
-            "P04 default native sandbox must be compatibility_appcontainer"
+            "config.security_invalid: 安全设置里 [native_sandbox] 的 default_mode 只能是 compatibility_appcontainer，没有采用；请改正后再保存，或到设置里查看恢复选项。"
         );
         ensure!(
             matches!(
@@ -50,7 +50,7 @@ impl SecurityConfig {
                     | "native_managed_user"
                     | "managed_user_networked"
             ),
-            "invalid external extension isolation"
+            "config.security_invalid: 安全设置里 [external_extensions] 的 default_isolation 只能是 compatibility、strict_appcontainer、native_managed_user 或 managed_user_networked，没有采用；请改正后再保存，或到设置里查看恢复选项。"
         );
         let _ = (
             self.native_sandbox.allow_observed_native,
@@ -138,7 +138,7 @@ pub(super) fn parse_default_permission_mode(
         }
         Some(Value::String(value)) if value == "full_access" => Ok(PermissionMode::FullAccess),
         Some(_) => Err(anyhow!(
-            "aura.toml default_permission_mode must be read_only, workspace_read_write, or full_access"
+            "config.aura_invalid: aura.toml 里的 default_permission_mode 只能是 read_only、workspace_read_write 或 full_access，没有采用；请改正后再保存，或到设置里查看恢复选项。"
         )),
     }
 }

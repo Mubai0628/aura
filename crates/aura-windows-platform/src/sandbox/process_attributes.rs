@@ -47,12 +47,20 @@ impl ProcessAttributeList {
         handles: Vec<HANDLE>,
         job: HANDLE,
     ) -> io::Result<Self> {
-        Self::handles_with_job(sid, handles, Some(job))
+        Self::with_jobs(sid, handles, vec![job])
+    }
+    /// `jobs` in the order Windows assigns them: group Jobs first, the creation Job last.
+    pub(crate) fn with_jobs(
+        sid: Option<PSID>,
+        handles: Vec<HANDLE>,
+        jobs: Vec<HANDLE>,
+    ) -> io::Result<Self> {
+        Self::handles_with_job(sid, handles, Some(jobs))
     }
     fn handles_with_job(
         sid: Option<PSID>,
         handles: Vec<HANDLE>,
-        job: Option<HANDLE>,
+        job: Option<Vec<HANDLE>>,
     ) -> io::Result<Self> {
         if handles.is_empty() || handles.iter().any(|handle| handle.is_null()) {
             return Err(io::Error::new(
@@ -102,14 +110,14 @@ impl ProcessAttributeList {
                 return Err(io::Error::last_os_error());
             }
         }
-        if let Some(job) = job {
-            list.install_job(job)?;
+        if let Some(jobs) = job {
+            list.install_jobs(jobs)?;
         }
         Ok(list)
     }
     pub(crate) fn job_only(job: HANDLE) -> io::Result<Self> {
         let mut list = Self::allocate(1)?;
-        list.install_job(job)?;
+        list.install_jobs(vec![job])?;
         Ok(list)
     }
     pub(crate) fn with_pseudoconsole(console: HPCON, job: HANDLE) -> io::Result<Self> {
@@ -130,20 +138,21 @@ impl ProcessAttributeList {
         {
             return Err(io::Error::last_os_error());
         }
-        list.install_job(job)?;
+        list.install_jobs(vec![job])?;
         Ok(list)
     }
-    fn install_job(&mut self, job: HANDLE) -> io::Result<()> {
-        if job.is_null() {
+    fn install_jobs(&mut self, jobs: Vec<HANDLE>) -> io::Result<()> {
+        if jobs.is_empty() || jobs.iter().any(|job| job.is_null()) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "creation Job handle is invalid",
             ));
         }
-        self.jobs = Box::new([job]);
+        self.jobs = jobs.into_boxed_slice();
         // SAFETY: JOB_LIST takes a HANDLE array. Its boxed address stays stable for the
-        // entire attribute-list lifetime; the caller keeps this non-inheritable Job open
-        // through CreateProcess. Windows assigns it before the root's first instruction.
+        // entire attribute-list lifetime; the caller keeps these non-inheritable Jobs open
+        // through CreateProcess. Windows assigns them in order before the root's first
+        // instruction, so each later Job is nested in the one before it.
         if unsafe {
             UpdateProcThreadAttribute(
                 self.as_raw(),

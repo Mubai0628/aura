@@ -19,4 +19,8 @@ export interface ChromeControlApiV1 {
   shares: Request<'chrome.shares'>;
   /** The user's 完成 for a tab the model handed them. */
   finishAssist: Request<'chrome.assist.finish'>;
+  /** The user's ordinary tabs, for the "@" list. */
+  tabs: Read<'chrome.tabs.list'>;
+  /** Shares a tab picked from "@" with the conversation, and reads it for the message. */
+  handOverTab: Request<'chrome.tabs.hand_over'>;
 }

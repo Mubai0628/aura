@@ -82,7 +82,9 @@ impl PluginContext {
             "agent.plugins.configure" => {
                 runtime.configure(&serde_json::from_value::<PluginConfigureRequest>(params)?)?;
             }
-            other => anyhow::bail!("plugins.unknown_route: {other}"),
+            other => anyhow::bail!(
+                "plugins.unknown_route: 插件 设置不认识这个操作（{other}），没有执行；请更新 Aura 后重试。"
+            ),
         }
         Ok(serde_json::to_value(runtime.registry_view())?)
     }
@@ -117,7 +119,10 @@ impl PluginContext {
                 files: package.files,
             },
             Err(error) if request.pending => {
-                anyhow::bail!("plugins.invalid: {}", problems(&error).join("；"))
+                anyhow::bail!(
+                    "plugins.invalid: 这个插件不符合要求：{}",
+                    problems(&error).join("；")
+                )
             }
             Err(_) => PluginPreview {
                 plugin,

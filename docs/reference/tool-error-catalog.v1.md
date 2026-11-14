@@ -4,6 +4,9 @@
 
 | Code | Category | Visibility | Retry | Safe message key | Suggested NotExecuted |
 | --- | --- | --- | --- | --- | --- |
+| `tool.approval.denied` | `cancelled` | `renderer_and_model_safe` | `conditional` | `tool_approval_denied` | `permission_denied` |
+| `tool.approval.expired` | `cancelled` | `renderer_and_model_safe` | `conditional` | `tool_approval_expired` | `permission_denied` |
+| `tool.approval.invalidated` | `cancelled` | `renderer_and_model_safe` | `conditional` | `tool_approval_invalidated` | `permission_denied` |
 | `tool.batch.atomic_group_invalid` | `conflict` | `renderer_and_model_safe` | `never` | `tool_batch_atomic_group_invalid` | `batch_rejected` |
 | `tool.batch.completion_batch_invalid` | `conflict` | `renderer_and_model_safe` | `never` | `tool_batch_completion_batch_invalid` | `batch_rejected` |
 | `tool.batch.content_hash_mismatch` | `conflict` | `renderer_and_model_safe` | `never` | `tool_batch_content_hash_mismatch` | `batch_rejected` |
@@ -40,6 +43,7 @@
 | `tool.network.connection_refused` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_connection_refused` | `` |
 | `tool.network.connection_reset` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_connection_reset` | `` |
 | `tool.network.host_not_found` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_host_not_found` | `` |
+| `tool.network.timed_out` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_timed_out` | `` |
 | `tool.network.tls_failed` | `transport` | `renderer_and_model_safe` | `conditional` | `tool_network_tls_failed` | `` |
 | `tool.package.archive_too_large` | `validation` | `renderer_and_model_safe` | `never` | `tool_package_archive_too_large` | `` |
 | `tool.package.case_collision` | `validation` | `renderer_and_model_safe` | `never` | `tool_package_case_collision` | `` |

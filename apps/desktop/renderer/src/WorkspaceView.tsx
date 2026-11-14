@@ -20,12 +20,19 @@ import { InboxPanel } from './agent-session/InboxPanel';
 import { ContextRemediation } from './agent-session/ContextRemediation';
 import { QueryForm } from './agent-session/query/QueryForm';
 import { SensitiveInputPanel } from './terminal/SensitiveInputPanel';
-import { stopFailureMessage, stopStillEnding, userMessage } from './agent-session/user-message';
+import { useSessionActivity } from './session-activity';
+import { stopFailureMessage, stopStillEnding } from './agent-session/user-message';
 import { StoppingRunContext } from './agent-session/stopping';
 import { rememberFirstTitle } from './agent-session/session-titles';
 import type { SessionModelBinding } from '@aura/contracts/generated';
 import { ApprovalPanel } from './agent-session/ApprovalPanel';
+import { SubagentApprovals } from './agent-team/SubagentApprovals';
+import { AgentTeamActivity } from './agent-team/AgentTeamActivity';
+import { AgentRecord } from './agent-team/AgentRecord';
+import { useFocusedAgent } from './agent-team/team-focus';
+import { useAgentTeam } from './agent-team/team-store';
 import { BrowserAssist } from './browser/BrowserAssist';
+import { hostBrowser } from './browser/browser-tabs';
 import { ChromeSessionStrip } from './chrome/ChromeSessionStrip';
 import { ComputerControlling } from './computer/ComputerControlling';
 import { desktopState, useComputerControlling } from './computer/useComputerControlling';
@@ -51,6 +58,7 @@ import { carriedByName } from './files/carried-menu';
 import { carriedZips, zipEntryFinder } from './files/zip-entries';
 import { ConversationAttachments } from './composer-attachments/ConversationAttachments';
 import { useComposerDockClearance } from './agent-session/useComposerDockClearance';
+import { BRANCH_MODEL_NOT_KEPT } from './session-lifecycle/failure-words';
 
 interface WorkspaceViewProps {
   workspaceId: string;
@@ -120,6 +128,19 @@ export function WorkspaceView({
   const latestResponsiveCandidate = useRef<number | undefined>(undefined);
   const dockClearance = useComposerDockClearance(dockRef);
   const agent = useAgentSession(selectedSession.id);
+  // A sub-agent picked on the 多 Agent page shows in the main area, over this conversation.
+  const focusedAgent = useFocusedAgent(selectedSession.id);
+  const focusedMember = useAgentTeam(
+    focusedAgent === undefined ? undefined : selectedSession.id,
+    true,
+  )?.members.find((member) => member.agent === focusedAgent);
+  const focusedSession = focusedMember?.session_id;
+  // While its record is shown here, the sub-agent's pages show in this conversation's browser.
+  useEffect(
+    () =>
+      focusedSession === undefined ? undefined : hostBrowser(focusedSession, selectedSession.id),
+    [focusedSession, selectedSession.id],
+  );
   /** The conversation's latest turn: when it ended, and what the 近期活动 card reads again on. */
   const lastTurn = agent.projection?.turns.at(-1);
   const [toolCompletion, setToolCompletion] = useState('');
@@ -173,6 +194,7 @@ export function WorkspaceView({
     onChanged: agent.refresh,
   });
   const desktop = desktopState(controlling.apps);
+  const waiting = useSessionActivity().get(selectedSession.id) === 'waiting';
   // A file action that did not happen (copy a path, open a file, show it) says so.
   const notifyFileProblem = useCallback(
     (problem: string) =>
@@ -228,11 +250,12 @@ export function WorkspaceView({
         model_profile_id: modelProfileId,
         session_id: modelSelector.session_id,
       });
-      if (!result.ok) {
-        throw new Error(
-          userMessage(result.error.message, '模型切换未完成，请重新打开会话后重试。'),
-        );
-      }
+      // The picker says why from the code and details, so they go with the error.
+      if (!result.ok)
+        throw Object.assign(new Error(result.error.message), {
+          code: result.error.code,
+          details: result.error.details,
+        });
       if (result.value.value && selectorChange)
         setBindingReceipt({
           binding: result.value.value,
@@ -286,7 +309,8 @@ export function WorkspaceView({
       }),
     [requestOpenRightSidebar, sessionId],
   );
-  // The review page can fill the main area while it is the sidebar's open tab; so can the browser.
+  // The review page can fill the main area while it is the sidebar's open tab; so can the browser
+  // and the 多 Agent page.
   const [expandedPanel, setExpandedPanel] = useState<string>();
   // A file outside the workspace a message carried, which the model names by its name.
   const carried = useMemo(
@@ -323,7 +347,8 @@ export function WorkspaceView({
     [sessionId, workspaceId, workspaceRoot, notifyFileProblem, attachmentNamed, zipEntryNamed],
   );
   const panelExpanded =
-    expandedPanel === rightPanel && (rightPanel === 'review' || rightPanel === 'browser');
+    expandedPanel === rightPanel &&
+    (rightPanel === 'review' || rightPanel === 'browser' || rightPanel === 'agents');
   const handleResponsiveCandidateWidth = useCallback(
     (candidateConversationWidth: number) => {
       latestResponsiveCandidate.current = candidateConversationWidth;
@@ -357,6 +382,7 @@ export function WorkspaceView({
           runtimeInstanceId={agent.projection?.runtime_instance_id}
           completionKey={toolCompletion}
           sessionId={selectedSession.id}
+          browserSessionId={focusedMember?.session_id}
           onToggleSidebar={closeRightSidebar}
           expanded={panelExpanded}
           onToggleExpanded={() =>
@@ -380,7 +406,7 @@ export function WorkspaceView({
         className="conversation-workspace"
         draftKey={selectedSession.id}
       >
-        <header className="conversation-header">
+        <header className="conversation-header" inert={focusedMember !== undefined}>
           <h2>{selectedSession.title || '新会话'}</h2>
           <div className="conversation-header-actions">
             {/* A narrow window's 近期活动 entry sits here, beside the title. */}
@@ -398,6 +424,7 @@ export function WorkspaceView({
 
         <div
           className="conversation-canvas"
+          inert={focusedMember !== undefined}
           ref={conversationCanvasRef}
           style={conversationCanvasStyle}
         >
@@ -439,7 +466,16 @@ export function WorkspaceView({
                     title={selectedSession.title}
                     onBranched={
                       onOpenSession && !demoMode
-                        ? (made) => void onOpenSession(made.session_id, false)
+                        ? (made) => {
+                            void onOpenSession(made.session_id, false);
+                            if (made.modelNotKept)
+                              publishNotification({
+                                dedupeKey: `branch-model:${made.session_id}`,
+                                title: '分支没有沿用原来的模型',
+                                message: BRANCH_MODEL_NOT_KEPT,
+                                tone: 'warning',
+                              });
+                          }
                         : undefined
                     }
                     onOpenSession={onOpenSession ? (id) => onOpenSession(id, true) : undefined}
@@ -456,6 +492,12 @@ export function WorkspaceView({
               viewportRef={conversationCanvasRef}
               entrySlot={activitySlot}
               computer={<ComputerControlling controlling={controlling} />}
+              agents={
+                <AgentTeamActivity
+                  sessionId={selectedSession.id}
+                  onOpen={() => openRightPanel('agents')}
+                />
+              }
               controlling={desktop.controlled}
               takenOver={desktop.takenOver}
               childDesktop={controlling.apps.some((app) => app.mode === 'child_session')}
@@ -482,6 +524,7 @@ export function WorkspaceView({
                 <TodoDock
                   sessionId={selectedSession.id}
                   todo={agent.projection?.turns.at(-1)?.todo}
+                  running={lastTurn?.turn.state.state === 'running'}
                 />
               }
               taskList={agent.projection?.turns.at(-1)?.todo}
@@ -491,6 +534,7 @@ export function WorkspaceView({
                       workspaceId,
                       sessionId,
                       running: agent.projection?.active != null,
+                      waiting,
                       lastEndedAt: lastTurn?.turn.updated_at,
                       refreshKey: `${lastTurn?.turn.turn_task_id ?? ''}:${lastTurn?.turn.state.state ?? ''}:${lastTurn?.turn.revision ?? ''}`,
                       onOpenReview: () => openRightPanel('review'),
@@ -516,9 +560,12 @@ export function WorkspaceView({
                   action,
                 });
                 agent.refresh();
-                if (!result.ok) {
-                  throw new Error(userMessage(result.error.message, '模式操作未完成。'));
-                }
+                // The card says why from the code and Core's text, so they go with the error.
+                if (!result.ok)
+                  throw Object.assign(new Error(result.error.message), {
+                    code: result.error.code,
+                    details: result.error.details,
+                  });
               }}
             />
           )}
@@ -566,6 +613,13 @@ export function WorkspaceView({
                   onChanged={agent.refresh}
                 />
               ))}
+              {!demoMode ? (
+                <SubagentApprovals
+                  key={`subagents:${selectedSession.id}`}
+                  sessionId={selectedSession.id}
+                  activeTurn={active?.turn.turn_task_id}
+                />
+              ) : null}
               {!demoMode ? (
                 <SessionApprovalTray
                   // Each keyed sibling states its own identity: two elements in
@@ -630,6 +684,14 @@ export function WorkspaceView({
             </div>
           </div>
         </div>
+        {focusedMember ? (
+          <AgentRecord
+            key={focusedMember.session_id}
+            parentSessionId={selectedSession.id}
+            parentTitle={selectedSession.title}
+            member={focusedMember}
+          />
+        ) : null}
       </ConversationAttachments>
     </WorkspaceSplitPane>
   );

@@ -3,7 +3,7 @@ import type { AgentToolSettingsView, WebServiceSettingV1 } from '@aura/contracts
 import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
 
 /** One message for every path where the save may have been applied: the user verifies first. */
-const UNCONFIRMED_SAVE = '保存结果未确认。请重新打开工具设置核对后再操作。';
+export const UNCONFIRMED_SAVE = '保存结果未确认。请重新打开这一页核对后再操作。';
 
 /**
  * The one owner of the committed tool-configuration snapshot.
@@ -43,8 +43,8 @@ export interface ConfigurationUpdate {
 
 export interface ConfigurationOwner {
   view: AgentToolSettingsView | undefined;
-  /** Set only when the read failed, so the UI can show a real error and retry. */
-  loadError: string | undefined;
+  /** The failed read's error (an envelope or what was thrown), so the UI can say why and retry. */
+  loadError: unknown;
   busy: boolean;
   reload: () => Promise<void>;
   commit: (
@@ -55,7 +55,7 @@ export interface ConfigurationOwner {
 
 export function useAgentConfiguration(): ConfigurationOwner {
   const [view, setView] = useState<AgentToolSettingsView>();
-  const [loadError, setLoadError] = useState<string>();
+  const [loadError, setLoadError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
   // The authoritative revision for the next submit. A ref rather than the state
   // value, because two saves in quick succession would otherwise both read the
@@ -78,21 +78,21 @@ export function useAgentConfiguration(): ConfigurationOwner {
 
   /** The read is I/O only: it publishes nothing, so the effect that starts it can
    *  hand the result on without touching state itself. */
-  const read = useCallback(async (): Promise<{ view?: AgentToolSettingsView; error?: string }> => {
+  const read = useCallback(async (): Promise<{ view?: AgentToolSettingsView; error?: unknown }> => {
     try {
       const result = await window.aura.v1.readAgentToolSettings({});
-      return result.ok ? { view: result.value } : { error: result.error.message };
-    } catch {
-      return { error: '工具配置暂不可用。' };
+      return result.ok ? { view: result.value } : { error: result.error };
+    } catch (error) {
+      return { error: error ?? new Error('read failed') };
     }
   }, []);
 
   /** The one place the read result reaches state, whichever call started it. */
   const publish = useCallback(
-    (outcome: { view?: AgentToolSettingsView; error?: string }) => {
+    (outcome: { view?: AgentToolSettingsView; error?: unknown }) => {
       if (!alive.current) return;
       if (outcome.view !== undefined) accept(outcome.view);
-      else setLoadError(outcome.error ?? '工具配置暂不可用。');
+      else setLoadError(outcome.error ?? new Error('read failed'));
     },
     [accept],
   );
@@ -113,7 +113,7 @@ export function useAgentConfiguration(): ConfigurationOwner {
       const expected = revision.current;
       const base = view;
       if (expected === undefined || base === undefined) {
-        return { error: '工具配置尚未读取完成，请重新打开工具设置。' };
+        return { error: '设置尚未读取完成，请重新打开这一页。' };
       }
       if (expectedRevision !== undefined && expectedRevision !== expected) {
         return { error: '配置已更新，请重新读取并预览代理恢复。' };
@@ -134,10 +134,10 @@ export function useAgentConfiguration(): ConfigurationOwner {
           max_retries: update.max_retries ?? base.max_retries,
           use_recommended_fixed_tool_ids: restore,
         };
-        const withProxy =
-          'network_proxy' in update
-            ? { ...request, network_proxy: update.network_proxy ?? null }
-            : request;
+        const withProxy = {
+          ...request,
+          ...('network_proxy' in update ? { network_proxy: update.network_proxy ?? null } : {}),
+        };
         const result = await window.aura.v1.configureAgentTools(
           update.web_service === undefined
             ? withProxy

@@ -131,6 +131,7 @@ impl AgentExecution {
                         verified_external_grants: vec![],
                         operation,
                         observed_resources: Arc::new(std::sync::Mutex::new(Vec::new())),
+                        own_folders: Arc::default(),
                     },
                 );
                 ToolCallResourcePreflightV1::Resolved(ResolvedPackageResourceSetV1 {
@@ -172,8 +173,16 @@ impl AgentExecution {
             "agent.restored_plan_changed"
         );
         drop(store);
+        let own = Arc::new(
+            self.own_places(
+                input.permission_snapshot.session_id,
+                input.permission_snapshot.workspace_id,
+            )?
+            .folders,
+        );
         for call in calls.values_mut() {
-            call.verified_external_capabilities = self.external_authority(&call.operation);
+            call.own_folders = Arc::clone(&own);
+            call.verified_external_capabilities = self.call_authority(call);
             call.verified_external_grants = self.external_authority_slices(&call.operation);
         }
         Ok(AdmittedBatch {

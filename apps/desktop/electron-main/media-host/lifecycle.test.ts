@@ -23,6 +23,7 @@ const result: MediaProbe = {
   has_audio: null,
   container: null,
   codec: null,
+  note: null,
 };
 const core = () => ({ requestWithBudget: vi.fn<MediaCore['requestWithBudget']>(async () => ({})) });
 const notify = (owner: MediaCore, method: string, value: unknown) =>

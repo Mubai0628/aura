@@ -123,3 +123,62 @@ fn a_restore_request_is_read_once() {
     assert_eq!(take_request(data.path()), Some(RestoreRequest { before_version: "0.1.1".into() }));
     assert_eq!(take_request(data.path()), None);
 }
+
+fn at(text: &str) -> UtcTimestamp {
+    text.parse().expect("timestamp")
+}
+
+fn backup_names(data: &Path) -> Vec<String> {
+    let mut names: Vec<_> = fs::read_dir(data.join("backups"))
+        .expect("backups")
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn a_replaced_copy_goes_thirty_days_after_it_was_set_aside_and_nothing_else_does() {
+    let data = tempfile::tempdir().expect("data");
+    let names = [
+        "before-0.2.0",
+        "replaced-2026-10-01T00-00-00Z",
+        "replaced-2026-10-29T18-08-43-5616171Z",
+        "replaced-unreadable",
+    ];
+    for name in names {
+        let folder = data.path().join("backups").join(name).join("data");
+        fs::create_dir_all(&folder).expect("folder");
+        fs::write(folder.join("aura.db"), name).expect("store");
+    }
+    // Just under 30 days after the newer copy was set aside: only the older copy goes.
+    let first = remove_expired_copies(data.path(), at("2026-11-28T18:08:43Z"));
+    assert_eq!(first.removed, ["replaced-2026-10-01T00-00-00Z"]);
+    assert!(first.failed.is_empty());
+    let second = remove_expired_copies(data.path(), at("2026-11-28T18:08:44Z"));
+    assert_eq!(second.removed, ["replaced-2026-10-29T18-08-43-5616171Z"]);
+    assert_eq!(backup_names(data.path()), ["before-0.2.0", "replaced-unreadable"]);
+    let third = remove_expired_copies(data.path(), at("2027-06-01T00:00:00Z"));
+    assert!(third.removed.is_empty(), "a name without a time and a before- copy stay");
+}
+
+#[test]
+fn the_time_a_restore_writes_into_the_name_is_the_time_the_expiry_reads() {
+    let data = tempfile::tempdir().expect("data");
+    stores(data.path(), "old");
+    take_with(data.path(), "0.1.1", None, plenty).expect("take");
+    let before = UtcTimestamp::now();
+    assert!(restore(data.path(), "0.1.1").expect("restore"));
+    let name = backup_names(data.path())
+        .into_iter()
+        .find(|name| name.starts_with("replaced-"))
+        .expect("the replaced copy");
+    let thirty_days = |days: i64| {
+        UtcTimestamp::from_value(
+            before.value() + std::time::Duration::from_secs(days as u64 * 86_400),
+        )
+    };
+    assert!(remove_expired_copies(data.path(), thirty_days(29)).removed.is_empty());
+    assert_eq!(remove_expired_copies(data.path(), thirty_days(31)).removed, [name]);
+}

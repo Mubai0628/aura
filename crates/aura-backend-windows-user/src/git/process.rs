@@ -15,6 +15,8 @@ pub struct GitProcessResult {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub stopped: bool,
+    /// The total job membership across the call, including any platform helper.
+    pub total_processes: Option<u32>,
     pub reason: &'static str,
 }
 
@@ -59,6 +61,7 @@ pub(super) fn run(spec: ProcessSpec<'_>) -> Result<GitProcessResult> {
             stdout: vec![],
             stderr: vec![],
             stopped: true,
+            total_processes: None,
             reason: "cancelled",
         });
     }
@@ -155,7 +158,19 @@ pub(super) fn run(spec: ProcessSpec<'_>) -> Result<GitProcessResult> {
     } else if reason == "exited" && exit_code.is_some_and(checked_program::is_error_status) {
         checked_program::check_after_failure(image, Links::Allowed, "exited_abnormally");
     }
-    Ok(GitProcessResult { exit_code, stdout, stderr, stopped, reason })
+    let total_processes =
+        if stopped && reason == "exited" { job.total_processes().ok() } else { None };
+    // A group that may still have processes in it is told to stop, as closing it would, and is
+    // kept open under its call until it is seen empty: the call's locks wait for that.
+    if !stopped {
+        let _ = job.terminate_tree();
+        if timing.created_in_job {
+            crate::lingering::keep(job);
+        } else {
+            crate::lingering::keep(crate::lingering::Untracked);
+        }
+    }
+    Ok(GitProcessResult { exit_code, stdout, stderr, stopped, total_processes, reason })
 }
 
 fn observe(

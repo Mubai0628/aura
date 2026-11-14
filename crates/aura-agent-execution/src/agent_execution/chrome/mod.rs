@@ -50,7 +50,9 @@ impl ExecutionBackend for ChromeBackend {
             if request.operation.validate().is_err()
                 || !self.descriptor.supports_operation(&request.requirement, &request.operation)
             {
-                return Err(preparation("chrome.unsupported_operation"));
+                return Err(preparation(
+                    "chrome.unsupported_operation: 这次调用要的能力超出了 Chrome 控制能做的范围，没有开始，什么都没改动。",
+                ));
             }
             let facts = self.port.inspect(&request.operation).await?;
             ExecutionPlan::new(PreparedExecution {
@@ -58,7 +60,11 @@ impl ExecutionBackend for ChromeBackend {
                 backend: self.descriptor(),
                 preparation: facts,
             })
-            .map_err(|_| preparation("chrome.invalid_preparation"))
+            .map_err(|_| {
+                preparation(
+                    "chrome.invalid_preparation: Aura 没能为这次 Chrome 调用做好准备，没有开始，什么都没改动；可以再调用一次。",
+                )
+            })
         })
     }
     fn execute(&self, dispatch: AuthorizedDispatch) -> BackendFuture<'_, ExecutionHandle> {
@@ -68,7 +74,9 @@ impl ExecutionBackend for ChromeBackend {
                 || request.plan.prepared.backend != self.descriptor
                 || self.port.inspect(&request.operation).await? != request.plan.prepared.preparation
             {
-                return Err(rejected("chrome.preparation_changed"));
+                return Err(rejected(
+                    "chrome.preparation_changed: 这次 Chrome 调用准备好之后、开始之前，会话的权限或运行状态变了，所以没有开始，什么都没改动；还需要的话再调用一次。",
+                ));
             }
             self.port.claim(&dispatch).await?;
             self.port.invoke(request).await.map_err(|_| BackendError::DispatchUnknown {

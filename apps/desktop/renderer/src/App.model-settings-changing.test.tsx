@@ -31,7 +31,11 @@ describe('model settings while another change to them is being written', () => {
     vi.mocked(window.aura.v1.getModelSettings).mockResolvedValue(factsChanged);
     await user.click(screen.getByRole('button', { name: '设置' }));
 
-    expect(await screen.findAllByText('模型设置正在被修改，请稍后再试。')).not.toHaveLength(0);
+    expect(
+      await screen.findAllByText(
+        '模型设置正在被另一项操作修改，为免覆盖暂不能保存；稍后会自动再读。',
+      ),
+    ).not.toHaveLength(0);
     expect(screen.queryByText(/正在重新连接/u)).toBeNull();
     // The other change is written; nobody refreshes, the page reads the settings again itself.
     vi.mocked(window.aura.v1.getModelSettings).mockResolvedValue({
@@ -39,7 +43,12 @@ describe('model settings while another change to them is being written', () => {
       value: modelSettingsProjection,
     });
     await waitFor(
-      () => expect(screen.queryAllByText('模型设置正在被修改，请稍后再试。')).toHaveLength(0),
+      () =>
+        expect(
+          screen.queryAllByText(
+            '模型设置正在被另一项操作修改，为免覆盖暂不能保存；稍后会自动再读。',
+          ),
+        ).toHaveLength(0),
       { timeout: 3_000 },
     );
   });
@@ -58,7 +67,9 @@ describe('model settings while another change to them is being written', () => {
     await user.click(within(confirmation).getByRole('button', { name: '删除 Endpoint' }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Endpoint 未删除');
-    expect(alert.textContent).toContain('模型设置正在被修改，请稍后再试。');
+    expect(alert.textContent).toContain('连接未删除');
+    expect(alert.textContent).toContain(
+      '模型设置正在被另一项操作修改，这次更改没有执行，请稍后再试。',
+    );
   });
 });

@@ -1,7 +1,11 @@
 //! Entry requires the authenticated Main channel; Agent identity is allocated
 //! by Core only after the user submission transaction has committed.
 use crate::*;
+use aura_core_base::route_failures::{
+    NO_INVOCATION, RECOVERY_REQUIRED, SESSION_UNKNOWN, SETTINGS_INTERRUPTED,
+};
 use aura_extension_service::{hooks, plugins, skills};
+
 pub(crate) async fn dispatch(
     state: &RuntimeState,
     queue: &AsyncPriorityQueue,
@@ -10,7 +14,7 @@ pub(crate) async fn dispatch(
 ) -> Result<IpcRequestTerminal> {
     let result: Result<serde_json::Value> = async {
         let StartupMode::Ready(services) = &state.startup_mode else {
-            anyhow::bail!("core.recovery_required");
+            anyhow::bail!(RECOVERY_REQUIRED);
         };
         services.commands()?.set_terminal_publisher(queue.clone())?;
         services.plugin_services.set_publisher(queue.clone());
@@ -111,32 +115,30 @@ pub(crate) async fn dispatch(
                 .terminal_request(state.options.runtime_instance_id, queue.clone(), request)
                 .await;
         }
-        // 设置 → 环境, the interface settings. They start nothing and need no Agent service.
-        if request.method.starts_with("ui.settings.") {
-            let settings = services._settings.clone();
-            let (method, params) = (request.method.clone(), request.params.clone());
-            let command = request.command_invocation_id;
+        // 设置 → 环境, → 网络与浏览器 and → 系统 → 存储. They start nothing a model can reach.
+        if aura_core_base::settings_routes::serves(&request.method) {
+            let (settings, persistence) =
+                (services._settings.clone(), services.persistence.clone());
+            let manifest = state.release.manifest_path.clone();
+            let (method, params, command) =
+                (request.method.clone(), request.params.clone(), request.command_invocation_id);
             return tokio::task::spawn_blocking(move || {
-                super::ui_settings::dispatch(&settings, &method, params, command)
+                let workspaces =
+                    || -> anyhow::Result<_> { Ok(persistence.workspace_session_projection()?) };
+                let served = aura_core_base::settings_routes::Served {
+                    settings: &settings,
+                    manifest: &manifest,
+                    workspaces: &workspaces,
+                };
+                aura_core_base::settings_routes::dispatch(&served, &method, params, command)
             })
             .await
-            .map_err(|error| anyhow::anyhow!("ui_settings.interrupted: {error}"))?;
+            .map_err(|_| anyhow::anyhow!(SETTINGS_INTERRUPTED))?;
         }
-        // 设置 → 网络与浏览器. Like the interface settings they start nothing.
-        if request.method.starts_with("browser.settings.") {
-            let settings = services._settings.clone();
-            let (method, params) = (request.method.clone(), request.params.clone());
-            let command = request.command_invocation_id;
-            return tokio::task::spawn_blocking(move || {
-                super::browser_settings::dispatch(&settings, &method, params, command)
-            })
-            .await
-            .map_err(|error| anyhow::anyhow!("browser_settings.interrupted: {error}"))?;
-        }
-        // 设置 → 网络与浏览器 → Chrome. It starts nothing a model can reach.
+        // 设置 → 网络与浏览器 → Chrome, shared tabs and the @ menu's. Nothing a model can reach.
         if request.method.starts_with("chrome.") {
             let command = request.command_invocation_id;
-            return super::chrome::dispatch(
+            return aura_chrome_service::chrome_control::dispatch(
                 &services.chrome,
                 &request.method,
                 request.params.clone(),
@@ -168,7 +170,7 @@ pub(crate) async fn dispatch(
                     .sessions
                     .iter()
                     .any(|v| v.session_id == session.session_id),
-                "agent.session_unknown"
+                SESSION_UNKNOWN
             );
             return if request.method == "agent.process.list" {
                 let input: aura_windows_user_contract::ManagedProcessRequestV1 =
@@ -196,9 +198,8 @@ pub(crate) async fn dispatch(
             )?);
         }
         if request.method == "agent.tools.configure" {
-            let command = request
-                .command_invocation_id
-                .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?;
+            let command =
+                request.command_invocation_id.ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?;
             return Ok(serde_json::to_value(
                 agent
                     .update_tool_settings(command, serde_json::from_value(request.params.clone())?)
@@ -297,7 +298,7 @@ pub(crate) async fn dispatch(
                     .recheck_context(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?,
@@ -309,7 +310,7 @@ pub(crate) async fn dispatch(
                     .request_compaction(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?,
@@ -321,7 +322,7 @@ pub(crate) async fn dispatch(
                     .resolve_context_window(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?,
@@ -343,7 +344,7 @@ pub(crate) async fn dispatch(
                     .query_file(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?,
@@ -359,6 +360,9 @@ pub(crate) async fn dispatch(
                 serde_json::from_value(request.params.clone())?;
             return Ok(serde_json::to_value(agent.sessions_activity(asked).await?)?);
         }
+        if request.method.starts_with("agent.team.") {
+            return agent.team_route(&request.method, request.params.clone()).await;
+        }
         if request.method == "agent.result" {
             return Ok(serde_json::to_value(
                 agent.result(serde_json::from_value(request.params.clone())?).await?,
@@ -373,9 +377,9 @@ pub(crate) async fn dispatch(
                 "agent.submit" => {
                     agent
                         .submit(
-                            request.command_invocation_id.ok_or_else(|| {
-                                anyhow::anyhow!("ipc.command_invocation_id_required")
-                            })?,
+                            request
+                                .command_invocation_id
+                                .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                             serde_json::from_value(request.params.clone())?,
                         )
                         .await?
@@ -383,9 +387,9 @@ pub(crate) async fn dispatch(
                 _ => {
                     agent
                         .mutate_inbox(
-                            request.command_invocation_id.ok_or_else(|| {
-                                anyhow::anyhow!("ipc.command_invocation_id_required")
-                            })?,
+                            request
+                                .command_invocation_id
+                                .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                             serde_json::from_value(request.params.clone())?,
                         )
                         .await?
@@ -399,7 +403,7 @@ pub(crate) async fn dispatch(
                     .continue_turn(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?
@@ -409,7 +413,7 @@ pub(crate) async fn dispatch(
                     .related_turn(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?
@@ -419,7 +423,7 @@ pub(crate) async fn dispatch(
                     .start(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?
@@ -429,7 +433,7 @@ pub(crate) async fn dispatch(
                     .start_init(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?
@@ -439,7 +443,7 @@ pub(crate) async fn dispatch(
                     .start_compaction(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?
@@ -454,9 +458,9 @@ pub(crate) async fn dispatch(
                 return Ok(serde_json::to_value(
                     agent
                         .control_mode(
-                            request.command_invocation_id.ok_or_else(|| {
-                                anyhow::anyhow!("ipc.command_invocation_id_required")
-                            })?,
+                            request
+                                .command_invocation_id
+                                .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                             serde_json::from_value(request.params.clone())?,
                         )
                         .await?,
@@ -473,7 +477,7 @@ pub(crate) async fn dispatch(
                     .answer(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?
@@ -483,12 +487,14 @@ pub(crate) async fn dispatch(
                     .resolve_approval(
                         request
                             .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?,
+                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?
             }
-            _ => anyhow::bail!("ipc.route_unknown"),
+            _ => anyhow::bail!(
+                "ipc.route_unknown: Aura Core 不认识这个操作，没有执行；请更新 Aura 后重试。"
+            ),
         };
         Ok(serde_json::to_value(value)?)
     }
@@ -514,15 +520,7 @@ pub(crate) async fn dispatch(
             IpcRequestTerminal::Failed,
             JsonRpcResponse::failure(
                 request.id,
-                IpcErrorEnvelope {
-                    code: ErrorCode::new("agent.request_rejected")?,
-                    category: ErrorCategory::Validation,
-                    message: error.to_string(),
-                    retryable: false,
-                    correlation_id: request.id,
-                    terminal: IpcRequestTerminal::Failed,
-                    details: BTreeMap::new(),
-                },
+                aura_core_base::envelope::refused_envelope(request.id, error),
             ),
         ),
     };
@@ -537,13 +535,12 @@ where
     F: FnOnce(&str, Value) -> Result<Value> + Send + 'static,
 {
     if aura_ipc::routes::side_effecting(&request.method) {
-        anyhow::ensure!(
-            request.command_invocation_id.is_some(),
-            "ipc.command_invocation_id_required"
-        );
+        anyhow::ensure!(request.command_invocation_id.is_some(), NO_INVOCATION);
     }
     let (method, params) = (request.method.clone(), request.params.clone());
-    tokio::task::spawn_blocking(move || dispatch(&method, params))
-        .await
-        .map_err(|error| anyhow::anyhow!("{area}.interrupted: {error}"))?
+    tokio::task::spawn_blocking(move || dispatch(&method, params)).await.map_err(|_| {
+        anyhow::anyhow!(
+            "{area}.interrupted: 这次操作在后台意外中断，可能没有完成；请刷新查看后再决定是否重试。"
+        )
+    })?
 }

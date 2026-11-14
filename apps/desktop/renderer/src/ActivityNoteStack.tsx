@@ -1,4 +1,4 @@
-import { userMessage } from './agent-session/user-message';
+import { failedAction, isConflict } from './agent-session/failure-text';
 import type {
   AgentModeControlAction,
   AgentModeEpisodeView,
@@ -15,6 +15,28 @@ import { ToolIcon } from './tool-icon';
 import { todoProgress } from './todo/todo-progress';
 
 /** A full card needs room for its title, mode, activity, actions and errors. */
+const CONTROL_NAMES: Record<AgentModeControlAction['action'], string> = {
+  terminate: '终止',
+  pause_goal: '暂停',
+  edit_goal_budget: '额度修改',
+};
+
+/** A Plan or Goal control Core refused: which control, why, and what to do. */
+function controlFailure(action: AgentModeControlAction, reason: unknown): string {
+  const text = reason instanceof Error ? reason.message : String(reason);
+  if (text.includes('agent.goal_budget_below_usage'))
+    return '新的额度低于这个目标已经用掉的量，没有保存；请填更大的数，或留空表示不设上限。';
+  const name = CONTROL_NAMES[action.action];
+  if (
+    isConflict(reason) ||
+    /task_lineage\.(?:revision_stale|disposition_not_allowed)|persistent revision or identity conflict/u.test(
+      text,
+    )
+  )
+    return `模式状态刚刚变化，这次${name}没有生效；请按最新状态再操作。`;
+  return failedAction(reason, `这次${name}没有生效`, '模式保持原样；请稍后再试。');
+}
+
 const FULL_CARD_MIN_WIDTH = 280;
 const FULL_CARD_MAX_WIDTH = 320;
 const CARD_RIGHT_INSET = 12;
@@ -47,6 +69,8 @@ interface ActivityNoteStackProps {
   taskList?: TodoState | undefined;
   /** 正在操控: the programs the model is controlling now, the first part after the conversation's. */
   computer?: ReactNode;
+  /** The conversation's sub-agents, after what it controls. */
+  agents?: ReactNode;
   /** How many programs it is controlling, which the collapsed card shows. */
   controlling?: number;
   /** Whether the user took the desktop over from it, which the collapsed card shows. */
@@ -67,6 +91,7 @@ export function ActivityNoteStack({
   goal,
   taskList,
   computer,
+  agents,
   controlling = 0,
   takenOver = false,
   childDesktop = false,
@@ -197,9 +222,7 @@ export function ActivityNoteStack({
     try {
       await onControl(action);
     } catch (reason) {
-      updateDraft({
-        error: userMessage(reason, '操作未完成。'),
-      });
+      updateDraft({ error: controlFailure(action, reason) });
     } finally {
       setBusy(false);
     }
@@ -366,6 +389,7 @@ export function ActivityNoteStack({
           <ActivitySummary
             {...summary}
             computer={computer}
+            agents={agents}
             goal={goal}
             todo={todo}
             onOpenReview={() => {
@@ -382,6 +406,7 @@ export function ActivityNoteStack({
               {modePart}
             </section>
             {computer}
+            {agents}
             {goal}
             {todo}
           </>

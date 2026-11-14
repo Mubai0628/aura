@@ -69,7 +69,10 @@ fn derive(
     tool: &NormalizedTool,
     revision: ToolRevision,
 ) -> Result<McpTool> {
-    ensure!(revision.revision > 0, "mcp.tool_unrevised");
+    ensure!(
+        revision.revision > 0,
+        "mcp.tool_unrevised: 这个 MCP 工具的版本记录还没有建好，暂时不能调用，调用没有发出。稍后用 tools.search 重新找到它再调用。"
+    );
     let created_at = revision.created_at;
     let tool_id = identity::tool_id(&server.id, &tool.wire_name);
     let version = ToolVersion::new(None, Revision::new(revision.revision))?;
@@ -96,8 +99,9 @@ fn derive(
         },
         vec![ResolvedCapability::ExternalExtensionCall],
         vec![],
-        // Sub-agents see a server only after the user allows it; none exist yet.
-        ToolAudienceV1::ParentAgentOnly,
+        // A sub-agent has the user's servers as the main agent does. Any change to what this
+        // derives from the same inputs needs the next `identity::DERIVATION`.
+        ToolAudienceV1::SubagentConfigurable,
         ToolSourceKindV1::Mcp,
         ToolExecutionSemanticsV1 {
             automatic_retry_allowed: false,
@@ -205,10 +209,12 @@ pub fn tool_for(
     let tool = usable_tools(runtime, db)
         .into_iter()
         .find(|tool| tool.definition.tool_id == definition.tool_id)
-        .ok_or_else(|| anyhow::anyhow!("mcp.tool_unavailable: 这个 MCP 工具当前不可用（服务器已停用、撤销信任、配置改变或工具已移除）"))?;
-    ensure!(
-        tool.definition == *definition,
-        "mcp.tool_changed: 这个 MCP 工具已更新，请重新发起调用"
-    );
+        .ok_or_else(|| anyhow::anyhow!(TOOL_UNAVAILABLE))?;
+    ensure!(tool.definition == *definition, TOOL_CHANGED);
     Ok(tool)
 }
+
+const TOOL_UNAVAILABLE: &str = "mcp.tool_unavailable: 这个 MCP 工具现在不可用（服务器已停用或不再受信任、配置改了，或工具已被移除），调用没有发给服务器。请用 tools.search 找现在可用的工具。";
+
+/// Also the refusal when the instance the call was bound to is no longer the live one.
+pub(super) const TOOL_CHANGED: &str = "mcp.tool_changed: 这个 MCP 工具在调用准备好之后更新了，调用没有发给服务器。请用 tools.load 重新载入它再调用。";

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { HookEntryView, McpServerView } from '@aura/contracts/generated';
 import { HookInvocations } from '../hook-settings/HookInvocations';
-import { hookStateLabel, hookStateTone } from '../hook-settings/hook-labels';
+import { hookEventLabel, hookStateLabel, hookStateTone } from '../hook-settings/hook-labels';
 import { mcpStateLabel, mcpStateTone } from '../mcp-settings/mcp-labels';
 import type { SettingsSection } from '../app-shell-types';
 
@@ -70,7 +70,7 @@ export function PluginRuntime({
                   <strong>{name}</strong>
                   {hook.definition ? (
                     <span className="plugin-runtime-count">
-                      {hook.definition.events.join('、')}
+                      {hook.definition.events.map(hookEventLabel).join('、')}
                     </span>
                   ) : null}
                 </div>

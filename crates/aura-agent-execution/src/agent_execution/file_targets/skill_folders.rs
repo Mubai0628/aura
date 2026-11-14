@@ -6,6 +6,15 @@ use super::*;
 use aura_windows_platform::{NativePathInfo, inspect_existing_path};
 
 impl AgentExecution {
+    /// The workspace whose Skills a call in `workspace` has: a sub-agent's worktree has those of
+    /// the workspace it was made from, as its main agent has them; any other workspace its own.
+    pub(in crate::agent_execution) fn skills_workspace(
+        &self,
+        workspace: WorkspaceId,
+    ) -> WorkspaceId {
+        self.persistence.worktree_parent(workspace).unwrap_or(workspace)
+    }
+
     /// Whether `target` lies in the folder of a Skill usable now in `workspace`.
     pub(in crate::agent_execution) fn in_usable_skill_folder(
         &self,
@@ -13,9 +22,10 @@ impl AgentExecution {
         target: &NativePathInfo,
     ) -> bool {
         let Some(runtime) = self.skills.get() else { return false };
-        let Ok(folders) =
-            aura_extension_service::skills::loading::usable_folders(runtime, Some(workspace))
-        else {
+        let Ok(folders) = aura_extension_service::skills::loading::usable_folders(
+            runtime,
+            Some(self.skills_workspace(workspace)),
+        ) else {
             return false;
         };
         folders.iter().any(|folder| {

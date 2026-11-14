@@ -7,8 +7,13 @@ impl GitReader {
         &self,
         input: &GitUntrackedDiffInputV1,
     ) -> Result<GitDiffResultV1> {
-        ensure!(input.max_bytes > 0 && input.max_bytes <= 65536, "git.diff_page_limit");
-        let path = aura_domain_common::WorkspacePath::parse(&input.path)?;
+        super::diff::page_limit(input.max_bytes)?;
+        let path = aura_domain_common::WorkspacePath::parse(&input.path).map_err(|error| {
+            anyhow::anyhow!(
+                "git.path_invalid: 「{}」不是工作区里的相对路径（{error}），无法比较。请刷新后重试。",
+                config::shown(&input.path)
+            )
+        })?;
         ensure!(!path.is_root(), "git.untracked_file_required: 请选择单个未跟踪文件");
         let path = path.to_string();
         let listed =
@@ -17,7 +22,13 @@ impl GitReader {
             listed.split(|byte| *byte == 0).any(|name| name == path.as_bytes()),
             "git.not_untracked: 文件已不在未跟踪列表，请刷新后重试"
         );
-        let metadata = std::fs::symlink_metadata(self.root.join(&path))?;
+        let metadata = std::fs::symlink_metadata(self.root.join(&path)).map_err(|error| {
+            anyhow::anyhow!(
+                "git.not_untracked: 读不到这个文件，它可能刚被删除或移动；请刷新后重试。{}{}",
+                config::DETAIL_LABEL,
+                config::detail(&error.to_string())
+            )
+        })?;
         ensure!(
             metadata.is_file() || metadata.file_type().is_symlink(),
             "git.untracked_file_required: 请选择单个未跟踪文件，目录可在终端查看"
@@ -50,11 +61,15 @@ impl GitReader {
                 comparison_note: None,
             });
         }
-        ensure!(files.len() == 1, "git.untracked_file_required");
+        ensure!(
+            files.len() == 1,
+            "git.untracked_file_required: Git 为这一项给出了 {} 个文件的比较结果，这里只能比较单个未跟踪文件；目录可在终端查看。",
+            files.len()
+        );
         files[0].path = path.clone();
         files[0].original_path = None;
         self.annotate_stats(&mut files)?;
-        let patch = String::from_utf8(patch.to_vec())?;
+        let patch = super::diff::patch_text(patch.to_vec())?;
         super::diff::paginate(files, patch, input.offset_bytes, input.max_bytes)
     }
 }

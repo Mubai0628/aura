@@ -294,11 +294,6 @@ pub(super) fn external_search(
     recursive: bool,
     input: AgentFileSearchInput,
 ) -> Result<FsSearchTextResult> {
-    ensure!(
-        input.path_glob.is_none(),
-        "agent.external_search_glob_unsupported: a path glob is a workspace index \
-         selector and is not available for an external directory"
-    );
     let session_id = call.snapshot.session_id;
     let limit = input.limit;
     let cancel = external_search_cancel(call);
@@ -313,6 +308,7 @@ pub(super) fn external_search(
             },
             pattern: input.pattern,
             recursive,
+            path_glob: input.path_glob,
             limit,
             scan_budget: EXTERNAL_SEARCH_SCAN_BUDGET,
             max_file_bytes: EXTERNAL_SEARCH_MAX_FILE_BYTES,
@@ -369,6 +365,7 @@ pub(super) fn external_search(
         scanned_bytes: found.scanned_bytes,
         skipped_file_count: found.skipped_too_large.saturating_add(found.skipped_not_text),
         external: Some(FsExternalSearchTarget { grant_id: found.grant_id, display_path }),
+        context: Vec::new(),
     })
 }
 /// The cancellation token of this call, when one was registered for its correlation.

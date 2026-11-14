@@ -1,9 +1,12 @@
 import { userMessage } from './user-message';
+import { connectionCause, failedAction } from './failure-text';
+import { ApprovalTechnicalFacts } from './ApprovalTechnicalFacts';
 import { NetworkApprovalFacts } from './NetworkApprovalFacts';
 import { DeletionTargets } from './DeletionTargets';
 import { OutsideTargets } from './OutsideTargets';
 import { ShellApprovalFacts } from './ShellApprovalFacts';
 import { GitApprovalFacts } from './GitApprovalFacts';
+import { WorktreeChanges } from '../agent-team/WorktreeChanges';
 import { PackageApprovalFacts } from './PackageApprovalFacts';
 import { McpApprovalFacts } from './McpApprovalFacts';
 import { ChromeApprovalFacts } from './ChromeApprovalFacts';
@@ -37,7 +40,16 @@ const labels: Record<ApprovalDecisionKind, string> = {
 
 const NATIVE_BACKEND_ID = 'windows-user-native-v1';
 
-const NOT_LISTED = '没有记进总是允许的名单，请重试。';
+const READ_RETRYING = '这一步仍在等你批准；会自动重新读取。';
+const READ_NEXT = '这一步仍在等你批准；请稍后重新打开这个会话。';
+const READ_RETRY_MS = 5_000;
+
+/** A program 总是允许 did not put on the list: why, and that the call still waits. */
+function notListed(name: string, reason: unknown): string {
+  const said = reason === null ? '' : userMessage(reason, '');
+  const cause = connectionCause(reason) ?? (said.replace(/[。.]+$/u, '') || undefined);
+  return `没能把「${name}」加入总是允许${cause ? `（${cause}）` : ''}，这次调用仍在等你批准；可以点“本会话允许”，或再试一次。`;
+}
 
 /**
  * Why this call is being asked about, in the terms the decision actually uses.
@@ -59,20 +71,6 @@ function approvalKind(view: ExecutionApprovalView): ApprovalKind {
     return 'restricted';
   }
   return 'other';
-}
-
-/** The allowed range, which is a different fact from how this call will run. */
-function modeLabel(mode: ExecutionApprovalView['mode']): string {
-  switch (mode) {
-    case 'read_only':
-      return '只读';
-    case 'workspace_read_write':
-      return '工作区读写';
-    case 'full_access':
-      return '完全访问';
-    default:
-      return String(mode);
-  }
 }
 
 function shellLabel(shell: 'cmd' | 'powershell'): string {
@@ -118,31 +116,43 @@ const decisionClass = (decision: ApprovalDecisionKind, first: boolean) =>
 export function ApprovalPanel({
   sessionId,
   approvalId,
+  from,
   onChanged,
 }: {
   sessionId: string;
   approvalId: string;
+  /** Who asked, when it is not the conversation's own agent. */
+  from?: string;
   onChanged: () => void;
 }) {
   const [view, setView] = useState<ExecutionApprovalView>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  // A read that failed because Core did not answer is tried again until the card shows.
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
+    let again: number | undefined;
+    const failed = (reason: unknown) => {
+      if (!alive) return;
+      const retry = connectionCause(reason) !== undefined;
+      setError(failedAction(reason, '审批内容没有读到', retry ? READ_RETRYING : READ_NEXT));
+      if (retry) again = window.setTimeout(() => setAttempt((count) => count + 1), READ_RETRY_MS);
+    };
     void window.aura.v1
       .getAgentApproval({ session_id: sessionId, approval_id: approvalId })
       .then((result) => {
         if (!alive) return;
-        if (result.ok) setView(result.value);
-        else setError(result.error.message);
+        if (!result.ok) return failed(result.error);
+        setView(result.value);
+        setError(undefined);
       })
-      .catch(() => {
-        if (alive) setError('无法读取审批。');
-      });
+      .catch(failed);
     return () => {
       alive = false;
+      window.clearTimeout(again);
     };
-  }, [sessionId, approvalId]);
+  }, [sessionId, approvalId, attempt]);
   const decide = async (decision: ApprovalDecisionKind) => {
     if (!view || busy) return;
     setBusy(true);
@@ -153,11 +163,20 @@ export function ApprovalPanel({
         expected_revision: view.approval.revision,
         decision,
       });
-      if (!result.ok) setError(result.error.message);
+      if (!result.ok)
+        setError(
+          userMessage(
+            result.error,
+            '这项审批已经处理过、已过期或已作废，你的选择没有生效；请看最新的审批。',
+          ),
+        );
       else setError(undefined);
       onChanged();
-    } catch {
-      setError('审批结果未确认，请核对任务状态。');
+    } catch (reason) {
+      const cause = connectionCause(reason) ?? '与 Aura Core 的连接出了问题';
+      setError(
+        `你的选择是否送达没有确认（${cause}），没有自动重发；请看这一步是否还在等你批准，还在就再选一次。`,
+      );
       onChanged();
     } finally {
       setBusy(false);
@@ -176,9 +195,9 @@ export function ApprovalPanel({
         name: computer.name,
       });
       listed = result?.ok === true;
-      if (!listed) setError(result && !result.ok ? result.error.message : NOT_LISTED);
-    } catch {
-      setError(NOT_LISTED);
+      if (!listed) setError(notListed(computer.name, result && !result.ok ? result.error : null));
+    } catch (reason) {
+      setError(notListed(computer.name, reason));
     } finally {
       setBusy(false);
     }
@@ -199,6 +218,12 @@ export function ApprovalPanel({
   const memory =
     view?.operation.content.resources.some((r) => r.scope_kind === 'memory_vault') ?? false;
   const init = view?.operation.content.action_kind === 'workspace_init.complete';
+  // Merging or discarding a worktree shows what it changed and its checks on the card itself.
+  const worktree = ['agents.merge', 'agents.discard'].includes(
+    view?.operation.content.action_kind ?? '',
+  )
+    ? { agent: (view?.operation.content.action as { agent?: unknown } | undefined)?.agent }
+    : undefined;
   const command = ['commands.save', 'commands.delete'].includes(
     view?.operation.content.action_kind ?? '',
   );
@@ -249,6 +274,7 @@ export function ApprovalPanel({
           <AppIcon name="shield" size={15} />
         </span>
         <strong>操作需要确认</strong>
+        {from ? <span className="agent-approval-from">{from}</span> : null}
         {view ? (
           <span className="agent-approval-kind">
             {installed
@@ -274,6 +300,12 @@ export function ApprovalPanel({
                   {computer.name}
                 </strong>
               </p>
+            ) : null}
+            {worktree ? (
+              <WorktreeChanges
+                agent={typeof worktree.agent === 'string' ? worktree.agent : undefined}
+                sessionId={sessionId}
+              />
             ) : null}
             {((view.operation.content.risks ?? []) as readonly string[]).includes(
               'permanent_file_deletion',
@@ -431,33 +463,7 @@ export function ApprovalPanel({
                   具备操作系统级的工作区隔离。
                 </p>
               )}
-              {git || installed || mcp || memory || init || command || network ? null : (
-                <pre>{JSON.stringify(view.operation.content.action, null, 2)}</pre>
-              )}
-              <dl className="agent-approval-technical">
-                <dt>默认权限模式</dt>
-                <dd>{modeLabel(view.mode)}</dd>
-                <dt>本次执行方式</dt>
-                <dd>
-                  {view.backend.id} · {view.backend.class}
-                </dd>
-                <dt>隔离保障</dt>
-                <dd>{view.backend.guarantees.join('、')}</dd>
-                <dt>本次请求批准的能力</dt>
-                <dd>
-                  {(view.requested_capabilities ?? view.operation.content.capabilities).join('、')}
-                </dd>
-              </dl>
-              {view.reasons.length ? (
-                <div className="agent-approval-reasons">
-                  <strong>技术原因</strong>
-                  <ul>
-                    {view.reasons.map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+              <ApprovalTechnicalFacts view={view} />
             </details>
           </div>
           <div className="agent-approval-actions">
@@ -498,7 +504,7 @@ export function ApprovalPanel({
       )}
       {error ? (
         <p className="agent-approval-error" role="alert">
-          {userMessage(error)}
+          {error}
         </p>
       ) : null}
     </section>

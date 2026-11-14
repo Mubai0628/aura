@@ -8,15 +8,20 @@ import {
   BROWSER_COMMAND_CHANNEL,
   BROWSER_PAGES_CHANNEL,
   BROWSER_STATE_CHANNEL,
+  PAGE_TEXT_CHARS,
+  browserNotDone,
   type BrowserApiV1,
   type BrowserCommandResult,
   type BrowserPageState,
+  type PageText,
 } from '../shared/browser-api.js';
 import type { ResultEnvelope } from '../shared/aura-api.js';
 
 const NOTICES = new Set(['blocked', 'download', 'popup', 'failed', 'crashed', 'closed']);
 /** A page's picture is only ever a JPEG Main encoded. */
 const PICTURE_PREFIX = 'data:image/jpeg;base64,';
+/** The id a page the user handed over has in its conversation, as Core takes it. */
+const HANDED_ID = /^p[1-9][0-9]{0,3}$/u;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -57,6 +62,9 @@ export function readPageState(value: unknown): BrowserPageState | undefined {
     )
   )
     return undefined;
+  const handedAs = value.handedAs;
+  if (handedAs !== undefined && !(typeof handedAs === 'string' && HANDED_ID.test(handedAs)))
+    return undefined;
   return {
     sessionId: value.sessionId as string,
     pageId: value.pageId as string,
@@ -71,6 +79,7 @@ export function readPageState(value: unknown): BrowserPageState | undefined {
     ...(isRecord(assist)
       ? { assist: { reason: assist.reason as string, deadline: assist.deadline as number } }
       : {}),
+    ...(typeof handedAs === 'string' ? { handedAs } : {}),
     notice:
       notice === undefined
         ? undefined
@@ -79,6 +88,18 @@ export function readPageState(value: unknown): BrowserPageState | undefined {
             text: (notice as { text: string }).text,
           },
   };
+}
+
+/** A page's text as Main read it for "@", in exactly its shape. */
+function readPageText(value: unknown): PageText | undefined {
+  return isRecord(value) &&
+    typeof value.title === 'string' &&
+    typeof value.url === 'string' &&
+    typeof value.text === 'string' &&
+    value.text.length <= PAGE_TEXT_CHARS &&
+    typeof value.truncated === 'boolean'
+    ? { title: value.title, url: value.url, text: value.text, truncated: value.truncated }
+    : undefined;
 }
 
 function readCommandResult(value: unknown): BrowserCommandResult {
@@ -92,8 +113,13 @@ function readCommandResult(value: unknown): BrowserCommandResult {
         typeof value.picture === 'string' && value.picture.startsWith(PICTURE_PREFIX)
           ? value.picture
           : undefined,
+      text: value.text === undefined ? undefined : readPageText(value.text),
     };
-  return { ok: false, message: '浏览器没有回应' };
+  return {
+    ok: false,
+    message:
+      '这次浏览器操作的结果读不懂（Aura 内部出错），操作可能没有完成；请重试，仍不行请重启 Aura。',
+  };
 }
 
 export function browserBridge(
@@ -107,7 +133,10 @@ export function browserBridge(
       try {
         return readCommandResult(await ipcRenderer.invoke(BROWSER_COMMAND_CHANNEL, command));
       } catch {
-        return { ok: false, message: '浏览器没有回应' };
+        return {
+          ok: false,
+          message: `浏览器没有回应，${browserNotDone(command.kind)}；请稍后重试，仍不行时重启 Aura。`,
+        };
       }
     },
     pages: async () => {

@@ -20,3 +20,96 @@ fn the_model_reads_the_outcome_and_no_hash_it_could_mistake_for_a_files() {
     assert!(view.get("warnings").is_none(), "no empty list");
     assert!(text.len() * 2 < STORED.len(), "less than half the stored envelope: {}", text.len());
 }
+
+/// The stored write with `outcome`, `side_effect_state` and `warnings` in place of its own.
+fn stored(
+    outcome: serde_json::Value,
+    side_effect_state: &str,
+    warnings: &[&str],
+) -> ModelVisibleToolResultEnvelopeV1 {
+    let mut value: serde_json::Value = serde_json::from_str(STORED).expect("a stored envelope");
+    value["outcome"] = outcome;
+    value["side_effect_state"] = serde_json::json!(side_effect_state);
+    value["warnings"] = serde_json::json!(warnings);
+    serde_json::from_value(value).expect("an envelope")
+}
+
+/// A call the user refused, or one a stopped turn never started, read as a reason enum and
+/// "error": null.
+#[test]
+fn a_call_that_was_not_run_says_why_what_changed_and_what_to_do_next() {
+    let denied = stored(
+        serde_json::json!({"type": "not_executed", "reason": "approval_denied", "error": null}),
+        "not_started",
+        &[],
+    );
+    let view = denied.model_view();
+    assert_eq!(
+        view["message"],
+        "This call was not run: the user denied it when asked for approval. Nothing was changed. Do not repeat it unchanged; continue without it, or ask the user what they want instead."
+    );
+    let told = stored(
+        serde_json::json!({
+            "type": "not_executed",
+            "reason": "dependency_not_executed",
+            "error": {"code": "tool.dispatch_refused", "category": "conflict", "message": "x", "retryable": false}
+        }),
+        "not_started",
+        &[],
+    );
+    assert!(told.model_view().get("message").is_none(), "a notice of its own is enough");
+}
+
+#[test]
+fn a_stopped_call_says_what_it_may_have_changed() {
+    let stopped = stored(
+        serde_json::json!({"type": "cancelled", "reason": "timeout"}),
+        "unassessed",
+        &["execution.isolation_reduced", "artifact.unavailable"],
+    );
+    let view = stopped.model_view();
+    assert_eq!(
+        view["message"],
+        "This call was stopped before it finished: it ran past its time limit. Aura did not check what it changed; check the target before trying again."
+    );
+    assert_eq!(
+        view["warnings"],
+        serde_json::json!([
+            "It ran with the user's own rights, not in a sandbox.",
+            "artifact.unavailable"
+        ])
+    );
+    let plain = stored(
+        serde_json::json!({"type": "cancelled", "reason": "user_requested"}),
+        "no_effect",
+        &[],
+    );
+    assert_eq!(
+        plain.model_view()["message"],
+        "This call was stopped before it finished. Nothing was changed. Call it again if it is still needed."
+    );
+}
+
+/// A call whose turn was stopped in the moment after it was marked started, before anything of it
+/// was sent, did not run; one the turn cut while it ran says what it may have changed.
+#[test]
+fn a_call_its_stopped_turn_never_started_reads_as_not_run() {
+    let ended = stored(
+        serde_json::json!({"type": "cancelled", "reason": "turn_interrupted"}),
+        "no_effect",
+        &[],
+    );
+    assert_eq!(
+        ended.model_view()["message"],
+        "This call was not run: the turn was stopped before it started. Nothing was changed. Call it again if it is still needed."
+    );
+    let cut = stored(
+        serde_json::json!({"type": "cancelled", "reason": "turn_interrupted"}),
+        "partially_applied",
+        &[],
+    );
+    assert_eq!(
+        cut.model_view()["message"],
+        "This call was stopped before it finished: the turn it belonged to was interrupted. Part of its changes may have been made; check the target before trying again."
+    );
+}

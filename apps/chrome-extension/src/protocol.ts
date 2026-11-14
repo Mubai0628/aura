@@ -133,7 +133,9 @@ export type ChromeCommand =
   | { op: 'console'; tab_id: number; level: ConsoleLevel | null; max_entries: number }
   | { op: 'close'; tab_id: number }
   | { op: 'assist'; tab_id: number; reason: string; timeout_seconds: number }
-  | { op: 'release'; tab_ids: number[] };
+  | { op: 'release'; tab_ids: number[] }
+  /** The user's ordinary tabs, for Aura's @ menu. */
+  | { op: 'tabs' };
 
 export interface ConsoleEntry {
   /** log, info, warning, error, exception or failed_load. */
@@ -169,6 +171,10 @@ export interface OpenedTab {
 export interface OpenReport {
   tab: OpenedTab;
   page: PageReport;
+}
+
+export interface TabsReport {
+  tabs: OpenedTab[];
 }
 
 export interface ScreenshotReport {

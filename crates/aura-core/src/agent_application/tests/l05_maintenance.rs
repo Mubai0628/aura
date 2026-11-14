@@ -169,6 +169,7 @@ async fn exercise(
             max_retries: view.max_retries,
             use_recommended_fixed_tool_ids: false,
             network_proxy: None,
+            network_proxy_follows_system: None,
             web_service: None,
         },
     )

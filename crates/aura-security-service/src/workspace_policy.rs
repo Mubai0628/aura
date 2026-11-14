@@ -61,6 +61,8 @@ pub(crate) fn authorize(
         // command. It cannot carry a Native session consent and must never be
         // read as one, so it deliberately names no Core runtime instance.
         core_runtime_instance_id: None,
+        // It offers no Grant, so no session file approval is read either.
+        workspace: None,
     };
     let assessment = assess(&input)?;
     if assessment.asks {

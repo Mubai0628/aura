@@ -2,6 +2,7 @@
 //! or model-controlled channel enters this execution service.
 mod active_calls;
 mod admission;
+mod allowance;
 mod unknown_tool;
 use unknown_tool::unknown_tool_feedback;
 mod backends;
@@ -21,15 +22,18 @@ mod control_resources;
 pub mod conversations;
 mod deletion;
 mod dispatch;
+mod ended_before_start;
 mod file_targets;
 pub mod files;
 mod git;
+mod lingering;
 mod managed_stops;
 pub mod mcp_tools;
 pub mod media;
 mod memory;
 pub(crate) mod network;
 mod operation;
+mod own_places;
 pub mod package_tools;
 mod path_input;
 mod permission_changes;
@@ -45,10 +49,12 @@ mod selection;
 mod shell_risks;
 pub mod skill_tools;
 mod task;
+mod team;
 pub mod terminal;
 mod web;
 mod workspace_init;
 pub use admission::AdmittedBatch;
+pub use allowance::Reviewable;
 use aura_chrome_service::chrome_control;
 use aura_core_activity::activity;
 use aura_core_broker::agent_store::{self, StoreAccess, StoreStep};
@@ -143,6 +149,8 @@ pub struct AgentExecution {
     pub chrome: std::sync::OnceLock<Arc<chrome_control::ChromeControl>>,
     /// Programs on the user's own desktop, through Aura's desktop host; set once at startup.
     pub desktop: std::sync::OnceLock<Arc<aura_desktop_service::DesktopControl>>,
+    /// The sub-agents' tools, bound to the application once it runs.
+    pub team: Arc<aura_agent_team::TeamPort>,
 }
 
 #[cfg(any(test, feature = "test-hooks"))]
@@ -177,6 +185,9 @@ pub struct CallContext {
     pub verified_external_capabilities: Vec<ResolvedCapability>,
     pub verified_external_grants: Vec<aura_security_contract::VerifiedExternalCapability>,
     pub observed_resources: Arc<std::sync::Mutex<Vec<aura_activity_domain::ActivityResource>>>,
+    /// Folders outside the workspace that are the conversation's own, found when the call was
+    /// resolved: a sub-agent's temporary folder, a main agent's sub-agents' worktrees.
+    pub own_folders: Arc<Vec<std::path::PathBuf>>,
 }
 impl AgentExecution {
     /// Constructs the execution service with the committed global ordinary-Tool
@@ -236,6 +247,7 @@ impl AgentExecution {
             media: Arc::default(),
             chrome: std::sync::OnceLock::new(),
             desktop: std::sync::OnceLock::new(),
+            team: Arc::default(),
         })
     }
 

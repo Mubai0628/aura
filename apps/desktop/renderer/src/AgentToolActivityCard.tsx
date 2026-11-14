@@ -3,6 +3,7 @@ import type { AgentToolActivityEntry, PermissionMode } from '@aura/contracts/gen
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ShellExecutionDetails } from './ShellExecutionDetails';
 import { toolCallStateLabel } from './tool-call-state-label';
+import { terminalReasonLabel } from './agent-session/tool-call-state';
 
 /** Current V2 Tool history; the old P07 activity projection remains historical. */
 export function AgentToolActivityCard({
@@ -107,7 +108,7 @@ function SessionAgentToolActivity({
           <li key={call.tool_call_id}>
             <div className="agent-tool-call-summary">
               <strong>{call.display_name}</strong>
-              <small>{toolCallStateLabel(call)}</small>
+              <small>{terminalReasonLabel(call) ?? toolCallStateLabel(call)}</small>
               {permission_mode ? (
                 <small>
                   执行权限：

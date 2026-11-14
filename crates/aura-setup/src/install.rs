@@ -16,12 +16,16 @@ use aura_runtime_contract::{
     ActiveInstallState, BuildComponentKind, BuildComponentManifest, ReleaseDescriptor,
     ReleaseIdentity, ReleaseTrustDomain,
 };
-use aura_windows_platform::installer::{RunningProgram, Shortcut, UninstallEntry};
+use aura_windows_platform::installer::RunningProgram;
 use sha2::{Digest, Sha256};
 
 use crate::{
-    host::{Host, shortcut_name},
+    data_choice,
+    folder_check::{self, Size},
+    host::Host,
+    marker,
     payload::{self, Archive, ICON, LAUNCHER},
+    private_folder, register,
 };
 
 pub const UNINSTALLER: &str = "Uninstall Aura.exe";
@@ -65,6 +69,47 @@ pub fn ensure_not_running(host: &dyn Host, root: &Path) -> Result<()> {
         host.stop(relay).with_context(|| format!("cannot stop {}", relay.path.display()))?;
     }
     Ok(())
+}
+
+/// A refusal the caller words itself: the report keeps this English, and adds the code.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Refusal {
+    NotSigned,
+    SignatureInvalid,
+    FilesMismatch,
+    NoPreviousVersion,
+    PreviousIncomplete,
+}
+
+impl Refusal {
+    #[must_use]
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::NotSigned => "release_not_signed",
+            Self::SignatureInvalid => "signature_invalid",
+            Self::FilesMismatch => "files_mismatch",
+            Self::NoPreviousVersion => "no_previous_version",
+            Self::PreviousIncomplete => "previous_incomplete",
+        }
+    }
+}
+
+impl fmt::Display for Refusal {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::NotSigned => "this release is not signed",
+            Self::SignatureInvalid => "this release's signature is not valid",
+            Self::FilesMismatch => "the installed files do not match the release",
+            Self::NoPreviousVersion => "there is no previous version to go back to",
+            Self::PreviousIncomplete => "the previous version's files are not complete",
+        })
+    }
+}
+
+/// The code of the refusal `error` carries, when the caller words it itself.
+#[must_use]
+pub fn refusal_code(error: &anyhow::Error) -> Option<&'static str> {
+    error.downcast_ref::<Refusal>().map(|refusal| refusal.code())
 }
 
 /// A version folder the release has to replace is held by another program. The release itself is
@@ -129,6 +174,8 @@ pub struct Release {
     pub manifest: BuildComponentManifest,
     pub descriptor: ReleaseDescriptor,
     pub signature: Signature,
+    /// What the installation takes once extracted.
+    pub size: Size,
 }
 
 /// Reads the release an archive carries and checks its manifest signature: a production release
@@ -155,23 +202,31 @@ pub fn read_release(archive: &mut Archive) -> Result<Release> {
         Some(ReleaseTrustDomain::Production) => {
             let signature =
                 payload::read_entry(archive, &format!("{folder}/component-manifest.p7s"))?
-                    .context("this release is not signed")?;
+                    .context(Refusal::NotSigned)?;
             aura_windows_platform::verify_release_manifest(&bytes, &signature, &descriptor)
-                .context("this release's signature is not valid")?;
+                .context(Refusal::SignatureInvalid)?;
             Signature::Verified
         }
         Some(_) => Signature::NotRequired,
         None => bail!("this release belongs to no Aura installation"),
     };
-    Ok(Release { version, manifest, descriptor, signature })
+    let size =
+        Size { bytes: payload::extracted_size(archive)?, longest: payload::longest(archive) };
+    Ok(Release { version, manifest, descriptor, signature, size })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Kind {
     Fresh,
-    Upgrade { from: String },
+    Upgrade {
+        from: String,
+    },
     Repair,
-    Downgrade { from: String },
+    Downgrade {
+        from: String,
+    },
+    /// Only moving the installation or its data: the installed program without a release.
+    Relocate,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -205,10 +260,17 @@ pub fn plan(host: &dyn Host, release: &Release, chosen: Option<PathBuf>) -> Resu
         };
         return Ok(Plan { root, kind });
     }
-    let root = chosen.unwrap_or(default);
-    if root.exists() && fs::read_dir(&root)?.next().is_some() {
-        bail!("{} 不是空文件夹，请选择一个空文件夹或新文件夹。", root.display());
-    }
+    let Some(chosen) = chosen else {
+        if default.exists() && fs::read_dir(&default)?.next().is_some() {
+            bail!("{} 不是空文件夹，请选择一个空文件夹或新文件夹。", default.display());
+        }
+        return Ok(Plan { root: default, kind: Kind::Fresh });
+    };
+    let locations = data_choice::locations(host, namespace, None)?;
+    let root =
+        folder_check::check_root(&chosen, release.size, &locations, None).map_err(|refusals| {
+            anyhow::anyhow!("不能装在 {}：{}", chosen.display(), folder_check::joined(&refusals))
+        })?;
     Ok(Plan { root, kind: Kind::Fresh })
 }
 
@@ -277,19 +339,6 @@ impl Replaced {
     }
 }
 
-fn folder_size(folder: &Path) -> u64 {
-    fs::read_dir(folder)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|entry| match entry.file_type() {
-            Ok(kind) if kind.is_dir() => folder_size(&entry.path()),
-            Ok(_) => entry.metadata().map(|metadata| metadata.len()).unwrap_or(0),
-            Err(_) => 0,
-        })
-        .sum()
-}
-
 /// Installs the release according to `plan`. `program` is this setup program, whose bytes without
 /// the release become the installation's uninstaller when the release names no setup program.
 pub fn install(
@@ -302,8 +351,15 @@ pub fn install(
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<()> {
     let root = &plan.root;
+    ensure!(plan.kind != Kind::Relocate, "moving an installation installs nothing");
     if !options.while_running {
         ensure_not_running(host, root)?;
+    }
+    let namespace = &release.manifest.bundle_namespace;
+    // A folder the user chose gets the default place's permissions before anything is in it.
+    if plan.kind == Kind::Fresh && *root != host.default_root(namespace)? {
+        private_folder::make(root)
+            .with_context(|| format!("cannot set the permissions of {}", root.display()))?;
     }
     clear_leftovers(root);
     fs::create_dir_all(root.join("versions"))?;
@@ -323,7 +379,7 @@ pub fn install(
             Ok(_) => moved.keep(),
             Err(error) => {
                 moved.undo();
-                return Err(error.context("the installed files do not match the release"));
+                return Err(error.context(Refusal::FilesMismatch));
             }
         }
         // The launcher and the uninstaller are copies of the programs the manifest names in the
@@ -369,6 +425,7 @@ pub fn install(
     })();
     let _ = fs::remove_dir_all(&staging);
     result?;
+    marker::write(root, namespace)?;
 
     let state = match &plan.kind {
         Kind::Fresh => ActiveInstallState {
@@ -377,8 +434,9 @@ pub fn install(
             previous: None,
             pending: None,
             last_known_good: Some(release.version.clone()),
+            data_location: None,
         },
-        Kind::Repair => read_install_state(root)?,
+        Kind::Repair | Kind::Relocate => read_install_state(root)?,
         Kind::Upgrade { .. } | Kind::Downgrade { .. } => {
             let mut state = read_install_state(root)?;
             state.pending = Some(release.version.clone());
@@ -387,37 +445,8 @@ pub fn install(
     };
     write_install_state(root, &state)?;
     remove_unkept_versions(root, &state);
-
-    let launcher = root.join(LAUNCHER);
-    let icon = root.join(ICON);
-    let shortcut = |folder: PathBuf| -> std::io::Result<()> {
-        host.create_shortcut(&Shortcut {
-            path: &folder.join(shortcut_name(&release.manifest.bundle_namespace)),
-            target: &launcher,
-            arguments: "",
-            working_directory: root,
-            description: "Aura",
-            icon: icon.is_file().then_some(icon.as_path()),
-        })
-    };
-    shortcut(host.start_menu()?)?;
-    if options.desktop_shortcut {
-        shortcut(host.desktop()?)?;
-    }
-    let uninstall_command = format!("\"{}\" --uninstall", root.join(UNINSTALLER).display());
-    host.write_entry(
-        &release.manifest.bundle_namespace,
-        &UninstallEntry {
-            key: "",
-            display_name: "Aura",
-            display_version: &release.version,
-            publisher: PUBLISHER,
-            install_location: root,
-            display_icon: if icon.is_file() { &icon } else { &launcher },
-            uninstall_command: &uninstall_command,
-            estimated_size_kb: u32::try_from(folder_size(root) / 1024).unwrap_or(u32::MAX),
-        },
-    )?;
+    register::shortcuts(host, root, namespace, options.desktop_shortcut)?;
+    register::entry(host, root, namespace, &release.version)?;
     Ok(())
 }
 
@@ -458,10 +487,9 @@ pub fn apply_update(
 /// Lets the previous version wait as a trial for the next start.
 pub fn roll_back(root: &Path) -> Result<String> {
     let state = read_install_state(root)?;
-    let back =
-        aura_launcher::roll_back(&state).context("there is no previous version to go back to")?;
+    let back = aura_launcher::roll_back(&state).context(Refusal::NoPreviousVersion)?;
     resolve_version(root, back.pending.as_deref().unwrap_or_default(), None)
-        .context("the previous version's files are not complete")?;
+        .context(Refusal::PreviousIncomplete)?;
     write_install_state(root, &back)?;
     Ok(back.pending.unwrap_or_default())
 }

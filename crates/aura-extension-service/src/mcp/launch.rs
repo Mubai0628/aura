@@ -141,7 +141,7 @@ pub(crate) fn stdio_plan(
 ) -> anyhow::Result<StdioPlan> {
     let McpTransport::Stdio { arguments, working_directory, environment, .. } = &server.transport
     else {
-        anyhow::bail!("mcp.not_stdio");
+        anyhow::bail!("mcp.not_stdio: 只有在本机启动程序的服务器才能这样启动。");
     };
     std::fs::create_dir_all(scratch)?;
     let program = PathBuf::from(&resolved.path);

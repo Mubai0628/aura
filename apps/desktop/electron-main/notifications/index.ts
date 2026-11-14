@@ -12,6 +12,7 @@ import {
   NOTIFICATION_FOREGROUND_CHANNEL,
   NOTIFICATION_OPEN_CHANNEL,
   NOTIFICATION_PREFERENCES_CHANNEL,
+  NOTIFICATION_UNSEEN_CHANNEL,
   isNotificationPreferencesCommand,
   type NotificationTarget,
 } from '../../shared/notifications.js';
@@ -27,6 +28,7 @@ const POLL_EVERY_MS = 2_000;
 const SESSION_TEXT: Record<SessionNoticeKind, { title: string; body: string }> = {
   approval: { title: '需要审批', body: '有操作等你批准' },
   question: { title: '等待你的回答', body: '模型在等你回答或决定' },
+  input: { title: '需要你输入', body: '终端在等你输入' },
   completed: { title: '任务完成', body: '任务已完成' },
   failed: { title: '任务没有完成', body: '出错或暂停了，需要你看一下' },
 };
@@ -76,8 +78,13 @@ export function registerNotifications(options: {
   });
   const badge = new AttentionBadge({
     inFront,
-    apply: (count) =>
-      live()?.setOverlayIcon(count > 0 ? dot : null, count > 0 ? `${count} 项需要你查看` : ''),
+    apply: (unseen) => {
+      const window = live();
+      if (window === undefined) return;
+      const count = unseen.length;
+      window.setOverlayIcon(count > 0 ? dot : null, count > 0 ? `${count} 项需要你查看` : '');
+      publishToRenderer(window.webContents, NOTIFICATION_UNSEEN_CHANNEL, unseen);
+    },
   });
   // The window a focus listener was added to: the dot goes and the flashing stops on focus.
   const watched = new WeakSet<BrowserWindow>();
@@ -128,6 +135,10 @@ export function registerNotifications(options: {
     options.trust(event);
     if (!isNotificationPreferencesCommand(value)) throw new Error('notifications.invalid_command');
     return value.kind === 'get' ? store.read() : store.save(value.preferences);
+  });
+  ipcMain.handle(NOTIFICATION_UNSEEN_CHANNEL, (event) => {
+    options.trust(event);
+    return badge.unseen;
   });
   ipcMain.handle(NOTIFICATION_FOREGROUND_CHANNEL, (event, value: unknown) => {
     options.trust(event);

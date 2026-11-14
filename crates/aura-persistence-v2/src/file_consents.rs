@@ -19,6 +19,13 @@ pub fn list(db: &Connection, session: SessionId) -> StoreResult<Vec<Authorizatio
         .collect()
 }
 
+/// Every session file approval not yet withdrawn, in every session. Only rows that are neither
+/// revoked nor consumed have their payload read.
+pub fn live(db: &Connection) -> StoreResult<Vec<AuthorizationGrant>> {
+    let mut query = db.prepare("SELECT payload FROM authorization_grants WHERE revoked=0 AND consumed=0 AND json_extract(payload,'$.scope.file_consent.session_id') IS NOT NULL ORDER BY id")?;
+    query.query_map([], |row| row.get::<_, String>(0))?.map(|row| record::decode(&row?)).collect()
+}
+
 pub fn for_approval(
     db: &Connection,
     approval: ApprovalRequestId,

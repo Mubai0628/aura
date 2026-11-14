@@ -1,4 +1,4 @@
-//! Core's own diagnostics, `logs/core.jsonl` under `LOCALAPPDATA`.
+//! Core's own diagnostics, in the log its locations name (`aura_data_location::route_core_log`).
 use super::*;
 
 /// The Core process has started: startup stages count from here, and the records the backend
@@ -11,8 +11,8 @@ pub fn start() {
     route_installation_log();
 }
 
-/// The backend writes its installation records wherever Core's own diagnostics go: under
-/// `LOCALAPPDATA` in production, and in a test build only into a test's own route.
+/// The backend writes its installation records wherever Core's own diagnostics go: into the log
+/// Core's locations name in production, and in a test build only into a test's own route.
 fn route_installation_log() {
     aura_backend_windows_user::installation::route_log(core_log_path);
 }
@@ -38,7 +38,7 @@ static CORE_LOG_OVERRIDE: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::
 static CORE_LOG_ROUTE_ENDED: Condvar = Condvar::new();
 
 /// One test's route for Core diagnostics and the backend's installation records, in force until
-/// this is dropped. Production never routes them and keeps writing under `LOCALAPPDATA`.
+/// this is dropped. Production never routes them here; it writes to the log its locations name.
 ///
 /// The test binary has one route slot, so a route is exclusive: a test that routes the log while
 /// another test's route is in force waits here until that route ends, instead of re-routing or
@@ -78,10 +78,10 @@ pub(crate) fn core_log_path() -> Option<PathBuf> {
         // A test with no explicit route must never write to the user's real profile.
         CORE_LOG_OVERRIDE.lock().ok().and_then(|slot| slot.clone())
     }
+    // Nothing is written before Core has confirmed its locations.
     #[cfg(not(any(test, feature = "test-hooks")))]
     {
-        let local = env::var_os("LOCALAPPDATA")?;
-        Some(Path::new(&local).join("Aura").join("logs").join("core.jsonl"))
+        aura_data_location::core_log_path().map(Path::to_path_buf)
     }
 }
 

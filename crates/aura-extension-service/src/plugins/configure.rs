@@ -3,6 +3,7 @@
 //! on the secret input and lives in the Credential Manager; only its credential is in
 //! `plugins.json`. A plugin that declares `settings` may set its own text settings the same way;
 //! nothing else here is the plugin's to change.
+use super::development::BUSY;
 use super::lifecycle::replaced;
 use super::runtime::PluginRuntime;
 use super::service::secret_owner;
@@ -32,7 +33,7 @@ fn option_kind(
 
 impl PluginRuntime {
     pub(crate) fn configure(&self, request: &PluginConfigureRequest) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!(BUSY))?;
         let (registry, located) = self.located(&request.name, request.expected_revision)?;
         let name = located.name.clone();
         let package = located.scanned.as_ref().map_err(|_| {
@@ -89,8 +90,9 @@ impl PluginRuntime {
             setting.remote.remote_approval = on;
         }
         let plugins = replaced(&registry, setting);
-        check_settings(&plugins)
-            .map_err(|reason| anyhow::anyhow!("plugins.setting_invalid: {reason}"))?;
+        check_settings(&plugins).map_err(|reason| {
+            anyhow::anyhow!("plugins.setting_invalid: 这项设置的值不符合要求，没有保存：{reason}")
+        })?;
         self.write_registry(registry.revision, &plugins)?;
         self.forget_credentials(&forgotten);
         Ok(())
@@ -139,7 +141,7 @@ impl PluginRuntime {
             .mcp
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("plugins.secret_unavailable: 凭据管理器现在不能用"))?;
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!(BUSY))?;
         let (_, located) = self.locate(&request.name)?;
         let name = located.name.clone();
         let package = located.scanned.as_ref().map_err(|_| {
@@ -167,10 +169,9 @@ impl PluginRuntime {
         if let Ok(text) = std::str::from_utf8(value.expose()) {
             self.remember_log_secret(&name, text);
         }
-        let id = mcp
-            .secrets()
-            .set(&secret_owner(&name, &request.key), None, value)
-            .map_err(|reason| anyhow::anyhow!("plugins.secret_failed: {reason}"))?;
+        let id = mcp.secrets().set(&secret_owner(&name, &request.key), None, value).map_err(
+            |reason| anyhow::anyhow!("plugins.secret_failed: 保密设置没有保存：{reason}"),
+        )?;
         setting.values.secrets.insert(request.key.clone(), id);
         self.write_registry(registry.revision, &replaced(&registry, setting))?;
         self.changed();

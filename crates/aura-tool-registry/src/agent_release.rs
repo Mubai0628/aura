@@ -19,6 +19,7 @@ mod schema;
 mod skill_definitions;
 #[cfg(test)]
 mod skill_tests;
+mod team_definitions;
 #[cfg(test)]
 mod terminal_tests;
 use crate::{
@@ -169,6 +170,19 @@ pub enum AgentBuiltinHandler {
     ComputerAct,
     ComputerInput,
     ComputerWindow,
+    AgentsSpawn,
+    AgentsStatus,
+    AgentsWait,
+    AgentsSend,
+    AgentsResult,
+    AgentsStop,
+    /// Merging and discarding a worktree.
+    AgentsMerge,
+    AgentsDiscard,
+    /// The main agent answering a sub-agent's question first.
+    AgentsApprove,
+    /// A sub-agent's report to the main agent.
+    AgentReport,
 }
 impl AgentBuiltinHandler {
     pub fn name(self) -> &'static str {
@@ -290,6 +304,16 @@ impl AgentBuiltinHandler {
             Self::ComputerAct => "computer.act",
             Self::ComputerInput => "computer.input",
             Self::ComputerWindow => "computer.window",
+            Self::AgentsSpawn => "agents.spawn",
+            Self::AgentsStatus => "agents.status",
+            Self::AgentsWait => "agents.wait",
+            Self::AgentsSend => "agents.send",
+            Self::AgentsResult => "agents.result",
+            Self::AgentsStop => "agents.stop",
+            Self::AgentsMerge => "agents.merge",
+            Self::AgentsDiscard => "agents.discard",
+            Self::AgentsApprove => "agents.approve",
+            Self::AgentReport => "agent.report",
         }
     }
     pub fn is_control(self) -> bool {

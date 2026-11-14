@@ -124,6 +124,68 @@ async fn staged_only_commits_the_index_without_staging_unstaged_content() {
 }
 
 #[tokio::test]
+async fn empty_commit_tells_the_user_and_model_that_nothing_was_committed() {
+    let f =
+        Fixture::with_exposure_setup(PermissionMode::WorkspaceReadWrite, &["git.commit"], setup)
+            .await;
+    let before = git(&f.root, &["rev-parse", "HEAD"]);
+    let id = execute(&f, "git.commit", json!({"message":"empty", "paths":["selected.txt"]})).await;
+    assert_eq!(git(&f.root, &["rev-parse", "HEAD"]), before);
+    assert!(git(&f.root, &["diff", "--cached", "--name-only"]).is_empty());
+    let result = result(&f, id);
+    assert!(matches!(result.outcome, ToolResultOutcomeV1::Failed { .. }), "{result:?}");
+    const TEXT: &str = "没有可提交的改动，没有生成新提交。";
+    let (bytes, page) = {
+        let store = f.service().broker.lock().expect("durable receipt");
+        let db = store.database.connection();
+        let bytes = aura_persistence_core::artifact::read(
+            db,
+            result.model_visible_result_ref.expect("model-visible result"),
+            &id.to_string(),
+        )
+        .expect("model-visible result");
+        let page = aura_persistence_v2::tool::activity::page(
+            db,
+            &aura_tool_projection::AgentToolActivityRequest {
+                session_id: f.turn.session_id,
+                before_call_id: None,
+                limit: 20,
+                call_ids: Some(vec![id]),
+            },
+        )
+        .expect("real activity projection");
+        (bytes, page)
+    };
+    let envelope: aura_tool_contract::ModelVisibleToolResultEnvelopeV1 =
+        serde_json::from_slice(&bytes).expect("model-visible envelope");
+    let wire = envelope.model_view();
+    let shown = &page.calls[0];
+    let details = shown.display.details.join("\n");
+    assert_eq!(
+        (
+            result.side_effect_state,
+            wire["side_effect_state"].as_str(),
+            shown.summary.side_effect_state
+        ),
+        (SideEffectStateV1::NoEffect, Some("no_effect"), Some(SideEffectStateV1::NoEffect)),
+        "model: {wire}\nuser: {} {details}",
+        shown.display.summary
+    );
+    assert!(wire["outcome"]["error"]["message"].as_str().is_some_and(|line| line.contains(TEXT)));
+    assert!(wire.get("warnings").is_none(), "{wire}");
+    assert!(details.contains(TEXT), "{details}");
+    assert!(
+        shown.display.summary.contains(TEXT.trim_end_matches('。')),
+        "{}",
+        shown.display.summary
+    );
+    assert!(!shown.display.summary.contains("结果未知"), "{}", shown.display.summary);
+    for misleading in ["已经由 git add 暂存", "Git 输出", "nothing to commit"] {
+        assert!(!wire.to_string().contains(misleading) && !details.contains(misleading));
+    }
+}
+
+#[tokio::test]
 async fn branch_create_and_switch_is_native_and_records_its_actual_head() {
     let f =
         Fixture::with_exposure_setup(PermissionMode::WorkspaceReadWrite, &["git.branch"], setup)

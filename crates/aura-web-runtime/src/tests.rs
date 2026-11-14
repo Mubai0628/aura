@@ -42,7 +42,7 @@ fn challenge_downloads_and_bad_urls_never_become_successful_documents() {
     let url = normalize_url("https://example.org").expect("url");
     assert!(matches!(
         extract_document(&url, 200, "application/octet-stream", b"MZ", WebFetchMode::HttpOnly),
-        Err(WebError::UnsupportedMediaType)
+        Err(WebError::UnsupportedMediaType(_))
     ));
     assert!(matches!(
         extract_document(
@@ -117,6 +117,53 @@ fn text_that_is_not_a_page_is_kept_as_it_is() {
     }
     assert!(matches!(
         extract_document(&url, 200, "image/png", b"\x89PNG", WebFetchMode::Auto),
-        Err(WebError::UnsupportedMediaType)
+        Err(WebError::UnsupportedMediaType(_))
     ));
+}
+
+/// Each refusal's first line is the code and then what happened, what was not read, and what to
+/// try next.
+#[test]
+fn every_refusal_says_what_happened_and_what_to_try() {
+    for (error, code, words) in [
+        (WebError::BotChallenge, "web.bot_challenge", "bot check"),
+        (WebError::AccessDenied, "web.access_denied", "HTTP 403"),
+        (WebError::AuthenticationRequired, "web.authentication_required", "sign-in"),
+        (WebError::ResponseTooLarge, "web.response_too_large", "8 MiB"),
+        (WebError::RenderingUnavailable, "web.rendering_unavailable", "http_only"),
+        (WebError::SearchSurfaceChanged, "web.search_surface_changed", "layout"),
+    ] {
+        let line = error.to_string();
+        assert!(line.starts_with(&format!("{code}: ")), "{line}");
+        assert!(line.contains(words), "{words} in {line}");
+        assert!(line.contains("Nothing was") || line.contains("no results"), "{line}");
+        assert!(line.len() <= 512 && !line.contains('\n'), "one bounded line: {line}");
+    }
+    let url = normalize_url("https://example.org/file").expect("url");
+    let binary = extract_document(&url, 200, "application/zip", b"PK", WebFetchMode::HttpOnly)
+        .expect_err("a zip is not text")
+        .to_string();
+    assert!(binary.contains("content type application/zip"), "{binary}");
+    assert!(binary.contains("http.download"), "{binary}");
+    let none = extract_document(&url, 200, "", b"PK", WebFetchMode::HttpOnly)
+        .expect_err("no content type")
+        .to_string();
+    assert!(none.contains("content type (none)"), "{none}");
+}
+
+/// A broken input rule is named, not only its code.
+#[test]
+fn an_invalid_input_names_the_rule_it_broke() {
+    let scheme = normalize_url("ftp://example.org/x").expect_err("ftp").to_string();
+    assert!(scheme.starts_with("web.invalid_input: only http:// and https://"), "{scheme}");
+    let secret = normalize_url("https://user:pass@example.org/").expect_err("secret").to_string();
+    assert!(secret.contains("user name or password"), "{secret}");
+    let empty = search_url("   ", 5).expect_err("empty").to_string();
+    assert!(empty.contains("search query is empty"), "{empty}");
+    let many = search_url("rust", 50).expect_err("too many").to_string();
+    assert!(many.contains("max_results must be between 1 and 20"), "{many}");
+    let past = excerpt("abc", 7, 10).expect_err("past the end").to_string();
+    assert!(past.contains("offset_chars 7 is past the end") && past.contains("3 characters"));
+    let wide = excerpt("abc", 0, 0).expect_err("no characters").to_string();
+    assert!(wide.contains("max_chars must be between 1 and 65536"), "{wide}");
 }

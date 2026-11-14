@@ -231,7 +231,7 @@ test('a reachable Core from another Release Bundle stays incompatible', async ()
   expect(f.supervisor.snapshot.payload.state).toBe('incompatible');
   expect(loggedFields('core_startup_failed')).toHaveLength(0);
   expect(f.transport.close).toHaveBeenCalled();
-  expect(f.supervisor.snapshot.payload.status_message).toContain('Release Bundle');
+  expect(String(loggedFields('core_incompatible')[0]?.reason)).toContain('Release Bundle');
   f.supervisor.stop();
 });
 

@@ -22,6 +22,8 @@ pub(super) fn capabilities_of(tool: &str) -> Vec<String> {
         Some("mcp")
     } else if tool.starts_with("skills.") {
         Some("skills")
+    } else if tool.starts_with("agents.") {
+        Some("agents")
     } else {
         None
     };

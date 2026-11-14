@@ -18,23 +18,24 @@ pub(super) fn entries(
     let mut entries=vec![
         entry::<GitSyncInput, GitRemoteResultV1>(43, GitSync, "Fetch or fast-forward pull", "Fetch a configured remote, defaulting to the current branch's upstream remote. kind=pull fetches and fast-forwards only, using the upstream branch unless remote and branch are specified. Never merges or rebases; handle divergence in a terminal. Opaque remote helpers without an explicit repository URL are refused; use a terminal. Uses the user's native Git, hooks, LFS and networking configuration; Aura's proxy is not used and Aura does not isolate its file writes, just as in a terminal. ReadOnly asks; WorkspaceReadWrite and FullAccess allow fetch and pull without an extra Native approval. Pull requests GitRemoteRead and GitWrite together in one card. Interrupted operations must be inspected, never automatically replayed.", &[Capability::GitRemoteRead], true, at),
         entry::<GitPushInput, GitRemoteResultV1>(44, GitPush, "Push one branch with an exact optional lease", "Push a local branch (current by default) to its upstream, or specify a configured remote name and remote_branch. URLs are not accepted; multiple push URLs and opaque remote helpers without an explicit repository URL are refused with instructions to use a terminal. set_upstream defaults to false. A normal push requires GitRemoteWrite: FullAccess allows it, other modes ask and can approve this exact physical repository, credential-free remote URL and remote branch for the session. force_with_lease must be a full expected remote commit ID; it additionally requires GitDestructive and ALWAYS asks once, never uses session approval. No bare force, deletion, mirror or tag push. The approval shows outgoing commits based on the last fetch. Uses the user's native Git hooks, signing, LFS, credentials and network configuration, outside Aura's proxy. Aura does not isolate its file writes, just as in a terminal. An unconfirmed push may already have reached the server: query state and never replay automatically.", &[Capability::GitRemoteWrite], true, at),
-        entry::<AgentTerminalOpenInput, AgentTerminalResultV1>(33, TerminalOpen, "Open an interactive terminal", "Open an Agent-owned PowerShell 7 or CMD terminal in this session. shell defaults to powershell, working_directory to the workspace root. It runs as the user's Windows account, is not sandboxed, and network blocking is not enforced. Workspace mode runs it without asking; read-only mode asks for run approval, and Shell's session run approval also covers terminal.open and terminal.write. requires_network has the same soft network default and approval as Shell. Credentials of the user's environment are passed only when secret_environment names them, and their values show as stars. User terminals are never visible. The terminal stays managed until closed; no automatic replay after interruption.", &[Capability::ProcessExecute], true, at),
+        entry::<AgentTerminalOpenInput, AgentTerminalResultV1>(33, TerminalOpen, "Open an interactive terminal", "Open an Agent-owned PowerShell 7 or CMD terminal in this session. shell defaults to powershell, working_directory to the workspace root. It runs as the user's Windows account, is not sandboxed, and network blocking is not enforced. Workspace mode runs it without asking; read-only mode asks for run approval, and Shell's session run approval also covers terminal.open and terminal.write. requires_network has the same soft network default and approval as Shell. Credentials of the user's environment are passed only when secret_environment names them, and their values show as stars. The user's own terminals are out of reach until the user hands one to this conversation with @; the message then names its terminal_id for terminal.read and terminal.write. The terminal stays managed until closed; no automatic replay after interruption.", &[Capability::ProcessExecute], true, at),
         // Revision 2: an empty input waits for the
-        // user to hand back a terminal they took over.
-        entry::<AgentTerminalWriteInput, AgentTerminalResultV1>(34, TerminalWrite, "Write to an interactive terminal", "Send input to an Agent terminal in this session; newline submits a line, interrupt sends Ctrl+C first. wait_ms defaults to 2000, up to 30000 and the tool's time limit. until_text returns early when seen. Read-only mode asks for the same run approval as Shell; below Full Access, input that deletes files or writes outside the workspace asks each time and input that downloads asks once per session, as Shell commands do. Returns new plain text with byte offsets; terminal.read pages the retained output. While the user has taken over, model reads and writes are refused; an empty input then waits up to wait_ms for the user to hand it back and returns the terminal's latest output as soon as they do. It is not sandboxed and network blocking is not enforced.", &[Capability::ProcessExecute], true, at),
-        entry::<AgentTerminalReadInput, AgentTerminalResultV1>(35, TerminalRead, "Read interactive terminal output", "Page the bounded plain UTF-8 output of an Agent terminal in this session. offset defaults to 0, max_bytes to 8192 (1..65536). ANSI/VT controls are removed; truncated output gives a continuation offset and older discarded output is marked. While the user has taken over, wait for them to hand it back before reading. User terminals are never accessible.", &[Capability::AgentTaskRead], false, at),
-        entry::<AgentTerminalCloseInput, AgentTerminalResultV1>(36, TerminalClose, "Close an interactive terminal", "Close only the Agent terminal identified in this session and stop its whole managed process tree. Return final status, exit code and bounded plain text. Preserve its output record for this conversation; never stops unrelated user terminals or processes.", &[Capability::AgentTaskWrite], true, at),
-        entry::<AgentTerminalSensitiveInput, TerminalSensitiveResultV1>(37, TerminalSensitiveInput, "Ask for sensitive terminal input", "Ask the user to type a password or other sensitive text into an Agent-controlled Agent terminal in this session. Supply terminal_id and a clear prompt. Parent Agent only; unavailable to subagents and user terminals. Returns only completed, cancelled or failed, never the input. The user's input is sent directly to the managed terminal and is not recorded or shown to the model. Programs may echo it in the user's live terminal; recorded output masks matching echoes. User cancellation and the configured tool time limit return cancelled. Never ask for the secret via another tool or copy it into a command.", &[Capability::AgentTaskWrite], true, at),
+        // user to hand back a terminal they took over. Revision 10: terminal.read reads lines.
+        entry::<AgentTerminalWriteInput, AgentTerminalResultV1>(34, TerminalWrite, "Write to an interactive terminal", "Send input to an Agent terminal in this session, or to a terminal the user handed to it with @ (the user's own shell, where they left it); input is typed as given, so end it with a newline (\\n) to run a command line, and interrupt sends Ctrl+C first. Without until_text it returns the new output once the shell's prompt is back, or after the output has been quiet for 3 seconds; with until_text, as soon as that text appears after the echo of the typed line. wait_ms is the longest it waits (15000 by default, up to 30000 and the tool's time limit). Read-only mode asks for the same run approval as Shell; below Full Access, input that deletes files or writes outside the workspace asks each time and input that downloads asks once per session, as Shell commands do. Returns the new output as plain text, one page at most (truncated when more followed); terminal.read reads the lines the terminal shows, the newest by default. While the user has taken over, model reads and writes are refused; an empty input then waits up to wait_ms for the user to hand it back and returns the terminal's latest output as soon as they do. It is not sandboxed and network blocking is not enforced.", &[Capability::ProcessExecute], true, at),
+        // Revision 3: lines as the screen shows them, paged by line number.
+        entry::<AgentTerminalReadInput, AgentTerminalLinesV1>(35, TerminalRead, "Read interactive terminal output", "Read the lines an Agent terminal in this session shows, or a terminal the user handed to it with @, from the handover on (what it showed before is in the user's message). Lines read as the screen shows them: a line redrawn in place or wrapped at the terminal's width is one line, and lines that scrolled off the top are kept (the newest 5000). Without line it returns the newest max_lines lines (default 200, up to 2000). Lines are numbered from the terminal's first line with text: line reads on from that number, next_line continues a page, and lines before earliest_line are gone. A page holds at most 32 KiB. While the user has taken over, wait for them to hand it back before reading. Other terminals of the user are out of reach.", &[Capability::AgentTaskRead], false, at),
+        entry::<AgentTerminalCloseInput, AgentTerminalResultV1>(36, TerminalClose, "Close an interactive terminal", "Close only the Agent terminal identified in this session and stop its whole managed process tree. Return final status, exit code and bounded plain text. Preserve its output record for this conversation; never stops unrelated user terminals or processes. A terminal the user handed over is the user's: closing it is refused, so leave it running.", &[Capability::AgentTaskWrite], true, at),
+        entry::<AgentTerminalSensitiveInput, TerminalSensitiveResultV1>(37, TerminalSensitiveInput, "Ask for sensitive terminal input", "Ask the user to type a password or other sensitive text into a terminal of this session the model controls: an Agent terminal, or one the user handed over with @. Supply terminal_id and a clear prompt. Parent Agent only; unavailable to subagents. Returns only completed, cancelled or failed, never the input. The user's input is sent directly to the managed terminal and is not recorded or shown to the model. Programs may echo it in the user's live terminal; recorded output masks matching echoes. User cancellation and the configured tool time limit return cancelled. Never ask for the secret via another tool or copy it into a command.", &[Capability::AgentTaskWrite], true, at),
         entry::<HttpRequestInput, HttpRequestResult>(31, HttpRequest, "Make an HTTP request", "Call an HTTP or HTTPS API, including localhost and LAN. method defaults to GET; GET and HEAD take no body; body is text or JSON up to 1 MiB. Authentication material must only come from Tool credentials: set credential to use one configured in Tool settings, which is sent only to its allowed websites. Credentials in headers or the body are refused before approval. Read-only mode asks for network approval. GET and HEAD follow up to 3 redirects; other methods never retry or redirect, so check an interrupted write. 4xx and 5xx are normal results. Use http.download for large or binary files.", &[Capability::OrdinaryNetwork], true, at),
         entry::<HttpDownloadInput, HttpDownloadResult>(32, HttpDownload, "Download to a file", "Download an HTTP or HTTPS GET response to path (up to 256 MiB); overwrite defaults to false. For a site that serves a file only to its own pages, headers may carry User-Agent, Referer, Accept and Accept-Language. Network and file permissions are checked before connecting, and the file appears only when complete. It never runs or installs the file and sends no cookies or credentials.", &[Capability::OrdinaryNetwork, Capability::WorkspaceFileWrite], true, at),
         entry::<AgentFileListInput, AgentFileListResult>(28, FileList, "List a workspace directory", "List the files and directories directly inside path ('.' is the workspace root), including empty ones. limit defaults to 100. When the page is truncated, pass next_cursor back to continue; if the directory changed meanwhile, start again without a cursor. Use fs.search for text inside files.", &[Capability::WorkspaceFileRead], false, at),
         entry::<ShellQueryInput, ShellResultV1>(26, ShellQuery, "Read Shell execution and output", "Read the state and output of an earlier shell.powershell or shell.cmd call in this session, including processes still running in the background; tool_call_id is the one that call's result gave (tcl_...). Output is read as text from byte offsets (default 0, or the stdout_next / stderr_next a result gave), max_bytes defaults to 65536. It never re-runs the command, and the task can finish while processes still run.", &[Capability::AgentTaskRead], false, at),
         entry::<ShellStopInput, ShellResultV1>(27, ShellStop, "Stop an Aura-managed execution", "Stop only the exact managed process Job of a shell.powershell or shell.cmd call in this session, named by the tool_call_id its result gave. Preserve file edits and immutable direct results; return the recorded direct and background states. Does not stop unrelated user processes or external services/tasks.", &[Capability::AgentTaskWrite], true, at),
         entry::<AgentContextReadCompactionInput, ContextReadCompactionResult>(25, ContextReadCompaction, "Read verified compaction", "Read the exact persisted summary, anchor manifest and source span for this session. Summaries never replace original events; use context.read_events for those sources. No cross-session IDs or private model streams are exposed.", &[Capability::AgentTaskRead], false, at),
-        entry::<AgentFileReadInput, FsReadTextResult>(1, FileRead, "Read a workspace file", "Read a file, including unsaved editor changes. range defaults to the whole file. The returned logical_hash is what fs.write and fs.patch expect for this file next.", &[Capability::WorkspaceFileRead], false, at),
-        entry::<AgentFileSearchInput, FsSearchTextResult>(2, FileSearch, "Search text in the current session's logical workspace view", "Search file contents for literal text or a single-line regular expression, including unsaved editor changes; matching is case-insensitive by default. root defaults to the workspace root and limit to 100. Ignored and generated files are skipped unless requested. A partial result says why it stopped; files it did not reach may hold matches, so search a smaller root or path_glob.", &[Capability::WorkspaceFileRead], false, at),
+        entry::<AgentFileReadInput, AgentFileReadResult>(1, FileRead, "Read a workspace file", "Read a file, including unsaved editor changes. range defaults to the whole file, up to 2 MiB; a lines or characters range reads at most 500 lines or 65,536 characters at a time, so read a longer part in several ranges. A text file comes back as one line of JSON with its path, the lines returned, total_lines and logical_hash, then each line after its number and a tab, which are not part of the file; lines are numbered from 1, while a lines range's start_line_index counts from 0. A characters range comes back as it is. logical_hash is what fs.write and fs.patch expect for this file next. A picture (PNG, JPEG, GIF or WebP) comes back as the picture itself when the model takes images. A file outside the workspace that the user attached to this conversation can be read at its full path.", &[Capability::WorkspaceFileRead], false, at),
+        entry::<AgentFileSearchInput, FsSearchTextResult>(2, FileSearch, "Search text in the current session's logical workspace view", "Search file contents for literal text or a single-line regular expression, including unsaved editor changes; matching is case-insensitive by default. root defaults to the workspace root and limit to 100. Ignored and generated files are skipped unless requested. A partial result says why it stopped; files it did not reach may hold matches, so search a smaller root or path_glob. The result is one line of JSON with how the search went, then for each file a line of JSON with its path and logical_hash, followed by its matching lines, each after its line number (from 1) and a tab. context_lines (up to 10) adds that many lines before and after each match in workspace files, in their place among the matching lines, each after its line number, a '-' and a tab.", &[Capability::WorkspaceFileRead], false, at),
         entry::<AgentFileWriteInput, AgentFileMutationResult>(3, FileWrite, "Write a workspace file", "Write a whole UTF-8 file. For a new file, expected is {expected_kind: absent}; folders it needs that do not exist yet are created with it. For an existing file, expected accepts the latest logical_hash object {algorithm, hex} from your last read or change of it, or {expected_kind: file_hash, hash: logical_hash}; if the file changed since, nothing is written, so read it again. The result's logical_hash is the file's hash after this write. A path outside the workspace needs an authorization the user attached to this session.", &[Capability::WorkspaceFileWrite, Capability::WorkspaceFileCreate], true, at),
-        entry::<AgentFilePatchInput, AgentFileMutationResult>(4, FilePatch, "Patch a workspace file", "Apply a unified diff to a file. Hunk line counts are recalculated from their contents; every context and removed line must still match. expected_hash is the logical_hash from your latest read or change of the file; if the file changed since, nothing is written, so read it again. The result's logical_hash is the file's hash after this patch.", &[Capability::WorkspaceFileWrite], true, at),
+        entry::<AgentFilePatchInput, AgentFileMutationResult>(4, FilePatch, "Patch a workspace file", "Apply a unified diff to a file. Hunk line counts are recalculated from their contents; every context and removed line must still match. expected_hash is the logical_hash from your latest read or change of the file; if the file changed since, nothing is written, so read it again. Calls on one file in one response run in the order written; several patches of it there may all give the expected_hash you read. The result's logical_hash is the file's hash after this patch.", &[Capability::WorkspaceFileWrite], true, at),
         // Revision 2: a
         // Shell delete the user asks for is run (Aura asks about it), not refused.
         entry::<AgentFileDeleteInput, AgentFileDeleteResult>(88, FileDelete, "Delete a file or folder", "Delete a file or a folder with everything in it by moving it to the Recycle Bin, where the user can restore it. Use this for deletions: a Shell command that deletes (Remove-Item, del, rd, rm, git clean …) deletes for good, nothing can restore it, and outside 完全访问 Aura asks the user about each one, so run one only when the user asks for it or this tool cannot do the job. If the Recycle Bin cannot take the item (a drive with no Recycle Bin, an item larger than the bin holds), nothing is deleted and the call says so. permanent: true deletes for good and asks the user every time, in every mode: use it only when the user asked for that, or after the Recycle Bin refused. A path outside the workspace asks the user first, as writing there does.", &[Capability::WorkspaceFileDelete], true, at),
@@ -77,6 +78,7 @@ pub(super) fn entries(
     entries.extend(super::history_definitions::entries(at)?);
     entries.extend(super::plugin_definitions::entries(at)?);
     entries.extend(super::computer_definitions::entries(at)?);
+    entries.extend(super::team_definitions::entries(at)?);
     Ok(entries)
 }
 
@@ -103,6 +105,9 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
     let mut capabilities = capabilities.to_vec();
     capabilities.sort();
     capabilities.dedup();
+    // A sub-agent is given every other tool: its own history, the built-in browser on a page of
+    // its own, the tools that find and load others. What stays with the main agent ends or plans
+    // the user's turn, asks the user, or has one user-facing instance at a time.
     let parent_only = matches!(
         handler,
         AgentBuiltinHandler::PlanComplete
@@ -115,47 +120,18 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
             | AgentBuiltinHandler::LineageReconcile
             | AgentBuiltinHandler::LineageReadSources
             | AgentBuiltinHandler::LineageReviewCompletion
-            | AgentBuiltinHandler::HistoryListTurns
-            | AgentBuiltinHandler::HistorySearch
-            | AgentBuiltinHandler::HistoryRead
             | AgentBuiltinHandler::NormalComplete
             | AgentBuiltinHandler::ModeDisposition
             | AgentBuiltinHandler::WorkspaceInitComplete
-            | AgentBuiltinHandler::CommandsList
-            | AgentBuiltinHandler::CommandsDescribe
-            | AgentBuiltinHandler::CommandsSave
-            | AgentBuiltinHandler::CommandsDelete
-            | AgentBuiltinHandler::SkillsSearch
+            // Retired Skill tools; skills.search and skills.load are a sub-agent's too.
             | AgentBuiltinHandler::SkillsDescribe
-            | AgentBuiltinHandler::SkillsLoad
             | AgentBuiltinHandler::SkillsUnload
             | AgentBuiltinHandler::SkillsListLoaded
             | AgentBuiltinHandler::SkillsReadResource
-            // Writing a plugin is the user's conversation with the model, not a child's task.
-            | AgentBuiltinHandler::PluginsValidate
-            | AgentBuiltinHandler::PluginsDevInstall
-            | AgentBuiltinHandler::PluginsLogs
-            | AgentBuiltinHandler::ToolsCall
-            // The built-in browser is the parent's; a child agent has none (V2 §18).
-            | AgentBuiltinHandler::BrowserOpen
-            | AgentBuiltinHandler::BrowserNavigate
-            | AgentBuiltinHandler::BrowserSnapshot
-            | AgentBuiltinHandler::BrowserScreenshot
-            | AgentBuiltinHandler::BrowserClick
-            | AgentBuiltinHandler::BrowserType
-            | AgentBuiltinHandler::BrowserPress
-            | AgentBuiltinHandler::BrowserScroll
-            | AgentBuiltinHandler::BrowserHover
-            | AgentBuiltinHandler::BrowserSelect
-            | AgentBuiltinHandler::BrowserWait
-            | AgentBuiltinHandler::BrowserConsole
-            | AgentBuiltinHandler::BrowserClose
+            // Handing a page to the user asks the user; a sub-agent's questions go through the
+            // main agent.
             | AgentBuiltinHandler::BrowserRequestUser
-            | AgentBuiltinHandler::BrowserEvaluate
-            | AgentBuiltinHandler::BrowserNetwork
-            | AgentBuiltinHandler::BrowserInspect
-            | AgentBuiltinHandler::BrowserPerformance
-            // So is the user's Chrome.
+            // The user's Chrome is one at a time.
             | AgentBuiltinHandler::ChromeTabs
             | AgentBuiltinHandler::ChromeOpen
             | AgentBuiltinHandler::ChromeNavigate
@@ -171,7 +147,7 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
             | AgentBuiltinHandler::ChromeConsole
             | AgentBuiltinHandler::ChromeClose
             | AgentBuiltinHandler::ChromeRequestUser
-            // And the user's own desktop.
+            // So is the user's desktop.
             | AgentBuiltinHandler::ComputerApps
             | AgentBuiltinHandler::ComputerOpen
             | AgentBuiltinHandler::ComputerSnapshot
@@ -179,6 +155,16 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
             | AgentBuiltinHandler::ComputerAct
             | AgentBuiltinHandler::ComputerInput
             | AgentBuiltinHandler::ComputerWindow
+            // Starting and steering sub-agents is the main agent's; a sub-agent starts none.
+            | AgentBuiltinHandler::AgentsSpawn
+            | AgentBuiltinHandler::AgentsStatus
+            | AgentBuiltinHandler::AgentsWait
+            | AgentBuiltinHandler::AgentsSend
+            | AgentBuiltinHandler::AgentsResult
+            | AgentBuiltinHandler::AgentsStop
+            | AgentBuiltinHandler::AgentsMerge
+            | AgentBuiltinHandler::AgentsDiscard
+            | AgentBuiltinHandler::AgentsApprove
     );
     let mut claims = vec![];
     if matches!(
@@ -253,6 +239,8 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
         claims,
         if parent_only {
             ToolAudienceV1::ParentAgentOnly
+        } else if handler == AgentBuiltinHandler::AgentReport {
+            ToolAudienceV1::ChildRuntimeRequired
         } else {
             ToolAudienceV1::SubagentConfigurable
         },

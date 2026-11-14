@@ -3,10 +3,13 @@ use aura_workspace_domain::{GitCommitV1, GitDiffTargetV1, GitLogInput, GitLogRes
 impl GitReader {
     pub(super) fn log(&self, input: &GitLogInput) -> Result<GitLogResultV1> {
         ensure!(
-            input.limit > 0
-                && input.limit <= 200
-                && !(input.commit.is_some() && input.start.is_some()),
-            "git.log_limit_or_target"
+            input.limit > 0 && input.limit <= 200,
+            "git.log_limit_or_target: limit 要在 1 到 200 之间，这次是 {}。请改用这个范围内的值再读。",
+            input.limit
+        );
+        ensure!(
+            !(input.commit.is_some() && input.start.is_some()),
+            "git.log_limit_or_target: commit 和 start 只能给一个：commit 读单个提交及其改动的文件，start 从这个提交往前列出历史。"
         );
         let specified = input.commit.as_deref().or(input.start.as_deref());
         let mut args = vec![
@@ -35,13 +38,17 @@ impl GitReader {
         if fields.last() == Some(&&b""[..]) {
             fields.pop();
         }
-        ensure!(fields.len() % 6 == 0, "git.log_format");
+        let log_format = || super::config::unreadable_output("log_format", "提交记录");
+        if !fields.len().is_multiple_of(6) {
+            return Err(log_format());
+        }
         let mut commits = vec![];
         for row in fields.chunks_exact(6).take(input.limit as usize) {
             let text = row
                 .iter()
                 .map(|field| std::str::from_utf8(field))
-                .collect::<std::result::Result<Vec<_>, _>>()?;
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map_err(|_| log_format())?;
             let files = if input.commit.is_some() {
                 let mut args = super::diff::diff_arguments(
                     self,

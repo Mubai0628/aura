@@ -550,4 +550,12 @@ pub const PUBLISHED_LATER: &[PublishedRevision] = &[
         instance: "tin_01M2DG020980080021AN94SW37",
         fingerprint: "d5454f5eaec34c229553b6f1ec84ae6e3d113c003fee50cbc137de0d9a231fc4",
     },
+    // A file outside the workspace that the user attached is read at its full path.
+    PublishedRevision {
+        name: "fs.read",
+        revision: 7,
+        tool: "tol_01M2DG020980080021AN942001",
+        instance: "tin_01M2DG020980080021AN94SF01",
+        fingerprint: "e7ced7d6265e617dc0952f777a79a36203a2168bdbbc30222318999d88528eb1",
+    },
 ];

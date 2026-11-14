@@ -437,3 +437,25 @@ test("an operation's failure after a failed read is said as the operation's", as
   expect(result.current.error).toBe('模式已在别处改变');
   expect(result.current.readFailed).toBe(false);
 });
+
+test('an approval answer Core refused goes to the tray, and the approvals are read again', async () => {
+  const { api } = fixture();
+  const refused = {
+    ok: false,
+    error: { code: 'approval.stale_request', message: 'approval request is stale' },
+  };
+  Object.assign(api, { resolveApproval: vi.fn(async () => refused) });
+  const { result } = renderHook(() => useSecurityControl('workspace', 'session-a'));
+  await waitFor(() => expect(api.listPendingApprovals).toHaveBeenCalled());
+  const reads = api.listPendingApprovals.mock.calls.length;
+  const approval = { id: 'apr_1', request_revision: '1' } as never;
+  let thrown: unknown;
+  await act(async () => {
+    await result.current.resolveApproval(approval, 'deny').catch((reason: unknown) => {
+      thrown = reason;
+    });
+  });
+  expect(thrown).toMatchObject({ code: 'approval.stale_request' });
+  expect(result.current.error).toBeUndefined();
+  expect(api.listPendingApprovals.mock.calls.length).toBeGreaterThan(reads);
+});

@@ -14,7 +14,7 @@ import {
   BROWSER_COMMAND_CHANNEL,
   BROWSER_PAGES_CHANNEL,
   BROWSER_STATE_CHANNEL,
-  MODEL_PAGE_ID,
+  browserNotDone,
   type BrowserCommandResult,
   type BrowserUserCommand,
 } from '../../shared/browser-api.js';
@@ -25,6 +25,7 @@ import { modelPages } from './model-pages.js';
 import { pagePicture, type PicturedContents } from './page-picture.js';
 import { pageText, type TextContents } from './page-text.js';
 import { BrowserPages, type PageView, type PageViews } from './pages.js';
+import { closedText } from './policy.js';
 import { BROWSER_PARTITION, guardProfile, type ProfileSession } from './profile.js';
 import { parsedRules } from './site-rules.js';
 import { openWorkspacePage } from './workspace-page.js';
@@ -76,6 +77,8 @@ function createView(): PageView {
   return view as unknown as PageView;
 }
 
+const NOT_OPENED = '页面没有打开';
+
 export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
   const views: PageViews = {
     create: createView,
@@ -126,6 +129,7 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
       allowed: parsedRules(allowedSites),
       blocked: parsedRules(blockedSites),
       debugging: debugging === true && snapshot.issue === null,
+      closedBecause: snapshot.issue === null ? 'off' : 'issue',
     });
   };
   const refresh = (): Promise<void> => {
@@ -140,7 +144,7 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
         if (before === appliedSettings) applySettings(snapshot);
       } catch {
         if (before === appliedSettings)
-          pages.setPolicy({ enabled: false, allowed: [], blocked: [] });
+          pages.setPolicy({ enabled: false, allowed: [], blocked: [], closedBecause: 'unread' });
       }
     })();
     refreshing = pending;
@@ -167,10 +171,12 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
     switch (command.kind) {
       case 'open':
         await refresh();
-        if (!pages.policy.enabled) return { ok: false, message: '内置浏览器已在设置中关闭' };
+        if (!pages.policy.enabled)
+          return { ok: false, message: closedText(pages.policy, NOT_OPENED) };
         return { ok: true, state: pages.open(sessionId, pageId) };
       case 'show': {
-        if (!pages.policy.enabled) return { ok: false, message: '内置浏览器已在设置中关闭' };
+        if (!pages.policy.enabled)
+          return { ok: false, message: closedText(pages.policy, NOT_OPENED) };
         const scale = zoom();
         const { x, y, width, height } = command.bounds;
         return {
@@ -185,7 +191,8 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
       }
       case 'open-file':
         await refresh();
-        if (!pages.policy.enabled) return { ok: false, message: '内置浏览器已在设置中关闭' };
+        if (!pages.policy.enabled)
+          return { ok: false, message: closedText(pages.policy, NOT_OPENED) };
         return openWorkspacePage(pages, options.core(), command);
       case 'hide':
         pages.hide(sessionId, pageId);
@@ -222,9 +229,16 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
       case 'release-control':
         pages.setUserControl(sessionId, pageId, command.kind === 'take-control');
         // Handing the page back answers the model's request that waits for it.
-        if (command.kind === 'release-control' && pageId === MODEL_PAGE_ID)
-          models.answerAssist(sessionId, 'done');
+        if (command.kind === 'release-control') models.answerAssist(sessionId, 'done', pageId);
         return { ok: true };
+      case 'hand-over': {
+        if (!pages.policy.enabled)
+          return { ok: false, message: closedText(pages.policy, '页面没有交给模型') };
+        if (pages.handOver(sessionId, pageId) === undefined)
+          return { ok: false, message: '这个页面已关闭，没有交给模型' };
+        models.handedOver(sessionId, pageId);
+        return { ok: true, state: pages.state(sessionId, pageId) };
+      }
       case 'dismiss-notice':
         pages.dismissNotice(sessionId, pageId);
         return { ok: true };
@@ -242,16 +256,32 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
       }
       case 'assist-done':
       case 'assist-decline':
-        return models.answerAssist(sessionId, command.kind === 'assist-done' ? 'done' : 'declined')
+        return models.answerAssist(
+          sessionId,
+          command.kind === 'assist-done' ? 'done' : 'declined',
+          pageId,
+        )
           ? { ok: true }
-          : { ok: false, message: '模型已不再等待' };
+          : { ok: false, message: '模型已不再等待这次操作（可能已超时或任务已停止），无需再点。' };
     }
   };
 
   ipcMain.handle(BROWSER_COMMAND_CHANNEL, async (event, value: unknown) => {
     options.assertTrustedSender(event);
     const command = parseUserCommand(value);
-    return command === undefined ? { ok: false, message: '无效的浏览器命令' } : run(command);
+    if (command === undefined) return { ok: false, message: '无效的浏览器命令' };
+    try {
+      return await run(command);
+    } catch (error) {
+      options.log('browser_command_failed', {
+        kind: command.kind,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        ok: false,
+        message: `${browserNotDone(command.kind)}（Aura 内部出错，已写入日志）；请重试，仍不行请重启 Aura。`,
+      };
+    }
   });
   ipcMain.handle(BROWSER_PAGES_CHANNEL, (event) => {
     options.assertTrustedSender(event);

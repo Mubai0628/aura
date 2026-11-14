@@ -5,8 +5,8 @@ import type { ProviderCatalogItem } from './model-settings-types';
 import { ProviderIcon } from './ProviderIcon';
 
 interface ProviderCatalogProps {
-  /** The models.dev catalog could not be read and has no copy to show. */
-  catalogUnavailable?: boolean;
+  /** Why the models.dev catalog has no copy to show; none when it has one. */
+  catalogUnavailable?: string | undefined;
   onAddCustom: () => void;
   onConfigure: (provider: ProviderCatalogItem) => void;
   onSelect: (provider: ProviderCatalogItem) => void;
@@ -20,7 +20,7 @@ const GRID_GAP = 10;
 const COLLAPSED_ROWS = 3;
 
 export function ProviderCatalog({
-  catalogUnavailable = false,
+  catalogUnavailable,
   onAddCustom,
   onConfigure,
   onSelect,
@@ -68,7 +68,7 @@ function ProviderGroup({
   providers,
   selectedProviderId,
   title,
-  unavailable = false,
+  unavailable,
   writeUnavailableReason,
 }: {
   addCustom?: () => void;
@@ -77,7 +77,7 @@ function ProviderGroup({
   providers: readonly ProviderCatalogItem[];
   selectedProviderId: string | undefined;
   title: string;
-  unavailable?: boolean;
+  unavailable?: string | undefined;
   writeUnavailableReason?: string | undefined;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -131,9 +131,9 @@ function ProviderGroup({
         {addCustom === undefined ? null : (
           <AddProviderCard onAdd={addCustom} reason={writeUnavailableReason} />
         )}
-        {unavailable && providers.length === 0 ? (
+        {unavailable !== undefined && providers.length === 0 ? (
           <p className="provider-group-empty" role="status">
-            models.dev 目录暂不可用
+            {unavailable}
           </p>
         ) : null}
         {canCollapse ? (

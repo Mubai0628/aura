@@ -1,10 +1,12 @@
 use super::*;
+/// The address itself is never quoted: it may hold credentials.
+const INVALID_URL: &str = "git.invalid_remote_url: Git 配置里这个远端的地址无法规范化（含控制字符，或不是有效的 URL 或路径），无法绑定操作的目的地，这次操作没有执行。请在终端用 git remote -v 核对并修复地址。";
 /// Retain repository identity while removing authentication material from durable facts.
 pub(super) fn normalize(
     value: &str,
     root: &Path,
 ) -> Result<(String, aura_domain_common::jcs::CanonicalSha256HashV1)> {
-    ensure!(!value.chars().any(char::is_control), "git.invalid_remote_url");
+    ensure!(!value.chars().any(char::is_control), INVALID_URL);
     if let Some((helper, _)) = value.split_once("::")
         && !helper.is_empty()
         && helper.bytes().all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, b'+' | b'-' | b'.'))
@@ -14,8 +16,7 @@ pub(super) fn normalize(
         );
     }
     if value.contains("://") {
-        let mut url =
-            url::Url::parse(value).map_err(|_| anyhow::anyhow!("git.invalid_remote_url"))?;
+        let mut url = url::Url::parse(value).map_err(|_| anyhow::anyhow!(INVALID_URL))?;
         ensure!(
             matches!(url.scheme(), "http" | "https" | "ssh" | "git+ssh" | "git" | "file")
                 && (url.scheme() == "file" || url.host_str().is_some()),
@@ -55,11 +56,9 @@ pub(super) fn normalize(
     let absolute = if path.is_absolute() { path.to_owned() } else { root.join(path) };
     // Resolve spelling only. canonicalize/open could contact a UNC share before
     // network approval; the destination is not inspected until Native dispatch.
-    let absolute =
-        std::path::absolute(absolute).map_err(|_| anyhow::anyhow!("git.invalid_remote_url"))?;
-    let url = url::Url::from_file_path(&absolute)
-        .map_err(|_| anyhow::anyhow!("git.invalid_remote_url"))?
-        .to_string();
+    let absolute = std::path::absolute(absolute).map_err(|_| anyhow::anyhow!(INVALID_URL))?;
+    let url =
+        url::Url::from_file_path(&absolute).map_err(|_| anyhow::anyhow!(INVALID_URL))?.to_string();
     Ok((url.clone(), aura_domain_common::jcs::canonical_sha256(&(&url, None::<String>))?))
 }
 
@@ -126,5 +125,15 @@ mod tests {
             normalize("fixture-user@[::1]:repo.git", Path::new(".")).expect("IPv6 scp").0,
             "ssh://[::1]/~/repo.git"
         );
+    }
+    #[test]
+    fn an_unusable_address_is_explained_without_quoting_it() {
+        let error =
+            normalize("https://user:temporary-secret@exa mple.com/\u{7}repo", Path::new("."))
+                .expect_err("control character")
+                .to_string();
+        assert!(error.starts_with("git.invalid_remote_url: "), "{error}");
+        assert!(error.contains("没有执行") && error.contains("git remote -v"), "{error}");
+        assert!(!error.contains("temporary-secret") && !error.contains("exa mple"), "{error}");
     }
 }

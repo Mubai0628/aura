@@ -1,7 +1,8 @@
 /**
  * The pages of Aura's built-in browser. Each page is a WebContentsView kept in the Aura
  * window (shown in the right sidebar, otherwise hidden but still running); a session's model
- * page and the tabs the user opened are kept apart. Every load passes the site policy.
+ * page and the tabs the user opened are kept apart, until the user hands one of theirs to the
+ * model, which then drives it as its own page. Every load passes the site policy.
  */
 import {
   MODEL_PAGE_ID,
@@ -77,10 +78,15 @@ interface Page {
   readonly refusals: Map<string, string>;
   /** What the user did to the model's page since the model last looked at it. */
   userHad?: UserTouch | undefined;
+  /** A page the user handed over: how the model's own navigations of it may go, from Core. */
+  modelAccess?: PageAccess | undefined;
 }
 
-/** How the user changed the model's page: took it over, or navigated it from the toolbar. */
-export type UserTouch = 'took_over' | 'navigated';
+/**
+ * How the user changed a page the model drives: took it over, navigated it from the toolbar, or
+ * handed it over and so gave the model a page it has not seen.
+ */
+export type UserTouch = 'took_over' | 'navigated' | 'handed_over';
 
 const USER: PageAccess = { kind: 'user', readOnly: false, approvedHosts: [] };
 const pageKey = (sessionId: string, pageId: string) => `${sessionId}\u0000${pageId}`;
@@ -93,8 +99,10 @@ export class BrowserPages {
   readonly #released = new ReleasedPages();
   readonly #listeners = new Set<(state: BrowserPageState) => void>();
   readonly #shown = new Set<(sessionId: string, pageId: string, bounds: BrowserBounds) => void>();
+  /** The last page id each conversation gave a page the user handed over; ids are not reused. */
+  readonly #handedIds = new Map<string, number>();
   // Closed until the settings are read: a browser must not run on rules it has not seen.
-  #policy: BrowserPolicy = { enabled: false, allowed: [], blocked: [] };
+  #policy: BrowserPolicy = { enabled: false, allowed: [], blocked: [], closedBecause: 'unread' };
 
   constructor(views: PageViews, options: { limit?: number; now?: () => number } = {}) {
     this.#views = views;
@@ -110,7 +118,10 @@ export class BrowserPages {
     this.#policy = policy;
     if (!policy.enabled)
       for (const page of [...this.#pages.values()])
-        this.#close(page, refusalText({ allow: false, reason: 'disabled' }));
+        this.#close(
+          page,
+          refusalText({ allow: false, reason: 'disabled', because: policy.closedBecause }),
+        );
   }
 
   onState(listener: (state: BrowserPageState) => void): () => void {
@@ -178,7 +189,7 @@ export class BrowserPages {
    */
   setAssist(sessionId: string, pageId: string, assist: BrowserAssistState | undefined): void {
     const page = this.#pages.get(pageKey(sessionId, pageId));
-    if (page === undefined || pageId !== MODEL_PAGE_ID) return;
+    if (page === undefined || !driven(page)) return;
     this.#update(page, assist === undefined ? { assist, userInControl: false } : { assist });
   }
 
@@ -216,7 +227,7 @@ export class BrowserPages {
       return refusalText(verdict);
     }
     page.userNavigation = true;
-    if (pageId === MODEL_PAGE_ID) page.userHad ??= 'navigated';
+    if (driven(page)) page.userHad ??= 'navigated';
     this.#update(page, { notice: undefined });
     void page.view.webContents.loadURL(url).catch(() => undefined);
     return undefined;
@@ -267,7 +278,7 @@ export class BrowserPages {
     if (page === undefined) return;
     const contents = page.view.webContents;
     page.userNavigation = !byModel && kind !== 'stop';
-    if (page.userNavigation && pageId === MODEL_PAGE_ID) page.userHad ??= 'navigated';
+    if (page.userNavigation && driven(page)) page.userHad ??= 'navigated';
     if (kind === 'back' && contents.navigationHistory.canGoBack())
       contents.navigationHistory.goBack();
     else if (kind === 'forward' && contents.navigationHistory.canGoForward())
@@ -285,28 +296,58 @@ export class BrowserPages {
   /** A deleted conversation takes its pages with it. */
   closeSession(sessionId: string): void {
     this.#released.forgetSession(sessionId);
+    this.#handedIds.delete(sessionId);
     for (const page of [...this.#pages.values()])
       if (page.state.sessionId === sessionId) this.#close(page, undefined);
   }
 
   setUserControl(sessionId: string, pageId: string, user: boolean): void {
     const page = this.#pages.get(pageKey(sessionId, pageId));
-    if (page === undefined || pageId !== MODEL_PAGE_ID) return;
+    if (page === undefined || !driven(page)) return;
     if (user) page.userHad = 'took_over';
     this.#update(page, { userInControl: user });
   }
 
   /**
-   * What the user did to the model's page since
-   * the model last looked at it, and so may have changed there.
+   * The user's open page goes to the conversation's model, which drives it as its own page from
+   * now on under the id returned. The model's own page, and a page not open, are not handed.
    */
-  userHad(sessionId: string): UserTouch | undefined {
-    return this.#pages.get(pageKey(sessionId, MODEL_PAGE_ID))?.userHad;
+  handOver(sessionId: string, pageId: string): string | undefined {
+    const page = this.#pages.get(pageKey(sessionId, pageId));
+    if (page === undefined || pageId === MODEL_PAGE_ID) return undefined;
+    if (page.state.handedAs !== undefined) return page.state.handedAs;
+    const next = (this.#handedIds.get(sessionId) ?? 0) + 1;
+    this.#handedIds.set(sessionId, next);
+    page.userHad = 'handed_over';
+    this.#update(page, { handedAs: `p${next}` });
+    return `p${next}`;
   }
 
-  /** The model has seen its page as it is now, the user no longer holding it. */
-  modelLooked(sessionId: string): void {
-    const page = this.#pages.get(pageKey(sessionId, MODEL_PAGE_ID));
+  /** The page the user handed over as `id`, while it is open. */
+  handed(sessionId: string, id: string): string | undefined {
+    for (const page of this.#pages.values())
+      if (page.state.sessionId === sessionId && page.state.handedAs === id)
+        return page.state.pageId;
+    return undefined;
+  }
+
+  /** Whether the model drives the page: its own, or one the user handed over. */
+  driven(sessionId: string, pageId: string): boolean {
+    const page = this.#pages.get(pageKey(sessionId, pageId));
+    return page !== undefined && driven(page);
+  }
+
+  /**
+   * What the user did to a page the model drives since
+   * the model last looked at it, and so may have changed there.
+   */
+  userHad(sessionId: string, pageId: string = MODEL_PAGE_ID): UserTouch | undefined {
+    return this.#pages.get(pageKey(sessionId, pageId))?.userHad;
+  }
+
+  /** The model has seen the page as it is now, the user no longer holding it. */
+  modelLooked(sessionId: string, pageId: string = MODEL_PAGE_ID): void {
+    const page = this.#pages.get(pageKey(sessionId, pageId));
     if (page !== undefined && !page.state.userInControl) page.userHad = undefined;
   }
 
@@ -315,10 +356,15 @@ export class BrowserPages {
     if (page !== undefined) this.#update(page, { notice: undefined });
   }
 
-  /** A model page's access, as Core states it with each command. */
+  /**
+   * A model page's access, as Core states it with each command; a page the user handed over
+   * keeps its own for what the user does on it.
+   */
   setAccess(sessionId: string, pageId: string, access: PageAccess): void {
     const page = this.#pages.get(pageKey(sessionId, pageId));
-    if (page !== undefined) page.access = access;
+    if (page === undefined) return;
+    if (page.state.handedAs !== undefined) page.modelAccess = access;
+    else page.access = access;
   }
 
   notice(webContentsId: number, kind: BrowserNoticeKind, text: string): void {
@@ -338,13 +384,23 @@ export class BrowserPages {
       return false;
     }
     const top = page?.view.webContents.getURL() ?? '';
-    return subrequestVerdict(this.#policy, top, request.url, page?.access.fileRoot).allow;
+    const root = page?.modelAccess?.fileRoot ?? page?.access.fileRoot;
+    return subrequestVerdict(this.#policy, top, request.url, root).allow;
   }
 
-  /** Whose rules a navigation of the page follows now: a user's page always follows its own. */
+  /**
+   * Whose rules a navigation of the page follows now. A user's page follows its own until the
+   * model moves it; what the user does on a page the model drives follows the user's.
+   */
   #access(page: Page): PageAccess {
-    if (page.access.kind === 'user') return page.access;
-    return page.userNavigation || page.state.assist !== undefined ? USER : page.access;
+    const model = page.access.kind === 'model' ? page.access : page.modelAccess;
+    if (model === undefined) return page.access;
+    const users =
+      page.userNavigation ||
+      page.state.assist !== undefined ||
+      (page.modelAccess !== undefined && page.state.userInControl);
+    if (!users) return model;
+    return page.access.kind === 'user' ? page.access : USER;
   }
 
   #byContents(id: number): Page | undefined {
@@ -415,8 +471,13 @@ export class BrowserPages {
   /** Over the limit, the page used longest ago that is not on screen is released. */
   #evict(): void {
     while (this.#pages.size >= this.#limit) {
+      // A page the user handed over stays: the model reaches it by its id.
       const candidates = [...this.#pages.values()].filter(
-        (page) => !page.shown && !page.state.agentActive && page.state.assist === undefined,
+        (page) =>
+          !page.shown &&
+          !page.state.agentActive &&
+          page.state.assist === undefined &&
+          page.state.handedAs === undefined,
       );
       const oldest = candidates.sort((a, b) => a.lastUsed - b.lastUsed)[0];
       if (oldest === undefined) return;
@@ -451,3 +512,6 @@ export class BrowserPages {
     for (const listener of this.#listeners) listener({ ...page.state });
   }
 }
+
+const driven = (page: Page): boolean =>
+  page.state.pageId === MODEL_PAGE_ID || page.state.handedAs !== undefined;

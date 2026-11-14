@@ -219,6 +219,7 @@ impl ServiceSessions {
             (PluginSessionActivity::Idle, _) => "空闲",
             (_, Some(AgentSessionWaitingFor::Approval)) => "等你批准",
             (_, Some(AgentSessionWaitingFor::Question)) => "等你回答",
+            (_, Some(AgentSessionWaitingFor::SensitiveInput)) => "等你在 Aura 里输入",
             (_, Some(AgentSessionWaitingFor::Context)) => "等你决定上下文怎么处理",
             _ => "运行中",
         };

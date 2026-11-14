@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { NotificationInput } from '../notification-center-store';
 import { userMessage } from '../agent-session/user-message';
+import { availabilityCancelled } from './operation-words';
 
 /** Presentation belongs to this mounted card, never to the persisted last test. */
 export function useModelAvailability(
@@ -79,7 +80,7 @@ export function useModelAvailability(
       dedupeKey: `model-availability-terminal:${test.id}`,
       title: cancelled ? '模型测试已取消' : available ? '模型可用' : '模型不可用',
       message: cancelled
-        ? `${model.display_name} 的可用性测试已取消。`
+        ? availabilityCancelled(model.display_name, test.cancellation_reason)
         : available
           ? `${model.display_name} 已通过模型生成验证。`
           : `${model.display_name} 未通过验证，请查看分项结果。`,

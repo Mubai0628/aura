@@ -24,6 +24,8 @@ const LABELS: Record<string, string> = {
   'git.branch': '切换或新建分支',
   'git.sync': '同步远程仓库',
   'git.push': '推送到远程仓库',
+  'agents.merge': '合回工作副本',
+  'agents.discard': '丢弃工作副本',
   'commands.save': '保存命令',
   'commands.delete': '删除命令',
   'workspace_init.complete': '初始化工作区',

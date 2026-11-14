@@ -114,6 +114,7 @@ pub(super) fn sidecar_arguments(
         format!("--parent-runtime-instance-id={}", options.runtime_instance_id),
         format!("--runtime-instance-id={runtime_instance_id}"),
         format!("--component-manifest={}", options.component_manifest_path.display()),
+        format!("{}{}", aura_data_location::DATA_ROOT, options.data_root.display()),
     ];
     if options.allow_dev_component_mismatch {
         arguments.push("--allow-dev-component-mismatch".to_owned());

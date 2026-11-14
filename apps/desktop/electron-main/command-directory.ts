@@ -1,12 +1,12 @@
 import { mkdir } from 'node:fs/promises';
-import { shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron';
+import { app, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import type {
   AgentMainCommand,
   AgentMainParams,
   AgentMainResult,
 } from '../shared/generated/routes.js';
 import type { CoreSupervisor } from './core-supervisor.js';
-import { isDirectory, ordinaryPath } from './folder-dialog.js';
+import { isDirectory, ordinaryPath, selectFolder } from './folder-dialog.js';
 import { selectHookDirectory } from './hook-directory.js';
 import { openSkillDirectory, selectSkillArchive, selectSkillDirectory } from './skill-directory.js';
 import {
@@ -19,6 +19,14 @@ import { signInMcpServer } from './mcp-sign-in.js';
 import { openChromeExtensionFolder } from './chrome-extension-folder.js';
 import { writeClipboard } from './clipboard.js';
 import { openExternalLink, openWorkspaceFileOutside } from './open-outside.js';
+import { openAgentWorktree } from './team-worktree.js';
+import {
+  moveInstallation,
+  openDetached,
+  openStorageFolder,
+  restartForStorage,
+  selectStorageFolder,
+} from './storage-folder.js';
 
 type Request = AgentMainParams['agent.commands.open_directory'];
 type Opened = AgentMainResult['agent.commands.open_directory'];
@@ -63,16 +71,20 @@ export async function openCommandDirectory(
 /**
  * Agent routes: Main serves `agent.commands.open_directory`, the Chrome extension's folder, the Hook,
  * Skill and plugin dialogs (including where to save an exported plugin),
- * opening a listed Skill's or plugin's folder, starting an MCP sign-in and opening a
- * workspace file or a web link outside Aura itself; Core serves the rest.
+ * opening a listed Skill's or plugin's folder, starting an MCP sign-in, opening a
+ * workspace file or a web link outside Aura itself, and the storage page's folder dialog, opening
+ * the data's or the installation's folder and closing Aura for the launcher's move; Core serves
+ * the rest.
  */
 export function agentRouteHandler(
   supervisor: CoreSupervisor,
   owner: (event: IpcMainInvokeEvent) => BrowserWindow,
   /** The browser host reads the settings again from every reply that carries them. */
   browserSettings?: (snapshot: unknown) => void,
-  /** The installation's data folder, once the release is known. */
-  dataRoot?: () => string | undefined,
+  /** The installation's Chrome folder (`DesktopLocations.chromeRoot`). */
+  chromeRoot?: () => string | undefined,
+  /** Closes Aura for the launcher to start again; `false` when no launcher started it. */
+  restart?: () => boolean,
 ) {
   type Served = (
     event: IpcMainInvokeEvent,
@@ -83,6 +95,9 @@ export function agentRouteHandler(
       openCommandDirectory(params as Request, supervisor),
     'agent.hooks.select_directory': (event) => selectHookDirectory(owner(event)),
     'agent.skills.select_directory': (event) => selectSkillDirectory(owner(event)),
+    // 设置 → 存储 → 工作副本: Core checks the folder when it is saved.
+    'agent.team.worktrees.location.select': (event) =>
+      selectFolder(owner(event), '选择工作副本要放的文件夹'),
     'agent.skills.select_archive': (event) => selectSkillArchive(owner(event)),
     'agent.skills.open_directory': (_event, params) =>
       openSkillDirectory(params as AgentMainParams['agent.skills.open_directory'], supervisor),
@@ -96,11 +111,18 @@ export function agentRouteHandler(
       signInMcpServer(params as AgentMainParams['agent.mcp.oauth.sign_in'], supervisor),
     'agent.files.open_outside': (_event, params) =>
       openWorkspaceFileOutside(params as AgentMainParams['agent.files.open_outside'], supervisor),
+    'agent.team.worktree.open': (_event, params) =>
+      openAgentWorktree(params as AgentMainParams['agent.team.worktree.open'], supervisor),
     'agent.links.open': (_event, params) =>
       openExternalLink(params as AgentMainParams['agent.links.open']),
     'agent.clipboard.write': async (_event, params) =>
       writeClipboard(params as AgentMainParams['agent.clipboard.write']),
-    'chrome.extension.open_folder': () => openChromeExtensionFolder(dataRoot?.()),
+    'chrome.extension.open_folder': () => openChromeExtensionFolder(chromeRoot?.()),
+    'storage.select_folder': (event) => selectStorageFolder(owner(event)),
+    'storage.open_folder': (_event, params) =>
+      openStorageFolder(params as AgentMainParams['storage.open_folder'], supervisor),
+    'storage.restart': async () => restartForStorage(restart),
+    'storage.move_install': () => moveInstallation(supervisor, openDetached, () => app.quit()),
     'browser.settings.get': async (_event, params) => {
       const snapshot = await supervisor.requestAgent('browser.settings.get', params as never);
       browserSettings?.(snapshot);

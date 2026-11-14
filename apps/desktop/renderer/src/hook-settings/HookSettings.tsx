@@ -9,18 +9,12 @@ import type { ResultEnvelope } from '../../../shared/aura-api';
 import { AppIcon } from '../app-icons';
 import { HookDetails, HookHeading, type HookChange } from './HookDetails';
 import { HookPreviewPanel } from './HookPreviewPanel';
-import {
-  folderName,
-  hookError,
-  hookEvents,
-  hookName,
-  hookReview,
-  hookStateTone,
-} from './hook-labels';
+import { folderName, hookEvents, hookName, hookReview, hookStateTone } from './hook-labels';
 import { SettingsItemDialog, SettingsRow, SettingsRowOpen } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './hook-settings.css';
+import { userMessage } from '../agent-session/user-message';
 
 const NONE: readonly never[] = [];
 
@@ -46,10 +40,10 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
         if (result.ok) {
           setRegistry(result.value);
           setLoadError(undefined);
-        } else setLoadError(hookError(result.error.message, 'Hook 列表读取失败，请重试。'));
+        } else setLoadError(userMessage(result.error, 'Hook 列表读取失败，请重试。'));
       },
       (reason: unknown) => {
-        if (live) setLoadError(hookError(reason, 'Hook 列表读取失败，请重试。'));
+        if (live) setLoadError(userMessage(reason, 'Hook 列表读取失败，请重试。'));
       },
     );
     return () => {
@@ -67,14 +61,15 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
       if (outcome) setNotice(outcome);
       if (outcome?.alert) setReload((value) => value + 1);
     } catch (reason) {
-      setNotice({ alert: true, text: hookError(reason, '操作结果未确认，请刷新后核对。') });
+      setNotice({ alert: true, text: userMessage(reason, '操作结果未确认，请刷新后核对。') });
       setReload((value) => value + 1);
     } finally {
       setBusy(undefined);
     }
   }
   const applied = (result: ResultEnvelope<HookRegistryView>, done: string): Notice => {
-    if (!result.ok) return { alert: true, text: hookError(result.error.message) };
+    if (!result.ok)
+      return { alert: true, text: userMessage(result.error, 'Hook 设置没有改变；请刷新后重试。') };
     setRegistry(result.value);
     return { alert: false, text: done };
   };
@@ -83,17 +78,26 @@ export function HookSettings({ coreReady }: { coreReady: boolean }) {
   const open = (path: string) =>
     run(`preview:${path}`, async () => {
       const result = await window.aura.v1.previewHook({ path });
-      if (!result.ok) return { alert: true, text: hookError(result.error.message) };
+      if (!result.ok)
+        return {
+          alert: true,
+          text: userMessage(result.error, '没有读到这个 Hook；请确认它的文件夹还在后重试。'),
+        };
       setPreview(result.value);
       return undefined;
     });
   const add = () =>
     run('add', async () => {
       const selected = await window.aura.v1.selectHookDirectory({});
-      if (!selected.ok) return { alert: true, text: hookError(selected.error.message) };
+      if (!selected.ok)
+        return { alert: true, text: userMessage(selected.error, '没有打开选择窗口；请重试。') };
       if (!selected.value.path) return undefined;
       const result = await window.aura.v1.previewHook({ path: selected.value.path });
-      if (!result.ok) return { alert: true, text: hookError(result.error.message) };
+      if (!result.ok)
+        return {
+          alert: true,
+          text: userMessage(result.error, '没有读到这个 Hook；请确认它的文件夹还在后重试。'),
+        };
       setPreview(result.value);
       return undefined;
     });

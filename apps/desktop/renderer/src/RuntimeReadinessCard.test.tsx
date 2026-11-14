@@ -65,7 +65,7 @@ it('renders local backend degradation and setup without a global recovery messag
   const view = render(<RuntimeReadinessCard />);
   expect(screen.getByLabelText('运行能力')).toBeTruthy();
   expect(screen.getByRole('status').textContent).toBe('核心服务可用');
-  expect(screen.getByText('暂不可用')).toBeTruthy();
+  expect(screen.getByText('暂不可用（执行服务没能启动）')).toBeTruthy();
   expect(screen.queryByText('核心数据需要恢复')).toBeNull();
   vi.mocked(useRuntimeReadiness).mockReturnValue({
     loading: false,
@@ -81,7 +81,7 @@ it('renders local backend degradation and setup without a global recovery messag
     },
   });
   view.rerender(<RuntimeReadinessCard />);
-  expect(screen.getByText('需要环境准备')).toBeTruthy();
+  expect(screen.getByText('需要环境准备：到 设置 → 权限与沙箱 完成准备后可用')).toBeTruthy();
 });
 
 it('replaces loading and stale status with an accessible transport error', () => {
@@ -94,4 +94,50 @@ it('replaces loading and stale status with an accessible transport error', () =>
   expect(
     screen.queryByText('模型配置、文件和历史可用。执行能力在使用时检查权限与环境。'),
   ).toBeNull();
+});
+
+// A service that cannot run says why and where it is prepared; an unavailable one never reads
+// as its connection being ready.
+it('a service that cannot run says why, and where to prepare it', () => {
+  const value = {
+    schema_version: 1 as const,
+    revision: '1',
+    core_health: 'ready' as const,
+    capabilities: [],
+    extensions: [],
+    backends: [
+      {
+        backend: 'windows-user-workspace-v1',
+        lifecycle: 'ready' as const,
+        readiness: { readiness: 'setup_required' as const, reason: 'runner.install_version' },
+      },
+      {
+        backend: 'windows-user-compat-v1',
+        lifecycle: 'ready' as const,
+        readiness: {
+          readiness: 'repair_required' as const,
+          reason: 'compat.runtime_verification_failed',
+        },
+      },
+      {
+        backend: 'windows-user-native-v1',
+        lifecycle: 'ready' as const,
+        readiness: { readiness: 'unavailable' as const, reason: 'native.caller_identity' },
+      },
+      {
+        backend: 'egress_proxy',
+        lifecycle: 'ready' as const,
+        readiness: { readiness: 'unavailable' as const, reason: 'something.new' },
+      },
+    ],
+  };
+  vi.mocked(useRuntimeReadiness).mockReturnValue({ loading: false, value });
+  render(<RuntimeReadinessCard />);
+  expect(screen.getByText('需要环境准备：到 设置 → 权限与沙箱 完成准备后可用')).toBeTruthy();
+  expect(
+    screen.getByText('需要修复（Shell 运行环境校验没有通过）：到 设置 → 权限与沙箱 修复后可用'),
+  ).toBeTruthy();
+  expect(screen.getByText('暂不可用（没能确认当前的 Windows 用户）')).toBeTruthy();
+  expect(screen.getByText('暂不可用（原因记在 Core 日志里）')).toBeTruthy();
+  expect(screen.queryByText('连接就绪')).toBeNull();
 });

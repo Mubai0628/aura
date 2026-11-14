@@ -132,7 +132,11 @@ test('the card says what the conversation is doing, what is uncommitted and what
     within(recent)
       .getAllByRole('listitem')
       .map((item) => item.textContent),
-  ).toEqual(['写入文件maze-game.html刚刚', '搜索文本5 分钟前', '读取文件AGENTS.md2 小时前']);
+  ).toEqual([
+    '写入文件maze-game.html刚刚',
+    '搜索文本执行失败5 分钟前',
+    '读取文件AGENTS.md2 小时前',
+  ]);
   expect(within(recent).getAllByRole('listitem')[1]!.dataset.failed).toBe('true');
   expect(activity).toHaveBeenCalledWith({ session_id: session, before_call_id: null, limit: 3 });
 });
@@ -140,6 +144,13 @@ test('the card says what the conversation is doing, what is uncommitted and what
 test('a running conversation says so', () => {
   show({ running: true });
   expect(screen.getByText('正在运行')).toBeTruthy();
+});
+
+test('a conversation waiting for the user says 要你处理, as its sidebar row does', () => {
+  show({ running: true, waiting: true });
+  const state = within(screen.getByRole('region', { name: '会话' })).getByText('要你处理');
+  expect(state.dataset.waiting).toBe('true');
+  expect(screen.queryByText('正在运行')).toBeNull();
 });
 
 test('with nothing uncommitted the card says so, and a folder outside Git says that instead', async () => {
@@ -150,6 +161,40 @@ test('with nothing uncommitted the card says so, and a folder outside Git says t
   window.aura.v1.git.runtime = empty as never;
   show();
   expect(await screen.findByText('未检测到 Git，无法汇总改动')).toBeTruthy();
+});
+
+// A plain folder read as 「读不到这个工作区的 Git 状态」, and a Git older than 2.40 as 「未检测到 Git」.
+test('a plain folder, an old Git and a failed read each say what they are', async () => {
+  window.aura.v1.git.read = vi.fn(async () => ({
+    ok: false,
+    error: { code: 'git.not_repository', message: 'git.not_repository: 此工作区不是 Git 仓库。' },
+  })) as never;
+  show();
+  expect(await screen.findByText('这个工作区不是 Git 仓库，没有可汇总的改动')).toBeTruthy();
+  cleanup();
+
+  resetReviewStoreForTests();
+  window.aura.v1.git.read = vi.fn(async () => ({
+    ok: false,
+    error: { code: 'git.read_failed', message: 'git.read_failed: Git 读取没有成功。' },
+  })) as never;
+  show();
+  expect(await screen.findByText('暂时读不到 Git 状态，稍后会再读')).toBeTruthy();
+  cleanup();
+
+  resetReviewStoreForTests();
+  window.aura.v1.git.runtime = vi.fn(async () => ({
+    ok: true,
+    value: {
+      state: 'too_old',
+      executable: 'git.exe',
+      version: '2.30.0',
+      message: '',
+      next_step: '',
+    },
+  })) as never;
+  show();
+  expect(await screen.findByText('本机 Git 版本低于 2.40，无法汇总改动')).toBeTruthy();
 });
 
 test('in a narrow window the entry sits where it is given: the conversation header', () => {

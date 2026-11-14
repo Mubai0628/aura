@@ -89,3 +89,15 @@ pub(super) fn finish(
         _ => value,
     })
 }
+
+/// The absolute display path of one file inside an authorized root.
+pub(super) fn join_display(root: &str, relative: &WorkspacePath) -> String {
+    let mut text = root.trim_end_matches(['\\', '/']).to_owned();
+    if !relative.is_root() {
+        for component in relative.as_str().split('/') {
+            text.push(std::path::MAIN_SEPARATOR);
+            text.push_str(component);
+        }
+    }
+    text
+}

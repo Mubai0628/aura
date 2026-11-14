@@ -138,12 +138,12 @@ fn screenshot(
     marks: usize,
 ) -> Result<(ComputerScreenshotResult, Vec<u8>), String> {
     let HostResult::Screenshot { png, map, windows, .. } = result else {
-        return Err("截图时收到了别的结果".into());
+        return Err("截图时宿主程序给了不对应的回答".into());
     };
     use base64::Engine as _;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(png.as_bytes())
-        .map_err(|_| "截图无法解码".to_owned())?;
+        .map_err(|_| "宿主程序给的截图无法解码".to_owned())?;
     let on_image = windows_on_image(&map, &windows);
     let reference =
         desktop.remember_shot(session, KnownShot { app_id: app.id.clone(), map, windows });
@@ -214,7 +214,8 @@ fn output(
         (HostCommand::Screenshot { marks, .. }, result @ HostResult::Screenshot { .. }) => {
             let (result, bytes) = screenshot(desktop, session, app, result, shown, marks.len())?;
             let id = result.image_artifact_id;
-            let value = serde_json::to_value(result).map_err(|error| error.to_string())?;
+            let value =
+                serde_json::to_value(result).map_err(|_| "Aura 没能整理截图的结果".to_owned())?;
             return Ok((value, Some((bytes, id))));
         }
         (HostCommand::Act { window, .. }, HostResult::Acted { after }) => {
@@ -258,9 +259,14 @@ fn output(
                 note: open.then(|| STILL_OPEN.to_owned()),
             })
         }
-        (_, other) => return Err(format!("电脑操控返回了不对应的结果：{other:?}")),
+        (_, other) => {
+            return Err(format!(
+                "电脑操控的宿主程序给了和这一步不对应的回答（收到的是 {} 的结果）",
+                aura_desktop_service::result_kind(&other)
+            ));
+        }
     };
-    value.map(|value| (value, None)).map_err(|error| error.to_string())
+    value.map(|value| (value, None)).map_err(|_| "Aura 没能整理这一步的结果".to_owned())
 }
 
 pub(in crate::agent_execution) async fn invoke(
@@ -293,7 +299,11 @@ pub(in crate::agent_execution) async fn invoke(
         .session(call.snapshot.session_id)?
         .into_iter()
         .find(|entry| entry.call.validated.call.tool_call_id == call.validated.call.tool_call_id)
-        .ok_or_else(|| anyhow::anyhow!("computer.call_not_active"))?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "computer.call_not_active: 这次电脑操控调用在发给桌面之前已经结束（回合停止了或调用被取消），什么都没做。"
+            )
+        })?
         .cancel
         .subscribe();
     // The call has started; a later permission change does not undo it.
@@ -371,7 +381,11 @@ async fn carry_out(
         Err(error) => return failed(format!("computer.unavailable: {}", error.message), false),
     };
     let Some(app) = app_of(&frozen.command).cloned() else {
-        return failed("computer.unsupported_tool: 这个命令没有工具结果".into(), false);
+        return failed(
+            "computer.unsupported_tool: 这次调用的命令不针对任何程序（Aura 内部不一致），没有执行。"
+                .into(),
+            false,
+        );
     };
     let session = call.snapshot.session_id;
     let turn = call.operation.content.identity.turn_task_id;
@@ -415,7 +429,16 @@ async fn carry_out(
     };
     let (mut value, mut image) = match output(&desktop, session, frozen, &app, result, shown) {
         Ok(output) => output,
-        Err(message) => return failed(format!("computer.failed: {message}{unsure}"), may_act),
+        // The step was sent to the host; only its report could not be used.
+        Err(message) if may_act => {
+            return failed(format!("computer.failed: 这一步已经发出，但{message}。{unsure}"), true);
+        }
+        Err(message) => {
+            return failed(
+                format!("computer.failed: {message}。这一步只是读取，没有改动程序；可以再试一次。"),
+                false,
+            );
+        }
     };
     if let Some(after) = &frozen.after {
         // The step itself is done; a screenshot that fails afterwards only says so.

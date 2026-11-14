@@ -182,16 +182,11 @@ impl HookRunner {
             if let (Some(plugin), Some(plugins), Some(failure)) =
                 (&hook.plugin, &self.plugins, view.failure)
             {
-                let mut text = format!("{failure:?}");
-                for detail in view.reason.iter().chain(view.stderr.iter()) {
-                    text.push_str(": ");
-                    text.push_str(detail);
-                }
                 plugins.log(
                     plugin,
                     aura_agent_domain::PluginLogSource::Hook,
                     &view.hook_name,
-                    &text,
+                    &plugin_log_text(&view, failure),
                 );
             }
             outcome.invocations.push(view);
@@ -224,7 +219,7 @@ impl HookRunner {
                 (HookOutcome::Failed, Some(kind), HookEffect::None, Some(detail), None)
             }
             HookFailurePolicy::FailClosed => {
-                let reason = format!("Hook {name} 失败（{detail}），按“失败即阻断”处理");
+                let reason = format!("Hook {name} 失败（{detail}），按“失败时阻止”处理");
                 outcome.block = Some(HookBlock {
                     hook_name: name.to_owned(),
                     reason: reason.clone(),
@@ -250,6 +245,42 @@ impl HookRunner {
             )
         })?;
         Ok(())
+    }
+}
+
+/// A failed Hook's entry in its plugin's log: the failure in words and what became of the
+/// action, then the Hook's error output. A fail-closed Hook's reason is already the sentence that
+/// stopped the action, with the failure's detail; a fail-open Hook's reason is the detail alone.
+fn plugin_log_text(view: &HookInvocationView, failure: aura_hooks::HookFailureKind) -> String {
+    let name = &view.hook_name;
+    let mut text = match (view.effect, view.reason.as_deref()) {
+        (HookEffect::ActionBlocked, Some(reason)) => format!("{reason}，动作已被阻止。"),
+        (HookEffect::LaterHooksStopped, Some(reason)) => {
+            format!("{reason}，同一事件后面的 Hook 已停止。")
+        }
+        (_, Some(detail)) => {
+            format!("Hook {name} 失败（{detail}），按“失败时放行”处理，当作它回答了“继续”。")
+        }
+        (_, None) => format!("Hook {name} 失败（{}）。", failure_words(failure)),
+    };
+    if let Some(stderr) = view.stderr.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        text.push_str("错误输出：");
+        text.push_str(stderr);
+    }
+    text
+}
+
+/// A failure's kind in the words the Hook page shows for it.
+fn failure_words(failure: aura_hooks::HookFailureKind) -> &'static str {
+    use aura_hooks::HookFailureKind as Kind;
+    match failure {
+        Kind::ContentChanged => "内容已变化",
+        Kind::NotStarted => "未能启动",
+        Kind::TimedOut => "超时",
+        Kind::OutputLimit => "输出超出上限",
+        Kind::ExitCode => "退出码不是 0",
+        Kind::InvalidResult => "结果格式无效",
+        Kind::Cancelled => "已取消",
     }
 }
 
@@ -323,9 +354,10 @@ fn apply(
 /// Where Hook runs get their TEMP: next to the V2 database, never inside a package.
 pub fn scratch_root(journal: &broker::BrokerJournal) -> anyhow::Result<PathBuf> {
     let database = journal.database_path()?;
-    let data = database
-        .parent()
-        .and_then(std::path::Path::parent)
-        .ok_or_else(|| anyhow::anyhow!("hooks.data_root_unavailable"))?;
+    let data = database.parent().and_then(std::path::Path::parent).ok_or_else(|| {
+        anyhow::anyhow!(
+            "hooks.data_root_unavailable: Hook 的数据文件夹不可用，没有执行；请重启 Aura 后重试。"
+        )
+    })?;
     Ok(data.join("v2-hooks"))
 }

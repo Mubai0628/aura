@@ -1,4 +1,3 @@
-import { userMessage } from '../agent-session/user-message';
 import { useState } from 'react';
 import { ToolCredentialManager } from './ToolCredentialManager';
 import type {
@@ -8,6 +7,7 @@ import type {
   ToolMutationResultV1,
 } from '@aura/contracts/generated';
 import type { ResultEnvelope } from '../../../shared/aura-api';
+import { refusedAction } from '../agent-session/failure-text';
 export type ToolMutationRunner = (
   actionKey: string,
   operation: () => Promise<ResultEnvelope<ToolMutationResultV1 | null>>,
@@ -56,7 +56,7 @@ export function ToolCredentialBindingControl({
       if (!result.ok) {
         setCandidates(undefined);
         setSelectedCredentialId('');
-        setCandidateError(userMessage(result.error, 'Credential 候选查询失败。'));
+        setCandidateError(candidatesNotRead(result.error));
         return;
       }
       setCandidates(result.value);
@@ -68,7 +68,7 @@ export function ToolCredentialBindingControl({
     } catch (error) {
       setCandidates(undefined);
       setSelectedCredentialId('');
-      setCandidateError(userMessage(error, 'Credential 候选查询失败。'));
+      setCandidateError(candidatesNotRead(error));
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export function ToolCredentialBindingControl({
         onClick={() => void loadCandidates()}
         type="button"
       >
-        {loading ? '正在读取候选…' : '读取可用 Credential'}
+        {loading ? '正在读取…' : '读取可用的凭据'}
       </button>
       {candidateError === undefined ? null : (
         <p className="tool-detail-error" role="alert">
@@ -108,13 +108,8 @@ export function ToolCredentialBindingControl({
             : '凭据绑定需要核对。请在工具设置中重新绑定凭据，并核对允许网站。'}
         </p>
       ) : null}
-      {candidates === undefined ? (
-        <p className="tool-contract-wait">
-          新绑定只会从 Core 按用户、作用域、Slot 与策略筛选的候选集中选择；不接受手工 Credential
-          ID。
-        </p>
-      ) : candidates.candidates.length === 0 ? (
-        <p className="tool-inline-empty">当前作用域没有兼容的 Tool Credential。</p>
+      {candidates === undefined ? null : candidates.candidates.length === 0 ? (
+        <p className="tool-inline-empty">没有可用于这个工具的凭据。</p>
       ) : (
         <form
           onSubmit={(event) => {
@@ -139,39 +134,53 @@ export function ToolCredentialBindingControl({
                     ? {}
                     : { workspace_id: candidates.workspace_id }),
                 }),
-              'Credential 绑定已提交',
+              '凭据已绑定',
             );
           }}
         >
           <label>
-            <span>Credential</span>
+            <span>凭据</span>
             <select
               disabled={busyAction !== undefined || !mutable || stale}
               onChange={(event) => setSelectedCredentialId(event.target.value)}
               value={selectedCredentialId}
             >
-              <option value="">请选择 Core 认证候选</option>
+              <option value="">请选择凭据</option>
               {candidates.candidates.map((candidate) => (
                 <option key={candidate.credential_id} value={candidate.credential_id}>
-                  {candidate.display_name} · {candidate.credential_kind} ·{' '}
-                  {candidate.scope_summary.scope}
+                  {`${candidate.display_name} · ${KIND[candidate.credential_kind] ?? candidate.credential_kind} · ${SCOPE[candidate.scope_summary.scope]}`}
                 </option>
               ))}
             </select>
           </label>
           {stale ? (
             <p className="tool-detail-error" role="alert">
-              实例修订已变化，请重新读取候选。
+              这个工具刚有变化，请重新点“读取可用的凭据”。
             </p>
           ) : null}
           <button
             disabled={busyAction !== undefined || !mutable || stale || selected === undefined}
             type="submit"
           >
-            绑定所选 Credential
+            绑定所选凭据
           </button>
         </form>
       )}
     </div>
   );
 }
+
+const KIND: Readonly<Record<string, string>> = { api_key: 'API Key' };
+const SCOPE: Readonly<Record<string, string>> = {
+  user: '仅本用户',
+  workspace: '仅本工作区',
+  session: '仅本会话',
+};
+
+/** Credentials to bind that were not read: why, and that binding waits. */
+const candidatesNotRead = (error: unknown): string =>
+  refusedAction(
+    error instanceof Error ? undefined : error,
+    '可用的凭据没有读到',
+    '暂时不能绑定；请稍后重试。',
+  );

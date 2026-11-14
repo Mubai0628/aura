@@ -566,55 +566,16 @@ impl PersistenceCoordinator {
             };
             let mut unreferenced = Vec::<PathBuf>::new();
             for artifact_id in &artifact_ids {
-                let object_hashes = {
-                    let mut statement = transaction
-                        .prepare("SELECT object_hash FROM artifact_chunks WHERE artifact_id=?1")?;
-                    statement
-                        .query_map([artifact_id], |row| row.get::<_, String>(0))?
-                        .collect::<Result<Vec<_>, _>>()?
-                };
-                transaction.execute("DELETE FROM artifacts WHERE artifact_id=?1", [artifact_id])?;
-                for object_hash in object_hashes {
-                    transaction.execute(
-                        "UPDATE artifact_object_refs
-                         SET ref_count=ref_count-1 WHERE object_hash=?1",
-                        [&object_hash],
-                    )?;
-                    let remaining = transaction
-                        .query_row(
-                            "SELECT ref_count FROM artifact_object_refs WHERE object_hash=?1",
-                            [&object_hash],
-                            |row| row.get::<_, i64>(0),
-                        )
-                        .optional()?;
-                    if remaining == Some(0) {
-                        let relative = transaction.query_row(
-                            "SELECT relative_path FROM artifact_object_refs WHERE object_hash=?1",
-                            [&object_hash],
-                            |row| row.get::<_, String>(0),
-                        )?;
-                        let object_path =
-                            resolve_object_path(&artifact_root, &relative, &object_hash)?;
-                        transaction.execute(
-                            "DELETE FROM artifact_object_refs WHERE object_hash=?1",
-                            [&object_hash],
-                        )?;
-                        unreferenced.push(object_path);
-                    }
-                }
+                unreferenced.extend(crate::artifact_gc::remove_artifact(
+                    &transaction,
+                    &artifact_root,
+                    artifact_id,
+                )?);
             }
             transaction.commit()?;
             Ok((artifact_ids.len(), unreferenced))
         })?;
-        let mut objects_removed = 0;
-        let mut orphan_files_remaining = 0;
-        for path in objects {
-            match fs::remove_file(&path) {
-                Ok(()) => objects_removed += 1,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(_) => orphan_files_remaining += 1,
-            }
-        }
+        let (objects_removed, orphan_files_remaining) = crate::artifact_gc::remove_files(objects);
         Ok(ArtifactGcReport { artifacts_removed, objects_removed, orphan_files_remaining })
     }
 
@@ -1240,7 +1201,7 @@ fn parse_content_hash(algorithm: &str, value: String) -> Result<ContentHash, Per
     ContentHash::new(algorithm, value).map_err(|_| PersistenceError::ArtifactIntegrity)
 }
 
-fn resolve_object_path(
+pub(crate) fn resolve_object_path(
     root: &Path,
     relative_path: &str,
     object_hash: &str,

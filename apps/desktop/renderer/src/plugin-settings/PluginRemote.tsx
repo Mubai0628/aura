@@ -8,6 +8,7 @@ import type {
 import { restartTime } from '../agent-session/turn-continuation';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
 import { useWorkspaceSessions } from '../workspace-session-store';
+import { listedWorkspaces, worktreeParents } from '../worktree-links';
 import type { PluginChange } from './PluginDetails';
 import { PLATFORM_LABELS } from './plugin-labels';
 
@@ -52,8 +53,14 @@ function RemoteSettings({
   const shown = scope ?? remote.scope;
   const allowed = remote.allowed ?? [];
   const channels = remote.channels ?? [];
-  const workspaces = (projection?.workspaces ?? []).filter((item) => item.state !== 'archived');
-  const sessions = (projection?.sessions ?? []).filter((item) => item.state !== 'archived');
+  const sessions = (projection?.sessions ?? []).filter(
+    (item) => item.state !== 'archived' && item.state !== 'subagent',
+  );
+  const workspaces = listedWorkspaces(
+    (projection?.workspaces ?? []).filter((item) => item.state !== 'archived'),
+    sessions,
+    worktreeParents(projection),
+  );
   const saveAllowed = (next: PluginAllowedUser[]) =>
     onConfigure({ allowed: next }, `已更新 ${plugin.name} 的白名单`);
   const channelTitle = (id: string) => channels.find((item) => item.id === id)?.title ?? id;

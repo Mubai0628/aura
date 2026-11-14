@@ -1,7 +1,8 @@
-//! The execution store keeps what older versions wrote and nothing reads again until the
-//! version's own Core clears it (`aura-core --store-slim`, `aura_persistence_v2::slimming`). The
+//! The execution store keeps what older versions wrote and nothing reads again, and `aura.db` keeps
+//! a large log, a text index past its text, old catalog versions and the pages they left free, until
+//! the version's own Core clears them (`aura-core --store-slim`, `aura_store_maintenance`). The
 //! launcher runs it before a newer version's first start, and at a later start while a run is still
-//! owed (the marker beside the store), with a progress window, before the desktop opens the store.
+//! owed (the marker beside either store), with a progress window, before the desktop opens them.
 //! A run that fails never keeps Aura from starting; after three runs that never ended only a newer
 //! version's first start tries again.
 use std::{
@@ -12,13 +13,18 @@ use std::{
     time::Duration,
 };
 
-use aura_windows_platform::Progress;
+use aura_pixel_window::Progress;
 use serde_json::Value;
 
 const STORE: &str = "data/v2-execution/aura-v2.db";
 /// The first version whose Core has `--store-slim`; an older one refuses the argument.
 const SINCE: &str = "0.1.10";
 const MARKER: &str = "data/v2-execution/store-slimming.json";
+const LEGACY_STORE: &str = "data/aura.db";
+/// Beside `aura.db`: its last run and whether one is owed (`aura_persistence::slimming`).
+const LEGACY_MARKER: &str = "data/aura-db-slimming.json";
+/// The first version whose Core slims `aura.db` too.
+const LEGACY_SINCE: &str = "0.3.0";
 /// Runs that started on the marker without ending it, after which only a newer version's first
 /// start tries again.
 const RUNS: u64 = 3;
@@ -31,16 +37,20 @@ pub fn owed(data_root: &Path, version: &str, first_start: bool) -> bool {
     if crate::install_state::newer(SINCE, version) {
         return false;
     }
+    let slims_aura_db = !crate::install_state::newer(LEGACY_SINCE, version);
     if first_start {
-        return data_root.join(STORE).is_file();
+        return data_root.join(STORE).is_file()
+            || (slims_aura_db && data_root.join(LEGACY_STORE).is_file());
     }
-    let Ok(bytes) = std::fs::read(data_root.join(MARKER)) else {
-        return false;
+    // A marker's runs count the runs that started on it without ending it.
+    let unfinished = |marker: &str, runs: &str| {
+        std::fs::read(data_root.join(marker))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            .and_then(|marker| marker[runs].as_u64())
+            .is_some_and(|runs| runs < RUNS)
     };
-    serde_json::from_slice::<Value>(&bytes)
-        .ok()
-        .and_then(|marker| marker["runs"].as_u64())
-        .is_some_and(|runs| runs < RUNS)
+    unfinished(MARKER, "runs") || (slims_aura_db && unfinished(LEGACY_MARKER, "owed_runs"))
 }
 
 #[derive(Debug, PartialEq)]
@@ -173,5 +183,31 @@ mod tests {
             Some(Outcome::Failed("database is locked".to_owned()))
         );
         assert_eq!(read_line(r#"{"report":null}"#, &progress), Some(Outcome::Report(Value::Null)));
+    }
+
+    #[test]
+    fn an_aura_db_run_is_owed_while_its_marker_says_so_from_the_version_that_slims_it() {
+        let root = tempfile::tempdir().expect("data");
+        std::fs::create_dir_all(root.path().join("data")).expect("folder");
+        let marker = |runs: Option<u32>| {
+            let marker =
+                serde_json::json!({"schema_version": 1, "kept_bytes": 1, "owed_runs": runs});
+            std::fs::write(root.path().join(LEGACY_MARKER), marker.to_string()).expect("marker");
+        };
+        assert!(!owed(root.path(), "0.3.0", false), "no marker");
+        marker(None);
+        assert!(!owed(root.path(), "0.3.0", false), "nothing owed");
+        marker(Some(0));
+        assert!(owed(root.path(), "0.3.0", false));
+        assert!(owed(root.path(), "0.3.1", false));
+        assert!(!owed(root.path(), "0.2.0", false), "an older Core leaves aura.db alone");
+        marker(Some(2));
+        assert!(owed(root.path(), "0.3.0", false));
+        marker(Some(3));
+        assert!(!owed(root.path(), "0.3.0", false), "three runs that never ended");
+        // A first start runs it when there is only aura.db, from the version that slims it.
+        std::fs::write(root.path().join(LEGACY_STORE), b"").expect("store");
+        assert!(owed(root.path(), "0.3.0", true));
+        assert!(!owed(root.path(), "0.2.0", true));
     }
 }

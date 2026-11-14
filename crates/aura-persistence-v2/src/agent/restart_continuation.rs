@@ -92,6 +92,22 @@ pub fn record(
     facts::append(tx, EventId::new(), &turn.to_string(), KIND, &record, at)
 }
 
+/// Whether the turn after `after` in its session is Aura's own continuation of it: its "继续" was
+/// sent by Aura, not typed by the user.
+pub fn continued_by_aura(db: &Connection, after: TurnTaskId) -> StoreResult<bool> {
+    let next: Option<String> = db
+        .query_row(
+            "SELECT id FROM turn_tasks WHERE session_id=(SELECT session_id FROM turn_tasks WHERE id=?1) AND rowid>(SELECT rowid FROM turn_tasks WHERE id=?1) ORDER BY rowid LIMIT 1",
+            [after.to_string()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(next) = next.and_then(|id| id.parse().ok()) else {
+        return Ok(false);
+    };
+    Ok(read(db, next)?.is_some_and(|record| record.after_turn_task_id == after))
+}
+
 /// What the conversation says about a turn Aura continued by itself.
 pub fn view(db: &Connection, turn: TurnTaskId) -> StoreResult<Option<AgentAutoContinuedView>> {
     Ok(read(db, turn)?.map(|record| AgentAutoContinuedView {

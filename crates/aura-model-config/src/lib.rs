@@ -26,8 +26,8 @@ pub use credential_status::{
     derive_endpoint_credential_status,
 };
 pub use crud::{
-    LearnChatOutputTokenFieldAliasResult, UpdateModelProfileInput, create_endpoint,
-    create_provider, delete_endpoint, delete_model_profile, delete_provider,
+    LearnChatOutputTokenFieldAliasResult, ProviderSubagentChange, UpdateModelProfileInput,
+    create_endpoint, create_provider, delete_endpoint, delete_model_profile, delete_provider,
     learn_chat_output_token_field_alias, rename_model_profile, rename_provider,
     reset_endpoint_compatibility, set_model_subagent_availability, set_provider_connections,
     set_provider_current_models_subagent_availability, update_endpoint, update_model_profile,

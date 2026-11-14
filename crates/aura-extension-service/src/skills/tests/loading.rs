@@ -79,18 +79,35 @@ fn two_skills_with_one_name_are_told_apart_by_where_they_are_from() {
 }
 
 #[test]
-fn search_finds_every_word_in_a_name_or_description_up_to_its_limit() {
+fn search_finds_skills_by_any_of_the_words_best_first_up_to_its_limit() {
     let f = Fixture::new();
-    for name in ["alpha", "beta", "gamma"] {
+    for name in ["alpha", "beta", "gamma", "ui-ux-pro-max", "build-tools"] {
         skill(&f.global(), name);
     }
+    let reviewer = skill(&f.global(), "reviewer");
+    write(
+        &reviewer.join("SKILL.md"),
+        "---\nname: reviewer\ndescription: Review frontend code for UI problems\n---\n\nReview.\n",
+    );
     let names = |query, limit| {
         let (found, truncated) = loading::search(&f.runtime, None, query, limit).expect("found");
         (found.into_iter().map(|skill| skill.name).collect::<Vec<_>>(), truncated)
     };
-    assert_eq!(names("", 20), (vec!["alpha".into(), "beta".into(), "gamma".into()], false));
-    assert_eq!(names("TEST beta", 20), (vec!["beta".into()], false));
-    assert_eq!(names("", 2), (vec!["alpha".into(), "beta".into()], true));
+    let all: Vec<String> = ["alpha", "beta", "build-tools", "gamma", "reviewer", "ui-ux-pro-max"]
+        .map(str::to_owned)
+        .to_vec();
+    assert_eq!(names("", 20), (all.clone(), false));
+    // Any word finds a Skill. One with more of the words comes first, and a word in its name
+    // counts for more than one in its description; a word is found where a word starts, so "ui"
+    // is not found in "build".
+    assert_eq!(
+        names("UI UX review frontend code audit", 20),
+        (vec!["reviewer".into(), "ui-ux-pro-max".into()], false)
+    );
+    let (tested, _) = names("TEST beta", 20);
+    assert_eq!(tested[0], "beta");
+    assert!(!tested.contains(&"reviewer".to_owned()), "{tested:?}");
+    assert_eq!(names("", 2), (all[..2].to_vec(), true));
     assert_eq!(names("delta", 20), (vec![], false));
     let (found, _) = loading::search(&f.runtime, None, "gamma", 20).expect("found");
     assert_eq!(found[0].description, "Test skill gamma");

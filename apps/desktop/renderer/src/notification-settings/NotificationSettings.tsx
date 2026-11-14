@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 
 import type { NotificationPreferences } from '../../../shared/notifications';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
+import { userMessage } from '../agent-session/user-message';
 import '../browser-settings/browser-settings.css';
 import './notification-settings.css';
 
 const SWITCHES: readonly { kind: keyof NotificationPreferences; label: string }[] = [
   { kind: 'updates', label: '有新版本' },
   { kind: 'approvals', label: '需要审批' },
-  { kind: 'questions', label: '模型提问或等你决定' },
+  { kind: 'questions', label: '模型提问、等你输入或决定' },
   { kind: 'completions', label: '任务完成' },
   { kind: 'failures', label: '任务出错或暂停' },
 ];
@@ -36,12 +37,15 @@ export function NotificationSettings() {
     };
   }, [api]);
   const save = async (next: NotificationPreferences) => {
+    const before = preferences;
     setError(undefined);
     setPreferences(next);
     try {
       setPreferences(await api!.notificationPreferences({ kind: 'set', preferences: next }));
-    } catch {
-      setError('通知设置没有保存，请重试。');
+    } catch (reason) {
+      // The switch goes back to what is in force.
+      setPreferences(before);
+      setError(userMessage(reason, '通知设置没有保存，请重试。'));
     }
   };
   return (

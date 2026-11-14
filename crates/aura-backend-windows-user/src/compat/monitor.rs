@@ -23,12 +23,27 @@ impl Record {
         name: &'static str,
         work: impl FnOnce(Arc<dyn WindowsUserCorePort>, DispatchRequest) -> Result<T> + Send + 'static,
     ) -> Result<T> {
+        let run = self.request.operation.content.identity.agent_run_id;
+        self.section(PortSection::write(name, run), work)
+    }
+
+    fn read<T: Send + 'static>(
+        &self,
+        name: &'static str,
+        work: impl FnOnce(Arc<dyn WindowsUserCorePort>, DispatchRequest) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
+        let run = self.request.operation.content.identity.agent_run_id;
+        self.section(PortSection::read(name, run), work)
+    }
+
+    fn section<T: Send + 'static>(
+        &self,
+        section: PortSection,
+        work: impl FnOnce(Arc<dyn WindowsUserCorePort>, DispatchRequest) -> Result<T> + Send + 'static,
+    ) -> Result<T> {
         let port = self.port.clone();
         let request = self.request.clone();
-        self.reactor.block_on(self.port.section(
-            PortSection::write(name, request.operation.content.identity.agent_run_id),
-            Box::new(move || work(port, request)),
-        ))
+        self.reactor.block_on(self.port.section(section, Box::new(move || work(port, request))))
     }
 }
 
@@ -43,11 +58,14 @@ pub(super) async fn run(
 ) -> Result<TerminationEvidence> {
     if *cancelled.borrow() || UtcTimestamp::now() >= expires.min(prepared.valid_until) {
         let reason = if *cancelled.borrow() { NotStarted::Cancelled } else { NotStarted::Expired };
-        return not_started(port, request, reason).await;
+        return not_started(port, request, reason, None).await;
     }
     let launch = match port.begin_launch(&request).await {
         Ok(lease) => lease,
-        Err(_) => return not_started(port, request, NotStarted::Rejected).await,
+        Err(error) => {
+            let code = crate::controller::bounded_failure_code(&error);
+            return not_started(port, request, NotStarted::Rejected, code).await;
+        }
     };
     let record = Record {
         request: request.clone(),
@@ -85,15 +103,19 @@ pub(super) async fn run(
     }
 }
 
+/// Records a command that never started, with the launch path's bounded code when it has one.
 async fn not_started(
     port: Arc<dyn WindowsUserCorePort>,
     request: DispatchRequest,
     reason: NotStarted,
+    code: Option<String>,
 ) -> Result<TerminationEvidence> {
     let writer = port.clone();
     port.section(
         PortSection::write("compat.not_started", request.operation.content.identity.agent_run_id),
-        Box::new(move || writer.complete(&request, None, true, true, Some(reason), None)),
+        Box::new(move || {
+            writer.complete(&request, None, true, true, Some(reason), code.as_deref())
+        }),
     )
     .await
 }
@@ -117,7 +139,22 @@ fn observe(
         serde_json::from_value(record.request.operation.content.action.clone())?;
     let started_at = UtcTimestamp::now();
     let offline = record.request.operation.content.network == OperationNetwork::None;
-    let mut execution = match engine.launch(&command, offline.then_some(proxy.endpoint.as_str())) {
+    let Ok(policy) =
+        record.read("compat.process_policy", |port, request| port.process_policy(&request))
+    else {
+        return record.write("compat.process_policy_failed", |port, request| {
+            port.complete(
+                &request,
+                None,
+                true,
+                true,
+                Some(NotStarted::Rejected),
+                Some("compat.process_policy_failed"),
+            )
+        });
+    };
+    let proxy = offline.then_some(proxy.endpoint.as_str());
+    let mut execution = match engine.launch_in(&command, proxy, policy.as_ref()) {
         Ok(execution) => execution,
         Err(error) => {
             let no_start = error

@@ -41,7 +41,9 @@ pub struct ElevatedBrokerOptions {
 }
 
 #[derive(Debug, Error)]
-#[error("active Release Manifest signature trust is unavailable or invalid")]
+#[error(
+    "sandbox.host_preparation_release_trust_failed: 这个 Aura 安装包的签名校验没有通过或无法进行，没有请求管理员权限，系统没有被修改；请从官方发布页重新下载安装。"
+)]
 pub(crate) struct ActiveReleaseTrustError {
     #[source]
     source: io::Error,
@@ -58,7 +60,9 @@ impl ActiveReleaseTrustError {
 /// Kept distinct from a transport failure so the operation is not recorded as
 /// "state unknown" when the refusal itself establishes that no resource changed.
 #[derive(Debug, Error)]
-#[error("the Elevated Helper refused the Host Preparation plan before any resource write ({code})")]
+#[error(
+    "sandbox.host_preparation_refused: 管理员助手在改动系统之前拒绝了这份兼容环境方案（{code}），系统没有被修改；请看“兼容环境”一项的状态，核对后再决定是否重试。"
+)]
 pub(crate) struct ElevatedHelperRefusal {
     code: &'static str,
 }
@@ -88,14 +92,14 @@ pub async fn execute_elevated_host_preparation(
         verify_active_release_trust(&options.component_manifest_path, &options.release_descriptor)
             .map_err(ActiveReleaseTrustError::new)?;
     let mut pipe_random = [0_u8; 16];
-    getrandom::fill(&mut pipe_random).context("failed to generate elevated broker pipe name")?;
+    getrandom::fill(&mut pipe_random).context("sandbox.elevated_helper_random_failed: 没能为管理员助手生成随机管道名，没有请求管理员权限，系统没有被修改；请重试。")?;
     let pipe_name = format!(
         r"\\.\pipe\Aura\{}\Elevated\{}",
         options.release_descriptor.bundle_namespace.object_name_hash(),
         lower_hex(&pipe_random)
     );
     let mut nonce = [0_u8; 32];
-    getrandom::fill(&mut nonce).context("failed to generate elevated broker nonce")?;
+    getrandom::fill(&mut nonce).context("sandbox.elevated_helper_random_failed: 没能为管理员助手生成随机校验码，没有请求管理员权限，系统没有被修改；请重试。")?;
     let challenge_nonce = SecretNonce::from_bytes(nonce);
     let helper_runtime_instance_id = RuntimeInstanceId::new();
     let mut guard = ElevatedBrokerGuard::new(
@@ -106,7 +110,7 @@ pub async fn execute_elevated_host_preparation(
         helper_runtime_instance_id,
     );
     let mut server = create_secure_byte_pipe_server(&pipe_name, true)
-        .context("failed to create elevated broker pipe")?;
+        .context("sandbox.elevated_helper_pipe_failed: 没能建立与管理员助手通信的管道，没有请求管理员权限，系统没有被修改；请重试。")?;
     let helper = launch_verified_aura_elevated_helper(&ElevatedHelperLaunch {
         executable: options.helper_executable.clone(),
         component_manifest_path: options.component_manifest_path.clone(),
@@ -117,23 +121,25 @@ pub async fn execute_elevated_host_preparation(
         helper_runtime_instance_id,
         allow_dev_component_mismatch: false,
     })
-    .context("failed to launch verified Aura Elevated Helper")?;
+    .context("sandbox.elevated_helper_launch_failed: 没能启动经过校验的 Aura 管理员助手；请看“兼容环境”一项的状态，核对后再决定是否重试。")?;
     time::timeout(HELPER_CONNECT_TIMEOUT, server.connect())
         .await
-        .context("Elevated Helper did not connect before the UAC deadline")??;
+        .context("sandbox.elevated_helper_connect_timeout: 管理员助手没有在限定时间内连上 Aura（管理员权限窗口可能还没确认）；请看“兼容环境”一项的状态，核对后再决定是否重试。")??;
     let helper_identity = validate_named_pipe_client(&server, helper.identity())
-        .context("Elevated Helper pipe client identity was rejected")?;
+        .context("sandbox.elevated_helper_identity_rejected: 连上管道的程序不是 Aura 启动的管理员助手，已拒绝它；请看“兼容环境”一项的状态，核对后再决定是否重试。")?;
 
     let hello: ElevatedHelperHello = read_control_timeout(&mut server).await?;
     if hello.helper_process_id != helper_identity.process_id {
-        bail!("Elevated Helper hello PID does not match its pipe client PID");
+        bail!(
+            "sandbox.elevated_helper_identity_rejected: 管理员助手报的进程号与连上管道的进程不一致，已拒绝它；请看“兼容环境”一项的状态，核对后再决定是否重试。"
+        );
     }
     guard.accept_hello(&hello)?;
     write_control(&mut server, &ElevatedHelperChallenge { bootstrap_nonce: challenge_nonce })
         .await?;
     let proof: ElevatedHelperChallengeProof = read_control_timeout(&mut server).await?;
     guard.accept_challenge_proof(&proof)?;
-    on_authenticated().context("failed to enter the authenticated Elevated Helper apply state")?;
+    on_authenticated().context("sandbox.host_preparation_state_unsaved: 管理员助手已通过校验，但没能把操作记成正在应用，没有让它改动系统；请看“兼容环境”一项的状态，核对后再决定是否重试。")?;
 
     let command = ElevatedHelperCommand {
         protocol_version: ContractVersion::CURRENT,
@@ -149,7 +155,9 @@ pub async fn execute_elevated_host_preparation(
         || terminal.plan_hash != plan.plan_hash
         || terminal.result.operation_id != plan.operation_id
     {
-        bail!("Elevated Helper returned a mismatched terminal result");
+        bail!(
+            "sandbox.elevated_helper_result_mismatch: 管理员助手返回的结果与这次的方案对不上，不能确认系统是否已被修改；请点“修复兼容环境”重新检查。"
+        );
     }
     if !terminal.result.succeeded {
         // Only a code from the closed pre-write set may downgrade "unknown" to
@@ -159,7 +167,9 @@ pub async fn execute_elevated_host_preparation(
         {
             return Err(ElevatedHelperRefusal { code }.into());
         }
-        bail!("Elevated Helper failed without a provable pre-write refusal");
+        bail!(
+            "sandbox.elevated_helper_failed: 管理员助手报告失败，但不能证明它没有改动系统；请点“修复兼容环境”重新检查。"
+        );
     }
     drop(helper);
     Ok(terminal.result)
@@ -188,10 +198,10 @@ pub fn validate_active_release_identity(
     plan: &HostPreparationBrokerPlan,
 ) -> Result<()> {
     let manifest_path = fs::canonicalize(&options.component_manifest_path)
-        .context("failed to resolve the active component manifest")?;
+        .context("sandbox.release_manifest_unreadable: 找不到当前安装的 Aura 组件清单，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let (active_path, active_bytes_before, active) = validate_active_manifest_path(&manifest_path)?;
     let manifest_bytes =
-        fs::read(&manifest_path).context("failed to read the active component manifest")?;
+        fs::read(&manifest_path).context("sandbox.release_manifest_unreadable: 读不出当前安装的 Aura 组件清单，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let actual_manifest_hash = ContentHash::new(
         ContentHashAlgorithm::Sha256,
         format!("{:x}", Sha256::digest(&manifest_bytes)),
@@ -200,10 +210,12 @@ pub fn validate_active_release_identity(
         || actual_manifest_hash != plan.release_descriptor.identity.component_manifest_hash
         || actual_manifest_hash != active.release_descriptor.identity.component_manifest_hash
     {
-        bail!("active component manifest changed after Host Preparation planning");
+        bail!(
+            "sandbox.host_preparation_release_changed: 准备方案之后 Aura 的组件清单变了（可能刚更新过），这份方案作废，没有请求管理员权限，系统没有被修改；请重新开始这次操作。"
+        );
     }
     let manifest: BuildComponentManifest =
-        serde_json::from_slice(&manifest_bytes).context("active component manifest is invalid")?;
+        serde_json::from_slice(&manifest_bytes).context("sandbox.release_manifest_invalid: 当前安装的 Aura 组件清单格式不对，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     if manifest.bundle_namespace != options.release_descriptor.bundle_namespace
         || manifest.bundle_namespace != plan.release_descriptor.bundle_namespace
         || manifest.bundle_namespace != active.release_descriptor.bundle_namespace
@@ -211,47 +223,61 @@ pub fn validate_active_release_identity(
         || manifest.release_bundle_id != plan.release_descriptor.identity.release_bundle_id
         || manifest.release_bundle_id != active.release_descriptor.identity.release_bundle_id
     {
-        bail!("active Release Bundle changed after Host Preparation planning");
+        bail!(
+            "sandbox.host_preparation_release_changed: 准备方案之后安装的 Aura 变了（可能刚更新过），这份方案作废，没有请求管理员权限，系统没有被修改；请重新开始这次操作。"
+        );
     }
     let helper = manifest
         .components
         .iter()
         .find(|component| component.kind == BuildComponentKind::ElevatedHelper)
-        .context("active component manifest has no Elevated Helper")?;
+        .context("sandbox.elevated_helper_missing: 当前安装的 Aura 组件清单里没有管理员助手，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     if helper.content_hash != options.helper_content_hash {
-        bail!("frozen Elevated Helper hash no longer matches the active manifest");
+        bail!(
+            "sandbox.host_preparation_release_changed: Aura 启动时记下的管理员助手与当前安装的不一致（可能刚更新过），没有请求管理员权限，系统没有被修改；请重启 Aura 后再试。"
+        );
     }
     let manifest_root =
-        manifest_path.parent().context("active manifest has no parent directory")?;
+        manifest_path.parent().context("sandbox.release_layout_invalid: Aura 组件清单的位置不对，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let expected_helper_path = safe_release_path(manifest_root, &helper.relative_path)?;
     let expected_helper_path = fs::canonicalize(expected_helper_path)
-        .context("failed to resolve the active Elevated Helper")?;
+        .context("sandbox.elevated_helper_missing: 找不到当前安装的管理员助手程序，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     if !expected_helper_path.starts_with(manifest_root) {
-        bail!("Elevated Helper resolves outside the active Release Bundle");
+        bail!(
+            "sandbox.elevated_helper_outside_release: 管理员助手程序不在当前安装的 Aura 目录里，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。"
+        );
     }
     let configured_helper_path = fs::canonicalize(&options.helper_executable)
-        .context("failed to resolve the frozen Elevated Helper")?;
+        .context("sandbox.elevated_helper_missing: 找不到 Aura 启动时记下的管理员助手程序，没有请求管理员权限，系统没有被修改；请重启 Aura 后再试。")?;
     if expected_helper_path != configured_helper_path {
-        bail!("Elevated Helper does not belong to the active Release Bundle");
+        bail!(
+            "sandbox.host_preparation_release_changed: Aura 启动时记下的管理员助手不属于当前安装的版本（可能刚更新过），没有请求管理员权限，系统没有被修改；请重启 Aura 后再试。"
+        );
     }
     let helper_bytes =
-        fs::read(&configured_helper_path).context("failed to read the active Elevated Helper")?;
+        fs::read(&configured_helper_path).context("sandbox.elevated_helper_unreadable: 读不出当前安装的管理员助手程序，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let helper_hash = match helper.content_hash.algorithm {
         ContentHashAlgorithm::Sha256 => format!("{:x}", Sha256::digest(&helper_bytes)),
         ContentHashAlgorithm::Blake3 => blake3::hash(&helper_bytes).to_hex().to_string(),
     };
     if helper_hash != helper.content_hash.hex {
-        bail!("Elevated Helper hash does not match the active component manifest");
+        bail!(
+            "sandbox.elevated_helper_tampered: 管理员助手程序与组件清单记录的不一致（可能被改动或损坏），没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。"
+        );
     }
     let manifest_bytes_after =
-        fs::read(&manifest_path).context("failed to re-read the active component manifest")?;
+        fs::read(&manifest_path).context("sandbox.release_manifest_unreadable: 核对时没能再次读出 Aura 组件清单，没有请求管理员权限，系统没有被修改；请重试。")?;
     if manifest_bytes_after != manifest_bytes {
-        bail!("active component manifest changed during Host Preparation verification");
+        bail!(
+            "sandbox.host_preparation_release_changed: 核对期间 Aura 的组件清单变了（可能正在更新），没有请求管理员权限，系统没有被修改；等更新完成后重新开始这次操作。"
+        );
     }
     let active_bytes_after =
-        fs::read(&active_path).context("failed to re-read active release metadata")?;
+        fs::read(&active_path).context("sandbox.release_metadata_unreadable: 核对时没能再次读出 Aura 的当前版本记录（active.json），没有请求管理员权限，系统没有被修改；请重试。")?;
     if active_bytes_after != active_bytes_before {
-        bail!("active release metadata changed during Host Preparation verification");
+        bail!(
+            "sandbox.host_preparation_release_changed: 核对期间 Aura 的当前版本记录变了（可能正在更新），没有请求管理员权限，系统没有被修改；等更新完成后重新开始这次操作。"
+        );
     }
     Ok(())
 }
@@ -260,35 +286,41 @@ fn validate_active_manifest_path(
     manifest_path: &Path,
 ) -> Result<(PathBuf, Vec<u8>, ActiveInstallState)> {
     let version_directory =
-        manifest_path.parent().context("active component manifest has no version directory")?;
+        manifest_path.parent().context("sandbox.release_layout_invalid: Aura 组件清单不在版本目录里，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let versions_root =
-        version_directory.parent().context("active version directory has no versions root")?;
+        version_directory.parent().context("sandbox.release_layout_invalid: Aura 的版本目录不在 versions 文件夹里，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     if versions_root
         .file_name()
         .is_none_or(|name| !name.to_string_lossy().eq_ignore_ascii_case("versions"))
     {
-        bail!("component manifest is not inside an Aura active versions directory");
+        bail!(
+            "sandbox.release_layout_invalid: Aura 组件清单不在安装目录的 versions 文件夹里（开发版或安装不完整），没有请求管理员权限，系统没有被修改；请用正式安装的 Aura 再试。"
+        );
     }
-    let install_root = versions_root.parent().context("Aura versions root has no install root")?;
+    let install_root = versions_root.parent().context("sandbox.release_layout_invalid: Aura 的 versions 文件夹没有上级安装目录，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let active_path = install_root.join("active.json");
     let active_bytes =
-        fs::read(&active_path).context("failed to read current active release metadata")?;
+        fs::read(&active_path).context("sandbox.release_metadata_unreadable: 读不出 Aura 的当前版本记录（active.json），没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let active: ActiveInstallState =
-        serde_json::from_slice(&active_bytes).context("active.json is invalid")?;
+        serde_json::from_slice(&active_bytes).context("sandbox.release_metadata_invalid: Aura 的当前版本记录（active.json）格式不对，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     if active.active.is_empty()
         || active.active == "."
         || active.active == ".."
         || active.active.contains('/')
         || active.active.contains('\\')
     {
-        bail!("active.json contains an unsafe active version segment");
+        bail!(
+            "sandbox.release_metadata_invalid: Aura 的当前版本记录（active.json）里的版本名不安全，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。"
+        );
     }
     let expected_version = fs::canonicalize(versions_root.join(&active.active))
-        .context("failed to resolve the current active version directory")?;
+        .context("sandbox.release_layout_invalid: 找不到当前版本记录指向的 Aura 版本目录，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。")?;
     let actual_version = fs::canonicalize(version_directory)
-        .context("failed to resolve the frozen version directory")?;
+        .context("sandbox.release_layout_invalid: 找不到 Aura 启动时所在的版本目录（可能已被更新清理），没有请求管理员权限，系统没有被修改；请重启 Aura 后再试。")?;
     if expected_version != actual_version {
-        bail!("Host Preparation plan does not belong to the current active release");
+        bail!(
+            "sandbox.host_preparation_release_changed: 正在运行的 Aura 不是当前安装的版本（可能刚更新过），没有请求管理员权限，系统没有被修改；请重启 Aura 后再试。"
+        );
     }
     Ok((active_path, active_bytes, active))
 }
@@ -300,11 +332,15 @@ fn safe_release_path(root: &Path, relative: &str) -> Result<PathBuf> {
             .components()
             .any(|component| matches!(component, std::path::Component::ParentDir))
     {
-        bail!("Elevated Helper path escapes the active Release Bundle");
+        bail!(
+            "sandbox.elevated_helper_outside_release: 组件清单里管理员助手的路径指向了 Aura 安装目录之外，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。"
+        );
     }
     let path = root.join(candidate);
     if !path.starts_with(root) {
-        bail!("Elevated Helper path escapes the active Release Bundle");
+        bail!(
+            "sandbox.elevated_helper_outside_release: 组件清单里管理员助手的路径指向了 Aura 安装目录之外，没有请求管理员权限，系统没有被修改；请重新安装 Aura 后再试。"
+        );
     }
     Ok(path)
 }
@@ -312,11 +348,13 @@ fn safe_release_path(root: &Path, relative: &str) -> Result<PathBuf> {
 async fn read_control_timeout<T: DeserializeOwned>(server: &mut NamedPipeServer) -> Result<T> {
     let frame = time::timeout(HELPER_PROTOCOL_TIMEOUT, read_frame(server))
         .await
-        .context("Elevated Helper protocol step timed out")??;
+        .context("sandbox.elevated_helper_timeout: 管理员助手没有在限定时间内答复；请看“兼容环境”一项的状态，核对后再决定是否重试。")??;
     let WireFrame::Control(payload) = frame else {
-        bail!("Elevated Helper accepts control frames only");
+        bail!(
+            "sandbox.elevated_helper_protocol_invalid: 管理员助手发来的消息格式不对，已停止与它通信；请看“兼容环境”一项的状态，核对后再决定是否重试。"
+        );
     };
-    serde_json::from_slice(&payload).context("invalid Elevated Helper control payload")
+    serde_json::from_slice(&payload).context("sandbox.elevated_helper_protocol_invalid: 管理员助手发来的消息内容无法解析，已停止与它通信；请看“兼容环境”一项的状态，核对后再决定是否重试。")
 }
 
 async fn write_control<T: Serialize>(server: &mut NamedPipeServer, value: &T) -> Result<()> {
@@ -465,6 +503,7 @@ mod tests {
                 previous: None,
                 pending: None,
                 last_known_good: None,
+                data_location: None,
             })
             .expect("active metadata"),
         )
@@ -519,6 +558,7 @@ mod tests {
                 previous: Some("1.0.0".to_owned()),
                 pending: None,
                 last_known_good: Some("1.0.0".to_owned()),
+                data_location: None,
             })
             .expect("replacement active metadata"),
         )

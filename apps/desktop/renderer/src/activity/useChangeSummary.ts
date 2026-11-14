@@ -2,10 +2,12 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { reviewTotals } from '../review/review-model';
 import { checkReview, reviewKey, reviewSnapshot, subscribeReviews } from '../review/review-store';
 
+/** Why the uncommitted changes cannot be summed up. */
+export type ChangeSummaryGap = 'no-git' | 'too-old' | 'invalid' | 'not-repository' | 'unreadable';
+
 export type ChangeSummary =
   | { state: 'reading' }
-  /** No Git on this computer, or a workspace Git cannot read (not a repository). */
-  | { state: 'unavailable'; reason: 'no-git' | 'unreadable' }
+  | { state: 'unavailable'; reason: ChangeSummaryGap }
   | {
       state: 'read';
       files: number;
@@ -35,8 +37,12 @@ export function useChangeSummary(
   }, [workspace, session, refreshKey]);
   if (!workspace) return undefined;
   if (!snapshot) return { state: 'reading' };
-  if (snapshot.runtime && snapshot.runtime.state !== 'available')
-    return { state: 'unavailable', reason: 'no-git' };
+  if (snapshot.runtime && snapshot.runtime.state !== 'available') {
+    const state: string = snapshot.runtime.state;
+    const reason = state === 'too_old' ? 'too-old' : state === 'invalid' ? 'invalid' : 'no-git';
+    return { state: 'unavailable', reason };
+  }
+  if (snapshot.notRepository) return { state: 'unavailable', reason: 'not-repository' };
   if (!snapshot.status)
     return snapshot.error ? { state: 'unavailable', reason: 'unreadable' } : { state: 'reading' };
   return { state: 'read', ...reviewTotals(snapshot.files), partial: snapshot.partial };

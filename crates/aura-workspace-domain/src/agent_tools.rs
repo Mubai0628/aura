@@ -6,10 +6,10 @@
 //! workspace root before the operation is built; this boundary only ever sees
 //! the validated relative value.
 use crate::{
-    AgentWorkspacePath, FsExpectedState, FsExternalListTarget, FsSearchPattern, TextEncoding,
-    TextReadRange,
+    AgentWorkspacePath, FsExpectedState, FsExternalListTarget, FsReadTextResult, FsSearchPattern,
+    TextEncoding, TextReadRange,
 };
-use aura_domain_common::{ContentHash, ExternalGrantId, Revision, WorkspacePath};
+use aura_domain_common::{ArtifactId, ContentHash, ExternalGrantId, Revision, WorkspacePath};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +54,33 @@ pub struct AgentFileReadInput {
     /// Leave out to detect the encoding.
     pub explicit_encoding: Option<TextEncoding>,
 }
+/// What `fs.read` answers: a text file's text, or a picture.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq)]
+#[serde(untagged)]
+#[schemars(extend("type" = "object"))]
+pub enum AgentFileReadResult {
+    Text(FsReadTextResult),
+    Picture(AgentFilePictureResult),
+}
+
+/// A PNG, JPEG, GIF or WebP file `fs.read` found. A model that takes images is sent the picture
+/// with this result.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentFilePictureResult {
+    /// The path the read used.
+    pub path: String,
+    /// `image/png`, `image/jpeg`, `image/gif` or `image/webp`.
+    pub media_type: String,
+    pub byte_length: u64,
+    /// Whether the picture goes to the model with this result.
+    pub shown_to_model: bool,
+    /// The stored copy the model is sent, when it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_artifact_id: Option<ArtifactId>,
+    pub note: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentFileSearchInput {
@@ -74,6 +101,14 @@ pub struct AgentFileSearchInput {
     #[schemars(range(min = 1, max = 100))]
     #[serde(default = "default_page")]
     pub limit: u32,
+    /// Lines shown before and after each match in a workspace file, 0..=10 (default 0).
+    #[schemars(range(min = 0, max = 10))]
+    #[serde(default, skip_serializing_if = "no_lines")]
+    pub context_lines: u32,
+}
+
+fn no_lines(lines: &u32) -> bool {
+    *lines == 0
 }
 
 /// Lists immediate children, including empty directories. Use `.` for the root.

@@ -273,6 +273,25 @@
   background: var(--warning-dot);
 }
 
+/* A conversation with a notification the user has not looked at: red, as the dot on the
+   taskbar button, until it has been in front. */
+.session-state.has-notice {
+  width: 6px;
+  height: 6px;
+  margin: 0;
+  background: var(--danger-dot);
+  animation: none;
+}
+
+.workspace-notice {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: var(--radius-round);
+  background: var(--danger-dot);
+}
+
 @keyframes session-running {
   50% {
     opacity: 0.25;

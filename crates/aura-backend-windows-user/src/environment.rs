@@ -15,6 +15,27 @@ pub const POWERSHELL_ARGUMENTS: [&str; 4] = ["-MTA", "-NoLogo", "-NoProfile", "-
 pub const POWERSHELL_SCRIPT_FILE: &str = "script.ps1";
 const POWERSHELL_RUNNER: &str = include_str!("powershell-runner.ps1");
 
+/// The bootstrap line that limits module discovery to the verified package's own modules.
+const PACKAGE_MODULE_PATH: &str = "$env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules')";
+/// The module path PowerShell built at startup from the user's environment (the user's, the
+/// machine's and Windows PowerShell's modules), with the verified package's own first.
+const USER_MODULE_PATH: &str = "$env:PSModulePath = (@([IO.Path]::Combine($PSHOME, 'Modules')) + \
+     @($env:PSModulePath -split ';' | Where-Object { $_ -and $_ -ne [IO.Path]::Combine($PSHOME, \
+     'Modules') })) -join ';'";
+
+/// [`POWERSHELL_BOOTSTRAP`] for a run with the user's own rights and environment, which finds
+/// modules as the user's own PowerShell does. A sandboxed run keeps the package's modules only.
+#[must_use]
+pub fn user_powershell_bootstrap() -> String {
+    POWERSHELL_BOOTSTRAP.replacen(PACKAGE_MODULE_PATH, USER_MODULE_PATH, 1)
+}
+
+/// [`powershell_command_file`] for a run with the user's own rights and environment.
+#[must_use]
+pub fn user_powershell_command_file() -> String {
+    format!("{}\n{POWERSHELL_RUNNER}", user_powershell_bootstrap().trim_end())
+}
+
 /// The command file a PowerShell run executes - the
 /// bootstrap, then the runner that reads [`POWERSHELL_SCRIPT_FILE`] beside it. A parse error is
 /// reported by the script's own line before anything runs, and the script runs as a script block,

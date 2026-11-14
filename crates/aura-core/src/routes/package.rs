@@ -3,6 +3,7 @@
 use crate::package_services::{ImportSource, PackageServices, RunEnvironment};
 use crate::*;
 use aura_core_base::sync_boundary::{SyncSection, SyncSubject};
+use aura_package_service::failures;
 use aura_tool_domain::*;
 
 pub(crate) async fn dispatch(
@@ -139,7 +140,7 @@ fn run(
         "packages.version.get" => serde_json::to_value(packages.version_view(&decode(params)?)?)?,
         "packages.conformance.prepare" => serde_json::to_value(packages.prepare(
             &decode(params)?,
-            environment.ok_or_else(|| anyhow::anyhow!("package.environment_missing"))?,
+            environment.ok_or_else(|| anyhow::anyhow!(failures::ENVIRONMENT_MISSING))?,
         )?)?,
         "packages.conformance.start" => serde_json::to_value(packages.start(&decode(params)?)?)?,
         "packages.conformance.get" => {
@@ -156,7 +157,7 @@ fn run(
         "packages.credential.clear" => {
             serde_json::to_value(packages.clear_credential(&decode(params)?)?)?
         }
-        _ => anyhow::bail!("package.unknown_method"),
+        _ => anyhow::bail!(failures::UNKNOWN_METHOD),
     })
 }
 
@@ -199,7 +200,7 @@ fn package_error(correlation_id: CorrelationId, error: &anyhow::Error) -> IpcErr
         let Some(rest) = text.strip_prefix("package.") else { continue };
         let (code, message) = match rest.split_once(": ") {
             Some((code, message)) => (format!("package.{code}"), message.to_owned()),
-            None => (format!("package.{rest}"), default_message(rest).to_owned()),
+            None => (format!("package.{rest}"), failures::bare_code_sentence(rest).to_owned()),
         };
         if code.len() <= 96
             && code.bytes().all(|b| b.is_ascii_lowercase() || b == b'.' || b == b'_')
@@ -213,21 +214,4 @@ fn package_error(correlation_id: CorrelationId, error: &anyhow::Error) -> IpcErr
         ErrorCategory::Unavailable,
         "工具包操作未完成，请查看 Core 日志。",
     )
-}
-
-fn default_message(code: &str) -> &'static str {
-    match code {
-        "not_found" | "version_not_found" => "找不到这个工具包或版本，请刷新列表。",
-        "conformance_not_approved" | "conformance_missing" | "conformance_incomplete" => {
-            "这个版本没有通过验证，不能安装。"
-        }
-        "settings_invalid" | "settings_not_canonical" => "工具设置不符合这个版本的要求。",
-        "not_installed" => "这个工具包尚未安装。",
-        "not_trusted" => "这个工具包已撤销信任，请重新安装。",
-        "program_credentials_unsupported" => "运行程序的工具不能使用 Aura 保存的凭据，不能安装。",
-        "owner_stopping" => "Aura 正在退出，工具包操作没有开始。",
-        "conformance_capacity" => "同时进行的验证过多，请稍后重试。",
-        "run_not_active" => "这次验证已经结束。",
-        _ => "工具包操作未完成。",
-    }
 }

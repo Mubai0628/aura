@@ -2,12 +2,15 @@ import type { QueryAnswer, UserQuery } from '@aura/contracts/generated';
 import { useState } from 'react';
 import { AppIcon } from '../../app-icons';
 import { PixelRing } from '../../ui/PixelRing';
-import { userMessage } from '../user-message';
+import { connectionCause, failedAction } from '../failure-text';
 import { QUERY_COUNTDOWN_SECONDS, useQueryCountdown } from './query-countdown';
 import { draftAnswer, type QuestionDraft } from './query-draft';
 import { QueryPager } from './QueryPager';
 import { QueryQuestionBlock } from './QueryQuestion';
 import './query.css';
+
+/** Core's refusals that mean the question is no longer waiting for this answer. */
+const ENDED = ['agent.query_missing', 'agent.query_changed'];
 
 const EMPTY: QuestionDraft = { custom: false, customText: '' };
 
@@ -65,13 +68,18 @@ export function QueryForm({
         answers,
       });
       if (!result.ok) {
-        setError(userMessage(result.error.message, '回答没有送达，请核对当前问题状态。'));
+        setError(
+          ENDED.some((code) => `${result.error.code ?? ''} ${result.error.message}`.includes(code))
+            ? '这个问题已经结束（超时、任务已停止或问题已更新），你的回答没有送达；请看最新的问题，或在输入框说明。'
+            : failedAction(result.error, '回答没有送达', '问题仍在等你回答；请再提交一次。'),
+        );
         return;
       }
       setError(undefined);
       onChanged();
-    } catch {
-      setError('回答结果未确认，请核对当前问题状态。');
+    } catch (reason) {
+      const cause = connectionCause(reason) ?? '与 Aura Core 的连接出了问题';
+      setError(`回答是否送达没有确认（${cause}），没有自动重发；请看问题是否还在等你回答。`);
       onChanged();
     } finally {
       setBusy(false);

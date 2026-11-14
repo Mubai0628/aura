@@ -1,7 +1,7 @@
 mod handshake;
 mod tls;
 mod transport;
-pub(super) use transport::ProxyClient;
+pub(super) use transport::{ProxiedHop, ProxyClient};
 
 use crate::NetworkControlError;
 use aura_permission_domain::NormalizedOrigin;
@@ -50,7 +50,7 @@ impl fmt::Display for UserProxyFailureV1 {
         if self.kind == UserProxyFailureKindV1::Protocol {
             write!(f, "请检查代理协议，常见设置为 SOCKS5 10808、HTTP 10809。")
         } else {
-            write!(f, "请确认代理软件已运行，或在工具设置中关闭代理。")
+            write!(f, "请确认代理软件已运行，或在 设置 → 模型 → 网络代理 里换一个代理。")
         }
     }
 }

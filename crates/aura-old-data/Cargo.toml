@@ -1,0 +1,22 @@
+[package]
+name = "aura-old-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-data-location = { path = "../aura-data-location" }
+aura-data-move = { path = "../aura-data-move" }
+aura-domain-common = { path = "../aura-domain-common" }
+aura-runtime-contract = { path = "../aura-runtime-contract" }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+junction.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -15,7 +15,7 @@ pub(super) fn entries(
         67,
         H::ToolsCall,
         "Call a tool by name",
-        "Call a tool that is not in this request's tool list. tool is its canonical_name from tools.search (for example git.commit); arguments are its own input, as tools.describe shows its schema. The call runs as that tool, with the same checks, approvals, Hooks and result as calling it directly. Call tools in this request's list directly. Registry and turn-control tools (tools.*, skills.*, plan.*, goal.*, mode.*, normal.*, query.*, task_lineage.*, workspace_init.*) cannot be called this way.",
+        "Call a tool that is not in this request's tool list. tool is its canonical_name from tools.search (for example git.commit); arguments are its own input, as tools.describe shows its schema. The call runs as that tool, with the same checks, approvals, Hooks and result as calling it directly. aura_purpose goes once, beside tool and arguments, not inside arguments. Call tools in this request's list directly. Registry and turn-control tools (tools.*, skills.*, plan.*, goal.*, mode.*, normal.*, query.*, task_lineage.*, workspace_init.*) cannot be called this way.",
         &[C::ToolRegistryRead],
         false,
         at,

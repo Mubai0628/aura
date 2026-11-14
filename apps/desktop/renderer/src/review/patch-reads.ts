@@ -1,8 +1,8 @@
 import type { GitDiffResultV1, GitReadInputV1 } from '@aura/contracts/generated';
 import type { GitApiV1 } from '../../../shared/git-api';
-import { userMessage } from '../agent-session/user-message';
 import { parseDiff, type ParsedDiff } from './diff-parse';
 import type { ReviewFile } from './review-model';
+import { diffReadFailure } from './review-problem';
 
 /** One request reads at most 64 KiB; a file shows about this much before asking for more. */
 const PAGE = 65_536;
@@ -140,7 +140,7 @@ export class PatchReads {
         this.#set(file.path, {
           ...shown,
           stale: false,
-          error: userMessage(error, '没能读取最新的差异，显示的是上次读到的内容。'),
+          error: diffReadFailure(error, true),
         });
         return;
       }
@@ -148,7 +148,7 @@ export class PatchReads {
         loading: false,
         text: before,
         ...(before ? { diff: parseDiff(before), next: offset } : {}),
-        error: userMessage(error, '这个文件的差异读取失败，请重试。'),
+        error: diffReadFailure(error, false),
       });
     }
   }

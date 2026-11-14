@@ -54,7 +54,7 @@ impl PackageConformanceHandle {
             .status
             .lock()
             .map(|value| value.clone())
-            .map_err(|_| anyhow::anyhow!("package.run_status_unavailable"))
+            .map_err(|_| anyhow::anyhow!(crate::failures::RUN_STATUS_UNAVAILABLE))
     }
 }
 

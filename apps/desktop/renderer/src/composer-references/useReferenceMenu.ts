@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useKeptDraft } from '../agent-session/kept-draft';
 import { userMessage } from '../agent-session/user-message';
 import { atAllowedAt, atQuery, typedAt, withPath, withProgram, withoutToken } from './at-token';
+import { referenceUnreadable } from './capture-failures';
 import {
   CaptureUnavailable,
   capture,
@@ -17,6 +18,7 @@ import {
   terminalOptions,
   type CaptureOption,
 } from './captures';
+import { useChromeTabs } from './chrome-tabs';
 import { resourceDraft, resourceKey, resourceName, useMcpResources } from './mcp-resources';
 import { matchesQuery } from './pinyin';
 import { knowPrograms } from './program-tokens';
@@ -43,13 +45,22 @@ export interface ReferenceSkills {
 
 export interface ReferenceOption {
   key: string;
-  kind: 'file' | 'folder' | 'skill' | 'session' | 'terminal' | 'page' | 'resource' | 'program';
+  kind:
+    | 'file'
+    | 'folder'
+    | 'skill'
+    | 'session'
+    | 'terminal'
+    | 'page'
+    | 'chrome'
+    | 'resource'
+    | 'program';
   /**
    * The workspace path or the program's name, as it is written after "@"; a Skill's,
    * conversation's, tab's or resource's name.
    */
   label: string;
-  /** A terminal's shell, a page's address or a resource's server. */
+  /** A terminal's shell, a page's or Chrome tab's address or a resource's server. */
   detail?: string;
   /** The conversation's id. */
   session?: string;
@@ -62,10 +73,10 @@ export interface ReferenceOption {
   loaded?: boolean;
 }
 
-/** A conversation, terminal, page or MCP resource chosen for the message, shown as a chip. */
+/** A conversation, terminal, page, Chrome tab or MCP resource chosen for the message, as a chip. */
 export interface ChosenReference {
   key: string;
-  kind: 'session' | 'terminal' | 'page' | 'resource';
+  kind: 'session' | 'terminal' | 'page' | 'chrome' | 'resource';
   title: string;
   /** The conversation's id. */
   session?: string | undefined;
@@ -111,8 +122,9 @@ function offered(matches: readonly PathSearchMatch[]): ReferenceOption[] {
 
 /**
  * The list behind a typed "@": the workspace's files and folders, the usable Skills, its other
- * conversations, this conversation's terminals and browser pages, the resources of its ready MCP
- * servers and, while computer control is on, the computer's programs, as the words after it are
+ * conversations, this conversation's terminals and browser pages, the user's Chrome tabs, the
+ * resources of its ready MCP servers and, while computer control is on, the computer's programs,
+ * as the words after it are
  * typed, Chinese names by their pinyin initials too. A path or program picked is written as
  * "@path" or "@\"name\"" in place of what was typed; a Skill picked is chosen for the turn
  * as "+ → Skill" chooses it; anything else picked becomes a chip sent with the message, and what
@@ -194,13 +206,23 @@ export function useReferenceMenu({
                   : {
                       query,
                       options: [],
-                      error: userMessage(result.error, '没有找到，请重试。'),
+                      error: userMessage(
+                        result.error,
+                        '查找没有完成：工作区还在建立文件索引（或服务没有回应），这次没有结果。稍后再输入一次。',
+                      ),
                     },
               );
             },
             (reason: unknown) => {
               if (live)
-                setFound({ query, options: [], error: userMessage(reason, '没有找到，请重试。') });
+                setFound({
+                  query,
+                  options: [],
+                  error: userMessage(
+                    reason,
+                    '查找没有完成：工作区还在建立文件索引（或服务没有回应），这次没有结果。稍后再输入一次。',
+                  ),
+                });
             },
           );
       },
@@ -253,11 +275,12 @@ export function useReferenceMenu({
 
   const mcp = useMcpResources(open, session);
   const programs = usePrograms(open);
+  const chrome = useChromeTabs(open, session);
 
-  // This conversation's terminals and pages as they are when the list opens.
+  // This conversation's terminals and pages as they are when the list opens, and Chrome's tabs.
   const captures = useMemo(
-    () => (open ? [...terminalOptions(session), ...pageOptions(session)] : []),
-    [open, session],
+    () => (open ? [...terminalOptions(session), ...pageOptions(session), ...chrome.options] : []),
+    [open, session, chrome],
   );
 
   const options: ReferenceOption[] = useMemo(() => {
@@ -307,7 +330,7 @@ export function useReferenceMenu({
           (one) =>
             one.kind === kind &&
             !taken.has(`${kind}:${one.id}`) &&
-            fits(one.title, kind === 'page' ? one.detail : ''),
+            fits(one.title, kind === 'terminal' ? '' : one.detail),
         )
         .slice(0, SHOWN_OF_KIND)
         .map((one) => ({
@@ -345,6 +368,7 @@ export function useReferenceMenu({
       ...others,
       ...of('terminal'),
       ...of('page'),
+      ...of('chrome'),
       ...resources,
       ...programOptions,
     ];
@@ -383,6 +407,7 @@ export function useReferenceMenu({
       option.kind === 'session' ||
       option.kind === 'terminal' ||
       option.kind === 'page' ||
+      option.kind === 'chrome' ||
       option.kind === 'resource'
     ) {
       const { kind, key, label, session, capture, resource } = option;
@@ -436,6 +461,8 @@ export function useReferenceMenu({
     chosen,
     /** The servers that could not list their resources now. */
     resourceProblems: mcp.problems,
+    /** Why the connected Chrome extension could not list its tabs. */
+    chromeProblem: chrome.problem,
     captureError,
     unchoose: (key: string) => {
       setCaptureError(undefined);
@@ -468,7 +495,7 @@ export function useReferenceMenu({
         return drafts;
       } catch (reason) {
         setCaptureError(
-          reason instanceof CaptureUnavailable ? reason.message : '读不到引用的内容，请重试。',
+          reason instanceof CaptureUnavailable ? reason.message : referenceUnreadable(reason),
         );
         return undefined;
       }

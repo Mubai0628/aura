@@ -239,8 +239,11 @@ fn planned_predecessor(owner: &str, digest: &str) -> StoreResult<PlannedMigratio
 }
 
 /// Newest supported predecessor first. Each marker is the first statement the
-/// predecessor does not have yet; the newest lacks only the session and turn indexes.
+/// predecessor does not have yet; the newest lacks only the sub-agents' limits.
 const AGENT_PREDECESSORS: &[&str] = &[
+    "\nCREATE TABLE agent_team_settings",
+    "\nCREATE TABLE agent_worktrees",
+    "\nCREATE TABLE agent_team_members",
     "\nCREATE INDEX turn_tasks_session",
     "\nCREATE TABLE agent_visible_repair",
     "\nCREATE TABLE agent_visible_delta",

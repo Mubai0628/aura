@@ -81,7 +81,9 @@ test('a field-level rejection keeps the typed value and names the field', async 
   const concurrency = await screen.findByLabelText('普通工具全局并发');
   fireEvent.change(concurrency, { target: { value: '12' } });
   fireEvent.click(screen.getByRole('button', { name: '保存执行策略' }));
-  await screen.findByRole('alert');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '执行策略没有保存（「普通工具全局并发」超出允许范围），仍按原策略执行。请检查后再保存。',
+  );
   expect((concurrency as HTMLInputElement).value).toBe('12');
   expect((concurrency as HTMLInputElement).getAttribute('aria-invalid')).toBe('true');
 });
@@ -95,6 +97,28 @@ test('a revision conflict keeps the typed value so the edit is not silently lost
   const retries = await screen.findByLabelText('最大重试次数');
   fireEvent.change(retries, { target: { value: '0' } });
   fireEvent.click(screen.getByRole('button', { name: '保存执行策略' }));
-  await screen.findByRole('alert');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '执行策略没有保存（设置刚在别处被改过），仍按原策略执行。请重新打开这一页，核对后再改。',
+  );
   expect((retries as HTMLInputElement).value).toBe('0');
+});
+
+test('a strategy that was not read says why and offers to read it again', async () => {
+  Object.defineProperty(window, 'aura', {
+    configurable: true,
+    value: {
+      v1: {
+        readAgentToolSettings: vi.fn().mockResolvedValue({
+          ok: false,
+          error: { code: 'ipc.transport_lost', message: 'Transport is closed' },
+        }),
+        configureAgentTools: configure,
+      },
+    },
+  });
+  render(<Harness />);
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '执行策略没有读到（与 Aura Core 的连接断开了），现在不能修改；请稍后点“重新读取执行策略”。',
+  );
+  expect(screen.getByRole('button', { name: '重新读取执行策略' })).toBeTruthy();
 });

@@ -111,7 +111,48 @@ fn a_plugins_failing_hook_goes_into_the_plugins_log() {
     assert_eq!(entries.len(), 1, "{entries:?}");
     assert_eq!(entries[0].source, aura_agent_domain::PluginLogSource::Hook);
     assert_eq!(entries[0].part, "guard-hook");
-    assert!(entries[0].text.starts_with("ExitCode"), "{}", entries[0].text);
+    let text = &entries[0].text;
+    assert!(text.starts_with("Hook guard-hook 失败（退出码 3"), "{text}");
+    assert!(text.contains("按“失败时放行”处理") && !text.contains("ExitCode"), "{text}");
+}
+
+#[test]
+fn a_failed_hook_s_log_entry_says_what_became_of_the_action() {
+    let view = |effect, reason: &str| HookInvocationView {
+        invocation_id: HookInvocationId::new(),
+        path: String::new(),
+        hook_name: "guard-hook".into(),
+        hook_version: "1.0.0".into(),
+        fingerprint: String::new(),
+        event: HookEvent::ToolBeforeCall,
+        session_id: None,
+        turn_task_id: None,
+        tool_call_id: None,
+        started_at: UtcTimestamp::now(),
+        duration_ms: 0,
+        outcome: HookOutcome::Failed,
+        failure: Some(aura_hooks::HookFailureKind::ExitCode),
+        effect,
+        reason: Some(reason.to_owned()),
+        summary: None,
+        stderr: Some("boom\r\n".into()),
+    };
+    let exit = aura_hooks::HookFailureKind::ExitCode;
+    let closed =
+        view(HookEffect::ActionBlocked, "Hook guard-hook 失败（退出码 3），按“失败时阻止”处理");
+    assert_eq!(
+        plugin_log_text(&closed, exit),
+        "Hook guard-hook 失败（退出码 3），按“失败时阻止”处理，动作已被阻止。错误输出：boom"
+    );
+    let open = view(HookEffect::None, "退出码 3");
+    assert_eq!(
+        plugin_log_text(&open, exit),
+        "Hook guard-hook 失败（退出码 3），按“失败时放行”处理，当作它回答了“继续”。错误输出：boom"
+    );
+    let mut silent = view(HookEffect::None, "");
+    silent.reason = None;
+    silent.stderr = None;
+    assert_eq!(plugin_log_text(&silent, exit), "Hook guard-hook 失败（退出码不是 0）。");
 }
 
 #[test]

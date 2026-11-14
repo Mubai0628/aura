@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import type { McpPreview, McpRegistryView, McpServerConfig } from '@aura/contracts/generated';
-import { formatPairs, mcpError, parsePairs } from './mcp-labels';
+import { formatPairs, parsePairs } from './mcp-labels';
 import type { McpSecretInputHandle } from './McpSecretInput';
 import { HttpSignIn, SecretEnvironment } from './McpSignIn';
 import {
@@ -12,11 +12,23 @@ import {
   initialScopes,
   oauthAuth,
   savedAuthSecret,
+  SecretNotSaved,
   secretEnvironment,
   writeSecret,
 } from './mcp-sign-in-config';
+import { checkFailure, secretNotSaved } from './mcp-failure-words';
+import { userMessage } from '../agent-session/user-message';
 
 type Kind = 'stdio' | 'http';
+
+/**
+ * A save that stopped before its answer: a secret Core did not take says what was not saved; a
+ * secret the user did not fill in is asked for; anything else is not confirmed either way.
+ */
+const saveFailure = (reason: unknown): string =>
+  reason instanceof SecretNotSaved
+    ? secretNotSaved(reason.label, reason.failure)
+    : userMessage(reason, '服务器设置是否已保存没有确认；请刷新后核对。');
 
 /** Add or change one server. Saving never trusts or switches it on; that is a separate step. */
 export function McpServerForm({
@@ -93,14 +105,14 @@ export function McpServerForm({
     available_for_subagents: initial?.available_for_subagents ?? false,
   });
 
-  async function work(action: () => Promise<void>) {
+  async function work(action: () => Promise<void>, failed: (reason: unknown) => string) {
     if (busy) return;
     setBusy(true);
     setError(undefined);
     try {
       await action();
     } catch (reason) {
-      setError(mcpError(reason, '操作结果未确认，请刷新后核对。'));
+      setError(failed(reason));
     } finally {
       setBusy(false);
     }
@@ -109,8 +121,8 @@ export function McpServerForm({
     work(async () => {
       const result = await window.aura.v1.previewMcpServer({ server: config() });
       if (result.ok) setPreview(result.value);
-      else setError(mcpError(result.error.message));
-    });
+      else setError(checkFailure(result.error));
+    }, checkFailure);
   const save = () =>
     work(async () => {
       // Secrets go first, each on the secret channel; the configuration names their IDs.
@@ -137,8 +149,8 @@ export function McpServerForm({
         expected_revision: revision,
       });
       if (result.ok) onSaved(result.value, server.id);
-      else setError(mcpError(result.error.message));
-    });
+      else setError(userMessage(result.error, '服务器没有保存；请核对填写的内容后重试。'));
+    }, saveFailure);
 
   return (
     <form

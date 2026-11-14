@@ -17,9 +17,22 @@ pub struct AgentTerminalRecord {
     #[serde(default)]
     pub tab_closed: bool,
 }
+/// The record as stored. An earlier Core reads every terminal record when it starts and refuses a
+/// view field it does not know, so the handover is never stored as a field: a user's own terminal
+/// is kept here only once the user handed it to the model, and its owner says so.
+fn stored(record: &AgentTerminalRecord) -> StoreResult<String> {
+    let mut stored = record.clone();
+    stored.view.handed_over = false;
+    Ok(serde_json::to_string(&stored)?)
+}
+fn decoded(payload: &str) -> StoreResult<AgentTerminalRecord> {
+    let mut record: AgentTerminalRecord = serde_json::from_str(payload)?;
+    record.view.handed_over = record.view.owner == TerminalOwnerV1::User;
+    Ok(record)
+}
 pub fn save(tx: &Transaction<'_>, record: &AgentTerminalRecord) -> StoreResult<()> {
     tx.execute("INSERT INTO agent_terminals(id,session_id,payload,output_start,output_end) VALUES(?1,?2,?3,0,0) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload WHERE session_id=excluded.session_id",
-        params![record.view.terminal_id,record.view.session_id.to_string(),serde_json::to_string(record)?])?;
+        params![record.view.terminal_id,record.view.session_id.to_string(),stored(record)?])?;
     Ok(())
 }
 pub fn get(db: &Connection, session: SessionId, id: &str) -> StoreResult<AgentTerminalRecord> {
@@ -30,10 +43,9 @@ pub fn get(db: &Connection, session: SessionId, id: &str) -> StoreResult<AgentTe
             |row| row.get(0),
         )
         .optional()?;
-    serde_json::from_str(&payload.ok_or(Error::Invalid(
+    decoded(&payload.ok_or(Error::Invalid(
         "terminal.not_found_in_session: only Agent terminals in this session are visible",
     ))?)
-    .map_err(Into::into)
 }
 pub fn list(db: &Connection, session: Option<SessionId>) -> StoreResult<Vec<AgentTerminalRecord>> {
     let mut query = db.prepare(
@@ -41,7 +53,30 @@ pub fn list(db: &Connection, session: Option<SessionId>) -> StoreResult<Vec<Agen
     )?;
     let rows =
         query.query_map([session.map(|value| value.to_string())], |row| row.get::<_, String>(0))?;
-    rows.map(|value| Ok(serde_json::from_str(&value?)?)).collect()
+    rows.map(|value| decoded(&value?)).collect()
+}
+/// Whether the conversation had a terminal that started before `at`: one of its own, or one the
+/// user handed it. Reads only each record's start, so a record with fields this Core does not know
+/// still counts, and one it cannot read at all counts as none.
+pub fn started_before(db: &Connection, session: SessionId, at: UtcTimestamp) -> StoreResult<bool> {
+    #[derive(Deserialize)]
+    struct Started {
+        view: StartedView,
+    }
+    #[derive(Deserialize)]
+    struct StartedView {
+        started_at: UtcTimestamp,
+    }
+    let mut query = db.prepare("SELECT payload FROM agent_terminals WHERE session_id=?1")?;
+    let rows = query.query_map([session.to_string()], |row| row.get::<_, String>(0))?;
+    for payload in rows {
+        if serde_json::from_str::<Started>(&payload?)
+            .is_ok_and(|record| record.view.started_at < at)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 pub fn append(tx: &Transaction<'_>, session: SessionId, id: &str, text: &str) -> StoreResult<()> {
     get(tx, session, id)?;

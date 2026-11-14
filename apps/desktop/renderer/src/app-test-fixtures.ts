@@ -417,6 +417,18 @@ export function installAppTestEnvironment() {
               },
             },
           }),
+          readAgentToolSettings: vi.fn().mockResolvedValue({
+            ok: true,
+            value: {
+              revision: '1',
+              fixed_tool_ids: [],
+              max_dynamic_tool_schemas: 50,
+              max_concurrent_tool_calls: 4,
+              default_timeout_ms: 120_000,
+              max_retries: 3,
+              tools: [],
+            },
+          }),
           readAgentToolActivity: vi.fn().mockResolvedValue({
             ok: true,
             value: {

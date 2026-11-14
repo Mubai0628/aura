@@ -2,14 +2,12 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-/** Sync logging is reserved for uncaught errors, including the last turn before exit. */
-export function createMainLogger(localAppData: string, namespace: () => string | undefined) {
-  const path = () => {
-    const hash = namespace();
-    return hash === undefined
-      ? resolve(localAppData, 'Aura/logs/main-startup.jsonl')
-      : resolve(localAppData, 'Aura/namespaces', hash, 'logs/main.jsonl');
-  };
+/**
+ * Main's log, `logs/main.jsonl` in the installation's data folder, known before the first line.
+ * Sync logging is reserved for uncaught errors, including the last turn before exit.
+ */
+export function createMainLogger(dataRoot: string) {
+  const path = () => resolve(dataRoot, 'logs/main.jsonl');
   const record = (event: string, fields: Record<string, unknown>) =>
     `${JSON.stringify({ component: 'electron_main', event, fields, timestamp: new Date().toISOString() })}\n`;
   return {

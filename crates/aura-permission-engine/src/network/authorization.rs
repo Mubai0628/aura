@@ -103,6 +103,7 @@ fn capability_authority_inner(
                 && g.revoked_at.is_none()
                 && g.expires_at.is_none_or(|expiry| input.now < expiry);
         (live
+            && grant_in_its_workspace(g, input.workspace.as_ref())
             && (!exact_once || g.scope.is_exact_operation() && matches!(g.scope.lifetime, AuthorizationLifetime::Once { operation_id } if operation_id == op.operation_id))
             && (!c.capabilities.contains(&ResolvedCapability::GitDestructive) || g.scope.network_consent.is_none())
             && lifetime_matches(&g.scope.lifetime, op)

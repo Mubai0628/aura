@@ -9,6 +9,11 @@ use super::resolve::timeout_ms;
 use aura_browser_domain::*;
 use serde_json::{Value, json};
 
+/// After a step that may have changed the page and did not report back.
+const UNSURE: &str = "不确定这一步是否已经执行，请先用 browser.snapshot 查看页面。";
+/// After a step that did not change the page.
+const UNCHANGED: &str = "页面没有被改动；可以先用 browser.snapshot 查看页面，再决定是否重试。";
+
 /// What the browser said the call did.
 struct Answer {
     success: bool,
@@ -40,7 +45,12 @@ fn checked(
     image: Option<&BrowserImageV1>,
     shown: bool,
 ) -> Result<Value, String> {
-    let invalid = |error: serde_json::Error| format!("浏览器返回了无法识别的结果：{error}");
+    let invalid = |error: serde_json::Error| {
+        format!(
+            "浏览器返回的结果 Aura 读不懂（{}）",
+            super::outside_detail(&error.to_string(), 200)
+        )
+    };
     match action {
         BrowserHostActionV1::Screenshot { .. } => {
             #[derive(serde::Deserialize)]
@@ -114,20 +124,22 @@ fn answer_of(
         Ok(result) => result,
         Err(error @ BridgeError::NotConnected) => return failed(error.to_string(), false),
         Err(error) => {
-            let unsure = if acts {
-                "不确定这一步是否已经执行，请先用 browser.snapshot 查看页面。"
-            } else {
-                ""
-            };
-            return failed(format!("{error}{unsure}"), acts);
+            let tail = if acts { UNSURE } else { UNCHANGED };
+            return failed(format!("{error}{tail}"), acts);
         }
     };
     match result.outcome {
         BrowserHostOutcomeV1::Refused { message } => {
             failed(format!("browser.refused: {message}"), false)
         }
+        // The host's own sentence around the page's exception; an older host sent the bare text.
         BrowserHostOutcomeV1::Failed { message, may_have_acted } => {
-            failed(format!("browser.failed: {message}"), may_have_acted && acts)
+            let unsure = may_have_acted && acts;
+            let said = super::ended(&super::outside_detail(&message, 600));
+            failed(
+                format!("browser.failed: {said}{}", if unsure { UNSURE } else { UNCHANGED }),
+                unsure,
+            )
         }
         BrowserHostOutcomeV1::Completed { result, image } => {
             match checked(action, result, image.as_ref(), shown) {
@@ -142,7 +154,14 @@ fn answer_of(
                     error: None,
                     image,
                 },
-                Err(message) => failed(format!("browser.failed: {message}"), acts),
+                // The host finished the step; only its report could not be used.
+                Err(message) if acts => failed(
+                    format!(
+                        "browser.failed: 这一步在浏览器里已经完成，但{message}；请先用 browser.snapshot 查看页面，不要直接重做。"
+                    ),
+                    true,
+                ),
+                Err(message) => failed(format!("browser.failed: {message}。{UNCHANGED}"), false),
             }
         }
     }
@@ -164,6 +183,18 @@ impl AgentExecution {
             ResourceDescriptor::NetworkOrigin { host, .. } => Some(host.clone()),
             _ => None,
         });
+        // The page the call was resolved and approved on: a page the user handed over, or the
+        // session's model page.
+        let page = content
+            .resources
+            .iter()
+            .find_map(|resource| match resource {
+                ResourceDescriptor::BrowserPage { page_ref } => {
+                    page_ref.rsplit_once('/').map(|(_, page)| page.to_owned())
+                }
+                _ => None,
+            })
+            .filter(|page| page != super::resolve::MODEL_PAGE);
         let (mut approved_hosts, images) = {
             let journal = self.journal.lock()?;
             let db = journal.database.connection();
@@ -176,14 +207,30 @@ impl AgentExecution {
             )
         };
         approved_hosts.extend(target.clone());
-        let root =
-            self.workspace.resolver(call.snapshot.workspace_id)?.canonical_root().to_path_buf();
+        // A page that shows a file of a sub-agent's worktree may load only that copy's files.
+        let shown = match &action {
+            BrowserHostActionV1::Open { url } => Some(url.clone()),
+            _ => self
+                .browser
+                .page_url(session, page.as_deref().unwrap_or(super::resolve::MODEL_PAGE)),
+        };
+        let copy = match shown {
+            Some(url) => self.copy_holding(session, &url)?,
+            None => None,
+        };
+        let root = match copy {
+            Some(copy) => copy,
+            None => {
+                self.workspace.resolver(call.snapshot.workspace_id)?.canonical_root().to_path_buf()
+            }
+        };
         let file_root = url::Url::from_directory_path(&root).ok().map(|url| url.to_string());
         Ok((
             BrowserHostCommandV1 {
                 command_id: String::new(),
                 runtime_instance_id: self.runtime,
                 session_id: session,
+                page,
                 // Opening a page replaces it; any other call is held to the site it was approved on.
                 expected_host: if matches!(action, BrowserHostActionV1::Open { .. }) {
                     None
@@ -239,7 +286,11 @@ pub(in crate::agent_execution) async fn invoke(
         .session(call.snapshot.session_id)?
         .into_iter()
         .find(|entry| entry.call.validated.call.tool_call_id == call.validated.call.tool_call_id)
-        .ok_or_else(|| anyhow::anyhow!("browser.call_not_active"))?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "browser.call_not_active: 这次浏览器调用在发给浏览器之前已经结束（回合停止了或调用被取消），什么都没做。"
+            )
+        })?
         .cancel
         .subscribe();
     // The call has started; a later permission change does not undo it.
@@ -315,4 +366,95 @@ pub(in crate::agent_execution) async fn invoke(
         )
         .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn host(outcome: BrowserHostOutcomeV1) -> Result<BrowserHostResultV1, BridgeError> {
+        Ok(BrowserHostResultV1 {
+            command_id: "bcm-1".into(),
+            page_url: "about:blank".into(),
+            outcome,
+        })
+    }
+
+    fn read() -> BrowserHostActionV1 {
+        BrowserHostActionV1::Snapshot { max_chars: 12_000 }
+    }
+
+    fn input() -> BrowserHostActionV1 {
+        BrowserHostActionV1::Hover { element: "e1".into() }
+    }
+
+    fn said(answer: &Answer) -> &str {
+        answer.error.as_deref().expect("a failure the model reads")
+    }
+
+    #[test]
+    fn an_exception_in_the_page_is_told_in_a_sentence_with_whether_the_step_may_have_run() {
+        let failed = BrowserHostOutcomeV1::Failed {
+            message: "页面执行这一步（hover）时出错：Target closed。".into(),
+            may_have_acted: true,
+        };
+        let answer = answer_of(&input(), host(failed), false);
+        assert_eq!(
+            said(&answer),
+            format!("browser.failed: 页面执行这一步（hover）时出错：Target closed。{UNSURE}")
+        );
+        assert_eq!(answer.side_effect, SideEffectStateV1::Unknown);
+        // An older host sent the page's bare text, on several lines.
+        let bare = BrowserHostOutcomeV1::Failed {
+            message: "Execution context was destroyed.\n    at Page.snapshot".into(),
+            may_have_acted: false,
+        };
+        let answer = answer_of(&read(), host(bare), false);
+        assert_eq!(
+            said(&answer),
+            format!("browser.failed: Execution context was destroyed。{UNCHANGED}")
+        );
+        assert_eq!(answer.side_effect, SideEffectStateV1::NoEffect);
+    }
+
+    #[test]
+    fn a_report_aura_cannot_read_is_named_and_never_a_library_message_alone() {
+        let unreadable = || BrowserHostOutcomeV1::Completed {
+            result: serde_json::json!({"unexpected": true}),
+            image: None,
+        };
+        let answer = answer_of(&read(), host(unreadable()), false);
+        let text = said(&answer);
+        assert!(text.starts_with("browser.failed: 浏览器返回的结果 Aura 读不懂（"), "{text}");
+        assert!(text.ends_with(UNCHANGED), "{text}");
+        assert_eq!(answer.side_effect, SideEffectStateV1::NoEffect);
+        let answer = answer_of(&input(), host(unreadable()), false);
+        let text = said(&answer);
+        assert!(
+            text.contains("这一步在浏览器里已经完成") && text.contains("不要直接重做"),
+            "{text}"
+        );
+        assert_eq!(answer.side_effect, SideEffectStateV1::Unknown);
+    }
+
+    #[test]
+    fn a_read_the_browser_did_not_answer_says_the_page_did_not_change() {
+        let answer = answer_of(&read(), Err(BridgeError::TimedOut(20)), false);
+        assert_eq!(
+            said(&answer),
+            format!("browser.no_answer: 浏览器在 20 秒内没有回应。{UNCHANGED}")
+        );
+        let answer = answer_of(&input(), Err(BridgeError::Interrupted), false);
+        assert_eq!(said(&answer), format!("browser.interrupted: 浏览器连接中断。{UNSURE}"));
+    }
+
+    #[test]
+    fn a_detail_from_outside_aura_is_one_bounded_line() {
+        assert_eq!(super::super::outside_detail("first {x}\nsecond", 200), "first (x)");
+        assert_eq!(super::super::outside_detail("a\u{7}b.", 200), "a b");
+        assert_eq!(super::super::outside_detail("abcdef", 3), "abc…");
+        assert_eq!(super::super::outside_detail("  \n", 200), "没有给出原因");
+        assert_eq!(super::super::ended("没有回应"), "没有回应。");
+        assert_eq!(super::super::ended("没有回应。"), "没有回应。");
+    }
 }

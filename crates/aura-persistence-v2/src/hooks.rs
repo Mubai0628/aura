@@ -369,20 +369,43 @@ pub fn result_override(
 }
 
 /// The calls as admitted: what the model asked for, with each `tools.call` rewritten into the
-/// tool it names and the kept `tool.before_call` decisions applied. Every check that
-/// compares a batch against its model output uses this.
+/// tool it names, arguments written as a string of JSON read as their tool takes them, and the
+/// kept `tool.before_call` decisions applied. Every check that compares a batch against its model
+/// output uses this.
 pub fn admitted_calls(
     db: &Connection,
     snapshot: &aura_model_domain::ModelExecutionSnapshot,
     evidence: &aura_model_domain::ProviderRequestEvidence,
     output: &aura_model_domain::NormalizedModelOutput,
 ) -> StoreResult<Vec<aura_tool_contract::NormalizedToolCallV1>> {
-    let mut calls =
+    Ok(admitted_calls_noted(db, snapshot, evidence, output)?.0)
+}
+
+/// [`admitted_calls`], with what the result of each call whose arguments were read from a string
+/// tells the model.
+pub fn admitted_calls_noted(
+    db: &Connection,
+    snapshot: &aura_model_domain::ModelExecutionSnapshot,
+    evidence: &aura_model_domain::ProviderRequestEvidence,
+    output: &aura_model_domain::NormalizedModelOutput,
+) -> StoreResult<(
+    Vec<aura_tool_contract::NormalizedToolCallV1>,
+    std::collections::BTreeMap<aura_domain_common::ToolCallId, String>,
+)> {
+    use crate::tool::argument_repair::{as_admitted, repair, stored_calls};
+    let mut written =
         aura_model_domain::derive_p07_normalized_tool_calls_v1(snapshot, evidence, output)
             .map_err(|_| aura_persistence_core::PersistenceCoreError::Conflict)?;
-    crate::tool::entry::expand(db, evidence, &mut calls)?;
-    apply_tool_call_decisions(db, &mut calls)?;
-    Ok(calls)
+    crate::tool::entry::expand_entry(db, evidence, &mut written)?;
+    let mut read = written.clone();
+    let notes = repair(db, &mut read)?;
+    apply_tool_call_decisions(db, &mut read)?;
+    if notes.is_empty() {
+        return Ok((read, notes));
+    }
+    apply_tool_call_decisions(db, &mut written)?;
+    let stored = stored_calls(db, snapshot.model_step_id)?;
+    Ok(as_admitted(stored.as_deref(), written, read, notes))
 }
 
 /// `session.resumed` rather than `session.started`: the session ran a turn before this one.

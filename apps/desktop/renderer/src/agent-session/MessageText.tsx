@@ -1,10 +1,10 @@
 import type { AgentMessageTextSource } from '@aura/contracts/generated';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MarkdownBlocks } from '../markdown-body';
-import { userMessage } from './user-message';
 import { pageCacheKey, readPageCache, writePageCache } from './message-text-cache';
 import { messageTextQueue } from './message-text-queue';
 import { MentionContext, mentionOf } from '../files/mention-context';
+import { failedAction } from './failure-text';
 
 /** Roles that carry a real answer, a real person's words or the model's own process notes
  *  are Markdown. Model reasoning and program-made tool briefs stay plain text. */
@@ -15,6 +15,9 @@ const PLAIN_ROLES: readonly MessageTextRole[] = ['reasoning', 'brief'];
 /** How many bytes one automatic page reads: small enough to paint quickly,
  *  large enough that a long body arrives in a few passes. */
 export const MESSAGE_TEXT_PAGE_BYTES = 32_768;
+/** What a page of a body that was not read says; the part shown stays. */
+const BODY_UNREAD = '这条消息后面的内容没有读到';
+const BODY_NEXT = '已显示的部分不受影响；点“重新读取正文”再试。';
 
 /** A viewport margin so a body just below the fold loads before it is read. */
 const VIEWPORT_MARGIN = '600px';
@@ -122,7 +125,7 @@ export function MessageText({
       </div>
       {error ? (
         <p role="alert">
-          {userMessage(error)}
+          {error}
           <button type="button" onClick={retry}>
             重新读取正文
           </button>
@@ -263,15 +266,22 @@ function useProgressiveBody({
   const more = state?.blocked ? false : partial ? announced > bytes : !complete;
   const fetcher = useCallback(
     async (signal: AbortSignal, offset: number): Promise<void> => {
-      const result = await window.aura.v1.readAgentMessageText({
-        session_id: sessionId,
-        source,
-        offset,
-        limit: MESSAGE_TEXT_PAGE_BYTES,
-      });
+      const result = await window.aura.v1
+        .readAgentMessageText({
+          session_id: sessionId,
+          source,
+          offset,
+          limit: MESSAGE_TEXT_PAGE_BYTES,
+        })
+        .catch((reason: unknown) => {
+          if (!signal.aborted)
+            setLoaded((old) => ({ ...old, error: failedAction(reason, BODY_UNREAD, BODY_NEXT) }));
+          throw reason;
+        });
       if (signal.aborted) return;
       if (!result.ok) {
-        setLoaded((old) => ({ ...old, error: result.error.message }));
+        const shown = failedAction(result.error, BODY_UNREAD, BODY_NEXT);
+        setLoaded((old) => ({ ...old, error: shown }));
         throw new Error(result.error.message);
       }
       if (!matchesSource(result.value.source, source)) {

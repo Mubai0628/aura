@@ -2,7 +2,7 @@
 use super::*;
 use aura_windows_platform::SecretBytes;
 use serde_json::{Value, json};
-const TOOLS: &[&str] = &[
+pub(super) const TOOLS: &[&str] = &[
     "terminal.open",
     "terminal.write",
     "terminal.read",
@@ -10,7 +10,7 @@ const TOOLS: &[&str] = &[
     "terminal.close",
     "shell.cmd",
 ];
-async fn run(f: &mut Fixture, name: &str, input: Value) -> Value {
+pub(super) async fn run(f: &mut Fixture, name: &str, input: Value) -> Value {
     let batch = f.admit(&[(name, input)]);
     let call = batch.batch.calls[0].tool_call_id;
     let batch_id = batch.batch.tool_batch_id;
@@ -19,7 +19,7 @@ async fn run(f: &mut Fixture, name: &str, input: Value) -> Value {
     f.continue_after_tools(batch_id, &group);
     output
 }
-async fn pending(f: &Fixture) -> Value {
+pub(super) async fn pending(f: &Fixture) -> Value {
     tokio::time::timeout(std::time::Duration::from_secs(10), async {
         loop {
             let value = crate::r03_tests::success(
@@ -130,7 +130,8 @@ async fn l02_b4_sensitive_echo_is_not_in_the_model_record_or_later_output_and_ca
         json!({"terminal_id":id,"input":"echo %L02_VALUE%\necho L02-AFTER\n","wait_ms":1000}),
     )
     .await;
-    let output = run(&mut f, "terminal.read", json!({"terminal_id":id,"max_bytes":65536})).await;
+    let output =
+        run(&mut f, "terminal.read", json!({"terminal_id":id,"line":1,"max_lines":2000})).await;
     assert!(!output.to_string().contains("temp-b4-echo-value"), "{output}");
     assert!(output.to_string().contains("安全输入回显已屏蔽"), "{output}");
     assert!(output.to_string().contains("L02-AFTER"));

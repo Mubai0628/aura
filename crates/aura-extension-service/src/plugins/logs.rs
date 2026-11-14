@@ -31,7 +31,9 @@ impl PluginRuntime {
     pub fn log(&self, name: &str, source: PluginLogSource, part: &str, text: &str) {
         let registry = self.settings().plugin_registry();
         let secrets = if registry.issue.is_some() {
-            Err(anyhow::anyhow!("plugin configuration unavailable"))
+            Err(anyhow::anyhow!(
+                "plugins.config_unavailable: 读不出插件的配置，这条插件日志的内容已隐藏。"
+            ))
         } else {
             self.secret_values(name, registry.plugin(name))
         };
@@ -140,7 +142,9 @@ impl PluginRuntime {
             let known = self.log_secrets.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             match known.get(name) {
                 Some(Some(values)) => values.iter().map(|value| value.to_string()).collect(),
-                Some(None) => anyhow::bail!("plugin log protection capacity reached"),
+                Some(None) => anyhow::bail!(
+                    "plugins.log_protection_full: 要从日志里遮住的插件保密值已达上限，之后的日志内容都会隐藏。"
+                ),
                 None => Vec::new(),
             }
         };
@@ -153,22 +157,24 @@ impl PluginRuntime {
             .iter()
             .map(|(key, id)| (super::service::secret_owner(&setting.name, key), *id));
         for (owner, id) in servers.chain(own) {
-            let mcp = self
-                .mcp
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("plugin credential store unavailable"))?;
-            let (_, value) = mcp
-                .secrets()
-                .value(&owner, id)
-                .map_err(|_| anyhow::anyhow!("plugin credential unavailable"))?;
+            let mcp = self.mcp.as_ref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "plugins.credential_store_unavailable: 插件的保密值存储不可用，日志内容已隐藏。"
+                )
+            })?;
+            let (_, value) = mcp.secrets().value(&owner, id).map_err(|_| {
+                anyhow::anyhow!(
+                    "plugins.credential_unavailable: 读不出插件的保密值，日志内容已隐藏。"
+                )
+            })?;
             let text = std::str::from_utf8(value.expose())
-                .map_err(|_| anyhow::anyhow!("plugin credential is not text"))?;
+                .map_err(|_| anyhow::anyhow!("plugins.credential_not_text: 插件的保密值不是文本，没法从日志里遮住，日志内容已隐藏。"))?;
             values.push(text.to_owned());
         }
         // A line-framed source may split these values before this layer can mask them.
         anyhow::ensure!(
             !values.iter().any(|value| value.contains(['\r', '\n'])),
-            "plugin credential spans log lines"
+            "plugins.credential_multiline: 插件的保密值里有换行，没法从按行记录的日志里可靠遮住，日志内容已隐藏。"
         );
         Ok(values)
     }

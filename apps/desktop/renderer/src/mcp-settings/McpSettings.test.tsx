@@ -431,3 +431,31 @@ test('a plugin’s server is edited here, trusted and removed with its plugin, a
   expect(bytes.length).toBe('token-value'.length);
   expect((await within(dialog).findByRole('status')).textContent).toContain('已保存 GITHUB_TOKEN');
 });
+
+test("saving a plugin server's empty secret asks for it and sends nothing", async () => {
+  const user = userEvent.setup();
+  const secretId = 'crd_01M55FF84C9XFN71FZ0GS9967Y';
+  api.listMcpServers.mockResolvedValue(
+    registry([
+      view('kit-files', {
+        plugin: 'kit',
+        config: config('kit-files', {
+          transport: {
+            type: 'stdio',
+            command: 'C:/Aura/plugins/packages/kit/bin/server.exe',
+            arguments: [],
+            secret_environment: [{ name: 'GITHUB_TOKEN', secret_id: secretId }],
+          },
+        }),
+        state: 'invalid',
+        problems: ['密钥还没有设置：GITHUB_TOKEN'],
+      }),
+    ]),
+  );
+  render(<McpSettings coreReady />);
+  await screen.findByText('kit-files 服务器', { selector: 'strong' });
+  const dialog = await details('kit-files 服务器');
+  await user.click(within(dialog).getByRole('button', { name: '保存' }));
+  expect(await within(dialog).findByText('请先填写 GITHUB_TOKEN。')).toBeTruthy();
+  expect(api.setMcpSecret).not.toHaveBeenCalled();
+});

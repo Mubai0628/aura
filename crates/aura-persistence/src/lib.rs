@@ -2,17 +2,21 @@
 mod broker_evidence;
 
 mod artifact;
+mod artifact_gc;
 /// The default-off storage hold points. `cfg(debug_assertions)` gates this module
 /// AND every one of its consumers below, so a release build contains no hold point
 /// at all and a dev build carries them unarmed. See the module for why the class
 /// stays off in both dev images without a control document.
 #[cfg(debug_assertions)]
 pub mod barrier;
+mod connection_settings;
 mod context;
 mod coordinator;
 mod diagnostics;
 mod error;
+mod exit;
 mod external_approvals;
+mod index_admission;
 mod legacy_configuration_transport;
 mod migration;
 mod migration_check;
@@ -33,9 +37,12 @@ mod registry_purge;
 mod security;
 mod session;
 mod session_lifecycle;
-pub use session_lifecycle::{RemovedWorkspace, SESSION_ARCHIVED, SESSION_DELETING, SESSION_IDLE};
+pub use session_lifecycle::{
+    RemovedWorkspace, SESSION_ARCHIVED, SESSION_DELETING, SESSION_IDLE, SESSION_SUBAGENT,
+};
 mod session_title;
 mod session_write;
+pub mod slimming;
 pub use session_write::{SessionPublicationReceipt, SessionWriteCompletion, SessionWriteReceipt};
 mod migration_frozen;
 mod tool;
@@ -57,6 +64,7 @@ mod tool_reference;
 mod tool_registry_authority;
 mod tool_settings_mutation;
 mod workspace;
+mod workspace_projection;
 mod writer;
 mod writer_queue;
 
@@ -85,6 +93,7 @@ pub use coordinator::{
     WriterSettlements, WriterState,
 };
 pub use error::PersistenceError;
+pub use exit::ExitWriteBack;
 pub use legacy_configuration_transport::{
     ConfigurationTransportRecoverySnapshot, EffectiveTransportAttemptStatus,
     HistoricalIntegrityDegradation, LEGACY_CONFIGURATION_TRANSPORT_MIGRATION_KEY,
@@ -129,7 +138,7 @@ pub use mutation_journal::{
     MutationJournalMetadataCommit, MutationJournalRecord, MutationJournalRecoveryHandler,
     MutationJournalRecoveryRegistry, PrepareMutationJournal,
 };
-pub use read_pool::ReadPoolCounters;
+pub use read_pool::{DEFAULT_READ_ACQUIRE, ReadPoolCounters};
 pub use security::{
     ApprovalCommit, ArtifactOverwriteJournalBinding, ArtifactOverwriteJournalRecord,
     ArtifactOverwriteJournalState, HostPreparationExpiry, HostPreparationJournalRecord,

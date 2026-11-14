@@ -9,7 +9,8 @@ use std::{
 use aura_chrome_domain::protocol::{native_host_name, pairing_credential};
 use aura_domain_common::{ContentHash, ContentHashAlgorithm, ContractVersion, ReleaseBundleId};
 use aura_runtime_contract::{
-    BuildComponent, BuildComponentKind, BuildComponentManifest, BundleNamespace, ReleaseChannel,
+    BuildComponent, BuildComponentKind, BuildComponentManifest, BundleNamespace,
+    PRODUCTION_BUNDLE_NAMESPACE, ReleaseChannel,
 };
 use sha2::{Digest, Sha256};
 use zip::{ZipWriter, write::SimpleFileOptions};
@@ -25,6 +26,17 @@ const NAMESPACE: &str = "aura.desktop.test.setup";
 
 fn namespace() -> BundleNamespace {
     NAMESPACE.parse().unwrap()
+}
+
+/// The installation's locations while its data is in the default places.
+fn default_locations(host: &FolderHost) -> aura_data_location::Locations {
+    let roots = host.roots().unwrap();
+    aura_data_location::Locations::resolve(
+        &roots,
+        &namespace(),
+        &aura_data_location::InstallCopy::NotInstalled,
+    )
+    .unwrap()
 }
 
 struct Work {
@@ -223,6 +235,13 @@ fn a_fresh_install_puts_the_program_shortcuts_and_entry_in_place() {
     let host = work.host();
     assert!(host.start_menu().unwrap().join("Aura Test setup.lnk").is_file());
     assert!(host.desktop().unwrap().join("Aura Test setup.lnk").is_file());
+    // Both carry the identity Aura's windows run under, as UTF-16 in the link's property store.
+    let identity: Vec<u8> =
+        format!("Aura.{NAMESPACE}").encode_utf16().flat_map(u16::to_le_bytes).collect();
+    for folder in [host.start_menu().unwrap(), host.desktop().unwrap()] {
+        let link = fs::read(folder.join("Aura Test setup.lnk")).unwrap();
+        assert!(link.windows(identity.len()).any(|window| window == identity.as_slice()));
+    }
     let entry = host.entry(&namespace()).unwrap();
     assert_eq!(entry["DisplayVersion"], "0.1.0");
     assert_eq!(entry["InstallLocation"].as_str().map(PathBuf::from), Some(root.clone()));
@@ -295,7 +314,7 @@ fn uninstalling_keeps_the_data_unless_asked_and_refuses_a_folder_that_is_not_aur
     let work = Work::new();
     work.install(&work.release("0.1.0"), None, true).unwrap();
     let host = work.host();
-    let data = host.data_root(&namespace()).unwrap();
+    let data = default_locations(&host).data_root;
     fs::create_dir_all(&data).unwrap();
     fs::write(data.join("aura-v2.db"), b"conversations").unwrap();
 
@@ -326,8 +345,8 @@ fn uninstalling_removes_chromes_registration_and_folder_and_with_the_data_the_se
     let work = Work::new();
     work.install(&work.release("0.1.0"), None, false).unwrap();
     let host = work.host();
-    let data = host.data_root(&namespace()).unwrap();
-    let config = host.config_root(&namespace()).unwrap();
+    let data = default_locations(&host).data_root;
+    let config = default_locations(&host).settings_root;
     let chrome = data.join("chrome");
     fs::create_dir_all(chrome.join("extension")).unwrap();
     let manifest = chrome.join("host.json");
@@ -398,6 +417,15 @@ struct Running(std::process::Child);
 // Chrome's relay left running in a version folder, and other programs holding one.
 #[path = "tests/leftover_relays.rs"]
 mod leftover_relays;
+mod locations;
+mod marked_uninstall;
+mod relocation;
+
+// The setup and uninstall windows: every page through the pixel checks, and the keyboard alone.
+#[path = "tests/pages.rs"]
+mod pages;
+#[path = "tests/wizard.rs"]
+mod wizard;
 
 impl Running {
     fn start(folder: &Path) -> Self {
@@ -470,4 +498,69 @@ fn going_back_lets_the_previous_version_wait_and_needs_one() {
     let back = work.state();
     assert_eq!(back.active, "0.1.1");
     assert_eq!(back.pending.as_deref(), Some("0.1.0"));
+}
+
+/// A moved installation's uninstall plan names the moved data. Deleting the data removes what the
+/// moved folder holds of this installation and the namespace's default folder with its record,
+/// and keeps global memory.
+#[test]
+fn uninstalling_a_moved_installation_plans_and_removes_the_moved_data() {
+    use aura_data_location::{DataMarker, LocationRecord, RECORD_FILE, write_marker, write_record};
+    let work = Work::new();
+    work.install(&work.release("0.1.0"), None, false).unwrap();
+    let host = work.host();
+    let fixed = host.root.join("LocalAppData/Aura/namespaces").join(namespace().object_name_hash());
+    let moved = work.folder.path().join("D-drive").join("Aura");
+    for folder in ["data", "logs", "ui-profile", "memories"] {
+        fs::create_dir_all(moved.join(folder)).unwrap();
+    }
+    fs::write(moved.join("data/aura-v2.db"), b"conversations").unwrap();
+    fs::write(moved.join("memories/note.md"), b"remember").unwrap();
+    write_marker(&moved, &DataMarker::new(namespace())).unwrap();
+    fs::create_dir_all(fixed.join("chrome/extension")).unwrap();
+    write_record(&fixed.join(RECORD_FILE), &LocationRecord::new(namespace(), moved.clone()))
+        .unwrap();
+    let mut state = work.state();
+    state.data_location = Some(moved.display().to_string());
+    aura_launcher::write_install_state(&work.root(), &state).unwrap();
+
+    let plan = plan_uninstall(&host, &work.root()).unwrap();
+    assert_eq!(plan.data_root, moved.join("data"));
+    assert_eq!(plan.data_bytes, 13);
+    let removed = uninstall(&host, &plan, true).unwrap();
+    assert!(removed.data);
+    for gone in [
+        moved.join("data"),
+        moved.join("logs"),
+        moved.join("ui-profile"),
+        moved.join("aura-data.v1.json"),
+        fixed,
+    ] {
+        assert!(!gone.exists(), "{} is still there", gone.display());
+    }
+    assert_eq!(fs::read(moved.join("memories/note.md")).unwrap(), b"remember");
+}
+
+#[test]
+fn a_refusal_the_caller_words_itself_carries_its_code() {
+    let work = Work::new();
+    work.install(&work.release("0.1.0"), None, false).unwrap();
+    let refused = install::roll_back(&work.root()).unwrap_err();
+    assert_eq!(install::refusal_code(&refused), Some("no_previous_version"));
+    // A production release that carries no signature.
+    work.release("0.1.1");
+    let payload = work.folder.path().join("payload-0.1.1");
+    let manifest_path = payload.join("versions/0.1.1/component-manifest.json");
+    let mut manifest: BuildComponentManifest =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest.bundle_namespace = PRODUCTION_BUNDLE_NAMESPACE.parse().unwrap();
+    fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+    let setup = work.folder.path().join("production.exe");
+    pack::pack(&payload, &work.stub(), &setup, &work.folder.path().join("production.update"))
+        .unwrap();
+    let Err(refused) = install::read_release(&mut payload::open_in_program(&setup).unwrap()) else {
+        panic!("an unsigned production release was read");
+    };
+    assert_eq!(install::refusal_code(&refused), Some("release_not_signed"));
+    assert_eq!(install::refusal_code(&anyhow::anyhow!("cannot write")), None);
 }

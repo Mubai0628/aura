@@ -2,6 +2,10 @@
 //! response, as it does when it starts a project. The first write creates the folder; the others
 //! still run: a folder that appears along a new file's path after the call was approved does not
 //! change what was approved, at whichever check before its start the call sees it.
+//!
+//! Calls of one response on the same file run in the order written: a read after a patch reads
+//! the patched text, and a second patch numbered against the same read applies on top of the
+//! first. A whole-file write after a patch is still refused, since it would drop the patch.
 use super::*;
 
 const FILES: [&str; 5] = [
@@ -105,4 +109,108 @@ fn all_written(host: &crate::r03_tests::Fixture, provider: &Provider) {
     for path in FILES {
         assert!(root.join(path).is_file(), "{path} was not written: {results:#?}");
     }
+}
+
+/// The file the calls below change, as the model read it.
+const GAME: &str = "const name = \"game\";\nconst speed = 1;\nconst color = \"red\";\nconst size = 10;\nconst lives = 3;\n";
+
+/// A changed line and an added one near the top.
+const FASTER: &str = "--- a/game.js\n+++ b/game.js\n@@ -1,3 +1,4 @@\n const name = \"game\";\n-const speed = 1;\n+const speed = 2;\n+const boost = 1.5;\n const color = \"red\";\n";
+
+/// [`GAME`] after [`FASTER`].
+const GAME_FASTER: &str = "const name = \"game\";\nconst speed = 2;\nconst boost = 1.5;\nconst color = \"red\";\nconst size = 10;\nconst lives = 3;\n";
+
+/// A change near the end, numbered against [`GAME`]: after [`FASTER`] its lines are one lower.
+const MORE_LIVES: &str = "--- a/game.js\n+++ b/game.js\n@@ -4,2 +4,2 @@\n const size = 10;\n-const lives = 3;\n+const lives = 5;\n";
+
+/// [`GAME`] after both.
+const GAME_BOTH: &str = "const name = \"game\";\nconst speed = 2;\nconst boost = 1.5;\nconst color = \"red\";\nconst size = 10;\nconst lives = 5;\n";
+
+/// A patch of game.js named against the hash of [`GAME`].
+fn patch(diff: &str) -> serde_json::Value {
+    serde_json::json!({
+        "path": "game.js",
+        "unified_diff": diff,
+        "expected_hash": aura_domain_common::ContentHash::blake3(GAME.as_bytes()),
+    })
+}
+
+fn read() -> serde_json::Value {
+    serde_json::json!({"path": "game.js"})
+}
+
+/// Runs one response with these calls on a workspace holding game.js as [`GAME`]; the results
+/// the model got back, in the order written, and the file afterwards.
+async fn one_response(calls: Vec<(&'static str, serde_json::Value)>) -> (Vec<String>, String) {
+    let calls = calls
+        .into_iter()
+        .map(|(tool, arguments)| (tool, &*Box::leak(arguments.to_string().into_boxed_str())))
+        .collect::<Vec<_>>();
+    let scenario = Scenario::Batch { calls: Box::leak(calls.into_boxed_slice()) };
+    let host = crate::r03_tests::Fixture::new();
+    let provider = Provider::scenario(scenario).await;
+    let (runtime, session, model) =
+        prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
+    let file = host.root.path().join("waiting-workspace").join("game.js");
+    std::fs::write(&file, GAME).expect("the game file");
+    let start = super::start(&runtime, session, model, AgentTaskMode::Normal).await;
+    let request =
+        AgentRunRequest { session_id: start.turn.session_id, agent_run_id: start.run.agent_run_id };
+    wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
+    let after = std::fs::read_to_string(&file).expect("the game file afterwards");
+    (results(&provider), after)
+}
+
+fn succeeded(result: &str) -> bool {
+    ["not started", "did not succeed", "operation_rejected", "not_executed"]
+        .iter()
+        .all(|failure| !result.contains(failure))
+}
+
+#[tokio::test]
+async fn a_read_written_after_a_patch_of_the_same_file_reads_the_patched_text() {
+    let (results, after) =
+        one_response(vec![("fs.patch", patch(FASTER)), ("fs.read", read())]).await;
+    assert_eq!(results.len(), 2, "{results:#?}");
+    assert!(results.iter().all(|result| succeeded(result)), "{results:#?}");
+    assert!(results[1].contains("const boost = 1.5;"), "{}", results[1]);
+    assert_eq!(after, GAME_FASTER);
+}
+
+#[tokio::test]
+async fn a_read_written_before_a_patch_of_the_same_file_reads_the_text_before_it() {
+    let (results, after) =
+        one_response(vec![("fs.read", read()), ("fs.patch", patch(FASTER))]).await;
+    assert_eq!(results.len(), 2, "{results:#?}");
+    assert!(results.iter().all(|result| succeeded(result)), "{results:#?}");
+    assert!(results[0].contains("const speed = 1;"), "{}", results[0]);
+    assert!(!results[0].contains("const boost"), "{}", results[0]);
+    assert_eq!(after, GAME_FASTER);
+}
+
+#[tokio::test]
+async fn two_patches_of_one_file_numbered_against_the_same_read_both_apply() {
+    let (results, after) =
+        one_response(vec![("fs.patch", patch(FASTER)), ("fs.patch", patch(MORE_LIVES))]).await;
+    assert_eq!(results.len(), 2, "{results:#?}");
+    assert!(results.iter().all(|result| succeeded(result)), "{results:#?}");
+    assert_eq!(after, GAME_BOTH);
+}
+
+#[tokio::test]
+async fn a_whole_file_write_after_a_patch_of_the_same_response_is_still_refused() {
+    let write = serde_json::json!({
+        "path": "game.js",
+        "text": "rewritten\n",
+        "expected": {
+            "expected_kind": "file_hash",
+            "hash": aura_domain_common::ContentHash::blake3(GAME.as_bytes()),
+        },
+    });
+    let (results, after) =
+        one_response(vec![("fs.patch", patch(FASTER)), ("fs.write", write)]).await;
+    assert_eq!(results.len(), 2, "{results:#?}");
+    assert!(succeeded(&results[0]), "{}", results[0]);
+    assert!(results[1].contains("fs.expected_state_conflict"), "{}", results[1]);
+    assert_eq!(after, GAME_FASTER, "the write would have dropped the patch");
 }

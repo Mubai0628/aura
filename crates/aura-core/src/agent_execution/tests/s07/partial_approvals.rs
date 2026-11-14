@@ -34,6 +34,7 @@ async fn s07_n7_file_session_approval_and_a_network_once_answer_combine_without_
     .expect("live authorities");
     let mut policy = call.policy(UtcTimestamp::now(), engine.runtime);
     policy.grants = &grants;
+    policy.workspace = engine.approval_workspace(&call.operation);
     let PolicyAuthorization::Ask { proposal } = aura_permission_engine::policy::authorize(
         &policy,
         &broker::descriptor(engine.runtime),

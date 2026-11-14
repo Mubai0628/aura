@@ -2,6 +2,20 @@ use super::*;
 use aura_security_service::external_grants;
 
 impl AgentExecution {
+    /// The operation's Workspace as Core holds it now, for every policy input that offers the
+    /// session's approvals. Without it no session file approval covers the operation.
+    pub fn approval_workspace(
+        &self,
+        operation: &SecuredOperation,
+    ) -> Option<aura_security_contract::ApprovalWorkspace> {
+        let workspace =
+            self.persistence.workspace(operation.content.identity.workspace_id?).ok()?;
+        Some(aura_security_contract::ApprovalWorkspace {
+            canonical_root: workspace.canonical_root,
+            authorization_epoch: workspace.authorization_epoch,
+        })
+    }
+
     pub(in crate::agent_execution) fn external_authority_slices(
         &self,
         operation: &SecuredOperation,

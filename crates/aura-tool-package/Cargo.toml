@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aura-data-location = { path = "../aura-data-location" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-tool-contract = { path = "../aura-tool-contract" }
 aura-tool-domain = { path = "../aura-tool-domain" }

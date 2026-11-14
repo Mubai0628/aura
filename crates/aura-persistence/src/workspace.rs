@@ -2214,7 +2214,7 @@ impl PersistenceCoordinator {
         // What only whole-table reads find, and the rows there are thousands of, go first in
         // short background jobs, so the transaction below holds the writer briefly.
         let subject = workspace_id.to_string();
-        let mut scanned = self.with_reader(|connection| {
+        let mut scanned = self.read_within(crate::registry_purge::SCAN_BUDGET, |connection| {
             let state = connection
                 .query_row(
                     "SELECT state FROM workspaces WHERE workspace_id=?1",

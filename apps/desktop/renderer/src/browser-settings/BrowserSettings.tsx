@@ -7,10 +7,19 @@ import type {
 import { AppIcon } from '../app-icons';
 import { ConfirmationDialog } from '../ConfirmationDialog';
 import { userMessage } from '../agent-session/user-message';
+import { refusedAction } from '../agent-session/failure-text';
 import { browserApi } from '../browser/browser-store';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
 import { ChromeSettings } from './ChromeSettings';
 import './browser-settings.css';
+
+/** The settings were not read: why, and that they cannot be changed until they are. */
+const SETTINGS_NOT_READ = (error: unknown): string =>
+  refusedAction(error, '浏览器设置没有读到', '暂时不能修改；请点“重试”。');
+
+/** Browsing data that was not cleared: why, and that it is kept. */
+const notCleared = (reason: string): string =>
+  `浏览数据没有清除（${reason.replace(/[。.]+$/u, '')}），登录状态和缓存仍在；请稍后再试。`;
 
 type SiteField = 'allowed_sites' | 'blocked_sites';
 const LISTS: Record<SiteField, string> = {
@@ -103,6 +112,10 @@ function SiteList({
 export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
   const [snapshot, setSnapshot] = useState<BrowserSettingsSnapshot>();
   const [error, setError] = useState<string>();
+  // The settings read that failed, with the attempt that reads them again.
+  const [unread, setUnread] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
+  const [cleared, setCleared] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState<'debugging' | 'clear'>();
   const debugTitle = useId();
@@ -112,17 +125,22 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
     const api = browserApi();
     if (!coreReady || api === undefined) return;
     let live = true;
-    void api.getSettings().then((result) => {
-      if (!live) return;
-      if (result.ok) {
-        setSnapshot(result.value);
-        setError(undefined);
-      } else setError(userMessage(result.error, '浏览器设置读取失败，请重试。'));
-    });
+    void api.getSettings().then(
+      (result) => {
+        if (!live) return;
+        if (result.ok) {
+          setSnapshot(result.value);
+          setUnread(undefined);
+        } else setUnread(SETTINGS_NOT_READ(result.error));
+      },
+      (reason: unknown) => {
+        if (live) setUnread(SETTINGS_NOT_READ(reason));
+      },
+    );
     return () => {
       live = false;
     };
-  }, [coreReady]);
+  }, [coreReady, attempt]);
 
   const settings = snapshot?.settings;
   const ready = snapshot?.revision != null && !saving;
@@ -197,11 +215,28 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
           </span>
         </label>
       </section>
+      {unread === undefined ? null : (
+        <p className="settings-status-line" role="alert">
+          {unread}
+          <button
+            className="button is-small"
+            onClick={() => setAttempt((value) => value + 1)}
+            type="button"
+          >
+            重试
+          </button>
+        </p>
+      )}
       {error !== undefined || snapshot?.issue ? (
         <p className="settings-status-line" role="alert">
           {error ?? snapshot?.issue}
         </p>
       ) : null}
+      {cleared === undefined ? null : (
+        <p className="settings-status-line is-done" role="status">
+          {cleared}
+        </p>
+      )}
       <ChromeSettings coreReady={coreReady} />
       {confirming === 'debugging' ? (
         <ConfirmationDialog
@@ -225,11 +260,18 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
           onCancel={() => setConfirming(undefined)}
           onConfirm={() => {
             setConfirming(undefined);
+            setCleared(undefined);
             void browserApi()
               ?.command({ kind: 'clear-data' })
-              .then((reply) => {
-                if (!reply.ok) setError(reply.message);
-              });
+              .then(
+                (reply) => {
+                  if (reply.ok) {
+                    setError(undefined);
+                    setCleared('已清除内置浏览器的登录状态和缓存。');
+                  } else setError(notCleared(reply.message));
+                },
+                () => setError(notCleared('Aura 内部通信失败')),
+              );
           }}
           title="清除浏览数据？"
           titleId={clearTitle}

@@ -6,12 +6,16 @@ use std::time::{Duration, Instant};
 
 use rusqlite::{Connection, Transaction, params};
 
-use crate::{PersistenceCoordinator, PersistenceError, writer_queue::WorkClass};
+use crate::{PersistenceCoordinator, PersistenceError};
 
 /// Rows one delete statement takes.
 const CHUNK: usize = 512;
-/// How long one background job may wait for the writer.
+/// How long one background job may wait for the writer, a place in its lane included.
 const JOB_WAIT: Duration = Duration::from_secs(120);
+/// How long a deletion's reads of whole tables may take. On a large store whose pages are not in
+/// memory yet, as right after Core starts, they take longer than an ordinary read's budget, and a
+/// deletion cut off there fails as a whole.
+pub(crate) const SCAN_BUDGET: Duration = JOB_WAIT;
 
 /// Rows found by reading whole tables, by row ID.
 #[derive(Debug, Default)]
@@ -109,21 +113,24 @@ impl Scanned {
         coordinator: &PersistenceCoordinator,
     ) -> Result<(), PersistenceError> {
         for text in std::mem::take(&mut self.text) {
+            let (table, key) = (text.table, text.key);
             for chunk in text.rows.chunks(CHUNK) {
-                let chunk = chunk.to_vec();
-                let (table, key) = (text.table, text.key);
                 let deadline = Instant::now() + JOB_WAIT;
-                coordinator.dispatch_within(WorkClass::Index, deadline, move |connection| {
-                    let tx = connection.transaction()?;
-                    {
-                        let mut statement = tx
-                            .prepare(&format!("DELETE FROM {table} WHERE rowid=?1 AND {key}=?2"))?;
-                        for (rowid, value) in &chunk {
-                            statement.execute(params![rowid, value])?;
+                coordinator.dispatch_index_with_room(deadline, || {
+                    let chunk = chunk.to_vec();
+                    move |connection: &mut Connection| -> Result<(), PersistenceError> {
+                        let tx = connection.transaction()?;
+                        {
+                            let mut statement = tx.prepare(&format!(
+                                "DELETE FROM {table} WHERE rowid=?1 AND {key}=?2"
+                            ))?;
+                            for (rowid, value) in &chunk {
+                                statement.execute(params![rowid, value])?;
+                            }
                         }
+                        tx.commit()?;
+                        Ok(())
                     }
-                    tx.commit()?;
-                    Ok(())
                 })?;
             }
         }
@@ -184,18 +191,16 @@ pub(crate) fn delete_catalog(
     workspace: &str,
 ) -> Result<(), PersistenceError> {
     loop {
-        let workspace = workspace.to_owned();
-        let deleted = coordinator.dispatch_within(
-            WorkClass::Index,
-            Instant::now() + JOB_WAIT,
-            move |connection| {
+        let deleted = coordinator.dispatch_index_with_room(Instant::now() + JOB_WAIT, || {
+            let workspace = workspace.to_owned();
+            move |connection: &mut Connection| -> Result<usize, PersistenceError> {
                 Ok(connection.execute(
                     "DELETE FROM workspace_catalog_entries WHERE rowid IN (
                         SELECT rowid FROM workspace_catalog_entries WHERE workspace_id=?1 LIMIT ?2)",
                     params![workspace, 2_000],
                 )?)
-            },
-        )?;
+            }
+        })?;
         if deleted == 0 {
             return Ok(());
         }

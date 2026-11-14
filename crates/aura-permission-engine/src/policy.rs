@@ -39,6 +39,9 @@ pub struct PolicyInput<'a> {
     /// caller that cannot name a runtime instance is treated as a different one,
     /// which is why the field being absent fails closed rather than open.
     pub core_runtime_instance_id: Option<RuntimeInstanceId>,
+    /// The operation's Workspace as Core holds it now. While it is absent, or at another folder
+    /// than a session file approval's, that approval covers nothing.
+    pub workspace: Option<ApprovalWorkspace>,
 }
 
 pub struct PolicyAssessment {
@@ -644,6 +647,9 @@ pub fn explicit_grant_covers_operation(
 }
 
 fn grant_covers_operation(grant: &AuthorizationGrant, input: &PolicyInput<'_>) -> bool {
+    if !grant_in_its_workspace(grant, input.workspace.as_ref()) {
+        return false;
+    }
     // A program's session answer covers only the computer-control call it answered, and no
     // other grant covers a computer-control call except an answer for that exact call.
     if grant.scope.desktop_app_consent.is_some() {

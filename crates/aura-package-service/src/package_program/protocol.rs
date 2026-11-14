@@ -59,7 +59,7 @@ impl Protocol {
             Some(StdioProtocolFrameV1::FinalResult { payload, .. }) => {
                 Ok(canonical_json_jcs(&payload.result)?)
             }
-            _ => anyhow::bail!("package.stdio_failure"),
+            _ => anyhow::bail!(crate::failures::STDIO_FAILURE),
         }
     }
 }

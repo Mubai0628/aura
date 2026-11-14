@@ -1,7 +1,7 @@
 //! What installing and uninstalling change outside the install folder, behind one trait so the
 //! tests run the same steps against a folder of their own.
 use std::{
-    env, io,
+    io,
     path::{Path, PathBuf},
 };
 
@@ -9,6 +9,7 @@ use std::{
 use std::fs;
 
 use aura_chrome_domain::protocol::native_host_name;
+use aura_data_location::Roots;
 use aura_runtime_contract::BundleNamespace;
 use aura_windows_platform::installer::{self, RunningProgram, Shortcut, UninstallEntry};
 
@@ -17,6 +18,9 @@ pub trait Host {
     fn default_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf>;
     /// Where an existing installation of this namespace is, from its Settings > Apps entry.
     fn installed_root(&self, namespace: &BundleNamespace) -> io::Result<Option<PathBuf>>;
+    /// The folders the Settings > Apps entries of every Aura installation name; `None` for an
+    /// entry that names none.
+    fn installed_folders(&self) -> io::Result<Vec<Option<PathBuf>>>;
     fn write_entry(
         &self,
         namespace: &BundleNamespace,
@@ -30,16 +34,25 @@ pub trait Host {
     fn running_in(&self, root: &Path) -> io::Result<Vec<RunningProgram>>;
     /// Ends a program `running_in` found, while its process still runs that executable.
     fn stop(&self, program: &RunningProgram) -> io::Result<()>;
-    /// The installation's data folder (`%LOCALAPPDATA%\Aura\namespaces\<hash>`).
-    fn data_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf>;
-    /// The installation's settings folder (`%APPDATA%\Aura\namespaces\<hash>`).
-    fn config_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf>;
+    /// The user's folders the installation's locations are worked out from.
+    fn roots(&self) -> io::Result<Roots>;
     fn credentials(&self, namespace: &BundleNamespace) -> io::Result<Vec<String>>;
     fn delete_credentials(&self, namespace: &BundleNamespace) -> io::Result<usize>;
     /// Removes Chrome's registration of the installation's relay; `false` when there was none.
     fn remove_chrome_host(&self, namespace: &BundleNamespace) -> io::Result<bool>;
     /// Removes the name Windows heads the installation's notifications with.
     fn remove_notification_identity(&self, namespace: &BundleNamespace) -> io::Result<bool>;
+    /// The folder of the shortcuts pinned to the taskbar.
+    fn taskbar_pins(&self) -> io::Result<PathBuf>;
+    /// The manifest Chrome finds for the installation's relay, when Chrome control registered one.
+    fn chrome_host_manifest(&self, namespace: &BundleNamespace) -> io::Result<Option<PathBuf>>;
+    /// Points the notification name's icon into `to` when it is inside `from`.
+    fn relocate_notification_icon(
+        &self,
+        namespace: &BundleNamespace,
+        from: &Path,
+        to: &Path,
+    ) -> io::Result<bool>;
 }
 
 /// The entry key in Settings > Apps: `Aura` for the released product, its own key for a test
@@ -68,28 +81,20 @@ pub fn credential_prefix(namespace: &BundleNamespace) -> String {
     format!("Aura/{}/", namespace.object_name_hash())
 }
 
-fn local_app_data() -> io::Result<PathBuf> {
-    env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "LOCALAPPDATA is not set"))
-}
-
-fn app_data() -> io::Result<PathBuf> {
-    env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "APPDATA is not set"))
-}
-
 /// The user's own Windows session.
 pub struct SystemHost;
 
 impl Host for SystemHost {
     fn default_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
-        Ok(local_app_data()?.join("Programs").join(folder_name(namespace)))
+        Ok(self.roots()?.local.join("Programs").join(folder_name(namespace)))
     }
 
     fn installed_root(&self, namespace: &BundleNamespace) -> io::Result<Option<PathBuf>> {
         installer::read_uninstall_location(&entry_key(namespace))
+    }
+
+    fn installed_folders(&self) -> io::Result<Vec<Option<PathBuf>>> {
+        Ok(installer::aura_uninstall_entries()?.into_iter().map(|(_, folder)| folder).collect())
     }
 
     fn write_entry(
@@ -132,12 +137,8 @@ impl Host for SystemHost {
         installer::stop_program(program)
     }
 
-    fn data_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
-        Ok(local_app_data()?.join("Aura").join("namespaces").join(namespace.object_name_hash()))
-    }
-
-    fn config_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
-        Ok(app_data()?.join("Aura").join("namespaces").join(namespace.object_name_hash()))
+    fn roots(&self) -> io::Result<Roots> {
+        Roots::from_system().map_err(io::Error::other)
     }
 
     fn credentials(&self, namespace: &BundleNamespace) -> io::Result<Vec<String>> {
@@ -154,6 +155,26 @@ impl Host for SystemHost {
 
     fn remove_notification_identity(&self, namespace: &BundleNamespace) -> io::Result<bool> {
         installer::remove_notification_identity(namespace.as_str())
+    }
+
+    fn taskbar_pins(&self) -> io::Result<PathBuf> {
+        Ok(self
+            .roots()?
+            .roaming
+            .join(r"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"))
+    }
+
+    fn chrome_host_manifest(&self, namespace: &BundleNamespace) -> io::Result<Option<PathBuf>> {
+        installer::read_chrome_native_host(&native_host_name(namespace.as_str()))
+    }
+
+    fn relocate_notification_icon(
+        &self,
+        namespace: &BundleNamespace,
+        from: &Path,
+        to: &Path,
+    ) -> io::Result<bool> {
+        installer::relocate_notification_icon(namespace.as_str(), from, to)
     }
 }
 
@@ -201,6 +222,17 @@ impl Host for FolderHost {
         Ok(self
             .entry(namespace)
             .and_then(|entry| entry["InstallLocation"].as_str().map(PathBuf::from)))
+    }
+
+    fn installed_folders(&self) -> io::Result<Vec<Option<PathBuf>>> {
+        let mut folders = Vec::new();
+        for entry in fs::read_dir(self.root.join("entries")).into_iter().flatten() {
+            let bytes = fs::read(entry?.path())?;
+            let value: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(io::Error::other)?;
+            folders.push(value["InstallLocation"].as_str().map(PathBuf::from));
+        }
+        Ok(folders)
     }
 
     fn write_entry(
@@ -257,12 +289,13 @@ impl Host for FolderHost {
         installer::stop_program(program)
     }
 
-    fn data_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
-        Ok(self.root.join("LocalAppData/Aura/namespaces").join(namespace.object_name_hash()))
-    }
-
-    fn config_root(&self, namespace: &BundleNamespace) -> io::Result<PathBuf> {
-        Ok(self.root.join("AppData/Aura/namespaces").join(namespace.object_name_hash()))
+    fn roots(&self) -> io::Result<Roots> {
+        Ok(Roots {
+            local: self.root.join("LocalAppData"),
+            roaming: self.root.join("AppData"),
+            profile: self.root.join("Profile"),
+            known_local: self.root.join("LocalAppData"),
+        })
     }
 
     fn credentials(&self, _namespace: &BundleNamespace) -> io::Result<Vec<String>> {
@@ -282,6 +315,23 @@ impl Host for FolderHost {
     }
 
     fn remove_notification_identity(&self, _namespace: &BundleNamespace) -> io::Result<bool> {
+        Ok(false)
+    }
+
+    fn taskbar_pins(&self) -> io::Result<PathBuf> {
+        Ok(self.root.join("TaskBar"))
+    }
+
+    fn chrome_host_manifest(&self, namespace: &BundleNamespace) -> io::Result<Option<PathBuf>> {
+        Ok(self.chrome_host(&native_host_name(namespace.as_str())))
+    }
+
+    fn relocate_notification_icon(
+        &self,
+        _namespace: &BundleNamespace,
+        _from: &Path,
+        _to: &Path,
+    ) -> io::Result<bool> {
         Ok(false)
     }
 }

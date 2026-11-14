@@ -8,17 +8,12 @@ import type {
 import type { ResultEnvelope } from '../../../shared/aura-api';
 import { AppIcon } from '../app-icons';
 import { SkillDetails, SkillHeading, type SkillChange } from './SkillDetails';
-import {
-  skillError,
-  skillName,
-  skillSourceLabel,
-  skillStateTone,
-  skillUsable,
-} from './skill-labels';
+import { skillName, skillSourceLabel, skillStateTone, skillUsable } from './skill-labels';
 import { SettingsItemDialog, SettingsRow, SettingsRowOpen } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './skill-settings.css';
+import { userMessage } from '../agent-session/user-message';
 
 const NO_SKILLS: readonly SkillView[] = [];
 
@@ -50,10 +45,10 @@ export function SkillSettings({
         if (result.ok) {
           setRegistry(result.value);
           setLoadError(undefined);
-        } else setLoadError(skillError(result.error.message, 'Skill 列表读取失败，请重试。'));
+        } else setLoadError(userMessage(result.error, 'Skill 列表读取失败，请重试。'));
       },
       (reason: unknown) => {
-        if (live) setLoadError(skillError(reason, 'Skill 列表读取失败，请重试。'));
+        if (live) setLoadError(userMessage(reason, 'Skill 列表读取失败，请重试。'));
       },
     );
     return () => {
@@ -70,14 +65,15 @@ export function SkillSettings({
       if (outcome) setNotice(outcome);
       if (outcome?.alert) setReload((value) => value + 1);
     } catch (reason) {
-      setNotice({ alert: true, text: skillError(reason, '操作结果未确认，请刷新后核对。') });
+      setNotice({ alert: true, text: userMessage(reason, '操作结果未确认，请刷新后核对。') });
       setReload((value) => value + 1);
     } finally {
       setBusy(undefined);
     }
   }
   const applied = (result: ResultEnvelope<SkillRegistryView>, done: string): Notice => {
-    if (!result.ok) return { alert: true, text: skillError(result.error.message) };
+    if (!result.ok)
+      return { alert: true, text: userMessage(result.error, 'Skill 设置没有改变；请刷新后重试。') };
     setRegistry(result.value);
     return { alert: false, text: done };
   };
@@ -108,7 +104,11 @@ export function SkillSettings({
         id: skill.id,
         workspace_id: skill.workspace_id ?? null,
       });
-      if (!result.ok) return { alert: true, text: skillError(result.error.message) };
+      if (!result.ok)
+        return {
+          alert: true,
+          text: userMessage(result.error, '没有读到这个 Skill；请刷新后重试。'),
+        };
       setPreview(result.value);
       return undefined;
     });
@@ -165,7 +165,8 @@ export function SkillSettings({
         id: skill.id,
         workspace_id: skill.workspace_id ?? null,
       });
-      if (!result.ok) return { alert: true, text: skillError(result.error.message) };
+      if (!result.ok)
+        return { alert: true, text: userMessage(result.error, '没有打开文件夹；请刷新后重试。') };
       return { alert: !result.value.completed, text: result.value.message };
     });
   // Main shows the dialog; Core copies a folder or unpacks a ZIP file and checks it.
@@ -175,7 +176,8 @@ export function SkillSettings({
         kind === 'folder'
           ? await window.aura.v1.selectSkillDirectory({})
           : await window.aura.v1.selectSkillArchive({});
-      if (!chosen.ok) return { alert: true, text: skillError(chosen.error.message) };
+      if (!chosen.ok)
+        return { alert: true, text: userMessage(chosen.error, '没有打开选择窗口；请重试。') };
       if (!chosen.value.path) return undefined;
       return applied(
         await window.aura.v1.importSkill({ path: chosen.value.path, expected_revision: revision }),

@@ -30,6 +30,11 @@ type StartGate = Arc<Mutex<()>>;
 const STOPPED_WHILE_STARTING: &str =
     "服务器在启动时被停用、撤销信任、修改或移除，这次没有使用它；如仍需要，请重试";
 
+/// A lock over the servers' state was poisoned by an earlier failure; the lock's own text says
+/// nothing a user or the model can act on.
+const STATE_UNREADABLE: &str =
+    "Aura 记录 MCP 服务器状态的地方读不了（之前有一个操作中途失败），可以稍后重试，或重启 Aura";
+
 mod plugin_hint;
 mod plugins;
 mod resources;
@@ -169,7 +174,7 @@ impl McpRuntime {
                 checked.fingerprint.as_deref(),
                 journal.database.connection(),
             ),
-            Err(error) => Some(error.to_string()),
+            Err(_) => Some(STATE_UNREADABLE.to_owned()),
         };
         Self::decide(server, checked, gap)
     }
@@ -405,7 +410,7 @@ impl McpRuntime {
             return Ok(connection);
         }
         let gate = Arc::clone(
-            self.starting.lock().map_err(|e| e.to_string())?.entry(key.clone()).or_default(),
+            self.starting.lock().map_err(|_| STATE_UNREADABLE)?.entry(key.clone()).or_default(),
         );
         let _starting = gate.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         // A call that waited here uses what the first one started.
@@ -416,7 +421,7 @@ impl McpRuntime {
         let since = self.stop_count(&server.id);
         let checked = self.usable(server)?;
         {
-            let mut restarts = self.restarts.lock().map_err(|e| e.to_string())?;
+            let mut restarts = self.restarts.lock().map_err(|_| STATE_UNREADABLE)?;
             let recent = restarts.entry(key.clone()).or_default();
             recent.retain(|at| at.elapsed() < RESTART_WINDOW);
             if recent.len() >= RESTARTS {
@@ -430,7 +435,7 @@ impl McpRuntime {
         let connection =
             Arc::new(self.connect(server, &checked).map_err(|failure| failure.reason)?);
         let previous = {
-            let mut connections = self.connections.lock().map_err(|e| e.to_string())?;
+            let mut connections = self.connections.lock().map_err(|_| STATE_UNREADABLE)?;
             // `stop_server` counts the stop before it clears the instances under this lock.
             if self.stop_count(&server.id) != since {
                 drop(connections);
@@ -446,7 +451,7 @@ impl McpRuntime {
     }
 
     fn alive(&self, key: &(SessionId, String)) -> Result<Option<Arc<Connection>>, String> {
-        let connections = self.connections.lock().map_err(|e| e.to_string())?;
+        let connections = self.connections.lock().map_err(|_| STATE_UNREADABLE)?;
         Ok(connections.get(key).filter(|connection| connection.alive()).cloned())
     }
 

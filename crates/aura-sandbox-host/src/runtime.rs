@@ -21,6 +21,7 @@ struct Options {
     parent_runtime_instance_id: RuntimeInstanceId,
     runtime_instance_id: RuntimeInstanceId,
     component_manifest_path: PathBuf,
+    data_root: PathBuf,
     allow_dev_component_mismatch: bool,
     bootstrap_handle: usize,
 }
@@ -35,6 +36,7 @@ pub async fn run() -> Result<()> {
     let options = Options::parse(env::args())?;
     let release = load_release_identity(&options)?;
     options.validate_pipe_scope(&release.release_descriptor.bundle_namespace)?;
+    let paths = confirmed_paths(&options, &release)?;
     let expected_parent = snapshot_process(options.parent_process_id)
         .context("failed to snapshot expected Core process")?;
     let current =
@@ -71,9 +73,6 @@ pub async fn run() -> Result<()> {
     .await
     .context("Sandbox Host authentication failed")?;
 
-    let paths =
-        AuraPaths::from_environment_for_namespace(&release.release_descriptor.bundle_namespace)
-            .context("failed to resolve Aura paths")?;
     paths.ensure_layout().context("failed to ensure Aura data layout")?;
     let persistence = match PersistenceCoordinator::start(
         PersistenceOptions::new(
@@ -121,6 +120,7 @@ impl Options {
             runtime_instance_id: RuntimeInstanceId::from_str(&take("runtime-instance-id")?)
                 .context("invalid --runtime-instance-id")?,
             component_manifest_path: PathBuf::from(take("component-manifest")?),
+            data_root: PathBuf::from(take("data-root")?),
             allow_dev_component_mismatch,
             bootstrap_handle: take("bootstrap-handle")?
                 .parse()
@@ -155,6 +155,17 @@ impl Options {
         }
         Ok(())
     }
+}
+
+/// The data folder Core passed, worked out again from this release; another one is refused.
+/// The Store's diagnostics then go to the log beside it.
+fn confirmed_paths(options: &Options, release: &SidecarReleaseContext) -> Result<AuraPaths> {
+    let namespace = &release.release_descriptor.bundle_namespace;
+    let roots = aura_data_location::Roots::from_system()?;
+    let install = aura_data_location::InstallCopy::for_manifest(&options.component_manifest_path)?;
+    let locations = aura_data_location::confirm(&roots, namespace, &install, &options.data_root)?;
+    let _ = aura_data_location::route_core_log(locations.core_log.clone());
+    Ok(AuraPaths::from_locations(locations))
 }
 
 fn load_release_identity(options: &Options) -> Result<SidecarReleaseContext> {

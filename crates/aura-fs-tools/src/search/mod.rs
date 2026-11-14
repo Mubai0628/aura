@@ -20,6 +20,7 @@ mod sink;
 mod types;
 
 pub use cancel::{SearchCancel, SearchCompletion};
+pub(crate) use candidates::read_path_glob;
 pub(crate) use diagnostics::StageDiagnostics as StageDiagnosticsImpl;
 pub use diagnostics::StageDiagnosticsSnapshot;
 pub(crate) use engine::execute;

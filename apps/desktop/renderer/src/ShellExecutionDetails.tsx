@@ -1,6 +1,7 @@
-import { userMessage } from './agent-session/user-message';
 import type { ShellExecutionView } from '@aura/contracts/generated';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { failedAction } from './agent-session/failure-text';
+import { processStopFailure } from './terminal/failure-words';
 
 const labels: Record<ShellExecutionView['state'], string> = {
   waiting: '未完成 · 等待执行',
@@ -53,7 +54,7 @@ function ShellExecutionRecord({ sessionId, callId }: { sessionId: string; callId
       });
       if (!alive.current) return;
       if (!result.ok) {
-        setError(userMessage(result.error, '命令输出读取失败，请重试。'));
+        setError(failedAction(result.error, '命令输出读不出来', '点“刷新状态”再读一次。'));
         return;
       }
       const next = {
@@ -64,8 +65,9 @@ function ShellExecutionRecord({ sessionId, callId }: { sessionId: string; callId
       current.current = next;
       setView(next);
       setError(null);
-    } catch {
-      if (alive.current) setError('暂时无法读取执行记录，请稍后刷新。');
+    } catch (reason) {
+      if (alive.current)
+        setError(failedAction(reason, '命令输出读不出来', '点“刷新状态”再读一次。'));
     } finally {
       pending.current = false;
       if (alive.current) setBusy(false);
@@ -97,10 +99,9 @@ function ShellExecutionRecord({ sessionId, callId }: { sessionId: string; callId
         session_id: sessionId,
         input: { tool_call_id: callId },
       });
-      if (alive.current && !result.ok)
-        setError(userMessage(result.error, '停止没有完成，请刷新查看实际状态。'));
-    } catch {
-      if (alive.current) setError('停止请求未取得结果；可刷新查看实际状态。');
+      if (alive.current && !result.ok) setError(processStopFailure(result.error, '刷新状态'));
+    } catch (reason) {
+      if (alive.current) setError(processStopFailure(reason, '刷新状态'));
     } finally {
       pending.current = false;
       if (alive.current) {

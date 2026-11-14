@@ -3,7 +3,7 @@
 
 use std::{env, process::ExitCode};
 
-use aura_windows_platform::{RecoveryAction, RecoveryChoice, show_recovery_dialog};
+use aura_launcher::recovery;
 
 fn main() -> ExitCode {
     if env::args().any(|argument| argument == "--version" || argument == "-V") {
@@ -15,13 +15,7 @@ fn main() -> ExitCode {
         Err(error) => {
             eprintln!("Aura Launcher failed: {error:#}");
             // A windowed launcher has no console: the reason is also shown in a window.
-            let details = format!("{error:#}\n请重新运行 Aura 安装程序修复。");
-            let _ = show_recovery_dialog(&RecoveryChoice {
-                instruction: "Aura 无法启动",
-                details: &details,
-                actions: &[RecoveryAction::Exit],
-                previous_version: None,
-            });
+            let _ = recovery::ask(&recovery::fatal(&format!("{error:#}")));
             ExitCode::from(1)
         }
     }

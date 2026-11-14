@@ -18,6 +18,42 @@ pub const FIRST_TURNS: usize = 6;
 const FIRST_BUDGET: std::time::Duration = std::time::Duration::from_millis(600);
 /// How long a run in a branch waits for its older turns before it is refused.
 const COPY_WAIT: std::time::Duration = std::time::Duration::from_secs(600);
+const TITLE_PREFIX: &str = "分支：";
+/// The primary registry's limit on a conversation's title, in characters.
+const TITLE_LIMIT: usize = 200;
+
+/// "分支：〈原标题〉", within the registry's title limit. An untitled conversation is "新会话", as the
+/// sidebar names it.
+#[must_use]
+pub fn branch_title(source: &str) -> String {
+    let title = if source.trim().is_empty() { "新会话" } else { source.trim() };
+    format!("{TITLE_PREFIX}{title}").chars().take(TITLE_LIMIT).collect()
+}
+
+/// Why a branch was not made, in the user's words.
+pub fn branch_refusal(
+    failed: anyhow::Result<Result<AgentBranchOrigin, StoreError>>,
+) -> anyhow::Error {
+    let reason = match failed {
+        Ok(Err(StoreError::Failed { error, .. })) => error.to_string(),
+        Ok(Err(error)) => error.code().to_owned(),
+        Err(error) => error.to_string(),
+        Ok(Ok(_)) => String::new(),
+    };
+    if reason.contains("agent.branch_turn_unfinished") {
+        anyhow::anyhow!("agent.branch_turn_unfinished: 只能从已经完成回答的一轮新建分支。")
+    } else if reason.contains("agent.branch_turn_unknown") {
+        anyhow::anyhow!("agent.branch_turn_unknown: 这一轮不在这个会话里，请刷新后再试。")
+    } else {
+        // The store's own words stay in the log; the user is told what happened and what to do.
+        append_core_log("session.branch_failed", serde_json::json!({"reason": reason}));
+        anyhow::anyhow!("agent.branch_failed: 没能新建分支，没有留下半个分支，可以重试。")
+    }
+}
+
+#[cfg(test)]
+#[path = "branch_tests.rs"]
+mod tests;
 
 impl AgentApplication {
     /// Mirrors the new conversation into the execution store and opens it with its newest turns,

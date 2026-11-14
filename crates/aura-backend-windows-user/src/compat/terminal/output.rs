@@ -29,6 +29,10 @@ impl OutputBuffer {
         self.start = self.start.saturating_add(removed as u64);
         self.bytes.extend(&input[removed - from_old..]);
     }
+    /// The offset just past the last byte kept.
+    pub(super) fn end(&self) -> u64 {
+        self.start + self.bytes.len() as u64
+    }
     pub(super) fn read(&self, offset: u64, max_bytes: usize) -> Result<TerminalOutputPage> {
         ensure!(
             max_bytes > 0 && max_bytes <= 32 * 1024 * 1024,

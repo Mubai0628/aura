@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { PluginOption, PluginView } from '@aura/contracts/generated';
 import { McpSecretInput, type McpSecretInputHandle } from '../mcp-settings/McpSecretInput';
+import { fillFirst } from '../mcp-settings/mcp-failure-words';
 
 const titled = (option: PluginOption) =>
   option.required ? `${option.title}（必填）` : option.title;
@@ -23,6 +24,8 @@ export function PluginOptions({
   onClearSecret: (option: PluginOption) => void;
 }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // The secret setting whose 保存 was pressed with nothing typed.
+  const [asked, setAsked] = useState<string>();
   const secrets = useRef(new Map<string, McpSecretInputHandle | null>());
   const options = plugin.options ?? [];
   if (!options.length) return null;
@@ -68,6 +71,7 @@ export function PluginOptions({
               disabled={busy}
               onClick={() => {
                 const bytes = secrets.current.get(option.key)?.takeBytes();
+                setAsked(bytes ? undefined : option.key);
                 if (bytes) onSetSecret(option, bytes);
               }}
             >
@@ -83,6 +87,11 @@ export function PluginOptions({
               >
                 清除
               </button>
+            ) : null}
+            {asked === option.key ? (
+              <small className="field-validation-error" role="alert">
+                {fillFirst(option.title)}
+              </small>
             ) : null}
           </div>
         ),

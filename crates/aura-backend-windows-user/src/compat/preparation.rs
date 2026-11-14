@@ -1,9 +1,10 @@
 use super::{
     CompatBackend,
+    refusal::WORKING_DIRECTORY_UNAVAILABLE,
     service::{COMPAT_BACKEND_ID, CompatExecutionBackend},
 };
 use crate::{controller::ScopeFacts, file_binding};
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use aura_domain_common::{Revision, ToolWireVersionV1, UtcTimestamp, jcs::canonical_sha256};
 use aura_execution_contract::*;
 use aura_security_contract::{BackendClass, EnforcementGuarantee, ResolvedCapability};
@@ -87,8 +88,8 @@ impl CompatExecutionBackend {
             ManagedShell::PowerShell => engine.powershell_path(),
             ManagedShell::Cmd => engine.cmd_path(),
         };
-        let working_directory =
-            file_binding::capture(Path::new(&command.working_directory), false)?;
+        let working_directory = file_binding::capture(Path::new(&command.working_directory), false)
+            .context(WORKING_DIRECTORY_UNAVAILABLE)?;
         ensure!(working_directory.1.info().is_directory, "compat.directory_required");
         // This is normal CWD resolution; it does not claim directory or read-only confinement.
         ensure!(

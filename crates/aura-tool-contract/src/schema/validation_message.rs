@@ -1,6 +1,11 @@
 //! Human-readable validation corrections; argument values never enter feedback.
-use jsonschema::error::{ValidationError, ValidationErrorKind as Kind};
+use jsonschema::JsonType;
+use jsonschema::error::{TypeKind, ValidationError, ValidationErrorKind as Kind};
 use serde_json::Value;
+
+/// What a string sent where an object or an array belongs is told: models wrote such a string
+/// holding the JSON, and the call's later fields with it.
+const STRING_HOLDING_JSON: &str = "; write the value itself as JSON, not a string that holds JSON, and keep the tool's other fields beside it at the top level";
 
 pub(super) fn code(kind: &Kind) -> String {
     let name = match kind {
@@ -55,12 +60,16 @@ fn message_at_depth(error: &ValidationError<'_>, root: &Value, depth: usize) -> 
                 )
             )
         }
-        Kind::Type { .. } => {
+        Kind::Type { kind } => {
             let expected = root
                 .pointer(error.schema_path().as_str())
                 .map(|value| value.to_string())
-                .unwrap_or_else(|| "the declared type".into());
-            format!("expected {expected}; received {actual}")
+                .unwrap_or_else(|| expected_types(kind));
+            let mut text = format!("expected {expected}; received {actual}");
+            if actual == "string" && takes_structure(kind) {
+                text.push_str(STRING_HOLDING_JSON);
+            }
+            text
         }
         Kind::OneOfNotValid { context } | Kind::AnyOf { context } => {
             let path = error.schema_path().as_str();
@@ -139,6 +148,24 @@ fn message_at_depth(error: &ValidationError<'_>, root: &Value, depth: usize) -> 
         ),
     };
     text.chars().take(512).map(|c| if c.is_control() { ' ' } else { c }).collect()
+}
+
+fn types(kind: &TypeKind) -> Vec<JsonType> {
+    match kind {
+        TypeKind::Single(single) => vec![*single],
+        TypeKind::Multiple(set) => set.iter().collect(),
+    }
+}
+
+fn expected_types(kind: &TypeKind) -> String {
+    types(kind).iter().map(|ty| format!("\"{ty}\"")).collect::<Vec<_>>().join(" or ")
+}
+
+/// Whether the value belongs as an object or an array, and never as a string.
+fn takes_structure(kind: &TypeKind) -> bool {
+    let types = types(kind);
+    !types.contains(&JsonType::String)
+        && types.iter().any(|ty| matches!(ty, JsonType::Object | JsonType::Array))
 }
 
 fn shape(value: &Value) -> &'static str {

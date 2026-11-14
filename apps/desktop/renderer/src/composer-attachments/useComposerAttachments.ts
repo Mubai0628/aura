@@ -14,6 +14,9 @@ const NONE: ComposerAttachment[] = [];
 const carried = (attachment: ComposerAttachment) =>
   attachment.kind === 'file' ? 0 : attachment.bytes;
 
+const unreadable = (name: string) =>
+  `「${name}」读不出来（可能已被移动、删除或正被其他程序占用），没有附加。确认文件能打开后再附加。`;
+
 /**
  * The pictures and files added to the composer, from the + menu, a paste or a drop, kept for the
  * conversation `draftKey` names while Aura runs. A file that cannot be sent is not added, and the
@@ -48,7 +51,13 @@ export function useComposerAttachments(encode?: PictureEncoder, draftKey?: strin
           problems.push(`一条消息最多附加 ${MAX_ATTACHMENTS} 个图片或文件。`);
           break;
         }
-        const read = await readAttachment(file, place, encode);
+        let read: Awaited<ReturnType<typeof readAttachment>>;
+        try {
+          read = await readAttachment(file, place, encode);
+        } catch {
+          // Locked, deleted after it was chosen, or a cloud file not on this computer.
+          read = { error: unreadable(file.name || '文件') };
+        }
         if ('error' in read) {
           problems.push(read.error);
           continue;

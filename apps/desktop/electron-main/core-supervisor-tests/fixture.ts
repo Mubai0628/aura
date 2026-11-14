@@ -57,6 +57,7 @@ interface FixtureOptions {
   startupTimeouts?: { connectMs?: number; handshakeMs?: number };
   responsiveness?: CoreSupervisorOptions['responsiveness'];
   readProcessActivity?: CoreSupervisorOptions['readProcessActivity'];
+  dataRoot?: string;
 }
 
 export async function createFixture(options: FixtureOptions = {}): Promise<SupervisorFixture> {
@@ -284,7 +285,7 @@ export async function createFixture(options: FixtureOptions = {}): Promise<Super
   const onEscalated = vi.fn();
   const supervisor = new CoreSupervisor({
     appIsPackaged: false,
-    localAppData: '.',
+    dataRoot: options.dataRoot ?? '.',
     release,
     safeMode: false,
     onEscalated,

@@ -51,3 +51,13 @@ test('a chosen connection that is gone still shows, so the choice is visible', (
   expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('deepseek:end_gone');
   expect(screen.getByRole('option', { name: 'DeepSeek · 已不可用的连接' })).toBeTruthy();
 });
+
+test('a choice that was not saved says the old service is still used', async () => {
+  const configuration = owner({ web_service: { kind: 'automatic' }, web_service_connections: [] });
+  vi.mocked(configuration.commit).mockResolvedValue({ error: 'boom' });
+  render(<WebService configuration={configuration} />);
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'local' } });
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '网页服务没有切换，仍在使用原来的服务。请稍后再试。',
+  );
+});

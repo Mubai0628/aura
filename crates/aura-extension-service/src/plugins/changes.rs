@@ -2,6 +2,7 @@
 //! with a configuration of the user's own in place of the plugin's. They live in the plugin's
 //! `plugins.json` entry, stay across its updates for the parts the new version still has, and go
 //! with the plugin; a part is never removed on its own.
+use super::development::{BUSY, registry_unavailable};
 use super::lifecycle::replaced;
 use super::runtime::PluginRuntime;
 use aura_mcp::McpServerConfig;
@@ -82,13 +83,11 @@ impl PluginRuntime {
         plugin: &str,
         change: impl FnOnce(&mut PluginSetting),
     ) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!(BUSY))?;
         let registry = self.settings().plugin_registry();
-        anyhow::ensure!(
-            registry.issue.is_none(),
-            "plugins.registry_unavailable: {}",
-            registry.issue.clone().unwrap_or_default()
-        );
+        if let Some(issue) = &registry.issue {
+            return Err(registry_unavailable(issue));
+        }
         let mut setting = registry
             .plugin(plugin)
             .cloned()

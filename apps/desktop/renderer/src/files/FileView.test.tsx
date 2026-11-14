@@ -138,7 +138,7 @@ test('a bare name with several files of that name lists them, and one click open
 test('a file that is not text is named by its type and size', async () => {
   render(<FileView scope={scope} path="data.bin" visible />);
   expect(await screen.findByText('这个文件不是文本，暂不能预览。')).toBeTruthy();
-  expect(screen.getByText('ELF executable · 2.0 KB')).toBeTruthy();
+  expect(screen.getByText('Linux 程序 · 2.0 KB')).toBeTruthy();
 });
 
 test('a large file reads in parts', async () => {

@@ -16,11 +16,21 @@ const STATUS_WORDS: Record<TodoStatus, string> = {
 
 /**
  * The model's task list for the conversation's latest turn. The heading counts
- * what is done and a bar shows it; the item being worked on turns. Folded, it keeps one line: that
+ * what is done and a bar shows it; while the turn runs, the item being worked on turns, and one
+ * left in progress by a turn that ended or stopped stands still. Folded, it keeps one line: that
  * item. Once every item is done it can be closed, and that list stays closed; a list the model
  * writes afterwards shows again. A part of the 近期活动 card, under its own small title like the card's others.
  */
-export function TodoDock({ sessionId, todo }: { sessionId: string; todo: TodoState | undefined }) {
+export function TodoDock({
+  sessionId,
+  todo,
+  running,
+}: {
+  sessionId: string;
+  todo: TodoState | undefined;
+  /** The list's turn is running. */
+  running: boolean;
+}) {
   const headingId = useId();
   const [, remembered] = useReducer((count: number) => count + 1, 0);
   const progress = todoProgress(todo);
@@ -39,6 +49,7 @@ export function TodoDock({ sessionId, todo }: { sessionId: string; todo: TodoSta
       className="activity-section todo-dock"
       data-complete={complete || undefined}
       data-folded={folded || undefined}
+      data-running={running || undefined}
     >
       <div className="todo-head">
         <h4 className="activity-section-title" id={headingId}>
@@ -92,7 +103,9 @@ export function TodoDock({ sessionId, todo }: { sessionId: string; todo: TodoSta
               <span className="todo-label" title={item.title}>
                 {item.title}
               </span>
-              <span className="todo-status-words">{STATUS_WORDS[item.status]}</span>
+              <span className="todo-status-words">
+                {item.status === 'in_progress' && !running ? '未完成' : STATUS_WORDS[item.status]}
+              </span>
             </li>
           ))}
         </ul>

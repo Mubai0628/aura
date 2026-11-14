@@ -32,11 +32,13 @@ use crate::{
 
 #[derive(Debug, Error)]
 enum CredentialCommandError {
-    #[error("models configuration revision changed")]
+    #[error("models.configuration.revision_conflict: 模型设置已在别处更新，请刷新后再试。")]
     ModelsRevisionChanged,
-    #[error("model endpoint does not exist")]
+    #[error("models.endpoint.not_found: 这个连接已不存在，请刷新模型设置。")]
     EndpointNotFound,
-    #[error("credential command does not match the endpoint authentication scheme")]
+    #[error(
+        "credential.authentication_scheme_mismatch: 这次凭据操作与连接保存的认证方式不一致，请刷新后重试。"
+    )]
     AuthenticationSchemeMismatch,
     #[error(transparent)]
     Persistence(#[from] PersistenceError),

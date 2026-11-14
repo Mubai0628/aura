@@ -9,8 +9,13 @@
 import { hostClass } from './address.js';
 import { decideSite, siteOfUrl, type SiteRule } from './site-rules.js';
 
+/** Why the browser is closed: turned off, its settings need recovery, or not read from Core yet. */
+export type ClosedBecause = 'off' | 'issue' | 'unread';
+
 export interface BrowserPolicy {
   enabled: boolean;
+  /** Why it is closed, when it is; turned off when unsaid. */
+  closedBecause?: ClosedBecause | undefined;
   allowed: readonly SiteRule[];
   blocked: readonly SiteRule[];
   /** The user allowed models to debug pages (a script in the page, its network log). */
@@ -46,13 +51,15 @@ export function insideFileRoot(url: string, fileRoot: string | undefined): boole
 }
 
 export type Refusal = 'disabled' | 'blocked' | 'read-only' | 'private-from-public' | 'scheme';
-export type Verdict = { allow: true } | { allow: false; reason: Refusal; site?: string };
+export type Verdict =
+  | { allow: true }
+  | { allow: false; reason: Refusal; site?: string; because?: ClosedBecause | undefined };
 
 const ALLOW: Verdict = { allow: true };
 
 /** A top-level navigation: typed, followed, scripted or redirected. */
 export function navigationVerdict(policy: BrowserPolicy, page: PageAccess, url: string): Verdict {
-  if (!policy.enabled) return { allow: false, reason: 'disabled' };
+  if (!policy.enabled) return { allow: false, reason: 'disabled', because: policy.closedBecause };
   if (url === 'about:blank') return ALLOW;
   if (url.startsWith('file:'))
     return insideFileRoot(url, page.fileRoot) ? ALLOW : { allow: false, reason: 'scheme' };
@@ -77,7 +84,7 @@ export function subrequestVerdict(
   url: string,
   fileRoot?: string,
 ): Verdict {
-  if (!policy.enabled) return { allow: false, reason: 'disabled' };
+  if (!policy.enabled) return { allow: false, reason: 'disabled', because: policy.closedBecause };
   // A workspace page loads its own files; no page reaches any other file.
   if (url.startsWith('file:'))
     return insideFileRoot(url, fileRoot) && insideFileRoot(topUrl, fileRoot)
@@ -93,12 +100,30 @@ export function subrequestVerdict(
   return ALLOW;
 }
 
+const CLOSED: Readonly<Record<ClosedBecause, string>> = {
+  off: '内置浏览器已在设置中关闭',
+  issue: '浏览器设置需要恢复，内置浏览器暂不能用',
+  unread: '浏览器设置还没从 Aura Core 读到',
+};
+
+/** Why the browser did not act, `what` it did not do, and what to do next. */
+export function closedText(policy: BrowserPolicy, what: string): string {
+  switch (policy.closedBecause ?? 'off') {
+    case 'unread':
+      return `浏览器设置还没从 Aura Core 读到（Core 可能正在启动），${what}；稍后再试。`;
+    case 'issue':
+      return `浏览器设置需要恢复，内置浏览器暂不能用，${what}；请到 设置 → 网络与浏览器 查看。`;
+    case 'off':
+      return `内置浏览器已在设置中关闭，${what}。到 设置 → 网络与浏览器 打开“启用内置浏览器”后再试。`;
+  }
+}
+
 /** What the page shows when a load is refused. */
 export function refusalText(verdict: Exclude<Verdict, { allow: true }>): string {
   const site = verdict.site ?? '';
   switch (verdict.reason) {
     case 'disabled':
-      return '内置浏览器已在设置中关闭';
+      return CLOSED[verdict.because ?? 'off'];
     case 'blocked':
       return `${site} 已在浏览器设置中被阻止`;
     case 'read-only':

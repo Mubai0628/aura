@@ -1,6 +1,7 @@
 //! Authenticated desktop inspection/stop, with authority from the original session.
 use crate::*;
 use anyhow::ensure;
+use aura_core_base::route_failures as failure;
 use aura_domain_common::SessionId;
 use aura_windows_user_contract::*;
 
@@ -9,7 +10,7 @@ pub(super) async fn dispatch(
     request: &JsonRpcRequest,
 ) -> Result<serde_json::Value> {
     let session: SessionId = serde_json::from_value(
-        request.params.get("session_id").cloned().context("session required")?,
+        request.params.get("session_id").cloned().context(failure::SESSION_REQUIRED)?,
     )?;
     ensure!(
         services
@@ -18,7 +19,7 @@ pub(super) async fn dispatch(
             .sessions
             .iter()
             .any(|v| v.session_id == session),
-        "agent.session_unknown"
+        failure::SESSION_UNKNOWN
     );
     if request.method == "agent.tool_activity" {
         let input = serde_json::from_value(request.params.clone())?;

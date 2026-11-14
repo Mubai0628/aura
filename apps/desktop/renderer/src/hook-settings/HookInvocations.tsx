@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { HookInvocationView } from '@aura/contracts/generated';
-import { hookEffectLabel, hookError, hookEventLabel, hookOutcomeLabel } from './hook-labels';
+import { hookEffectLabel, hookEventLabel, hookOutcomeLabel } from './hook-labels';
+import { userMessage } from '../agent-session/user-message';
 
 const time = (at: string) => {
   const date = new Date(at);
@@ -20,10 +21,10 @@ export function HookInvocations({ path, name }: { path: string; name: string }) 
         if (result.ok) {
           setCalls(result.value.invocations);
           setError(undefined);
-        } else setError(hookError(result.error.message, '调用记录读取失败，请重试。'));
+        } else setError(userMessage(result.error, '调用记录读取失败，请重试。'));
       },
       (reason: unknown) => {
-        if (live) setError(hookError(reason, '调用记录读取失败，请重试。'));
+        if (live) setError(userMessage(reason, '调用记录读取失败，请重试。'));
       },
     );
     return () => {

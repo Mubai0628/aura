@@ -1,0 +1,76 @@
+/* Settings → 多 Agent; the page and its surfaces come from styles/settings-pages.css. */
+.agent-team-settings-limits {
+  display: grid;
+  gap: 12px;
+}
+
+.agent-team-settings-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.agent-team-settings-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.agent-team-settings-input input {
+  min-width: 0;
+  width: 140px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-team-settings-input input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.agent-team-settings-input input:disabled {
+  color: var(--muted);
+}
+
+.agent-team-settings-unlimited {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink);
+}
+
+.agent-team-settings-input .agent-team-settings-unlimited input {
+  width: auto;
+  height: auto;
+  padding: 0;
+}
+
+.agent-team-settings-group {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-team-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.agent-team-settings-select {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  background: var(--surface);
+}

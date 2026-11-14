@@ -53,6 +53,7 @@ async fn readonly_session_answer_is_loaded_for_a_new_call_and_revocation_stops_r
                 backend.class,
                 call.snapshot.session_permission_revision,
                 engine.runtime,
+                None,
                 now,
             )
         })
@@ -254,10 +255,10 @@ async fn a_stale_expected_hash_is_a_conflict_that_wrote_nothing() {
     assert!(note.contains("第二版") && !note.contains("第三版"), "{note}");
 }
 
-/// A rule the schema cannot state (a category's spelling) comes back from the Vault itself,
-/// named for the model instead of "check the arguments".
+/// A category in another form comes back from the Vault itself, its rule named for the model
+/// instead of "check the arguments"; the schema only describes the form.
 #[tokio::test]
-async fn a_rule_the_schema_cannot_state_is_named_for_the_model() {
+async fn a_category_in_another_form_is_refused_with_its_rule_named() {
     let f = Fixture::with_exposure(PermissionMode::WorkspaceReadWrite, TOOLS).await;
     let batch = f.admit(&[(
         "memory.create",

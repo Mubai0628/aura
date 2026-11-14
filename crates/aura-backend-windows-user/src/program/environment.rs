@@ -61,7 +61,7 @@ impl ProgramEnvironment {
                 replace(&mut entries, name, &proxy.endpoint);
             }
             for name in ["NO_PROXY", "NPM_CONFIG_NOPROXY"] {
-                replace(&mut entries, name, "");
+                replace(&mut entries, name, crate::compat::environment::OFFLINE_NO_PROXY);
             }
             replace(&mut entries, "NODE_USE_ENV_PROXY", "1");
         }

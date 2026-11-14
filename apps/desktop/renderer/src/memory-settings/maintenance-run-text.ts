@@ -27,8 +27,8 @@ export function runTime(run: MemoryMaintenanceRun): string {
 export const runSummary = (run: MemoryMaintenanceRun): string =>
   `${STATE[run.state]}${run.reason ? `：${run.reason}` : ''}`;
 
-/** 会话 ses_… · 输入 120 / 输出 30 token */
+/** 输入 120 / 输出 30 token */
 export const runDetail = (run: MemoryMaintenanceRun): string =>
-  `会话 ${run.session_id} · 输入 ${run.input_tokens} / 输出 ${run.output_tokens} token${
+  `输入 ${run.input_tokens} / 输出 ${run.output_tokens} token${
     run.usage_complete ? '' : '（用量未确认）'
   }`;

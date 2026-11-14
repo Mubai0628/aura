@@ -44,14 +44,31 @@ pub enum NotLoaded {
     Ambiguous,
 }
 
-fn matches(skill: &LocatedSkill, words: &[String]) -> bool {
+/// How well a Skill answers the words: a word found where a word of its name starts counts 2,
+/// else one found where a word of its description starts counts 1.
+fn score(skill: &LocatedSkill, words: &[String]) -> usize {
     let name = skill.view.name.clone().unwrap_or_default().to_lowercase();
     let description = skill.view.description.clone().unwrap_or_default().to_lowercase();
-    words.iter().all(|word| name.contains(word) || description.contains(word))
+    words
+        .iter()
+        .map(|word| if found(&name, word) { 2 } else { usize::from(found(&description, word)) })
+        .sum()
 }
 
-/// The usable Skills whose name or description holds every word, in name order, at most
-/// `limit`, and whether more matched.
+/// Whether `word` is in `text` where a word of it starts. A word that is not plain ASCII letters
+/// and digits, as one in Chinese, is found anywhere.
+fn found(text: &str, word: &str) -> bool {
+    if !word.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return text.contains(word);
+    }
+    text.match_indices(word).any(|(at, _)| {
+        text[..at].chars().next_back().is_none_or(|before| !before.is_ascii_alphanumeric())
+    })
+}
+
+/// The usable Skills whose name or description holds any of the words, those with more of them
+/// and with them in their name first, else in name order; at most `limit`, and whether more
+/// matched. An empty query finds every usable Skill.
 pub fn search(
     runtime: &SkillRuntime,
     workspace: Option<WorkspaceId>,
@@ -60,11 +77,22 @@ pub fn search(
 ) -> anyhow::Result<(Vec<Found>, bool)> {
     let (_, _, skills) = runtime.list(workspace)?;
     let usable = usable(&skills);
-    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
-    let found: Vec<Found> = usable
+    let mut words: Vec<String> = Vec::new();
+    for word in query.split_whitespace().map(str::to_lowercase) {
+        if !words.contains(&word) {
+            words.push(word);
+        }
+    }
+    let mut scored: Vec<(usize, &LocatedSkill)> = usable
         .iter()
-        .filter(|skill| matches(skill, &words))
-        .map(|skill| Found {
+        .map(|skill| (score(skill, &words), *skill))
+        .filter(|(score, _)| words.is_empty() || *score > 0)
+        .collect();
+    // A stable sort: Skills that score the same stay in name order.
+    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+    let found: Vec<Found> = scored
+        .into_iter()
+        .map(|(_, skill)| Found {
             name: skill.view.name.clone().unwrap_or_default(),
             from: from_among(&usable, &skill.view),
             description: skill.view.description.clone().unwrap_or_default(),

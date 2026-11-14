@@ -1,6 +1,11 @@
-import { userMessage } from './user-message';
+import { coreUnreachable, READ_RETRYING, userMessage } from './user-message';
+import { failedAction } from './failure-text';
 import type { AgentSessionProjection, AgentTurnView } from '@aura/contracts/generated';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+/** What an earlier page that was not read says; what is shown stays. */
+const OLDER_UNREAD = '更早的消息没有读到';
+const OLDER_NEXT = '已显示的内容不受影响；再向上滚动会重新读取。';
 
 const sessions = new Map<string, AgentSessionProjection>();
 /**
@@ -84,7 +89,11 @@ export function useAgentSession(sessionId: string) {
         });
         if (!alive || generation.current !== token) return;
         if (!result.ok) {
-          setError(result.error.message);
+          setError(
+            coreUnreachable(result.error)
+              ? READ_RETRYING
+              : userMessage(result.error, READ_RETRYING),
+          );
           return;
         }
         const next = result.value;
@@ -123,7 +132,8 @@ export function useAgentSession(sessionId: string) {
         setProjection(next);
         setError(undefined);
       } catch (reason) {
-        if (alive) setError(userMessage(reason, '无法读取会话，请检查 Core 连接。'));
+        if (alive)
+          setError(failedAction(reason, '暂时读不到这个会话', '会自动重试；一直这样请重启 Aura。'));
       } finally {
         if (alive && generation.current === token) {
           setLoading(false);
@@ -162,7 +172,7 @@ export function useAgentSession(sessionId: string) {
       )
         return undefined;
       if (!result.ok) {
-        setError(result.error.message);
+        setError(failedAction(result.error, OLDER_UNREAD, OLDER_NEXT));
         return false;
       }
       if (
@@ -186,8 +196,8 @@ export function useAgentSession(sessionId: string) {
         next.turns.length > base.turns.length ||
         next.next_before_turn_task_id !== base.next_before_turn_task_id
       );
-    } catch {
-      setError('无法加载更早的消息。');
+    } catch (reason) {
+      setError(failedAction(reason, OLDER_UNREAD, OLDER_NEXT));
       return false;
     } finally {
       setLoadingOlder(false);
@@ -214,7 +224,7 @@ export function useAgentSession(sessionId: string) {
       )
         return undefined;
       if (!result.ok) {
-        setError(result.error.message);
+        setError(failedAction(result.error, OLDER_UNREAD, OLDER_NEXT));
         return false;
       }
       if (
@@ -241,8 +251,8 @@ export function useAgentSession(sessionId: string) {
         merged.assistant_messages.length > before.assistant_messages.length ||
         merged.next_messages !== before.next_messages
       );
-    } catch {
-      setError('无法加载该任务的更早消息。');
+    } catch (reason) {
+      setError(failedAction(reason, OLDER_UNREAD, OLDER_NEXT));
       return false;
     } finally {
       turnReads.current.delete(id);

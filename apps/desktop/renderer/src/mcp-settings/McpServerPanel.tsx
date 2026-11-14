@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { McpServerDetail, McpServerView } from '@aura/contracts/generated';
-import { mcpError } from './mcp-labels';
+import { userMessage } from '../agent-session/user-message';
 
 /** One server's tools, the tools left out and the end of its error output. */
 export function McpServerPanel({ server, refresh }: { server: McpServerView; refresh: number }) {
@@ -15,10 +15,10 @@ export function McpServerPanel({ server, refresh }: { server: McpServerView; ref
         if (result.ok) {
           setDetail(result.value);
           setError(undefined);
-        } else setError(mcpError(result.error.message, '服务器详情读取失败，请重试。'));
+        } else setError(userMessage(result.error, '服务器详情读取失败，请重试。'));
       },
       (reason: unknown) => {
-        if (live) setError(mcpError(reason, '服务器详情读取失败，请重试。'));
+        if (live) setError(userMessage(reason, '服务器详情读取失败，请重试。'));
       },
     );
     return () => {

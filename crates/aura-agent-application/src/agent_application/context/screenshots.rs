@@ -44,7 +44,20 @@ pub struct Shot {
 }
 
 #[derive(Default)]
-pub struct Screenshots(pub Vec<Shot>);
+pub struct Screenshots {
+    shots: Vec<Shot>,
+    /// The pictures sent with a message that could not be read, each with its message: the model
+    /// is told they were not sent, so it does not take them as seen.
+    unread: Vec<(EventId, String)>,
+}
+
+impl Screenshots {
+    /// Whether there is no picture to carry.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.shots.is_empty()
+    }
+}
 
 /// The screenshot a browser result names, when it said the model would see it.
 fn shown_screenshot(value: &serde_json::Value) -> Option<ArtifactId> {
@@ -130,6 +143,7 @@ pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
                 | "computer.screenshot"
                 | "computer.act"
                 | "computer.input"
+                | "fs.read"
         ) && !*is_error
             && let Some(id) = serde_json::from_str::<serde_json::Value>(content)
                 .ok()
@@ -137,14 +151,16 @@ pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
                 .and_then(shown_screenshot)
         {
             let shown = if tool_name == "chrome.screenshot" {
-                "Chrome"
+                "Chrome screenshot"
             } else if tool_name.starts_with("computer.") {
-                "desktop"
+                "desktop screenshot"
+            } else if tool_name == "fs.read" {
+                "picture file"
             } else {
-                "browser"
+                "browser screenshot"
             };
             screenshots.push(groups.len());
-            images.push((id, format!("{shown} screenshot")));
+            images.push((id, shown.to_owned()));
         }
         if !images.is_empty() {
             groups.push(
@@ -218,8 +234,9 @@ impl AgentApplication {
                         })
                         .collect::<Vec<_>>();
                     // The newest pictures sent with the messages, newest first; a picture this
-                    // conversation cannot read is left out too.
+                    // conversation cannot read is left out too, and named as not sent.
                     let mut pictures = Vec::new();
+                    let mut unread = Vec::new();
                     for message in messages {
                         let Some((_, attached)) =
                             aura_persistence_v2::agent::attachments::of_message(db, message)?
@@ -232,18 +249,21 @@ impl AgentApplication {
                             }
                             if let AgentMessageAttachment::Image { name, artifact_id, .. } =
                                 attachment
-                                && let Ok(bytes) =
-                                    artifact::read(db, *artifact_id, &session.to_string())
                             {
-                                pictures.push((message, *artifact_id, name.clone(), bytes));
+                                match artifact::read(db, *artifact_id, &session.to_string()) {
+                                    Ok(bytes) => {
+                                        pictures.push((message, *artifact_id, name.clone(), bytes))
+                                    }
+                                    Err(_) => unread.push((message, name.clone())),
+                                }
                             }
                         }
                     }
-                    Ok((shots, pictures))
+                    Ok((shots, pictures, unread))
                 },
             )
             .await?;
-        let (read, pictures) = read;
+        let (read, pictures, mut unread) = read;
         let mut shots = read
             .into_iter()
             .filter_map(|(image, bytes)| {
@@ -267,11 +287,15 @@ impl AgentApplication {
                 })
             })
             .collect::<Vec<_>>();
-        // In the order they were sent.
-        shots.extend(pictures.into_iter().rev().filter_map(|(message, id, name, bytes)| {
-            let media_type =
-                crate::agent_application::browser_screenshot::image_media_type(&bytes)?;
-            Some(Shot {
+        // In the order they were sent; bytes that are no picture are not sent either.
+        for (message, id, name, bytes) in pictures.into_iter().rev() {
+            let Some(media_type) =
+                crate::agent_application::browser_screenshot::image_media_type(&bytes)
+            else {
+                unread.push((message, name));
+                continue;
+            };
+            shots.push(Shot {
                 result_event: message,
                 place: Place::Message,
                 attachment: ResolvedModelAttachment {
@@ -286,35 +310,43 @@ impl AgentApplication {
                     },
                     bytes: bytes.into(),
                 },
-            })
-        }));
-        Ok(Screenshots(shots))
+            });
+        }
+        Ok(Screenshots { shots, unread })
     }
 }
 
 impl Screenshots {
-    /// Attaches the screenshots whose results the request still carries as they were.
-    pub fn attach(&self, input: &mut ContextPreparationInput) {
+    /// Attaches the screenshots whose results the request still carries as they were, and names
+    /// the pictures of the messages it carries that could not be read.
+    pub fn attach(&self, input: &mut ContextPreparationInput) -> Vec<String> {
         // The step's own messages, which the request adds after the history.
         let current = current_messages(&input.trigger);
+        let carried = |message: &EventId| {
+            current.contains(message)
+                || input.recent_history_items.iter().any(|item| {
+                    matches!(item, LogicalConversationItem::User { source_event_id, .. }
+                        if source_event_id == message)
+                })
+        };
         let retained = tool_images(&input.recent_history_items);
         let kept = self
-            .0
+            .shots
             .iter()
             .filter(|shot| match &shot.place {
                 Place::Result => retained.iter().any(|image| {
                     image.result_event == shot.result_event
                         && image.artifact_id == shot.attachment.snapshot.artifact_id
                 }),
-                Place::Message => {
-                    current.contains(&shot.result_event)
-                        || input.recent_history_items.iter().any(|item| {
-                            matches!(item, LogicalConversationItem::User { source_event_id, .. }
-                                if *source_event_id == shot.result_event)
-                        })
-                }
+                Place::Message => carried(&shot.result_event),
             })
             .collect::<Vec<_>>();
+        let unread = self
+            .unread
+            .iter()
+            .filter(|(message, _)| carried(message))
+            .map(|(_, name)| name.clone())
+            .collect();
         input.attachments = kept.iter().map(|shot| shot.attachment.snapshot.clone()).collect();
         input.attachment_egress_sources = kept
             .iter()
@@ -343,6 +375,7 @@ impl Screenshots {
                 }
             })
             .collect();
+        unread
     }
 
     /// The bytes of the request's attachments, in its order.
@@ -353,7 +386,7 @@ impl Screenshots {
         attachments
             .iter()
             .map(|snapshot| {
-                self.0
+                self.shots
                     .iter()
                     .find(|shot| shot.attachment.snapshot == *snapshot)
                     .map(|shot| shot.attachment.clone())

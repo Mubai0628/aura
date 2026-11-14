@@ -10,7 +10,10 @@ use serde_json::Value;
 
 /// The execution contract's marker for a call that ended before it was started.
 const NOT_DISPATCHED: &str = "execution.not_dispatched";
+mod model_line;
 mod notice;
+
+use model_line::{model_safe_named_error, not_started_message, unreachable_target};
 
 pub(super) fn refusal_artifact(
     tx: &Transaction<'_>,
@@ -228,12 +231,16 @@ fn execution_evidence(
                 && !s.chars().any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
         })
         .map(str::to_owned);
-    let web_message = (result.outcome == ExecutionOutcome::Failed
-        && evidence["schema"] == "controlled-web-result-v1")
-        .then(|| evidence["error"].as_str())
-        .flatten()
-        .and_then(model_safe_named_error)
-        .map(str::to_owned);
+    let web_message =
+        (matches!(result.outcome, ExecutionOutcome::Failed | ExecutionOutcome::Unknown)
+            && evidence["schema"] == "controlled-web-result-v1")
+            .then(|| evidence["error"].as_str())
+            .flatten()
+            .and_then(model_safe_named_error)
+            // An unknown outcome is told by Core's own sentence (what may have happened and what to
+            // check), never by a bare code in place of the general unknown-outcome text.
+            .filter(|line| result.outcome == ExecutionOutcome::Failed || line.contains(": "))
+            .map(str::to_owned);
     let broker_message = ((result.outcome == ExecutionOutcome::Failed
         && matches!(
             evidence["domain_journal"]["schema"].as_str(),
@@ -250,6 +257,10 @@ fn execution_evidence(
                     | "agent-chrome-v1"
                     // So do the programs on the user's desktop.
                     | "agent-computer-v1"
+                    // A sub-agent call's refusal, written for the model.
+                    | "agent-team-v1"
+                    // A picture or recording that could not be read, and why.
+                    | "agent-media-v1"
             )
         ))
         || result.outcome == ExecutionOutcome::Unknown
@@ -261,6 +272,12 @@ fn execution_evidence(
                         | "agent-mcp-tool-v1"
                         | "agent-chrome-v1"
                         | "agent-computer-v1"
+                        // A merge or discard whose Git step's end was not seen says what to check.
+                        | "agent-team-v1"
+                        // A memory write that may have been saved, and how to check it.
+                        | "agent-memory-vault-v1"
+                        // A page step that may have run, and how to look at the page.
+                        | "agent-browser-v1"
                 )
             ))
     .then(|| evidence["domain_journal"]["error"].as_str())
@@ -270,55 +287,36 @@ fn execution_evidence(
             && !value.chars().any(|ch| ch.is_control() && !matches!(ch, '\n' | '\r' | '\t'))
     })
     .map(str::to_owned);
+    // A file or task-state call's own cause, when it is already a line the model can read: its
+    // record keeps it, and the model reads it instead of the general sentence.
+    let own_message = (result.outcome == ExecutionOutcome::Failed && own_cause(&evidence))
+        .then(|| evidence["domain_journal"]["error"].as_str())
+        .flatten()
+        .and_then(|error| {
+            use crate::tool::refusal_text::{code_in, known, readable_line};
+            readable_line(error).map(str::to_owned).or_else(|| {
+                let sentence = known(error)?;
+                Some(format!("{}: {sentence}", code_in(error).unwrap_or("tool.failed")))
+            })
+        });
     // A call that never started (refused, or stopped before it began) says so in the
     // model's words; the refusal's own reason stays in the receipt.
     let not_started = (result.outcome == ExecutionOutcome::Failed
         && result.warnings.iter().any(|warning| warning == NOT_DISPATCHED))
-    .then(|| not_started_message(&evidence).to_owned());
-    Ok((attempt, output, windows_message.or(web_message).or(broker_message).or(not_started)))
+    .then(|| not_started_message(&evidence));
+    Ok((
+        attempt,
+        output,
+        windows_message.or(web_message).or(broker_message).or(own_message).or(not_started),
+    ))
 }
 
-fn model_safe_named_error(raw: &str) -> Option<&str> {
-    let first = raw.lines().next()?.trim();
-    let code = first.split(':').next()?.trim();
-    if code.is_empty() || code.len() > 128 {
-        return None;
-    }
-    ErrorCode::new(code).ok()?;
-    // Gateway diagnostics after the code stay hidden. Core's proxy sentences say whether
-    // the HTTP request was sent, and those are the lines the model is meant to read.
-    let visible = !first.chars().any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
-        && first.len() <= 512
-        && (proxy_explanation_for_the_model(first)
-            || core_web_service_line(code)
-            || unreachable_target(code).is_some());
-    Some(if visible { first } else { code })
-}
-
-/// A target Core could not reach, by kind: its first line is Core's own sentence (host, port and
-/// what to do next), and every kind but a reset left the request unsent.
-fn unreachable_target(code: &str) -> Option<(ToolNetworkErrorCode, bool)> {
-    Some(match code {
-        "network.connection_refused" => (ToolNetworkErrorCode::ConnectionRefused, true),
-        "network.host_not_found" => (ToolNetworkErrorCode::HostNotFound, true),
-        "network.tls_failed" => (ToolNetworkErrorCode::TlsFailed, true),
-        "network.connection_reset" => (ToolNetworkErrorCode::ConnectionReset, false),
-        "network.connection_failed" => (ToolNetworkErrorCode::ConnectionFailed, true),
-        _ => return None,
-    })
-}
-
-/// The first line of a DeepSeek web service refusal is Core's own sentence, and so is the line of
-/// a status a site answered (the number and what it means).
-fn core_web_service_line(code: &str) -> bool {
-    code.starts_with("web.deepseek_")
-        || code == "web.service_connection_unusable"
-        || code == "web.search_query_too_long"
-        || code == "web.http_failed"
-}
-
-fn proxy_explanation_for_the_model(line: &str) -> bool {
-    line.contains("尚未向目标发出 HTTP 请求") || line.contains("不能确认目标请求是否已经发出")
+/// A file or task-state call, whose journal keeps its own cause.
+fn own_cause(receipt: &Value) -> bool {
+    matches!(
+        receipt["domain_journal"]["schema"].as_str(),
+        Some("agent-file-evidence-v2" | "agent-task-effect-v1")
+    )
 }
 
 fn failed_runtime_code(receipt: &Value, named: Option<&str>) -> ErrorCode {
@@ -340,6 +338,10 @@ fn failed_runtime_code(receipt: &Value, named: Option<&str>) -> ErrorCode {
         || blob.contains("byte_limit")
     {
         ToolRuntimeErrorCode::IoLimitExceeded
+    } else if blob.starts_with("http.download_folder_") {
+        // A folder on the way that is a link or a file, or could not be made: the call has to
+        // name another place.
+        return ToolResourceErrorCode::ScopeResolutionFailed.error_code();
     } else if blob.contains("redirect_blocked") || blob.contains("redirect_limit") {
         ToolRuntimeErrorCode::HttpRedirectDenied
     } else if blob.contains("invalid_url")
@@ -418,8 +420,11 @@ pub fn materialize(
         evidence.receipt.evidence_ref,
         &attempt.binding.attempt.operation_id.to_string(),
     )?)?;
-    // A web call's rejection (a page DeepSeek could not fetch) is in the web receipt.
-    let rejected = if receipt["schema"] == "controlled-web-result-v1" {
+    // A web call's rejection (a page DeepSeek could not fetch) is in the web receipt, and so is
+    // the refusal of a call whose domain did not start it.
+    let rejected = if receipt["schema"] == "controlled-web-result-v1"
+        || receipt["schema"] == crate::execution::ENDED_BEFORE_START
+    {
         &receipt["operation_rejection"]
     } else if matches!(
         receipt["domain_journal"]["schema"].as_str(),
@@ -429,6 +434,10 @@ pub fn materialize(
                 | "agent-chrome-v1"
                 | "agent-computer-v1"
                 | "agent-memory-vault-v1"
+                // A sub-agent call refused for its own input, and a secure input whose prompt
+                // had gone.
+                | "agent-team-v1"
+                | "agent-terminal-effect-v1"
         )
     ) {
         &receipt["domain_journal"]["operation_rejection"]
@@ -465,9 +474,26 @@ pub fn materialize(
         .find(|e| e.code == code)
         .ok_or(Error::Conflict)?;
     let message = if invalid_output {
-        "Execution ended, but its output does not satisfy the frozen Tool contract. Recorded side effects remain authoritative; do not retry automatically."
+        "Execution ended, but its output does not satisfy the frozen Tool contract. Recorded side effects remain authoritative; do not retry automatically.".to_owned()
     } else {
-        failure_message.as_deref().unwrap_or(unexplained_failure(evidence.side_effect))
+        let effect = unexplained_failure(
+            evidence.side_effect,
+            receipt["action_kind"].as_str().unwrap_or_default(),
+        );
+        match failure_message.as_deref() {
+            // A file or task-state call's cause comes with what Core recorded it changed.
+            Some(cause)
+                if own_cause(&receipt)
+                    && !matches!(
+                        evidence.side_effect,
+                        SideEffectStateV1::NoEffect | SideEffectStateV1::NotStarted
+                    ) =>
+            {
+                format!("{cause} {effect}")
+            }
+            Some(cause) => cause.to_owned(),
+            None => effect,
+        }
     };
     // A target that refused or could not be found was never sent the request: trying again,
     // once the cause is fixed, is what the model should do.
@@ -516,12 +542,18 @@ pub fn materialize(
                     payload: ModelVisibleToolSuccessPayloadV1::StructuredJson { value: output },
                 },
             ),
-            ExecutionOutcome::Cancelled => (
-                ToolResultOutcomeV1::Cancelled { reason: ToolCancellationReasonV1::UserRequested },
-                ModelVisibleToolResultOutcomeV1::Cancelled {
-                    reason: ToolCancellationReasonV1::UserRequested,
-                },
-            ),
+            ExecutionOutcome::Cancelled => {
+                // A call that ended before anything of it was sent was cut by its stopped turn.
+                let reason = if receipt["schema"] == crate::execution::ENDED_BEFORE_START {
+                    ToolCancellationReasonV1::TurnInterrupted
+                } else {
+                    ToolCancellationReasonV1::UserRequested
+                };
+                (
+                    ToolResultOutcomeV1::Cancelled { reason },
+                    ModelVisibleToolResultOutcomeV1::Cancelled { reason },
+                )
+            }
             ExecutionOutcome::TimedOut => (
                 ToolResultOutcomeV1::Cancelled { reason: ToolCancellationReasonV1::Timeout },
                 ModelVisibleToolResultOutcomeV1::Cancelled {
@@ -632,36 +664,6 @@ pub fn materialize(
     Ok(result)
 }
 
-/// Why a call did not start, from its refusal's own reason code. Nothing else of the reason (an
-/// operation identity, an internal message) reaches the model.
-fn not_started_message(evidence: &Value) -> &'static str {
-    let reason = if evidence["schema"] == "execution-prepared-rejection-v1" {
-        evidence["reason"].as_str().unwrap_or_default()
-    } else {
-        ""
-    };
-    if reason.contains("agent.resource_changed")
-        || reason.contains("prepared domain facts changed")
-        || reason.contains("agent.source_or_scope_changed")
-        || reason.contains("agent.file_changed")
-    {
-        concat!(
-            "This call was not started: its target changed between being prepared and being ",
-            "started (another command may have been changing it at the same moment). Nothing was ",
-            "changed. Check the target, then try again."
-        )
-    } else if reason.contains("agent.mode_changed") {
-        concat!(
-            "This call was not started: the session's permission mode changed before it started. ",
-            "Nothing was changed."
-        )
-    } else if evidence["schema"] == "windows-user-execution-evidence-v2" {
-        "This command was not started: the run stopped before it began. Nothing was changed."
-    } else {
-        "This call was not started: it was refused before it could run. Nothing was changed."
-    }
-}
-
 /// The warnings a model may read. The execution's own lifecycle markers (`execution.not_dispatched`)
 /// are told by the outcome and its message instead, and a marker that is not a registered issue
 /// code is left out: such a marker once made a call's result impossible to record,
@@ -671,13 +673,45 @@ fn model_visible_warnings(warnings: &[String]) -> Vec<NormalizedIssueCode> {
 }
 
 /// The message for a failure that no recognized cause explains.
-fn unexplained_failure(side_effect: SideEffectStateV1) -> &'static str {
-    if side_effect == SideEffectStateV1::NoEffect {
-        // Core recorded that nothing changed; "an unknown effect" would contradict that fact
-        //.
-        "The execution did not succeed and changed nothing. Check the arguments and the target before calling again."
-    } else {
-        "The execution did not succeed. Inspect the recorded result; do not retry an unknown effect."
+/// A failure without a sentence of its own, told by what Core recorded of its effect: never "an
+/// unknown effect" when Core knows what changed. A change that may have been made names the tools
+/// that show the target as it is now.
+fn unexplained_failure(side_effect: SideEffectStateV1, action: &str) -> String {
+    let said = effect_sentence(side_effect);
+    if matches!(side_effect, SideEffectStateV1::NoEffect | SideEffectStateV1::NotStarted) {
+        return said.to_owned();
+    }
+    let family = action.split('.').next().unwrap_or_default();
+    let look = match family {
+        "fs" => " fs.read, fs.list or git.diff show how the files are now.",
+        "git" => " git.status and git.log show how the repository is now.",
+        "shell" => {
+            " shell.query shows what the command printed; read what it writes to see what it did."
+        }
+        "terminal" => " terminal.read shows what the terminal shows now.",
+        "memory" => " memory.read shows the memory as it is now.",
+        _ => "",
+    };
+    format!("{said}{look}")
+}
+
+fn effect_sentence(side_effect: SideEffectStateV1) -> &'static str {
+    match side_effect {
+        SideEffectStateV1::NoEffect | SideEffectStateV1::NotStarted => {
+            "The execution did not succeed and changed nothing. Check the arguments and the target before calling again."
+        }
+        SideEffectStateV1::PartiallyApplied => {
+            "This call did not succeed, and it changed part of its target. Check what it changed before trying it again."
+        }
+        SideEffectStateV1::FullyApplied => {
+            "This call did not succeed, although its change was made. Check the target before trying it again."
+        }
+        SideEffectStateV1::Compensated => {
+            "This call did not succeed; the change it began was undone. Check the target before trying it again."
+        }
+        _ => {
+            "Aura cannot tell whether this call took effect: it may have run fully, partly or not at all. Check its effect before trying it again."
+        }
     }
 }
 
@@ -716,12 +750,44 @@ mod tests {
     }
 
     #[test]
+    fn a_gateway_timeout_is_recorded_as_a_timeout_in_core_words_not_as_unavailable() {
+        let receipt = serde_json::json!({ "schema": "controlled-web-result-v1" });
+        let line = "network.timeout: 下载超时：github.com:443 在 300 秒内没有传完（已收到 41.2 MB），文件没有写入。可以稍后重试或换一个下载地址；GitHub 这类网站慢时，可以在 设置 → 模型 → 网络代理 里用代理。";
+        assert_eq!(model_safe_named_error(line), Some(line), "the model reads Core's sentence");
+        let code = failed_runtime_code(&receipt, Some(line));
+        assert_eq!(code, ToolNetworkErrorCode::TimedOut.error_code());
+        let entry = tool_error_catalog_v1()
+            .entries
+            .into_iter()
+            .find(|entry| entry.code == code)
+            .expect("cataloged");
+        assert_ne!(
+            entry.category,
+            ErrorCategory::Unavailable,
+            "a timeout is not an unavailable tool"
+        );
+        assert_eq!(
+            unreachable_target("network.timeout").map(|(_, unsent)| unsent),
+            Some(false),
+            "the request was sent"
+        );
+        // The bare code, as a proxied route reports it, is a timeout as well.
+        assert_eq!(
+            failed_runtime_code(&receipt, Some("network.timeout")),
+            ToolNetworkErrorCode::TimedOut.error_code()
+        );
+        // A timeout Core reports before the call ran is not an unavailable tool either.
+        let (_, category) = super::notice::classification("network.timeout: DNS 查询超时");
+        assert_ne!(category, ErrorCategory::Unavailable);
+    }
+
+    #[test]
     fn a_transport_diagnostic_stays_behind_its_code_and_a_proxy_sentence_is_kept() {
         let hidden = model_safe_named_error("network.transport_failed: response body read failed")
             .expect("named code");
         assert_eq!(hidden, "network.transport_failed");
         let sent = model_safe_named_error(
-            "network.user_proxy_unavailable: 无法连接工具设置中的代理 127.0.0.1:10808，尚未向目标发出 HTTP 请求。已改走直连，直连失败：network.transport_failed。",
+            "network.user_proxy_unavailable: 无法连接代理 127.0.0.1:10808，尚未向目标发出 HTTP 请求。已改走直连，直连失败：network.transport_failed。",
         )
         .expect("proxy sentence");
         assert!(sent.contains("尚未向目标发出 HTTP 请求"), "{sent}");
@@ -745,16 +811,45 @@ mod tests {
 
     #[test]
     fn an_unexplained_failure_that_changed_nothing_does_not_claim_an_unknown_effect() {
-        let message = unexplained_failure(SideEffectStateV1::NoEffect);
+        let message = unexplained_failure(SideEffectStateV1::NoEffect, "fs.write");
         assert!(message.contains("changed nothing"), "{message}");
-        assert!(!message.contains("unknown effect"), "{message}");
-        for state in [
-            SideEffectStateV1::Unknown,
-            SideEffectStateV1::PartiallyApplied,
-            SideEffectStateV1::FullyApplied,
-            SideEffectStateV1::Compensated,
+        assert!(!message.contains("fs.read"), "{message}");
+        assert!(!message.contains("cannot tell"), "{message}");
+        // Each recorded effect is told as it is, and every one says to check before trying again.
+        for (state, said) in [
+            (SideEffectStateV1::Unknown, "cannot tell whether this call took effect"),
+            (SideEffectStateV1::PartiallyApplied, "it changed part of its target"),
+            (SideEffectStateV1::FullyApplied, "although its change was made"),
+            (SideEffectStateV1::Compensated, "the change it began was undone"),
         ] {
-            assert!(unexplained_failure(state).contains("do not retry an unknown effect"));
+            let message = unexplained_failure(state, "fs.patch");
+            assert!(message.contains(said), "{state:?}: {message}");
+            assert!(message.contains("before trying it again"), "{state:?}: {message}");
+            assert!(!message.contains("changed nothing"), "{state:?}: {message}");
+            assert!(message.ends_with("fs.read, fs.list or git.diff show how the files are now."));
         }
+        let shell = unexplained_failure(SideEffectStateV1::Unknown, "shell.powershell");
+        assert!(shell.contains("shell.query"), "{shell}");
+        let other = unexplained_failure(SideEffectStateV1::Unknown, "http.request");
+        assert!(other.ends_with("before trying it again."), "{other}");
+    }
+
+    /// A file call that failed with a cause it already worded for the model reads that cause, with
+    /// what Core recorded it changed when that is not nothing.
+    #[test]
+    fn a_file_calls_own_cause_reaches_the_model() {
+        let receipt = serde_json::json!({
+            "action_kind": "fs.patch",
+            "domain_journal": {"schema": "agent-file-evidence-v2",
+                "error": "fs.patch_conflict: hunk 2 no longer matches the file"},
+        });
+        assert!(own_cause(&receipt));
+        assert!(!own_cause(
+            &serde_json::json!({"domain_journal": {"schema": "agent-mcp-tool-v1"}})
+        ));
+        let line = crate::tool::refusal_text::readable_line(
+            receipt["domain_journal"]["error"].as_str().expect("an error"),
+        );
+        assert_eq!(line, Some("fs.patch_conflict: hunk 2 no longer matches the file"));
     }
 }

@@ -58,8 +58,23 @@ impl Drop for LocalHttp {
     }
 }
 
-async fn call(f: &mut Fixture, tool: &str, network: bool, approve_network: bool) -> String {
-    let batch = f.admit(&[(tool, arguments("node request.cjs", network))]);
+/// An address outside this computer; under soft offline only the refusing proxy answers it.
+const OUTSIDE: &str = "http://aura-offline.invalid/proof";
+
+fn client(url: &str) -> String {
+    format!(
+        "require('http').get({url:?},r=>{{console.log(r.statusCode);r.resume();}}).on('error',e=>{{console.error(e.message);process.exitCode=1;}});"
+    )
+}
+
+async fn call(
+    f: &mut Fixture,
+    tool: &str,
+    script: &str,
+    network: bool,
+    approve_network: bool,
+) -> String {
+    let batch = f.admit(&[(tool, arguments(script, network))]);
     let id = batch.batch.calls[0].tool_call_id;
     let batch_id = batch.batch.tool_batch_id;
     if approve_network {
@@ -88,27 +103,30 @@ async fn call(f: &mut Fixture, tool: &str, network: bool, approve_network: bool)
 async fn s08_node_http_obeys_the_soft_default_proxy_and_runs_declared_network_unasked() {
     let service = LocalHttp::start();
     for tool in ["shell.powershell", "shell.cmd"] {
-        let mut f=Fixture::with_exposure_setup(PermissionMode::WorkspaceReadWrite,&[tool],|root|{
-            std::fs::write(root.join("request.cjs"),format!("require('http').get({:?},r=>{{console.log(r.statusCode);r.resume();}}).on('error',e=>{{console.error(e.message);process.exitCode=1;}});",service.url)).expect("local client fixture");
-        }).await;
+        let mut f =
+            Fixture::with_exposure_setup(PermissionMode::WorkspaceReadWrite, &[tool], |root| {
+                std::fs::write(root.join("request.cjs"), client(&service.url))
+                    .expect("local client");
+                std::fs::write(root.join("outside.cjs"), client(OUTSIDE)).expect("outside client");
+            })
+            .await;
         let before = service.count();
-        let offline = call(&mut f, tool, false, false).await;
-        assert!(offline.contains("403"), "{tool} uses the local reject proxy: {offline:?}");
-        assert_eq!(
-            service.count(),
-            before,
-            "soft offline reaches no local target in this Node version"
-        );
-        // Workspace mode runs a command that declares the network without asking.
-        let enabled = call(&mut f, tool, true, false).await;
-        assert!(enabled.contains("200"));
+        // Soft offline lets this computer's addresses past the refusing proxy, nothing else.
+        let local = call(&mut f, tool, "node request.cjs", false, false).await;
+        assert!(local.contains("200"), "{tool} reaches the local service offline: {local:?}");
         assert_eq!(service.count(), before + 1);
-        mode(&f, PermissionMode::FullAccess).await;
-        let full = call(&mut f, tool, false, false).await;
-        assert!(full.contains("200"), "FullAccess enables networking even without a declaration");
+        let outside = call(&mut f, tool, "node outside.cjs", false, false).await;
+        assert!(outside.contains("403"), "{tool} meets the local reject proxy: {outside:?}");
+        // Workspace mode runs a command that declares the network without asking.
+        let enabled = call(&mut f, tool, "node request.cjs", true, false).await;
+        assert!(enabled.contains("200"));
         assert_eq!(service.count(), before + 2);
+        mode(&f, PermissionMode::FullAccess).await;
+        let full = call(&mut f, tool, "node request.cjs", false, false).await;
+        assert!(full.contains("200"), "FullAccess enables networking even without a declaration");
+        assert_eq!(service.count(), before + 3);
         println!(
-            "S08_NODE_HTTP {tool}: soft default=403/0 target hits, declared=200 unasked, FullAccess default=200"
+            "S08_NODE_HTTP {tool}: soft default=200 local/403 outside, declared=200 unasked, FullAccess default=200"
         );
     }
 }

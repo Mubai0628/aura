@@ -130,9 +130,9 @@ export function ChromeSettings({ coreReady }: { coreReady: boolean }) {
     const next = await act(
       'folder',
       () => chromeControl()?.openExtensionFolder(),
-      '没有打开扩展文件夹，请重试。',
+      '扩展文件夹没有打开，请再点一次。',
     );
-    if (next !== undefined) setFolder(next);
+    setFolder(next);
   };
 
   const ready = status?.revision != null && !busy;
@@ -221,7 +221,7 @@ export function ChromeSettings({ coreReady }: { coreReady: boolean }) {
         </button>
         {folder ? (
           <span className="chrome-folder">
-            {folder.opened ? null : '没有找到扩展文件夹：'}
+            {folder.opened ? null : '扩展文件夹没有打开，可以在文件资源管理器里手动打开：'}
             <code>{folder.path}</code>
           </span>
         ) : null}

@@ -13,17 +13,22 @@ import { usePluginStatuses } from '../plugin-ui/plugin-ui';
 import type { SettingsSection } from '../app-shell-types';
 import { PluginDetails, type PluginAction, type PluginChange } from './PluginDetails';
 import { PluginHeading, PluginRow } from './PluginRow';
-import { pluginError } from './plugin-labels';
 import { useServiceChanges } from './useServiceChanges';
 import { SettingsItemDialog } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './plugin-settings.css';
+import { userMessage } from '../agent-session/user-message';
+import { refusedAction } from '../agent-session/failure-text';
 
 const NONE: readonly never[] = [];
 
 type Notice = { alert: boolean; text: string };
 type Running = { servers: McpServerView[]; hooks: HookEntryView[]; issue?: string };
+
+/** The running state of what the plugins bring was not read; the plugins themselves are fine. */
+const RUNNING_NOT_READ = '运行情况暂时读不到';
+const RUNNING_REST = '插件本身不受影响；请稍后刷新再看。';
 
 /** Settings → 插件: the installed plugins, what each brings, and the user's choices. */
 export function PluginSettings({
@@ -56,10 +61,10 @@ export function PluginSettings({
         if (result.ok) {
           setRegistry(result.value);
           setLoadError(undefined);
-        } else setLoadError(pluginError(result.error.message, '插件列表读取失败，请重试。'));
+        } else setLoadError(userMessage(result.error, '插件列表读取失败，请重试。'));
       },
       (reason: unknown) => {
-        if (live) setLoadError(pluginError(reason, '插件列表读取失败，请重试。'));
+        if (live) setLoadError(userMessage(reason, '插件列表读取失败，请重试。'));
       },
     );
     return () => {
@@ -80,7 +85,9 @@ export function PluginSettings({
         ]);
         if (!live) return;
         const issue = [servers, hooks]
-          .map((result) => (result.ok ? undefined : pluginError(result.error.message)))
+          .map((result) =>
+            result.ok ? undefined : refusedAction(result.error, RUNNING_NOT_READ, RUNNING_REST),
+          )
           .find(Boolean);
         setRunning({
           servers: servers.ok ? servers.value.servers.filter((server) => server.plugin) : [],
@@ -89,7 +96,11 @@ export function PluginSettings({
         });
       } catch (reason) {
         if (live)
-          setRunning({ servers: [], hooks: [], issue: pluginError(reason, '运行情况读取失败。') });
+          setRunning({
+            servers: [],
+            hooks: [],
+            issue: refusedAction(reason, RUNNING_NOT_READ, RUNNING_REST),
+          });
       }
     })();
     return () => {
@@ -112,14 +123,15 @@ export function PluginSettings({
       if (outcome) setNotice(outcome);
       if (outcome?.alert) setReload((value) => value + 1);
     } catch (reason) {
-      setNotice({ alert: true, text: pluginError(reason, '操作结果未确认，请刷新后核对。') });
+      setNotice({ alert: true, text: userMessage(reason, '操作结果未确认，请刷新后核对。') });
       setReload((value) => value + 1);
     } finally {
       setBusy(undefined);
     }
   }
   const applied = (result: ResultEnvelope<PluginRegistryView>, done: string): Notice => {
-    if (!result.ok) return { alert: true, text: pluginError(result.error.message) };
+    if (!result.ok)
+      return { alert: true, text: userMessage(result.error, '插件设置没有改变；请刷新后重试。') };
     setRegistry(result.value);
     return { alert: false, text: done };
   };
@@ -151,7 +163,11 @@ export function PluginSettings({
         case 'preview':
         case 'preview_update': {
           const result = await api.previewPlugin({ name, pending: action === 'preview_update' });
-          if (!result.ok) return { alert: true, text: pluginError(result.error.message) };
+          if (!result.ok)
+            return {
+              alert: true,
+              text: userMessage(result.error, '没有读到这个插件；请刷新后重试。'),
+            };
           setPreview(result.value);
           return undefined;
         }
@@ -174,13 +190,18 @@ export function PluginSettings({
         case 'folder': {
           // Main opens the folder Core lists for this plugin; the page never sends a path.
           const result = await api.openPluginDirectory({ name, pending: false });
-          if (!result.ok) return { alert: true, text: pluginError(result.error.message) };
+          if (!result.ok)
+            return {
+              alert: true,
+              text: userMessage(result.error, '没有打开文件夹；请刷新后重试。'),
+            };
           return { alert: !result.value.completed, text: result.value.message };
         }
         case 'export': {
           // Main asks where to save it; Core writes the files it read there.
           const result = await api.exportPlugin({ name });
-          if (!result.ok) return { alert: true, text: pluginError(result.error.message) };
+          if (!result.ok)
+            return { alert: true, text: userMessage(result.error, '插件没有导出；请刷新后重试。') };
           const cancelled = !result.value.completed && result.value.message.startsWith('已取消');
           return { alert: !result.value.completed && !cancelled, text: result.value.message };
         }
@@ -214,7 +235,7 @@ export function PluginSettings({
         ? { alert: false, text: `已保存 ${option.title}` }
         : {
             alert: true,
-            text: pluginError(result.error.message, '保密设置没有确认保存，请重新填写。'),
+            text: userMessage(result.error, '保密设置没有确认保存，请重新填写。'),
           };
     });
   const trust = (shown: PluginPreview) =>
@@ -239,7 +260,8 @@ export function PluginSettings({
         kind === 'archive'
           ? await window.aura.v1.selectPluginArchive({})
           : await window.aura.v1.selectPluginDirectory({});
-      if (!chosen.ok) return { alert: true, text: pluginError(chosen.error.message) };
+      if (!chosen.ok)
+        return { alert: true, text: userMessage(chosen.error, '没有打开选择窗口；请重试。') };
       if (!chosen.value.path) return undefined;
       const request = { path: chosen.value.path, expected_revision: revision };
       return kind === 'development'
@@ -317,9 +339,7 @@ export function PluginSettings({
           {registry.issue}
         </p>
       ) : null}
-      {running.issue ? (
-        <p className="settings-status-line">运行情况暂时读不到：{running.issue}</p>
-      ) : null}
+      {running.issue ? <p className="settings-status-line">{running.issue}</p> : null}
       {!coreReady ? (
         <p className="settings-status-line" role="status">
           Core 尚未就绪，插件管理暂不可用。

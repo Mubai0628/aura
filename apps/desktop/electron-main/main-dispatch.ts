@@ -8,6 +8,7 @@ import type {
 import { BrowserWindow, dialog, type IpcMainInvokeEvent } from 'electron';
 import { selectWorkspaceDirectory } from './workspace-directory.js';
 import { createAuraId } from './ids.js';
+import { hostPreparationDialog } from './host-preparation-dialog.js';
 import type {
   P03CoreCommand,
   P03CoreParams,
@@ -132,30 +133,17 @@ export function createMainDispatch(deps: MainDispatchState) {
       if (operation === null || operation === undefined || operation.state !== 'prepared') {
         throw new Error('Core returned a Host Preparation approval without a prepared operation.');
       }
-      const details = [
-        begun.approval.actual_operation_summary,
-        `来源：${begun.approval.source_summary}`,
-        `计划到期：${operation.expires_at}`,
-        operation.add_all_application_packages_ace
-          ? '• 添加 ALL APPLICATION PACKAGES 精确兼容 ACE'
-          : undefined,
-        operation.add_all_restricted_application_packages_ace
-          ? '• 添加 ALL RESTRICTED APPLICATION PACKAGES 精确兼容 ACE'
-          : undefined,
-        operation.update_null_device_security ? '• 更新或恢复 NUL 设备兼容安全描述符' : undefined,
-      ]
-        .filter((line): line is string => line !== undefined)
-        .join('\n');
+      const words = hostPreparationDialog(operation);
       let decision: 'allow_once' | 'deny' = 'deny';
       if (!owner.isDestroyed()) {
         const response = await dialog.showMessageBox(owner, {
           buttons: ['继续并请求管理员权限', '拒绝'],
           cancelId: 1,
           defaultId: 0,
-          detail: details,
-          message: begun.approval.title,
+          detail: words.detail,
+          message: words.message,
           noLink: true,
-          title: 'Aura Host Preparation',
+          title: words.title,
           type: 'warning',
         });
         decision = response.response === 0 ? 'allow_once' : 'deny';

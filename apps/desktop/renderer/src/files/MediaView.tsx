@@ -112,7 +112,11 @@ export function MediaView({
   if (failed)
     return (
       <div className="file-view-status" role="alert">
-        <p>播放不了这个文件。</p>
+        <p>
+          {media === 'image'
+            ? '显示不了这张图片：内置查看器不支持它的格式，或文件已被移动或改动。可以点“用系统程序打开”。'
+            : '播放不了这个文件：内置播放器不支持它的编码，或文件已被移动或改动。可以点“用系统程序打开”。'}
+        </p>
         <button onClick={() => void openOutside()} type="button">
           用系统程序打开
         </button>

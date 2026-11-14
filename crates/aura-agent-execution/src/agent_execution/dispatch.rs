@@ -199,6 +199,9 @@ impl AgentExecution {
         if let Some(message) = self.child_session_desktop_notice(&call).await? {
             return Ok(CallOutcome::NotStarted { message });
         }
+        if let Some(message) = self.subagent_refusal(&call).await? {
+            return Ok(CallOutcome::NotStarted { message });
+        }
         if let Some(message) = self.network_preflight_notice(&call).await {
             return Ok(CallOutcome::NotStarted { message });
         }
@@ -234,7 +237,7 @@ impl AgentExecution {
             })
             .collect::<Vec<_>>();
         let candidates = observed_candidates.as_slice();
-        let external_capabilities = self.external_authority(&call.operation);
+        let external_capabilities = self.call_authority(&call);
         let external_grants = self.external_authority_slices(&call.operation);
         // A ReadOnly denial of an MCP server holds for the rest of the turn.
         let mcp_denied = if mcp_tools::is_mcp(&call.operation.content) {
@@ -255,6 +258,7 @@ impl AgentExecution {
         let mut policy = call.policy(UtcTimestamp::now(), self.runtime);
         policy.denied_for_turn = mcp_denied;
         policy.grants = &grants;
+        policy.workspace = self.approval_workspace(&call.operation);
         policy.verified_external_capabilities = &external_capabilities;
         policy.verified_external_grants = &external_grants;
         let explicit = {
@@ -325,14 +329,17 @@ impl AgentExecution {
                 diagnostic.outcome = format!("denied:{}", classify_runner_code(&reason));
                 prepare.stage.outcome = "denied";
                 return Ok(CallOutcome::NotStarted {
-                    message: aura_backend_windows_user::installation::InstallationBinding::core_binding_user_text(
-                        &reason,
+                    message: format!(
+                        "runner.core_binding_mismatch: {}",
+                        aura_backend_windows_user::installation::InstallationBinding::core_binding_user_text(
+                            &reason,
+                        )
                     ),
                 });
             }
             Err(error) => {
                 diagnostic.outcome = format!("error:{error:?}");
-                return Err(anyhow::anyhow!("{error:?}"));
+                return Err(backend_failure(error));
             }
         };
         let selected = match selected {
@@ -400,7 +407,7 @@ impl AgentExecution {
         stage.wait_ms = dispatch_stages.wait_ms;
         stage.activate_ms = dispatch_stages.activate_ms;
         stage.execute_ms = dispatch_stages.execute_ms;
-        let finished = finished.map_err(|e| anyhow::anyhow!("{e:?}"))?;
+        let finished = finished.map_err(backend_failure)?;
         // Every way this call can finish ends the activity it started. The end
         // names the exact identity it published, so a late duplicate or a stale message
         // from another generation can never remove a newer activity.
@@ -437,7 +444,7 @@ impl AgentExecution {
                             service
                                 .orchestrator
                                 .release_managed_call(&attempt_for_release)
-                                .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+                                .map_err(backend_failure)?;
                             Ok(result)
                         },
                     )
@@ -452,7 +459,7 @@ impl AgentExecution {
                 stage.outcome = "unknown";
                 Ok(CallOutcome::Unknown(attempt))
             }
-            DispatchCompletion::Terminal(_) => {
+            DispatchCompletion::Terminal(finished) => {
                 let commit_at = std::time::Instant::now();
                 let committed: anyhow::Result<_> = {
                     // Boundary: materialising the committed terminal result is one bounded
@@ -473,13 +480,34 @@ impl AgentExecution {
                                         tx, batch_id, call_id,
                                     )
                                 })
-                                .map_err(|error| anyhow::anyhow!("{error:?}"))
+                                .map_err(anyhow::Error::from)
                         },
                     )
                     .await
                 };
                 stage.commit_ms = commit_at.elapsed().as_millis();
                 let result = committed?;
+                // Recorded Unknown and never replayed: a call Core ran itself holds nothing more,
+                // and a Git or package call holds its locks only while a process it started may
+                // still be running.
+                let unknown =
+                    finished.termination == aura_execution_contract::TerminationEvidence::Unknown;
+                if unknown
+                    && finished_in_core(
+                        call.validated.definition.source_kind,
+                        &call.operation.content.action_kind,
+                    )
+                {
+                    self.orchestrator
+                        .release_core_call(&finished.receipt.attempt)
+                        .map_err(backend_failure)?;
+                } else if unknown {
+                    super::lingering::release_when_stopped(
+                        Arc::clone(self),
+                        &call,
+                        finished.receipt.attempt.clone(),
+                    );
+                }
                 stage.outcome = "terminal";
                 Ok(CallOutcome::Terminal(Box::new(result)))
             }
@@ -492,6 +520,25 @@ impl AgentExecution {
         // future edit remembering to repeat this line.
 
         outcome
+    }
+}
+
+/// Calls Core runs in its own process, an MCP request or a Memory Vault change: once such a call
+/// is recorded Unknown, nothing of Core's is still working for it. A Git or package call recorded
+/// Unknown may have a process still running, so its locks stay until that is seen stopped
+/// (`lingering`).
+fn finished_in_core(source: aura_tool_contract::ToolSourceKindV1, action_kind: &str) -> bool {
+    source == aura_tool_contract::ToolSourceKindV1::Mcp || action_kind.starts_with("memory.")
+}
+
+/// A backend's refusal as the error the batch records: its reason, which says why in the
+/// backend's own words or code, without the Rust value around it.
+pub(super) fn backend_failure(error: BackendError) -> anyhow::Error {
+    match error {
+        BackendError::Unavailable { reason }
+        | BackendError::PreparationRejected { reason }
+        | BackendError::DispatchRejected { reason } => anyhow::anyhow!(reason),
+        BackendError::DispatchUnknown { .. } => anyhow::anyhow!("agent.dispatch_outcome_unknown"),
     }
 }
 
@@ -553,5 +600,19 @@ mod stage_log_tests {
             let _prepare = super::PrepareClock { stage: &mut stage, started };
         }
         assert!(stage.prepare_ms >= 12);
+    }
+}
+
+#[cfg(test)]
+mod core_release_tests {
+    use aura_tool_contract::ToolSourceKindV1;
+
+    #[test]
+    fn only_calls_core_runs_itself_give_their_locks_back_when_unknown() {
+        assert!(super::finished_in_core(ToolSourceKindV1::Mcp, "mcp.files.slow"));
+        assert!(super::finished_in_core(ToolSourceKindV1::BuiltIn, "memory.create"));
+        for kind in ["git.commit", "git.push", "shell.powershell", "fs.write"] {
+            assert!(!super::finished_in_core(ToolSourceKindV1::BuiltIn, kind), "{kind}");
+        }
     }
 }

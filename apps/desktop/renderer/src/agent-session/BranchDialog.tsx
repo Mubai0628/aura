@@ -1,8 +1,7 @@
-import type { AgentSessionBranchResult } from '@aura/contracts/generated';
 import { useId, useState } from 'react';
 import { AppIcon } from '../app-icons';
 import { ModalDialog } from '../ModalDialog';
-import { branchFrom } from './branch';
+import { branchFrom, type BranchMade } from './branch';
 import { userMessage } from './user-message';
 import './branch.css';
 
@@ -20,7 +19,7 @@ export function BranchDialog({
   sessionId: string;
   title: string;
   turnTaskId: string;
-  onBranched: (made: AgentSessionBranchResult) => void;
+  onBranched: (made: BranchMade) => void;
   onClose: () => void;
 }) {
   const titleId = useId();

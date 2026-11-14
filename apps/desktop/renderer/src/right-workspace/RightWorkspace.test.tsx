@@ -18,6 +18,11 @@ vi.mock('../terminal/xterm-runtime', () => ({
   disposeTerminalEngine: vi.fn(),
 }));
 vi.mock('../review/ReviewPanel', () => ({ ReviewPanel: () => <p>审查内容</p> }));
+vi.mock('../agent-team/AgentTeamPanel', () => ({
+  AgentTeamPanel: ({ expanded }: { expanded?: boolean }) => (
+    <p>{expanded ? '多 Agent 页（铺满）' : '多 Agent 页'}</p>
+  ),
+}));
 vi.mock('../plugin-panels/PluginPanel', () => ({
   PluginPanel: ({ plugin }: { plugin: string }) => <p>面板 {plugin}</p>,
 }));
@@ -132,12 +137,23 @@ const tabs = () =>
     .getAllByRole('tab')
     .map((tab) => tab.textContent?.trim());
 
+test('多 Agent opens once from "+" and shows its page', async () => {
+  const user = userEvent.setup();
+  renderSidebar();
+  await user.click(screen.getByRole('button', { name: '打开工具' }));
+  await user.click(screen.getByRole('menuitem', { name: /多 Agent/u }));
+  expect(await screen.findByText('多 Agent 页')).toBeTruthy();
+  expect(tabs()).toEqual(['多 Agent']);
+  await user.click(screen.getByRole('button', { name: '打开工具' }));
+  expect(menuItems()).not.toContain('多 Agent');
+});
+
 test('审查 opens once and leaves "+"; each 终端 is a new tab', async () => {
   const user = userEvent.setup();
   renderSidebar();
   await user.click(screen.getByRole('button', { name: '打开工具' }));
   // 提示词监测 opens from the context meter, `/context` and a step, not "+".
-  expect(menuItems()).toEqual(['审查', '终端', '进程', '浏览器', '文件']);
+  expect(menuItems()).toEqual(['审查', '终端', '进程', '浏览器', '文件', '多 Agent']);
   await user.click(screen.getByRole('menuitem', { name: /审查/u }));
   expect(await screen.findByText('审查内容')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '打开工具' }));
@@ -233,7 +249,7 @@ test('"+" offers the panels of ready plugins; each opens once and closes with it
   renderSidebar();
   await user.click(screen.getByRole('button', { name: '打开工具' }));
   await vi.waitFor(() => expect(menuItems()).toContain('本会话用量'));
-  expect(menuItems()).toEqual(['审查', '终端', '进程', '浏览器', '文件', '本会话用量']);
+  expect(menuItems()).toEqual(['审查', '终端', '进程', '浏览器', '文件', '多 Agent', '本会话用量']);
   expect(
     within(screen.getByRole('menu', { name: '选择工具' })).getByRole('separator'),
   ).toBeTruthy();

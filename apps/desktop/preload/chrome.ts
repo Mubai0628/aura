@@ -22,5 +22,7 @@ export function chromeBridge(
     openExtensionFolder: () => invoke('chrome.extension.open_folder', {}),
     shares: (request) => invoke('chrome.shares', request),
     finishAssist: (request) => invoke('chrome.assist.finish', request),
+    tabs: () => invoke('chrome.tabs.list', {}),
+    handOverTab: (request) => invoke('chrome.tabs.hand_over', request),
   };
 }

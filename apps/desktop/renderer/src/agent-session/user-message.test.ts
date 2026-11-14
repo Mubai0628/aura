@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { userMessage } from './user-message';
+import { stopFailureMessage, userMessage } from './user-message';
 
 // A refused model binding must tell the user what to do; the Core names the real
 // reason (`models.binding.*`), and the Renderer must not fall back to the generic
@@ -197,4 +197,39 @@ test('a refusal by the provider account says which setting and what to do next',
   expect(denied).not.toBe(region);
   // Aura's own refusal before any reply is not the Provider's.
   expect(said('credential.binding_mismatch', 'Authentication', 'None')).toBe(fallback);
+});
+
+test('a read Core did not answer says no answer came; a command that may have run says its effect is unknown', () => {
+  const sent = { outcome_recovery: 'query_runtime.command_outcome_without_replay' };
+  expect(
+    userMessage({ code: 'ipc.request_timeout', message: 'Core request timed out: x' }),
+  ).toContain('这次没有拿到结果');
+  expect(
+    userMessage(
+      { code: 'ipc.transport_lost', message: 'Aura Core pipe I/O failed' },
+      '设置读取失败，请重试。',
+    ),
+  ).toBe('设置读取失败，请重试。');
+  expect(
+    userMessage(
+      { code: 'ipc.transport_lost', message: 'Transport is closed', details: sent },
+      '没有保存。',
+    ),
+  ).toContain('是否已生效还不确定');
+  expect(
+    userMessage({ code: 'ipc.request_timeout', message: 'x', details: sent }, '没有保存。'),
+  ).toContain('是否已生效还不确定');
+  expect(
+    userMessage(
+      { code: 'ipc.request_timeout', message: 'x', details: { outcome_recovery: 'not_sent' } },
+      '消息未发送。',
+    ),
+  ).toBe('消息未发送。');
+  expect(userMessage('Core request timed out: settings.get')).toContain('这次没有拿到结果');
+});
+
+test('a stop Core did not answer in time says the turn may still be stopping', () => {
+  expect(
+    stopFailureMessage({ code: 'ipc.request_timeout', message: 'Core request timed out' }),
+  ).toMatch(/^服务没有及时回复，这一轮可能仍在停止中。/u);
 });

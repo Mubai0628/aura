@@ -76,11 +76,19 @@ fn child_registry_rejects_missing_parent_definition_evidence() {
 }
 
 #[test]
-fn child_hard_deny_names_cover_control_and_browser_sources() {
-    for name in
-        ["task_lineage.reconcile", "normal.complete", "plugin.chrome-control.click", "browser.open"]
-    {
+fn child_hard_deny_names_cover_control_and_the_users_own_browser_and_desktop() {
+    for name in [
+        "task_lineage.reconcile",
+        "normal.complete",
+        "plugin.chrome-control.click",
+        "chrome.click",
+        "computer.act",
+        "agents.spawn",
+    ] {
         assert!(is_child_hard_denied(name), "{name}");
     }
-    assert!(!is_child_hard_denied("context.search"));
+    // A sub-agent has the built-in browser on a page of its own.
+    for name in ["context.search", "browser.open", "browser.click"] {
+        assert!(!is_child_hard_denied(name), "{name}");
+    }
 }

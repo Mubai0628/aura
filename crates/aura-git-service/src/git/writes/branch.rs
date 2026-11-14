@@ -16,11 +16,12 @@ impl GitWriter {
                 && name.len() <= 1024
                 && !name.starts_with('-')
                 && !name.chars().any(char::is_control),
-            "git.invalid_branch: 分支名称不合法"
+            "{}",
+            config::invalid_branch(name)
         );
         let reference = format!("refs/heads/{name}");
         let checked = self.reader.raw(&["check-ref-format".into(), reference.clone()])?;
-        ensure!(checked.exit_code == Some(0), "git.invalid_branch: 分支名称不合法");
+        ensure!(checked.exit_code == Some(0), "{}", config::invalid_branch(name));
         let start = start.map(|revision| self.reader.oid(revision)).transpose()?;
         if !create {
             let exists = self.reader.raw(&[
@@ -31,7 +32,8 @@ impl GitWriter {
             ])?;
             ensure!(
                 exists.exit_code == Some(0),
-                "git.branch_missing: 本地分支不存在，请用git.status核对分支"
+                "git.branch_missing: 本地分支「{}」不存在，没有切换分支。请用 git.status（include_branches）核对分支名；要新建分支请用 kind 为 create。",
+                config::shown(name)
             );
         }
         let mut command = if switch {
@@ -56,7 +58,11 @@ impl GitWriter {
         let observed = (|| -> Result<_> {
             let status = self.reader.status(&GitStatusInput::default())?;
             let head = if switch {
-                ensure!(status.branch.as_deref() == Some(name), "当前分支与请求不符");
+                ensure!(
+                    status.branch.as_deref() == Some(name),
+                    "git.readback_mismatch: 切换后的当前分支不是「{}」",
+                    config::shown(name)
+                );
                 status.head.clone()
             } else {
                 Some(self.reader.oid(&reference)?)
@@ -73,7 +79,13 @@ impl GitWriter {
             })
         })();
         observed.map_err(|error| {
-            GitWriteInterrupted(format!("Git 返回成功，但分支回执未确认：{error}")).into()
+            GitWriteInterrupted(format!(
+                "git {} 已成功退出，分支很可能已经{}，但 Aura 没能读回确认（{}）",
+                if switch { "switch" } else { "branch" },
+                if switch { "切换" } else { "创建" },
+                brief(&error)
+            ))
+            .into()
         })
     }
 }

@@ -56,3 +56,60 @@ test('a reader leaving does not stop the updates the other readers still need', 
   sidebar.unmount();
   expect(unsubscribe).toHaveBeenCalledTimes(1);
 });
+
+/**
+ * Core answers no list while it starts or is busy, and may send no change afterwards: the page
+ * says Aura reads the list again, so the store asks again by itself, and stops when nothing reads.
+ */
+test('a list that could not be read is asked for again by itself', async () => {
+  vi.useFakeTimers();
+  try {
+    const notReady = {
+      ok: false,
+      error: {
+        category: 'unavailable',
+        code: 'projection.not_ready',
+        correlation_id: 'cor_00000000000000000000000000',
+        details: {},
+        message: 'Workspace/Session projection is not ready.',
+        retryable: true,
+        terminal: 'failed',
+      },
+    };
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce(notReady)
+      .mockResolvedValueOnce(notReady)
+      .mockResolvedValue({ ok: true, value: change('1', ['甲']) });
+    Object.defineProperty(window, 'aura', {
+      configurable: true,
+      value: {
+        v1: { onWorkspaceSessions: vi.fn(() => () => undefined), getWorkspaceSessions: get },
+      },
+    });
+    const first = render(<Titles label="sidebar" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+    // Nobody reads the list any more: no read is left waiting.
+    first.unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(get).toHaveBeenCalledTimes(1);
+
+    render(<Titles label="sidebar" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(get).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(get).toHaveBeenCalledTimes(3);
+    expect(screen.getByLabelText('sidebar').textContent).toBe('甲');
+  } finally {
+    vi.useRealTimers();
+  }
+});

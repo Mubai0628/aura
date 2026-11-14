@@ -15,6 +15,7 @@ pub(crate) mod build;
 pub use build::{CatalogBuildPhase, CatalogBuildStatus};
 mod boundary;
 mod fuzzy;
+mod git_metadata;
 pub use boundary::children_beyond_index;
 mod unindexed;
 pub use unindexed::UnindexedListing;
@@ -45,3 +46,7 @@ mod background_build_tests;
 #[cfg(test)]
 #[path = "tests/unfinished_index.rs"]
 mod unfinished_index_tests;
+
+#[cfg(test)]
+#[path = "tests/git_metadata.rs"]
+mod git_metadata_tests;

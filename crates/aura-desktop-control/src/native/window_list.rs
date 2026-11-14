@@ -44,14 +44,9 @@ const FRAME_HOST_CLASS: &str = "ApplicationFrameWindow";
 /// pointer's marks) are left out: no capture shows them, so they cover nothing.
 #[must_use]
 pub fn top_level() -> Vec<RawWindow> {
-    let mut handles: Vec<HWND> = Vec::new();
-    // SAFETY: the callback only pushes into the Vec whose address it is given, during this call.
-    unsafe {
-        let _ = EnumWindows(Some(collect), LPARAM(&raw mut handles as isize));
-    }
     // SAFETY: a plain query of the current foreground window.
     let foreground = unsafe { GetForegroundWindow() };
-    handles
+    listed()
         .into_iter()
         .filter(|handle| visible(*handle))
         .map(|handle| describe(handle, handle == foreground))
@@ -63,12 +58,7 @@ pub fn top_level() -> Vec<RawWindow> {
 /// look for a window a program has just opened.
 #[must_use]
 pub fn of_processes(processes: &BTreeSet<u32>) -> Vec<(isize, Rect)> {
-    let mut handles: Vec<HWND> = Vec::new();
-    // SAFETY: the callback only pushes into the Vec whose address it is given, during this call.
-    unsafe {
-        let _ = EnumWindows(Some(collect), LPARAM(&raw mut handles as isize));
-    }
-    handles
+    listed()
         .into_iter()
         .filter(|handle| {
             let mut process = 0_u32;
@@ -80,8 +70,19 @@ pub fn of_processes(processes: &BTreeSet<u32>) -> Vec<(isize, Rect)> {
         .collect()
 }
 
+/// Every top-level window `EnumWindows` reports, front to back: the desktop band's, without the
+/// shell's own bands (see `bands`).
+pub(super) fn listed() -> Vec<HWND> {
+    let mut handles: Vec<HWND> = Vec::new();
+    // SAFETY: the callback only pushes into the Vec whose address it is given, during this call.
+    unsafe {
+        let _ = EnumWindows(Some(collect), LPARAM(&raw mut handles as isize));
+    }
+    handles
+}
+
 unsafe extern "system" fn collect(handle: HWND, list: LPARAM) -> BOOL {
-    // SAFETY: `list` is the address of the Vec that `top_level` keeps alive during EnumWindows.
+    // SAFETY: `list` is the address of the Vec that `listed` keeps alive during EnumWindows.
     unsafe { (*(list.0 as *mut Vec<HWND>)).push(handle) };
     BOOL(1)
 }

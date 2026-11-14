@@ -1,6 +1,6 @@
-import { userMessage } from '../agent-session/user-message';
 import type { TerminalOutputBatchV1, TerminalViewV1 } from '@aura/contracts/generated';
 import type { TerminalApiV1 } from '../../../shared/terminal-api';
+import { OUTPUT_OUT_OF_STEP, subscribeFailure } from './failure-words';
 
 export interface TerminalRecord {
   view: TerminalViewV1;
@@ -62,7 +62,7 @@ export function receiveTerminalOutput(batch: TerminalOutputBatchV1) {
       deliver(record, new TextEncoder().encode('\r\n[较早的输出已超过保留上限]\r\n'));
     const data = bytes(next.data_base64);
     if (data.byteLength !== next.next_offset - next.start_offset) {
-      record.error = '终端输出偏移不匹配，请重新打开终端页。';
+      record.error = OUTPUT_OUT_OF_STEP;
       publish();
       break;
     }
@@ -141,7 +141,7 @@ export async function addTerminal(view: TerminalViewV1, api: TerminalApiV1 = ter
   });
   if (result.ok) receiveTerminalOutput(result.value);
   else {
-    record.error = userMessage(result.error, '终端操作没有完成，请重试。');
+    record.error = subscribeFailure(result.error);
     publish();
   }
   return record;
@@ -152,6 +152,12 @@ export function removeTerminal(id: string) {
 }
 export function terminalFailure(record: TerminalRecord, message: string) {
   record.error = message;
+  publish();
+}
+/** A failure that no longer holds once the same request succeeded; any other is kept. */
+export function clearTerminalFailure(record: TerminalRecord, message: string) {
+  if (record.error !== message) return;
+  delete record.error;
   publish();
 }
 

@@ -44,7 +44,7 @@ pub fn build(
 ) -> Result<PackageHttpRequest> {
     let declared = declarative(tool)?;
     let validator = CompiledToolSchemaV1::compile(tool.model.input_schema.canonical_document())?;
-    ensure!(validator.validate(arguments).valid, "package.arguments_invalid");
+    ensure!(validator.validate(arguments).valid, crate::failures::ARGUMENTS_INVALID);
     let endpoints = settings
         .map(|entry| {
             entry
@@ -88,8 +88,8 @@ pub fn build(
         &authorizations,
         &mut OrdinaryToolIoMeterV1::default(),
     )
-    .context("package.http_request_invalid")?;
-    prepared.validate_integrity().context("package.http_request_invalid")?;
+    .context(crate::failures::HTTP_REQUEST_INVALID)?;
+    prepared.validate_integrity().context(crate::failures::HTTP_REQUEST_INVALID)?;
     let url = url::Url::parse(&prepared.exact_url)?;
     let origin = aura_core_base::web_origin::resource(&url)?;
     let gateway = GatewayRequest {

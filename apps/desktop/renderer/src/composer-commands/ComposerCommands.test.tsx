@@ -236,6 +236,27 @@ test('/compact becomes a block, and sending registers compaction with its focus'
   expect(screen.getByRole('status').textContent).toContain('已登记压缩');
 });
 
+test('a /compact that was not registered says why, that the task goes on, and what to do', async () => {
+  compaction.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'agent.compaction_refused', message: 'agent.compaction_refused' },
+  });
+  const user = userEvent.setup();
+  const box = renderComposer(true);
+  await user.type(box, '/comp{Enter}');
+  await user.type(box, '{Enter}');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '压缩没有登记，任务照常继续，不会压缩；请稍后再输入 /compact。',
+  );
+  compaction.mockRejectedValueOnce(new Error('Aura Core pipe disconnected'));
+  await user.type(box, '{Enter}');
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toBe(
+      '压缩是否登记没有确认（与 Aura Core 的连接断开了），任务照常继续；请稍后看任务有没有压缩，没有再输入 /compact。',
+    ),
+  );
+});
+
 // With nothing running, /compact starts a
 // task of its own that compacts first.
 test('/compact can be used while nothing runs: it starts a compaction task with its focus', async () => {
@@ -297,8 +318,28 @@ test('each opening rereads the catalog; a failed reread keeps the last list and 
   await user.clear(box);
   await user.type(box, '/');
   await waitFor(() => expect(listCommands).toHaveBeenCalledTimes(3));
-  expect(await screen.findByText(/命令列表读取失败/u)).toBeTruthy();
+  expect(
+    await screen.findByText(
+      '命令 · 命令列表没能重新读取，显示的是上一次的列表；关闭菜单后再输入 / 会重新读取。',
+    ),
+  ).toBeTruthy();
   expect(within(menu()!).getByText('/fresh')).toBeTruthy();
+});
+
+test('a command list that could not be read at all says why and that no command can be chosen', async () => {
+  listCommands.mockResolvedValue({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  const user = userEvent.setup();
+  const box = renderComposer();
+  await waitFor(() => expect(listCommands).toHaveBeenCalledTimes(1));
+  await user.type(box, '/');
+  expect(
+    await screen.findByText(
+      '命令 · 命令列表读不出来（Aura Core 没有及时回复），这次无法选择命令。关闭菜单后再输入 / 会重新读取。',
+    ),
+  ).toBeTruthy();
 });
 
 test('the plus menu and /help list every offered command', async () => {

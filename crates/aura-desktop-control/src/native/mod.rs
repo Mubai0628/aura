@@ -2,6 +2,7 @@
 //! returns owned Rust values; handles and COM pointers never leave this module, except inside
 //! values the rest of the crate can only hand back to it (an element of `uia`).
 pub mod apps;
+pub mod bands;
 mod com;
 pub mod dpi;
 pub mod focus;

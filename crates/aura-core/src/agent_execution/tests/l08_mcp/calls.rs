@@ -35,6 +35,7 @@ async fn l08_trusted_server_tool_runs_for_the_agent_and_restores_without_replay(
     assert_eq!(result(&f, id).side_effect_state, SideEffectStateV1::Unassessed);
     let (summary, _) = activity(&f, id);
     assert!(summary.contains("由 MCP 服务器“files”执行，Aura 不检查它做了什么"), "{summary}");
+    assert_eq!(row_display(&f, id).title, "调用 MCP 工具 echo");
     assert_eq!(marker.calls(), vec![r#"echo {"text":"你好"}"#.to_owned()]);
 
     // A restart rebuilds the batch from its records and never sends it again.

@@ -105,6 +105,20 @@ impl CompatBackend {
         })
     }
 }
+/// What an Agent terminal's PowerShell runs before its first prompt: the bootstrap for the user's
+/// rights, then PSReadLine's predictions and history file off. PSReadLine draws a matching entry
+/// of the user's command history after what is typed, and an Agent terminal's output goes to the
+/// model; it also saves every accepted line to the user's history file, which the user's own
+/// terminals read back. Set before the first prompt, saving nothing also leaves that file unread.
+/// Each option is tried on its own, so a PSReadLine without one still takes the other.
+fn agent_powershell_bootstrap() -> String {
+    format!(
+        "{}\nif (Get-Module PSReadLine) {{ try {{ Set-PSReadLineOption -PredictionSource None }} \
+         catch {{ }}; try {{ Set-PSReadLineOption -HistorySaveStyle SaveNothing }} catch {{ }} }}",
+        crate::environment::user_powershell_bootstrap().trim_end()
+    )
+}
+
 pub(super) fn terminal_arguments(shell: ManagedShell, kind: TerminalKind) -> Vec<String> {
     match shell {
         ManagedShell::Cmd => ["/d", "/q", "/e:on", "/v:off", "/k", "chcp 65001 >nul"]
@@ -126,7 +140,7 @@ pub(super) fn terminal_arguments(shell: ManagedShell, kind: TerminalKind) -> Vec
                     "-NoProfile".into(),
                     "-NoExit".into(),
                     "-Command".into(),
-                    crate::environment::POWERSHELL_BOOTSTRAP.into(),
+                    agent_powershell_bootstrap(),
                 ]);
             }
             arguments

@@ -163,6 +163,14 @@ pub trait WindowsUserCorePort: Send + Sync {
     ) -> Option<Arc<dyn crate::ShellExecutionObserver>> {
         None
     }
+    /// What the request's commands run under: the group they share with the session's other
+    /// commands, its limits and its own temporary folder. `None` runs them in their own Job only.
+    fn process_policy(
+        &self,
+        _request: &DispatchRequest,
+    ) -> Result<Option<crate::compat::ProcessPolicy>> {
+        Ok(None)
+    }
     /// Runs one synchronous section of this port on the owner that answers for it.
     ///
     /// Core overrides this to run the section on its **single bounded owner**, so a journal

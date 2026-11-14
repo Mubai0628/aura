@@ -1,5 +1,6 @@
 import type { BrowserBounds } from '../../shared/browser-api.js';
 import type { PluginPanelCommand } from '../../shared/plugin-panel-api.js';
+import { coreDidNotAnswer } from '../request-failure-envelopes.js';
 import type { PanelSite } from './site.js';
 
 /** The renderer is untrusted; Main takes its panel commands only in their exact shape. */
@@ -75,7 +76,9 @@ export function readPanelSite(value: unknown, plugin: string): PanelSite | undef
   };
 }
 
-/** A refusal for the user to read: Core's message without its code. */
+const HAS_CHINESE = /[㐀-鿿]/u;
+
+/** A refusal for the user to read: Core's message without its code, when Core said it in words. */
 export function shownMessage(error: unknown, fallback: string): string {
   const envelope = record(error) && record(error.envelope) ? error.envelope : undefined;
   const message =
@@ -85,5 +88,14 @@ export function shownMessage(error: unknown, fallback: string): string {
         ? error.message
         : '';
   const plain = message.replace(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*:\s*/u, '').trim();
-  return plain === '' ? fallback : plain.slice(0, 500);
+  return HAS_CHINESE.test(plain) ? plain.slice(0, 500) : fallback;
+}
+
+/** Why a panel did not open, for its tab: Core's own words, or what Main knows. */
+export function notOpened(error: unknown): string {
+  if (coreDidNotAnswer(error))
+    return 'Aura Core 暂时没有回应，插件面板没有打开；稍后点“重新打开”。';
+  if (error instanceof Error && error.message.startsWith('plugin_panel.core_unavailable'))
+    return 'Aura Core 还没有就绪，插件面板没有打开；稍后点“重新打开”。';
+  return shownMessage(error, '插件面板没有打开；稍后点“重新打开”。');
 }

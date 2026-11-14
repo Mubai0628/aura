@@ -137,8 +137,14 @@ async fn l04_http_tool_sends_exactly_the_declared_request_and_checks_the_answer(
     assert!(seen[0].ends_with("{\"payload\":{\"n\":1}}"), "{}", seen[0]);
     let (summary, details) = activity(&f, id);
     // A POST that reached the service cannot prove what it changed there.
-    assert_eq!(summary, "操作已返回，实际影响尚未确认");
-    assert_eq!(details, vec!["由 Aura 代为发出 HTTPS 请求，只访问工具声明的地址".to_owned()]);
+    assert_eq!(summary, "结果未知：没能确认是否生效，Aura 不会自动重做");
+    assert_eq!(
+        details,
+        vec![
+            "这一步返回了，但 Aura 没能确认它是否生效（例如连接中断），不会自动重做；请检查目标后再决定是否让模型重试。".to_owned(),
+            "由 Aura 代为发出 HTTPS 请求，只访问工具声明的地址".to_owned(),
+        ]
+    );
     f.continue_after_tools(batch_id, &group);
 
     // The stored package answer covers the next call: execution does not stop to ask.

@@ -296,7 +296,7 @@ pub(crate) async fn dispatch(
             let authenticated_owner = services
                 .persistence
                 .current_tool_principal()
-                .context("resolve authenticated Tool profile principal")?;
+                .context(aura_core_base::route_failures::TOOL_PRINCIPAL_UNAVAILABLE)?;
             match p07_control::ToolReadControlServiceV1.credential_candidates(
                 &services.persistence,
                 &request.params,
@@ -339,7 +339,7 @@ pub(crate) async fn dispatch(
             };
             let command_invocation_id = request
                 .command_invocation_id
-                .context("authenticated Tool mutation has no CommandInvocationId")?;
+                .context(aura_core_base::route_failures::NO_INVOCATION)?;
             let authenticated_channel = authenticated_configuration_channel_identity(state)?;
             let authenticated_identity_hash =
                 match services.p04()?.authorize_authenticated_main_tool_mutation(
@@ -483,6 +483,6 @@ pub(crate) async fn dispatch(
             }
         }
 
-        _ => bail!("registered tool route has no handler"),
+        _ => bail!(aura_core_base::route_failures::ROUTE_UNHANDLED),
     }
 }

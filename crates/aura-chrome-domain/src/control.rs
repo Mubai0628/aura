@@ -96,6 +96,48 @@ pub struct ChromeSessionShares {
     pub tabs: Vec<ChromeSharedTab>,
 }
 
+/// One of the user's ordinary Chrome tabs, as Aura's @ menu offers it.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChromeTabChoice {
+    /// Chrome's own id for the tab; it never reaches a model.
+    pub tab_id: u32,
+    pub title: String,
+    pub url: String,
+}
+
+/// The user's Chrome tabs for Aura's @ menu.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChromeTabChoices {
+    /// Whether the extension is connected now.
+    pub connected: bool,
+    pub tabs: Vec<ChromeTabChoice>,
+    /// Why the connected extension could not list them, in the user's words.
+    pub issue: Option<String>,
+}
+
+/// The user hands one of their Chrome tabs to a conversation with @.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChromeTabHandOverRequest {
+    pub session_id: aura_domain_common::SessionId,
+    pub tab_id: u32,
+}
+
+/// The tab handed over: shared with the conversation until the user stops sharing it, and read
+/// once for the message it goes with.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChromeHandedTab {
+    /// The conversation's name for the tab (t1, t2…), which Chrome's tools take.
+    pub tab: String,
+    pub title: String,
+    pub url: String,
+    pub snapshot: String,
+    pub snapshot_truncated: bool,
+}
+
 /// The extension folder the user loads in Chrome, and whether the file manager opened it.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

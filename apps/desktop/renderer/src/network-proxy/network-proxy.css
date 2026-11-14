@@ -1,0 +1,69 @@
+/* Aura's own proxy on the model page: one row of fields that wraps as a whole on a narrow page,
+   then what the system names while Aura's own proxy is switched off. */
+.network-proxy-section {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.network-proxy-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  margin-top: 14px;
+}
+
+.network-proxy-fields label {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.network-proxy-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.network-proxy-fields select {
+  min-width: 110px;
+}
+
+.network-proxy-fields input {
+  width: 180px;
+  max-width: 100%;
+}
+
+.network-proxy-fields input.network-proxy-port {
+  width: 96px;
+}
+
+.network-proxy-fields label[data-invalid='true'] input {
+  border-color: var(--danger);
+}
+
+.network-proxy-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.network-proxy-system {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.network-proxy-system output {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.network-proxy-pending {
+  color: var(--muted);
+  font-size: 11px;
+}

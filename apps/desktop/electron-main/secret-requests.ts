@@ -9,6 +9,7 @@ import {
 import type { CommandInvocationId } from '@aura/contracts/generated';
 import type { SecretInputOperation } from './protocol.js';
 import { CoreRpcError, errorEnvelope, type CoreTransport } from './core-transport.js';
+import { unsupportedInterface } from './core-supervisor/status-text.js';
 import {
   isAgentParams,
   parseAgentResult,
@@ -29,7 +30,8 @@ export async function requestToolCredential<C extends ToolCredentialMainCommand>
 ): Promise<ToolCredentialMainResult[C]> {
   let invocation: CommandInvocationId | undefined;
   try {
-    if (!supported) throw new Error('Core does not support tool credential management.');
+    // A Core of the same verified release offers it once its handshake is done.
+    if (!supported) throw unsupportedInterface('tool credential', true);
     if (
       !isToolCredentialParams(command, params) ||
       isToolCredentialSecretCommand(command) !== (secret !== undefined)

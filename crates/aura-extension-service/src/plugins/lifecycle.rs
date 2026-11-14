@@ -121,7 +121,7 @@ impl PluginRuntime {
         let registry = self.settings().plugin_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
-            "plugins.registry_unavailable: {}",
+            "plugins.registry_unavailable: 插件 设置暂时读不出来，没有改动：{}",
             registry.issue.clone().unwrap_or_default()
         );
         anyhow::ensure!(
@@ -229,7 +229,7 @@ impl PluginRuntime {
     /// Copies a plugin in. A new name is installed (switched on, not trusted); a trusted plugin's
     /// name gets the copy as its waiting update, and the installed copy keeps working.
     pub(crate) fn import(&self, request: &PluginImportRequest) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy: 插件设置在之前的一次修改中意外中断，没有执行这次修改；请重启 Aura 后重试。"))?;
         let registry = self.current(request.expected_revision)?;
         let staged = import::stage(self, Path::new(&request.path))?;
         let placed = self.place(&registry, &staged.folder, &staged.package, &request.path);
@@ -289,7 +289,7 @@ impl PluginRuntime {
 
     /// Trusts exactly the content the user saw, and switches the plugin on.
     pub(crate) fn trust(&self, request: &PluginTrustRequest) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy: 插件设置在之前的一次修改中意外中断，没有执行这次修改；请重启 Aura 后重试。"))?;
         let (registry, located) = self.located(&request.name, request.expected_revision)?;
         if request.pending {
             return self.apply_update(&registry, &located, &request.expected_fingerprint);
@@ -297,7 +297,7 @@ impl PluginRuntime {
         let package = located
             .scanned
             .as_ref()
-            .map_err(|error| anyhow::anyhow!("plugins.invalid: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("plugins.invalid: 这个插件不符合要求：{error}"))?;
         anyhow::ensure!(
             trusted_at(package, located.setting.as_ref()) == request.expected_fingerprint,
             "plugins.content_changed: 插件的内容在你查看之后变了，请重新查看再信任"
@@ -325,8 +325,9 @@ impl PluginRuntime {
     ) -> anyhow::Result<()> {
         let name = &located.name;
         let pending = self.pending_folder(name);
-        let waiting =
-            self.scan(&pending).map_err(|error| anyhow::anyhow!("plugins.invalid: {error}"))?;
+        let waiting = self
+            .scan(&pending)
+            .map_err(|error| anyhow::anyhow!("plugins.invalid: 这个插件不符合要求：{error}"))?;
         anyhow::ensure!(
             waiting.fingerprint == expected,
             "plugins.content_changed: 新版本的内容在你查看之后变了，请重新查看再信任"
@@ -358,7 +359,11 @@ impl PluginRuntime {
                     "plugins.content_changed: 新版本的内容在你查看之后变了，请重新查看再信任"
                 )));
             }
-            Err(error) => return Err(restore(anyhow::anyhow!("plugins.invalid: {error}"))),
+            Err(error) => {
+                return Err(restore(anyhow::anyhow!(
+                    "plugins.invalid: 这个插件不符合要求：{error}"
+                )));
+            }
         };
         let mut setting =
             located.setting.clone().unwrap_or_else(|| PluginSetting::imported(name, None));
@@ -394,11 +399,11 @@ impl PluginRuntime {
         server: &str,
         fingerprint: String,
     ) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy: 插件设置在之前的一次修改中意外中断，没有执行这次修改；请重启 Aura 后重试。"))?;
         let registry = self.settings().plugin_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
-            "plugins.registry_unavailable: {}",
+            "plugins.registry_unavailable: 插件 设置暂时读不出来，没有改动：{}",
             registry.issue.clone().unwrap_or_default()
         );
         let mut setting = registry
@@ -414,7 +419,7 @@ impl PluginRuntime {
 
     /// Nothing the plugin brings is offered until it is trusted again; its secrets are kept.
     pub(crate) fn untrust(&self, request: &PluginChangeRequest) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy: 插件设置在之前的一次修改中意外中断，没有执行这次修改；请重启 Aura 后重试。"))?;
         let (registry, located) = self.located(&request.name, request.expected_revision)?;
         let mut setting = located
             .setting
@@ -427,7 +432,7 @@ impl PluginRuntime {
     }
 
     pub(crate) fn set_enabled(&self, request: &PluginSetEnabledRequest) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy: 插件设置在之前的一次修改中意外中断，没有执行这次修改；请重启 Aura 后重试。"))?;
         let (registry, located) = self.located(&request.name, request.expected_revision)?;
         let mut setting =
             located.setting.clone().unwrap_or_else(|| PluginSetting::imported(&located.name, None));
@@ -442,7 +447,7 @@ impl PluginRuntime {
 
     /// Removes the waiting copy; the installed one is unchanged.
     pub(crate) fn discard_update(&self, request: &PluginChangeRequest) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy: 插件设置在之前的一次修改中意外中断，没有执行这次修改；请重启 Aura 后重试。"))?;
         let (registry, located) = self.located(&request.name, request.expected_revision)?;
         let pending = self.pending_folder(&located.name);
         let saved = located.setting.clone().filter(|setting| setting.pending.is_some());
@@ -465,7 +470,7 @@ impl PluginRuntime {
     /// Stops its servers, removes it from `plugins.json`, its folders, its servers' secrets and
     /// sign-ins. A folder another program holds stops the uninstall before anything changes.
     pub(crate) fn uninstall(&self, request: &PluginChangeRequest) -> anyhow::Result<()> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy: 插件设置在之前的一次修改中意外中断，没有执行这次修改；请重启 Aura 后重试。"))?;
         let (registry, located) = self.located(&request.name, request.expected_revision)?;
         let name = located.name.clone();
         let servers = server_ids(located.scanned.as_ref().ok());

@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { AppSidebar } from './AppSidebar';
-import { ACTIVITY_EVERY_MS } from './session-activity';
+import { ACTIVITY_EVERY_MS, useSessionActivity } from './session-activity';
 
 // The sidebar marks the
 // conversations whose turn really is under way, as Core reports them, and follows them as they
@@ -75,6 +75,28 @@ test('a running conversation turns its dot, a waiting one is amber, and both fol
   });
   expect(dot('你好').className).not.toContain('is-running');
   expect(read).toHaveBeenCalledTimes(2);
+});
+
+function WaitingWord({ sessionId }: { sessionId: string }) {
+  return <output>{useSessionActivity().get(sessionId) ?? 'idle'}</output>;
+}
+
+test('the sidebar and the 近期活动 card share one read of what Core has under way', async () => {
+  read.mockResolvedValue({
+    ok: true,
+    value: {
+      sessions: [{ session_id: 'ses_b', state: 'waiting', waiting_for: 'sensitive_input' }],
+    },
+  });
+  sidebar();
+  render(<WaitingWord sessionId="ses_b" />);
+  await act(async () => {});
+  expect(screen.getByRole('status').textContent).toBe('waiting');
+  expect(dot('分支：你好').className).toContain('is-waiting');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ACTIVITY_EVERY_MS * 2);
+  });
+  expect(read).toHaveBeenCalledTimes(3);
 });
 
 test('a hidden window does not ask', async () => {

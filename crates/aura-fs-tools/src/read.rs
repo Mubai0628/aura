@@ -380,15 +380,19 @@ pub(crate) fn enforce_text_policy(
         return Err(FsToolError::LargeFileRangeRequired);
     }
     if policy.large_file_read_mode == LargeFileReadMode::SmallRangeOnly {
+        let too_large = || FsToolError::TextRangeTooLarge {
+            line_limit: policy.small_range_line_limit,
+            character_limit: policy.small_range_character_limit,
+        };
         match range {
             TextReadRange::Full => {}
             TextReadRange::Lines { count, .. } if *count > policy.small_range_line_limit => {
-                return Err(FsToolError::TextRangeTooLarge);
+                return Err(too_large());
             }
             TextReadRange::Characters { count, .. }
                 if *count > policy.small_range_character_limit =>
             {
-                return Err(FsToolError::TextRangeTooLarge);
+                return Err(too_large());
             }
             TextReadRange::Lines { .. } | TextReadRange::Characters { .. } => {}
         }

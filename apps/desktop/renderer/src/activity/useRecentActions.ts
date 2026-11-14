@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { stateOf } from '../agent-session/tool-call-tone';
 
 export interface RecentAction {
   id: string;
@@ -6,6 +7,8 @@ export interface RecentAction {
   target?: string | undefined;
   at?: string | undefined;
   failed: boolean;
+  /** What happened to a call that did not succeed, in the row's own words. */
+  state?: string | undefined;
 }
 
 /** The conversation's last three tool calls, newest first, read again on `refreshKey`. */
@@ -28,6 +31,10 @@ export function useRecentActions(session: string | undefined, refreshKey: string
               target: call.display.target ?? undefined,
               at: call.summary.completed_at ?? call.summary.started_at ?? undefined,
               failed: call.summary.outcome != null && call.summary.outcome.type !== 'succeeded',
+              state:
+                call.summary.outcome != null && call.summary.outcome.type !== 'succeeded'
+                  ? stateOf(call).text
+                  : undefined,
             })),
         });
       })

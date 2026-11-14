@@ -197,6 +197,7 @@ impl WorkspaceRuntime {
                 &mut entry,
                 WorkspaceLifecycleState::Failed,
                 "workspace.editor_prepare_ack_timeout",
+                None,
             )?;
             self.buffers.cancel_lifecycle(workspace_id)?;
             self.notify_projection_change()?;
@@ -334,6 +335,7 @@ impl WorkspaceRuntime {
             &mut entry,
             WorkspaceLifecycleState::Failed,
             "workspace.editor_prepare_ack_timeout",
+            None,
         )?;
         self.buffers.cancel_lifecycle(workspace_id)?;
         self.notify_projection_change()?;
@@ -360,13 +362,22 @@ impl WorkspaceRuntime {
         Ok(())
     }
 
+    /// Ends the operation without completing it. The failure is recorded before the new state is
+    /// stored, so a store that cannot take the new state does not lose the record.
     fn transition_terminal(
         &self,
         entry: &mut LifecycleRuntimeEntry,
         state: WorkspaceLifecycleState,
         error_code: &'static str,
+        reason: Option<String>,
     ) -> Result<(), WorkspaceError> {
         debug_assert!(state.is_terminal());
+        crate::lifecycle_log::record_failure(
+            &entry.record.summary,
+            state,
+            error_code,
+            reason.as_deref(),
+        );
         self.transition(entry, state, None, Some(error_code.to_owned()))
     }
 
@@ -485,9 +496,9 @@ impl WorkspaceRuntime {
                 entry,
                 WorkspaceLifecycleState::Failed,
                 "workspace.lifecycle_target_changed",
+                Some(error.to_string()),
             )?;
             self.buffers.cancel_lifecycle(workspace_id)?;
-            let _ = error;
             return Ok(CommitResult::Completed(entry.record.summary.clone()));
         }
         self.transition(
@@ -499,10 +510,15 @@ impl WorkspaceRuntime {
 
         let original_workspace = self.persistence.workspace(workspace_id)?;
         if original_workspace.revision != entry.expected_workspace_revision {
+            let changed = WorkspaceError::WorkspaceRevisionConflict {
+                expected: entry.expected_workspace_revision,
+                actual: original_workspace.revision,
+            };
             return self.fail_commit(
                 entry,
                 &original_workspace,
                 "workspace.lifecycle_workspace_revision_changed",
+                changed.to_string(),
             );
         }
         self.remove_online_runtime_state(workspace_id)?;
@@ -564,11 +580,12 @@ impl WorkspaceRuntime {
         };
         let relocated_workspace = match persistence_result {
             Ok(workspace) => workspace,
-            Err(_) => {
+            Err(error) => {
                 return self.fail_commit(
                     entry,
                     &original_workspace,
                     "workspace.lifecycle_commit_failed",
+                    error.to_string(),
                 );
             }
         };
@@ -589,9 +606,10 @@ impl WorkspaceRuntime {
         entry: &mut LifecycleRuntimeEntry,
         original_workspace: &WorkspaceSummary,
         error_code: &'static str,
+        reason: String,
     ) -> Result<CommitResult, WorkspaceError> {
         let _ = self.reinstall_after_failed_commit(original_workspace);
-        self.transition_terminal(entry, WorkspaceLifecycleState::Failed, error_code)?;
+        self.transition_terminal(entry, WorkspaceLifecycleState::Failed, error_code, Some(reason))?;
         self.buffers.cancel_lifecycle(entry.record.summary.workspace_id)?;
         Ok(CommitResult::Completed(entry.record.summary.clone()))
     }
@@ -758,7 +776,7 @@ impl WorkspaceRuntime {
             } else {
                 (WorkspaceLifecycleState::Cancelled, "workspace.renderer_unavailable")
             };
-            self.transition_terminal(&mut entry, state, code)?;
+            self.transition_terminal(&mut entry, state, code, None)?;
             self.buffers.cancel_lifecycle(workspace_id)?;
             terminal.push(entry.record.summary);
         }

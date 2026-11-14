@@ -8,8 +8,19 @@ import { AppIcon } from '../app-icons';
 import { MarkdownBlocks } from '../markdown-body';
 import { ToolIcon } from '../tool-icon';
 import { withoutQuoteMarks } from './quote-reply/quote-parts';
-import { userMessage } from './user-message';
+import { queuePauseMessage } from './user-message';
+import { connectionCause, failedAction } from './failure-text';
 import './inbox.css';
+
+/** What each queue action is called in the sentence that says it did not take effect. */
+const ACTION_NAMES: Record<AgentInboxAction['action'], string> = {
+  edit: '修改',
+  remove: '删除',
+  append: '立即追加',
+  revoke: '撤回',
+  pause: '暂停',
+  resume: '继续',
+};
 
 /** A queued message on one line: its words with the line breaks folded away. */
 const oneLine = (text: string) => withoutQuoteMarks(text).replace(/\s+/gu, ' ').trim();
@@ -75,14 +86,31 @@ export function InboxPanel({
         action,
       });
       if (!result.ok) {
-        setError(result.error.message);
+        const name = ACTION_NAMES[action.action];
+        const changed =
+          action.action === 'pause' || action.action === 'resume'
+            ? '队列刚刚有了变化'
+            : '队列刚刚有了变化（这条消息可能已经开始处理）';
+        setError(
+          failedAction(
+            result.error,
+            `这次${name}没有生效`,
+            '队列保持原样；请按最新的队列再操作。',
+            {
+              conflict: `${changed}，这次${name}没有生效；请按最新的队列再操作。`,
+            },
+          ),
+        );
         return;
       }
       setEditing(undefined);
       setError(undefined);
       onChanged();
-    } catch {
-      setError('操作结果未确认，请刷新队列核对。');
+    } catch (reason) {
+      const cause = connectionCause(reason) ?? '与 Aura Core 的连接出了问题';
+      setError(
+        `这次${ACTION_NAMES[action.action]}的结果没有确认（${cause}），没有自动重发；请看最新的队列再决定。`,
+      );
     } finally {
       setBusy(false);
     }
@@ -102,14 +130,10 @@ export function InboxPanel({
           onClick={() => void mutate({ action: inbox.paused ? 'resume' : 'pause' })}
         />
       </header>
-      {inbox.pause_reason ? (
-        <p role="alert">
-          {userMessage(inbox.pause_reason, '队列已暂停，消息已保留。请确认后继续。')}
-        </p>
-      ) : null}
+      {inbox.pause_reason ? <p role="alert">{queuePauseMessage(inbox.pause_reason)}</p> : null}
       <ol>
         {queued.map((message) => {
-          const lane = '下一轮 · Normal';
+          const lane = '下一轮';
           const open = shown === message.message_id;
           return (
             <li key={message.message_id} data-open={open || undefined}>
@@ -223,7 +247,7 @@ export function InboxPanel({
           );
         })}
       </ol>
-      {error ? <p role="alert">{userMessage(error)}</p> : null}
+      {error ? <p role="alert">{error}</p> : null}
     </section>
   );
 }

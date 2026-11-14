@@ -74,7 +74,9 @@ export function AppEmptyState({
         <div className="new-session-welcome">
           <span>AURA</span>
           <h1>从一个想法开始</h1>
-          {error ? <p className="app-empty-lead">{error}</p> : null}
+          {error && error !== runtimeNotice?.message ? (
+            <p className="app-empty-lead">{error}</p>
+          ) : null}
           {loading || error ? null : workspaceName ? (
             onNewSession ? (
               <button

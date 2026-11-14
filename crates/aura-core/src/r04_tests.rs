@@ -130,6 +130,7 @@ impl Case {
             // These cases carry no reusable consent, so naming this process is
             // enough to make the consent branch fail closed.
             core_runtime_instance_id: Some(aura_domain_common::RuntimeInstanceId::new()),
+            workspace: None,
         }
     }
     fn request(&self, authority: &AuthorizationDecision) -> DispatchRequest {
@@ -345,6 +346,7 @@ fn r04_approval_choice_expiry_replay_and_transaction_rollback() {
             aura_security_contract::BackendClass::CoreBroker,
             c.snapshot.session_permission_revision,
             aura_domain_common::RuntimeInstanceId::new(),
+            None,
             now,
         )
     };
@@ -456,6 +458,7 @@ fn r04_new_once_grant_is_loaded_without_rewriting_operation_or_snapshot() {
                 aura_security_contract::BackendClass::CoreBroker,
                 c.snapshot.session_permission_revision,
                 aura_domain_common::RuntimeInstanceId::new(),
+                None,
                 approval.requested_at,
             )
         })

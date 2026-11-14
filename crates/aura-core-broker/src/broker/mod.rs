@@ -54,6 +54,8 @@ pub fn descriptor(runtime_instance_id: aura_domain_common::RuntimeInstanceId) ->
             WorkspaceFileMove,
             ExternalFileWrite,
             ExternalFileCreate,
+            // `fs.delete` of an outside path the policy allowed or the user approved.
+            ExternalFileDelete,
             ConfigurationRead,
             ConfigurationWrite,
             ToolRegistryRead,

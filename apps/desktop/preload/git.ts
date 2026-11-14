@@ -30,9 +30,21 @@ export function gitBridge(
           return { ok: true, value: parseGitResult(command, result.value) };
       }
     } catch {
-      return { ok: false, error: error('git.invalid_response', 'Git 回执格式不兼容') };
+      return {
+        ok: false,
+        error: error(
+          'git.invalid_response',
+          'Aura 界面和 Core 的版本对不上，这次 Git 操作的结果读不懂；请重启 Aura，仍然如此请重新运行安装程序修复。',
+        ),
+      };
     }
-    return { ok: false, error: error('git.invalid_response', 'Git 回执格式不兼容') };
+    return {
+      ok: false,
+      error: error(
+        'git.invalid_response',
+        'Aura 界面和 Core 的版本对不上，这次 Git 操作的结果读不懂；请重启 Aura，仍然如此请重新运行安装程序修复。',
+      ),
+    };
   }
   return {
     runtime: () => invoke('git.runtime.get', {}),

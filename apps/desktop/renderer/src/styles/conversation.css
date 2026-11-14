@@ -1,4 +1,6 @@
+/* Positioned: a sub-agent picked on the 多 Agent page covers it (agent-team.css). */
 .conversation-workspace {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;

@@ -6,6 +6,7 @@ use aura_tool_contract::ToolRegistrySnapshotV1;
 use rusqlite::{Connection, Transaction, params};
 pub mod activity;
 pub mod admission;
+pub(crate) mod argument_repair;
 pub(crate) mod call_name;
 pub mod configuration;
 pub mod definitions;
@@ -14,8 +15,10 @@ pub mod execution;
 pub mod exposure;
 pub mod external_change;
 pub mod preparing;
+pub mod refusal_text;
 mod registry_cache;
 pub mod result;
+pub mod same_response;
 pub mod session_tools;
 
 pub fn insert_registry(tx: &Transaction<'_>, snapshot: &ToolRegistrySnapshotV1) -> StoreResult<()> {

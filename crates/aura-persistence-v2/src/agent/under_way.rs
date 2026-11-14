@@ -3,6 +3,8 @@
 //! journal, and reaches each turn's own run by its key: the sidebar asks every 1.5 s, and this
 //! took 1.9 ms with 5,000 turns and 13 ms with 30,000, a third of a join on the runs' unindexed
 //! turn column. The turns a caller saw under way are looked up by key to say how they ended.
+//! A sub-agent's turn counts for the conversation that started it, reached by the member's key:
+//! that conversation runs or waits while it does, and the sub-agent's own turns are never listed.
 use aura_agent_domain::{
     AgentSessionActivity, AgentSessionActivityState, AgentSessionWaitingFor, AgentSessionsActivity,
     AgentTurnEnded, AgentTurnOutcome,
@@ -23,8 +25,10 @@ pub fn sessions(db: &Connection) -> StoreResult<AgentSessionsActivity> {
 /// way ended.
 pub fn activity(db: &Connection, ended_turns: &[TurnTaskId]) -> StoreResult<AgentSessionsActivity> {
     let mut query = db.prepare(
-        "SELECT t.session_id, t.id, t.state, ar.state FROM turn_tasks t \
+        "SELECT coalesce(m.parent_session_id, t.session_id), t.id, t.state, ar.state, \
+         m.parent_session_id IS NOT NULL FROM turn_tasks t \
          LEFT JOIN agent_runs ar ON ar.id=json_extract(t.payload, '$.agent_run_id') \
+         LEFT JOIN agent_team_members m ON m.child_session_id=t.session_id \
          WHERE t.state IN ('pending','running','awaiting_approval','awaiting_query')",
     )?;
     let rows = query
@@ -34,13 +38,14 @@ pub fn activity(db: &Connection, ended_turns: &[TurnTaskId]) -> StoreResult<Agen
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, Option<String>>(3)?,
+                row.get::<_, bool>(4)?,
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    // A conversation waits for the user when any of its turns does: an approval before a
-    // question before a decision about the context.
+    // A conversation waits for the user when any of its turns does, showing the wait that
+    // comes first (`AgentSessionWaitingFor::first`).
     let mut states = BTreeMap::<String, (Option<AgentSessionWaitingFor>, Vec<TurnTaskId>)>::new();
-    for (session, turn, turn_state, run) in rows {
+    for (session, turn, turn_state, run, by_subagent) in rows {
         let waiting = match (turn_state.as_str(), run.as_deref()) {
             ("awaiting_approval", _) => Some(AgentSessionWaitingFor::Approval),
             ("awaiting_query", _) => Some(AgentSessionWaitingFor::Question),
@@ -49,12 +54,12 @@ pub fn activity(db: &Connection, ended_turns: &[TurnTaskId]) -> StoreResult<Agen
         };
         let entry = states.entry(session).or_default();
         entry.0 = match (entry.0, waiting) {
-            (Some(known), Some(found)) => {
-                Some(if order(found) < order(known) { found } else { known })
-            }
+            (Some(known), Some(found)) => Some(known.first(found)),
             (known, found) => known.or(found),
         };
-        entry.1.push(turn.parse::<TurnTaskId>().map_err(|_| Error::Conflict)?);
+        if !by_subagent {
+            entry.1.push(turn.parse::<TurnTaskId>().map_err(|_| Error::Conflict)?);
+        }
     }
     let sessions = states
         .into_iter()
@@ -72,14 +77,6 @@ pub fn activity(db: &Connection, ended_turns: &[TurnTaskId]) -> StoreResult<Agen
         })
         .collect::<StoreResult<Vec<_>>>()?;
     Ok(AgentSessionsActivity { sessions, ended: ended(db, ended_turns)? })
-}
-
-fn order(waiting: AgentSessionWaitingFor) -> u8 {
-    match waiting {
-        AgentSessionWaitingFor::Approval => 0,
-        AgentSessionWaitingFor::Question => 1,
-        AgentSessionWaitingFor::Context => 2,
-    }
 }
 
 fn ended(db: &Connection, turns: &[TurnTaskId]) -> StoreResult<Vec<AgentTurnEnded>> {

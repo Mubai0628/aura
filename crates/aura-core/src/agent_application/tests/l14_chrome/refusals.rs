@@ -73,6 +73,9 @@ async fn without_a_connected_extension_no_chrome_tool_runs() {
     assert!(chrome.extension.commands().is_empty());
     let text = chrome.returned(0);
     assert!(!text.contains("Checkout"), "{text}");
+    // The Chrome tools stay within reach while Chrome control is on: the model learns why they
+    // do nothing now and what the user does about it.
+    assert!(text.contains("chrome.not_connected") && text.contains("Aura 侧边栏"), "{text}");
 }
 
 #[tokio::test]

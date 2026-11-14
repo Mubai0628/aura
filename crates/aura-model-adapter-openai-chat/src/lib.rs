@@ -57,10 +57,11 @@ impl ModelProtocolCompiler for OpenAiChatCompletionsAdapter {
             "role": chat_instruction_role(instruction_role),
             "content": layout.current,
         }));
-        // A question asked after the step's request - a compaction - is a user message of its own
-        // after the task state, and what followed it when the model called tools comes next, so all
-        // before them is the step's request as it was sent. Chat endpoints are not sent
-        // `tool_choice`, which DeepSeek's thinking models refuse in its forced forms.
+        // A message after the step's request - a compaction's question or a retry's note - is a
+        // user message of its own after the task state, and what followed a question when the model
+        // called tools comes next, so all before them is the step's request as it was sent. Chat
+        // endpoints are not sent `tool_choice`, which DeepSeek's thinking models refuse in its
+        // forced forms.
         if let Some(question) = &input.request.closing_question {
             messages.push(json!({"role": "user", "content": question}));
         }

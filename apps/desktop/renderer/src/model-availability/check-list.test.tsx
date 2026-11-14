@@ -5,9 +5,8 @@ import { ModelAvailabilityCheckList } from '../ModelOperationStatus';
 
 afterEach(cleanup);
 
-// A failed or skipped check read "失败 · authentication.rejected" or
-// "未执行 · blocked_by_previous_stage". The words now say what went wrong; the code stays in the
-// tooltip for diagnosis.
+// A failed or skipped check says in words what went wrong; its code is shown nowhere on the
+// page, not even in a tooltip.
 test('availability checks say in words what failed and why a check did not run', () => {
   const result = {
     config: { status: 'passed' },
@@ -28,7 +27,9 @@ test('availability checks say in words what failed and why a check did not run',
   expect(screen.getByText('未执行 · 不适用于这种连接方式')).toBeTruthy();
   expect(screen.getByText('通过 · 12 ms')).toBeTruthy();
   expect(screen.queryByText(/authentication\.rejected|blocked_by_previous_stage/u)).toBeNull();
-  expect(screen.getByTitle('authentication.rejected')).toBeTruthy();
+  expect(
+    screen.queryByTitle(/authentication\.rejected|blocked_by_previous_stage|network\./u),
+  ).toBeNull();
 });
 
 // The checks share a model card's width three to a row; a sentence saying why one failed or did
@@ -83,7 +84,7 @@ test('availability checks name the account setting a Provider refused the model 
     } as unknown as ModelAvailabilityTestResult;
     const { unmount } = render(<ModelAvailabilityCheckList result={result} />);
     expect(screen.getByText(`失败 · ${sentence}（HTTP 403）`)).toBeTruthy();
-    expect(screen.getByTitle(code)).toBeTruthy();
+    expect(screen.queryByTitle(code)).toBeNull();
     unmount();
   }
 });

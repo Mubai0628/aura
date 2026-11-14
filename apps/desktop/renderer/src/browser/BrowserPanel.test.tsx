@@ -104,6 +104,17 @@ describe('the browser', () => {
     expect(await screen.findByText('Aura 正在操作')).toBeTruthy();
   });
 
+  it("marks a page the user handed to the model as the model's, where it is in the row", () => {
+    render(<BrowserPanel sessionId={S} visible />);
+    act(() => {
+      const mine = browserTabs.open(S);
+      browserTabs.open(S);
+      browserStore.put(page({ pageId: mine, title: 'Docs', handedAs: 'p1' }));
+    });
+    const row = within(screen.getByRole('tablist', { name: '浏览器页面' })).getAllByRole('tab');
+    expect(row[0]?.getAttribute('aria-label')).toBe('交给模型的页面：Docs');
+  });
+
   // Past
   // what the row can hold its pages scroll sideways under the wheel, the edges fade where pages
   // are hidden, and the page shown is kept in view.

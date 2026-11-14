@@ -46,6 +46,23 @@ impl WindowsUserCorePort for CorePort {
     ) -> Result<()> {
         self.record_filtered_names(request, names)
     }
+    /// A sub-agent's commands run in its own group, under the sub-agents' caps and the CPU share
+    /// the user set for all of them.
+    fn process_policy(
+        &self,
+        request: &DispatchRequest,
+    ) -> Result<Option<aura_backend_windows_user::compat::ProcessPolicy>> {
+        let Some(session) = request.operation.content.identity.session_id else {
+            return Ok(None);
+        };
+        let journal = self.journal.lock()?;
+        let connection = journal.database.connection();
+        if aura_agent_team::store::member_by_child(connection, session)?.is_none() {
+            return Ok(None);
+        }
+        let (limits, _) = aura_agent_team::limits::limits(connection)?;
+        Ok(Some(super::process_policy::sub_agent(session, limits.cpu_percent)))
+    }
     fn execution_observer(
         &self,
         request: &DispatchRequest,
@@ -470,14 +487,11 @@ impl WindowsUserCorePort for CorePort {
             },
         };
         result.validate()?;
+        // A Failed Shell result never observed a process (see `outcome`): it did not start.
         let failure_message = if outcome == ExecutionOutcome::Failed {
-            observation.and_then(super::output::failure_summary).or_else(|| {
-                failure_code.map(|code| {
-                    format!(
-                        "The execution did not start ({code}). Inspect the recorded result; do not retry an unknown effect."
-                    )
-                })
-            })
+            observation
+                .and_then(super::output::failure_summary)
+                .or_else(|| Some(super::not_started::message(not_started, failure_code)))
         } else {
             None
         };

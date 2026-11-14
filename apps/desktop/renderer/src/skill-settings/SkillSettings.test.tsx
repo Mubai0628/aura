@@ -341,6 +341,27 @@ test("a refusal shows Core's sentence and reads the list again", async () => {
   await waitFor(() => expect(api.listSkills).toHaveBeenCalledTimes(2));
 });
 
+// The page passed only the message on, so a refusal whose sentence lives in the code table, or
+// one with no readable sentence, read 「操作未完成，请刷新后重试。」.
+test('a refusal is read from its whole envelope, and an unreadable one says what did not happen', async () => {
+  const user = userEvent.setup();
+  api.setSkillEnabled.mockResolvedValue({
+    ok: false,
+    error: { code: 'ipc.core_not_ready', message: 'core is starting' },
+  });
+  render(<SkillSettings coreReady />);
+  await screen.findByText('notes', { selector: 'strong' });
+  await user.click(within(rowOf('notes')).getByRole('button', { name: '停用' }));
+  expect(await screen.findByText(/Aura Core 还没有就绪/u)).toBeTruthy();
+
+  api.setSkillEnabled.mockResolvedValue({
+    ok: false,
+    error: { code: 'skills.store_failed', message: 'database is locked' },
+  });
+  await user.click(within(rowOf('notes')).getByRole('button', { name: '停用' }));
+  expect(await screen.findByText('Skill 设置没有改变；请刷新后重试。')).toBeTruthy();
+});
+
 test('a Skill folder is opened by Main from its id, a broken one too', async () => {
   const user = userEvent.setup();
   api.openSkillDirectory

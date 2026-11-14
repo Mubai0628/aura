@@ -73,6 +73,18 @@ describe('a page of the browser', () => {
     expect(screen.queryByRole('button', { name: /接管/u })).toBeNull();
   });
 
+  it("offers the takeover on a page the user handed to the model, as on the model's own", async () => {
+    const user = userEvent.setup();
+    command.mockImplementation(async (value: BrowserUserCommand) =>
+      value.kind === 'open'
+        ? { ok: true, state: page({ pageId: value.pageId, handedAs: 'p1' }) }
+        : { ok: true },
+    );
+    render(<BrowserPage sessionId={S} pageId="tab-1" visible />);
+    await user.click(await screen.findByRole('button', { name: '接管' }));
+    expect(command).toHaveBeenCalledWith({ kind: 'take-control', sessionId: S, pageId: 'tab-1' });
+  });
+
   // The page's own DevTools, in a window of their own.
   it("opens the page's DevTools from the toolbar", async () => {
     const user = userEvent.setup();

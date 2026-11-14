@@ -138,8 +138,8 @@ fn query_activity(
 ) -> aura_persistence_core::StoreResult<serde_json::Value> {
     use aura_activity_domain::*;
     let input: AgentActivityQueryInput = serde_json::from_value(arguments.clone())?;
-    let query = input.to_query().map_err(|_| {
-        aura_persistence_core::PersistenceCoreError::Invalid("invalid activity query")
+    let query = input.to_query().map_err(|invalid| {
+        aura_persistence_core::PersistenceCoreError::Invalid(refusal(invalid))
     })?;
     let mut view = aura_activity_runtime::ActivityVisibility::for_session(
         service.runtime,
@@ -163,12 +163,62 @@ fn query_activity(
         input.effective_limit(),
         true,
     )
+    // The one refusal a page makes is a resource target larger than a request may name.
     .map_err(|_| {
-        aura_persistence_core::PersistenceCoreError::Invalid("invalid activity query target")
+        aura_persistence_core::PersistenceCoreError::Invalid(
+            "activity.query_target_over_limit: the target names more folders or entries than a \
+             query may hold; name a smaller target, or query by session",
+        )
     })?;
     serde_json::to_value(AgentActivityQueryResultV1 {
         contract_version: ACTIVITY_QUERY_CONTRACT_VERSION,
         page,
     })
     .map_err(Into::into)
+}
+
+/// What the model is told for an activity query that cannot be answered as written, under the
+/// domain's own code for it.
+fn refusal(invalid: aura_activity_domain::AgentActivityQueryInvalid) -> &'static str {
+    use aura_activity_domain::AgentActivityQueryInvalid as Invalid;
+    match invalid {
+        Invalid::MissingTarget => {
+            "activity.query_target_required: a query by resource needs the target it asks about; \
+             pass target, or query by session"
+        }
+        Invalid::MissingGroup => {
+            "activity.query_group_required: a query by group needs the tool group it asks about; \
+             pass group, or query by session"
+        }
+        Invalid::MissingActivityId => {
+            "activity.query_activity_id_required: an exact query needs the activity_id it asks \
+             about; pass activity_id, or query by session"
+        }
+        Invalid::UnexpectedField => {
+            "activity.query_unexpected_field: pass target only when querying by resource, group \
+             only by group and activity_id only by exact; leave the others out"
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each activity query the model wrote wrongly is named by the domain's code for it, with
+    /// what to change.
+    #[test]
+    fn an_unanswerable_activity_query_names_its_code_and_the_fix() {
+        use aura_activity_domain::AgentActivityQueryInvalid as Invalid;
+        for invalid in [
+            Invalid::MissingTarget,
+            Invalid::MissingGroup,
+            Invalid::MissingActivityId,
+            Invalid::UnexpectedField,
+        ] {
+            let text = refusal(invalid);
+            assert!(text.starts_with(&format!("{}: ", invalid.code())), "{text}");
+            assert!(text.contains("pass ") || text.contains("leave "), "{text}");
+        }
+    }
 }

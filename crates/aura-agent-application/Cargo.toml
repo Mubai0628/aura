@@ -23,6 +23,7 @@ aura-activity-domain = { path = "../aura-activity-domain" }
 aura-activity-runtime = { path = "../aura-activity-runtime" }
 aura-agent-domain = { path = "../aura-agent-domain" }
 aura-agent-execution = { path = "../aura-agent-execution" }
+aura-agent-team = { path = "../aura-agent-team" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }
 aura-browser-domain = { path = "../aura-browser-domain" }
 aura-config = { path = "../aura-config" }
@@ -58,6 +59,7 @@ aura-tool-domain = { path = "../aura-tool-domain" }
 aura-tool-projection = { path = "../aura-tool-projection" }
 aura-tool-registry = { path = "../aura-tool-registry" }
 aura-windows-platform = { path = "../aura-windows-platform" }
+aura-windows-user-contract = { path = "../aura-windows-user-contract" }
 aura-workspace = { path = "../aura-workspace" }
 aura-workspace-domain = { path = "../aura-workspace-domain" }
 base64.workspace = true

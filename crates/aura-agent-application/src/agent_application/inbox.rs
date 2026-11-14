@@ -51,13 +51,19 @@ impl AgentApplication {
             .sessions
             .iter()
             .find(|s| s.session_id == id)
-            .ok_or_else(|| anyhow::anyhow!("agent.session_missing"))?
+            .ok_or_else(|| {
+                anyhow::anyhow!("agent.session_missing: 找不到这个会话，它可能已被删除。")
+            })?
             .clone();
         let workspace = projection
             .workspaces
             .iter()
             .find(|w| w.workspace_id == metadata.workspace_id)
-            .ok_or_else(|| anyhow::anyhow!("agent.workspace_missing"))?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "agent.workspace_missing: 找不到这个会话所在的工作区，它可能已被移除。"
+                )
+            })?
             .clone();
         // Every read
         // of a conversation wrote this mirror again, a transaction queued behind every other
@@ -91,12 +97,23 @@ impl AgentApplication {
         self: &Arc<Self>,
         request: aura_agent_domain::AgentSessionsActivityRequest,
     ) -> anyhow::Result<AgentSessionsActivity> {
-        Ok(self
+        let mut activity = self
             .store
             .read(StoreStep::operation("agent.sessions.activity"), move |db| {
                 aura_persistence_v2::agent::under_way::activity(db, &request.ended_turns)
             })
-            .await?)
+            .await?;
+        self.input_waits(&mut activity);
+        Ok(activity)
+    }
+
+    /// Adds the conversations whose terminal asks the user for a secure input: they wait for
+    /// the user as for an approval, though the request lives in Core's memory, not in a turn.
+    pub fn input_waits(&self, activity: &mut AgentSessionsActivity) {
+        activity.waiting_also(
+            &self.commands.sensitive_input_sessions(),
+            aura_agent_domain::AgentSessionWaitingFor::SensitiveInput,
+        );
     }
 
     pub async fn inbox(
@@ -365,7 +382,7 @@ impl AgentApplication {
 
     pub(super) async fn schedule_inbox(self: &Arc<Self>, id: SessionId) -> anyhow::Result<()> {
         if let Err(error) = self.drain_inbox(id).await {
-            let reason = error.to_string();
+            let reason = pause_reason(&error);
             // The queue's own pause fact is a run-local diagnostic of the session's scheduling
             // step: it is recorded on the session's queue, never as a store-wide fault.
             self.store
@@ -377,5 +394,36 @@ impl AgentApplication {
                 .await?;
         }
         Ok(())
+    }
+}
+
+/// Why the queue stopped, as it is kept for the user: the first line of the cause that says it in
+/// a sentence of Chinese (a Hook's refusal, a missing attachment), else the error as it is, whose
+/// code the conversation page words.
+fn pause_reason(error: &anyhow::Error) -> String {
+    error
+        .chain()
+        .map(ToString::to_string)
+        .find(|text| text.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c)))
+        .and_then(|text| text.lines().next().map(str::to_owned))
+        .unwrap_or_else(|| error.to_string())
+}
+
+#[cfg(test)]
+mod pause_tests {
+    use super::pause_reason;
+
+    #[test]
+    fn the_pause_keeps_the_causes_own_sentence() {
+        let worded = anyhow::anyhow!("hooks.message_blocked: Hook 审核 没有接收这条消息：含有密码")
+            .context("agent.inbox.start");
+        assert_eq!(
+            pause_reason(&worded),
+            "hooks.message_blocked: Hook 审核 没有接收这条消息：含有密码"
+        );
+        assert_eq!(
+            pause_reason(&anyhow::anyhow!("agent.model_binding_required")),
+            "agent.model_binding_required"
+        );
     }
 }

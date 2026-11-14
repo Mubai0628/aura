@@ -6,6 +6,7 @@ import { PixelIcon } from './pixel-icons/PixelIcon';
 
 export type IconName =
   | 'activity'
+  | 'agents'
   | 'archive'
   | 'arrow-down'
   | 'arrow-left'
@@ -24,6 +25,7 @@ export type IconName =
   | 'code'
   | 'desktop'
   | 'expand'
+  | 'list'
   | 'file'
   | 'folder'
   | 'hand'

@@ -1,4 +1,3 @@
-import { userMessage } from './user-message';
 import type {
   AgentContextRemediation,
   AgentContextWindowCorrection,
@@ -6,6 +5,11 @@ import type {
 import { useEffect, useRef, useState } from 'react';
 import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
 import { ContextWindowCorrectionPanel } from '../ContextWindowCorrectionPanel';
+import { failedAction } from './failure-text';
+
+/** What a diagnosis that was not read says; the task stays paused. */
+const DIAGNOSIS_UNREAD = '上下文诊断没有读到';
+const DIAGNOSIS_NEXT = '任务仍暂停着；请稍后重新打开这个会话。';
 
 const uncertain = new Set<string>();
 const actions: Record<string, string> = {
@@ -44,7 +48,7 @@ export function ContextRemediation({
       .then((result) => {
         if (!alive || current !== generation.current || readVersion !== version.current) return;
         if (!result.ok) {
-          setError(result.error.message);
+          setError(failedAction(result.error, DIAGNOSIS_UNREAD, DIAGNOSIS_NEXT));
           return;
         }
         if (result.value.session_id !== sessionId || result.value.agent_run_id !== runId) return;
@@ -52,8 +56,8 @@ export function ContextRemediation({
         setProvider(result.value.provider_correction ?? undefined);
         setError(undefined);
       })
-      .catch(() => {
-        if (alive) setError('无法读取上下文诊断，请检查 Core 连接。');
+      .catch((reason: unknown) => {
+        if (alive) setError(failedAction(reason, DIAGNOSIS_UNREAD, DIAGNOSIS_NEXT));
       });
     return () => {
       alive = false;
@@ -80,19 +84,23 @@ export function ContextRemediation({
       if (current !== generation.current) return;
       if (result.ok) {
         if (result.value.session_id !== sessionId || result.value.agent_run_id !== runId) {
-          setError('返回状态与当前任务不一致，请刷新核对。');
+          setError('重新检查返回的是另一个任务的结果，没有采用；请重新打开这个会话核对。');
           unconfirmed();
         } else {
           setRecord(result.value.remediation ?? undefined);
           setError(undefined);
         }
       } else {
-        setError(result.error.message);
+        setError(
+          failedAction(result.error, '重新检查没有完成', '任务仍暂停着；可以再点“重新检查”。'),
+        );
         if (isUnconfirmedCommandOutcome(result.error)) unconfirmed();
       }
     } catch {
       if (current === generation.current) {
-        setError('重新检查的结果未确认，请刷新任务状态。');
+        setError(
+          '重新检查的结果没有确认（与 Aura Core 的连接出了问题），没有自动重发；请重新打开这个会话核对。',
+        );
         unconfirmed();
       }
     } finally {
@@ -146,8 +154,12 @@ export function ContextRemediation({
       ) : (
         <p role="status">正在读取诊断…</p>
       )}
-      {error ? <p role="alert">{userMessage(error)}</p> : null}
-      {unknown ? <p role="alert">上次操作结果未确认。请刷新并核对任务状态后再试。</p> : null}
+      {error ? <p role="alert">{error}</p> : null}
+      {unknown ? (
+        <p role="alert">
+          上次重新检查的结果没有确认，没有自动重发；请重新打开这个会话，看任务是否还在等你处理，再点“已核对状态”。
+        </p>
+      ) : null}
       <div className="agent-actions">
         <button type="button" onClick={onOpenModelSettings}>
           模型设置

@@ -10,6 +10,7 @@ import type { EndpointEditorField } from '../provider-connection-validation';
 import type { DiscoveryModeChoice } from './endpoint-draft';
 import { ALL_ROUTES_VARIANT } from './model-routes';
 import type { ProviderConnection } from './useProviderConnection';
+import { COMPATIBILITY_TEXT } from './model-failure-words';
 
 /** Fields with defaults or that most connections leave empty; they open by themselves when
  *  one of them needs attention. */
@@ -80,6 +81,7 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
     dormantCredential,
     saveIssueId,
     compatibility,
+    compatibilityUnread,
     writesDisabled,
     presetVariants,
     provider,
@@ -541,13 +543,16 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
       )}
 
       {existingEndpoint === undefined ? null : (
-        <section className="compatibility-panel" aria-label="Compatibility Learning">
+        <section className="compatibility-panel" aria-label={COMPATIBILITY_TEXT.heading}>
           <div className="compatibility-summary">
-            <strong>Compatibility Learning</strong>
+            <strong>{COMPATIBILITY_TEXT.heading}</strong>
             <p>
-              {compatibility?.compatibility === null || compatibility?.compatibility === undefined
-                ? '当前 Endpoint Fingerprint 没有兼容学习记录。'
-                : `${compatibility.compatibility.output_token_field_aliases.length} 条输出字段别名；${compatibility.compatibility.unsupported_features.length} 条特性记录。`}
+              {compatibilityUnread
+                ? COMPATIBILITY_TEXT.unread
+                : compatibility?.compatibility === null ||
+                    compatibility?.compatibility === undefined
+                  ? COMPATIBILITY_TEXT.none
+                  : `${compatibility.compatibility.output_token_field_aliases.length} 条输出字段别名；${compatibility.compatibility.unsupported_features.length} 条特性记录。`}
             </p>
             {compatibility?.compatibility === null ||
             compatibility?.compatibility === undefined ? null : (
@@ -598,7 +603,7 @@ export function EndpointEditorForm({ connection }: { connection: ProviderConnect
             onClick={() => void resetCompatibility()}
             type="button"
           >
-            Reset
+            {COMPATIBILITY_TEXT.reset}
           </button>
         </section>
       )}

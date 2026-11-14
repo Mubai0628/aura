@@ -226,3 +226,32 @@ test('a conversation read ahead opens at once, without "loading"', async () => {
   expect(result.current.loading).toBe(false);
   expect(result.current.projection?.session_id).toBe('read-ahead');
 });
+
+test('earlier messages that were not read say so, why, and that what is shown stays', async () => {
+  read.mockResolvedValueOnce(page('older-unread', '1', [3, 4], 'runtime-a', 'user-3'));
+  const { result } = renderHook(() => useAgentSession('older-unread'));
+  await act(async () => undefined);
+  read.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  await act(() => result.current.loadTurnOlder('turn'));
+  expect(result.current.error).toBe(
+    '更早的消息没有读到（Aura Core 没有及时回复），已显示的内容不受影响；再向上滚动会重新读取。',
+  );
+  read.mockRejectedValueOnce(new Error('boom'));
+  await act(() => result.current.loadTurnOlder('turn'));
+  expect(result.current.error).toBe(
+    '更早的消息没有读到，已显示的内容不受影响；再向上滚动会重新读取。',
+  );
+  expect(result.current.projection?.turns[0]?.user_messages).toHaveLength(2);
+});
+
+test('a conversation that could not be read says it is tried again and what to do if it stays', async () => {
+  read.mockRejectedValueOnce(new Error('Aura Core pipe disconnected'));
+  const { result } = renderHook(() => useAgentSession('unread-session'));
+  await act(async () => undefined);
+  expect(result.current.error).toBe(
+    '暂时读不到这个会话（与 Aura Core 的连接断开了），会自动重试；一直这样请重启 Aura。',
+  );
+});

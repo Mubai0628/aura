@@ -3,6 +3,7 @@ import { isAgentParams } from '../shared/agent-validation.js';
 import { isValidApiKeyBytes } from '../shared/p05-validation.js';
 import { errorEnvelope, CoreRpcError } from './core-transport.js';
 import type { CoreSupervisor } from './core-supervisor.js';
+import { SECRET_TEXT, secretNotReady, secretNotSent } from './secret-failures.js';
 
 /** Each extension secret's closed channel, its route and what a failure is called. */
 const EXTENSION_SECRETS = [
@@ -47,15 +48,15 @@ export function registerExtensionSecretIpc(
         secret = Buffer.from(source);
         source.fill(0);
         const supervisor = getSupervisor();
-        if (!supervisor)
-          return { ok: false, error: errorEnvelope('core_not_ready', 'Core 尚未就绪。', 'failed') };
+        if (!supervisor) return { ok: false, error: secretNotReady() };
         submitted = true;
         return { ok: true, value: await supervisor.requestAgentSecret(command, params, secret) };
       } catch (error) {
         return {
           ok: false,
           error:
-            error instanceof CoreRpcError
+            secretNotSent(error, `${code}.secret_not_sent`, SECRET_TEXT.notSent) ??
+            (error instanceof CoreRpcError
               ? error.envelope
               : {
                   ...errorEnvelope(
@@ -66,7 +67,7 @@ export function registerExtensionSecretIpc(
                   details: submitted
                     ? { outcome_recovery: 'query_runtime.command_outcome_without_replay' }
                     : {},
-                },
+                }),
         };
       } finally {
         if (source instanceof Uint8Array) source.fill(0);

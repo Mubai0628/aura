@@ -13,9 +13,12 @@ use std::sync::{Arc, Mutex};
 // A screenshot reaches a model that takes images with its result.
 #[path = "l13_screenshots.rs"]
 mod l13_screenshots;
+// A page the user handed over, named by the call.
+#[path = "l21_browser_handover.rs"]
+mod l21_browser_handover;
 
-type Seen = Arc<Mutex<Vec<BrowserHostCommandV1>>>;
-type Withdrawn = Arc<Mutex<Vec<String>>>;
+pub(super) type Seen = Arc<Mutex<Vec<BrowserHostCommandV1>>>;
+pub(super) type Withdrawn = Arc<Mutex<Vec<String>>>;
 
 const OPEN: Scenario =
     Scenario::Browser { tool: "browser.open", arguments: r#"{"url":"127.0.0.1:9/game"}"# };
@@ -36,10 +39,17 @@ const ASK_USER: Scenario = Scenario::Browser {
     tool: "browser.request_user",
     arguments: r#"{"reason":"请在页面上登录测试账号"}"#,
 };
+// A file of this computer named as an address, as a sub-agent wrote it in a real run.
+const FILE_URL: Scenario = Scenario::Browser {
+    tool: "browser.open",
+    arguments: r#"{"url":"file:///C:/work/gold-miner.html?debug"}"#,
+};
+const FILE_PATH_AS_URL: Scenario =
+    Scenario::Browser { tool: "browser.open", arguments: r#"{"url":"C:\\work\\gold-miner.html"}"# };
 
 /// How the stand-in for Main answers.
 #[derive(Clone, Copy, PartialEq)]
-enum Host {
+pub(super) enum Host {
     Answers,
     /// Leaves a wait for the user unanswered, as a user who does nothing yet.
     KeepsTheUserWaiting,
@@ -69,7 +79,7 @@ fn page(url: &str) -> serde_json::Value {
 
 /// Plays Main: takes the browser channel, answers each command in its tool's shape, and records
 /// the commands Core withdrew.
-fn play_host(runtime: &crate::RuntimeState, host: Host) -> (Seen, Withdrawn) {
+pub(super) fn play_host(runtime: &crate::RuntimeState, host: Host) -> (Seen, Withdrawn) {
     let bridge = services(runtime).agent_required().browser();
     let queue = crate::AsyncPriorityQueue::new();
     bridge.pin_publisher(queue.clone());
@@ -97,7 +107,9 @@ fn play_host(runtime: &crate::RuntimeState, host: Host) -> (Seen, Withdrawn) {
             record.lock().expect("seen").push(command.clone());
             let url = match &command.action {
                 BrowserHostActionV1::Open { url } => url.clone(),
-                _ => bridge.page_url(command.session_id).unwrap_or_else(|| "about:blank".into()),
+                _ => bridge
+                    .page_url(command.session_id, command.page.as_deref().unwrap_or("model"))
+                    .unwrap_or_else(|| "about:blank".into()),
             };
             let mut image = None;
             let result = match &command.action {
@@ -142,7 +154,10 @@ fn play_host(runtime: &crate::RuntimeState, host: Host) -> (Seen, Withdrawn) {
     (seen, withdrawn)
 }
 
-fn set_browser(runtime: &crate::RuntimeState, change: impl FnOnce(&mut BrowserSettings)) {
+pub(super) fn set_browser(
+    runtime: &crate::RuntimeState,
+    change: impl FnOnce(&mut BrowserSettings),
+) {
     let settings = &services(runtime)._settings;
     let snapshot = settings.browser_settings();
     let mut next = snapshot.settings;
@@ -192,7 +207,7 @@ async fn run_on(
     let (runtime, session, model) = waiting::prepare_in_mode(&host, &provider, mode).await;
     set_browser(&runtime, settings);
     if let Some(url) = page_url {
-        services(&runtime).agent_required().browser().note_page(session, url);
+        services(&runtime).agent_required().browser().note_page(session, "model", url);
     }
     let (seen, withdrawn) = play_host(&runtime, host_play);
     let started = waiting::start(&runtime, session, model, AgentTaskMode::Normal).await;
@@ -261,6 +276,69 @@ async fn a_blocked_site_is_refused_before_anything_is_asked_in_every_mode() {
         assert!(seen.lock().expect("seen").is_empty(), "{mode:?}");
         let text = returned(provider);
         assert!(text.contains("已在浏览器设置中被阻止"), "{mode:?}: {text}");
+    }
+}
+
+#[tokio::test]
+async fn a_file_named_as_an_address_is_refused_with_how_to_open_it() {
+    for scenario in [FILE_URL, FILE_PATH_AS_URL] {
+        let browsing =
+            run_on(scenario, PermissionMode::FullAccess, |_| (), None, Host::Answers).await;
+        let Browsing { runtime, provider, seen, request, .. } = &browsing;
+        waiting::wait(runtime, request, completed).await;
+        assert!(seen.lock().expect("seen").is_empty());
+        let text = returned(provider);
+        for words in ["文件给 path", "给 path 和 agent", "http://localhost:端口"] {
+            assert!(text.contains(words), "{words}: {text}");
+        }
+    }
+}
+
+/// A run whose model opens `path`, written in full under the fixture's folder, after `web/page.html`
+/// is written into the workspace.
+async fn open_in_full(below_fixture: &str) -> Browsing {
+    let host = crate::r03_tests::Fixture::new();
+    let shown = std::fs::canonicalize(host.root.path()).expect("fixture folder");
+    let shown = shown.to_string_lossy();
+    let shown = shown.trim_start_matches(r"\\?\").replace('\\', "/");
+    let arguments = serde_json::json!({ "path": format!("{shown}/{below_fixture}") }).to_string();
+    let scenario = Scenario::Browser {
+        tool: "browser.open",
+        arguments: Box::leak(arguments.into_boxed_str()),
+    };
+    let provider = Provider::scenario(scenario).await;
+    let (runtime, session, model) =
+        waiting::prepare_in_mode(&host, &provider, PermissionMode::FullAccess).await;
+    let web = host.root.path().join("waiting-workspace").join("web");
+    std::fs::create_dir(&web).expect("web folder");
+    std::fs::write(web.join("page.html"), "<title>page</title>").expect("page");
+    set_browser(&runtime, |_| ());
+    let (seen, withdrawn) = play_host(&runtime, Host::Answers);
+    let started = waiting::start(&runtime, session, model, AgentTaskMode::Normal).await;
+    let request = AgentRunRequest { session_id: session, agent_run_id: started.run.agent_run_id };
+    Browsing { _host: host, runtime, provider, seen, withdrawn, request }
+}
+
+#[tokio::test]
+async fn a_file_written_in_full_opens_inside_the_workspace_and_is_refused_outside_it() {
+    let inside = open_in_full("waiting-workspace/web/page.html").await;
+    waiting::wait(&inside.runtime, &inside.request, completed).await;
+    let commands = inside.seen.lock().expect("seen").clone();
+    assert_eq!(commands.len(), 1, "{}", returned(&inside.provider));
+    let BrowserHostActionV1::Open { url } = &commands[0].action else {
+        panic!("the page is opened: {:?}", commands[0].action);
+    };
+    assert!(
+        url.starts_with("file:///") && url.ends_with("/waiting-workspace/web/page.html"),
+        "{url}"
+    );
+
+    let outside = open_in_full("elsewhere/page.html").await;
+    waiting::wait(&outside.runtime, &outside.request, completed).await;
+    assert!(outside.seen.lock().expect("seen").is_empty());
+    let text = returned(&outside.provider);
+    for words in ["不在这个工作区里，没有打开", "例如 web/index.html"] {
+        assert!(text.contains(words), "{words}: {text}");
     }
 }
 

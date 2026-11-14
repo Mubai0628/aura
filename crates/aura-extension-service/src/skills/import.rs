@@ -41,11 +41,11 @@ pub(super) fn stage(runtime: &SkillRuntime, source: &Path) -> anyhow::Result<Sta
 /// Copies the checked files, and only those, then checks that the copy is the same content.
 fn from_folder(runtime: &SkillRuntime, source: &Path, staging: &Path) -> anyhow::Result<Staged> {
     let package = scan_skill(source, &runtime.hashes)
-        .map_err(|error| anyhow::anyhow!("skills.invalid: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("skills.invalid: 这个 Skill 不符合要求：{error}"))?;
     std::fs::create_dir(staging)?;
     for file in &package.files {
         let relative = aura_skills::resource_path(&file.path)
-            .ok_or_else(|| anyhow::anyhow!("skills.import_path: {}", file.path))?
+            .ok_or_else(|| anyhow::anyhow!("skills.import_path: Skill 里的文件 {} 不能放进 Aura 的 Skill 文件夹，没有导入。", file.path))?
             .replace('/', "\\");
         let destination = staging.join(&relative);
         if let Some(parent) = destination.parent() {
@@ -54,7 +54,7 @@ fn from_folder(runtime: &SkillRuntime, source: &Path, staging: &Path) -> anyhow:
         std::fs::copy(source.join(&relative), destination)?;
     }
     let copied = scan_skill(staging, &FileHashCache::default())
-        .map_err(|error| anyhow::anyhow!("skills.invalid: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("skills.invalid: 这个 Skill 不符合要求：{error}"))?;
     anyhow::ensure!(
         copied.fingerprint == package.fingerprint,
         "skills.import_changed: 复制时文件夹内容在变，请稍后再试"
@@ -71,10 +71,11 @@ fn from_archive(source: &Path, staging: &Path) -> anyhow::Result<Staged> {
         "skills.import_path: 请选择一个 Skill 文件夹或 ZIP 文件"
     );
     std::fs::create_dir(staging)?;
-    let folder = aura_skills::unpack_skill_archive(file.into_file(), staging)
-        .map_err(|error| anyhow::anyhow!("skills.invalid_archive: {error}"))?;
+    let folder = aura_skills::unpack_skill_archive(file.into_file(), staging).map_err(|error| {
+        anyhow::anyhow!("skills.invalid_archive: 这个文件不是可用的 Skill 压缩包：{error}")
+    })?;
     let package = scan_skill(&folder, &FileHashCache::default())
-        .map_err(|error| anyhow::anyhow!("skills.invalid: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("skills.invalid: 这个 Skill 不符合要求：{error}"))?;
     Ok(Staged { staging: staging.to_path_buf(), folder, package })
 }
 

@@ -147,6 +147,7 @@ async fn web_search_goes_to_the_chosen_deepseek_connection() {
         max_retries: settings.max_retries,
         use_recommended_fixed_tool_ids: true,
         network_proxy: None,
+        network_proxy_follows_system: None,
         web_service: Some(aura_tool_contract::WebServiceSettingV1::DeepSeek { endpoint_id }),
     };
     let refused = agent
@@ -213,6 +214,7 @@ async fn a_page_deepseek_cannot_fetch_is_a_rejection_the_model_reads() {
                 max_retries: settings.max_retries,
                 use_recommended_fixed_tool_ids: true,
                 network_proxy: None,
+                network_proxy_follows_system: None,
                 web_service: Some(aura_tool_contract::WebServiceSettingV1::DeepSeek {
                     endpoint_id: endpoint,
                 }),

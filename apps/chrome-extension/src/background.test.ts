@@ -37,7 +37,7 @@ const TAB: Tab = {
   status: 'complete',
 };
 
-function harness() {
+function harness(get: (tabId: number) => Promise<Tab> = async () => TAB) {
   const native = port('native');
   const connects = event<(port: Port) => void>();
   const store: Record<string, unknown> = { pairing_secret: 'AAAA' };
@@ -64,7 +64,7 @@ function harness() {
       onDetach: event<() => void>().api,
     },
     tabs: {
-      get: async () => TAB,
+      get,
       query: async () => [TAB],
       create: async () => TAB,
       remove: async () => undefined,
@@ -92,8 +92,8 @@ function harness() {
 
 const settled = () => new Promise((done) => setTimeout(done, 0));
 
-async function connected() {
-  const h = harness();
+async function connected(get?: (tabId: number) => Promise<Tab>) {
+  const h = harness(get);
   h.native.receive({ type: 'authenticated' } satisfies CoreMessage);
   await settled();
   return h;
@@ -133,6 +133,29 @@ describe('the background', () => {
         },
       },
     ]);
+  });
+
+  it('reports what Chrome threw in a sentence that names the step', async () => {
+    const h = await connected(async (tabId) => {
+      if (tabId === TAB.id) return TAB;
+      throw new Error(`No tab with id: ${tabId}.`);
+    });
+    h.native.receive({
+      type: 'command',
+      id: 8,
+      command: { op: 'console', tab_id: 99, level: null, max_entries: 5 },
+      origin: 'https://shop.example',
+    });
+    await settled();
+    expect(h.native.sent).toContainEqual({
+      type: 'result',
+      id: 8,
+      outcome: {
+        status: 'failed',
+        code: 'chrome.failed',
+        message: 'Chrome 执行这一步（console）时出错：No tab with id: 99。',
+      },
+    });
   });
 
   it('drops the answer to a command Core withdrew', async () => {

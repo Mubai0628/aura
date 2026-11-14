@@ -3,9 +3,9 @@ import type {
   GitStatusResultV1,
   GitWorkspaceReadRequestV1,
 } from '@aura/contracts/generated';
-import { userMessage } from '../agent-session/user-message';
 import { PatchReads } from './patch-reads';
 import { COUNTED_NEW_FILES, type Comparison, type ReviewFile } from './review-model';
+import { gitReadFailure, isNotRepository } from './review-problem';
 
 /** Untracked files listed by one status read. */
 const UNTRACKED = 2000;
@@ -21,6 +21,8 @@ export interface ReviewSnapshot {
   partial: boolean;
   reads?: PatchReads;
   error?: string;
+  /** The workspace is a plain folder, not a Git repository: there is nothing to compare. */
+  notRepository?: boolean;
   /** Git is being read: the first time, or quietly behind what is shown. */
   checking: boolean;
 }
@@ -126,12 +128,14 @@ async function run(key: string, entry: Entry): Promise<void> {
     await countNewFiles(key, entry, scope);
   } catch (error) {
     if (entries.get(key) !== entry) return;
-    // A failed check keeps what was shown, and says so.
-    publish(entry, {
-      ...entry.snapshot,
-      checking: false,
-      error: userMessage(error, '无法读取仓库。'),
-    });
+    // A plain folder is not a failure: nothing was there to compare. A failed check keeps what
+    // was shown, and says so.
+    publish(
+      entry,
+      isNotRepository(error)
+        ? { files: [], partial: false, notRepository: true, checking: false }
+        : { ...entry.snapshot, checking: false, error: gitReadFailure(error) },
+    );
   } finally {
     entry.running = false;
     if (entry.again && entries.get(key) === entry) {

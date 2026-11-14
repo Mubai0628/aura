@@ -74,6 +74,15 @@ test('archiving shows that it runs, takes one click, and says why it did not fin
   fireEvent.click(running);
   expect(archiveSession).toHaveBeenCalledTimes(1);
   answer({ ok: false, error: { message: 'session.busy' } });
-  expect((await screen.findByRole('alert')).textContent).toBe('归档没有完成，请刷新后查看。');
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '没有归档，会话保持原样；请再试一次。',
+  );
   expect(screen.getByRole('menuitem', { name: '归档会话' })).toBeTruthy();
+});
+test('the workspace menu does not make a worktree: only a sub-agent works in one', () => {
+  Object.defineProperty(window, 'aura', { configurable: true, value: { v1: {} } });
+  render(<SidebarItemMenu workspace={workspace} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Project 更多操作' }));
+  const items = screen.getAllByRole('menuitem').map((item) => item.textContent ?? '');
+  expect(items.some((item) => item.includes('工作副本'))).toBe(false);
 });

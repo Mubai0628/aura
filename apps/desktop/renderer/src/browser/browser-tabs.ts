@@ -118,10 +118,27 @@ export function useBrowserTabs(session: string): BrowserTabs {
   return useSyncExternalStore(browserTabs.subscribe, () => browserTabs.get(session));
 }
 
+/** Sub-agents whose record is shown over the conversation that started them, by that one. */
+const hosts = new Map<string, string>();
+
+/**
+ * While sub-agent conversation `child`'s record is shown over conversation `parent`, its pages
+ * show in `parent`'s sidebar. Returns the end of it.
+ */
+export function hostBrowser(child: string, parent: string): () => void {
+  hosts.set(child, parent);
+  return () => {
+    if (hosts.get(child) === parent) hosts.delete(child);
+  };
+}
+
+/** The conversation whose sidebar shows `session`'s pages. */
+const sidebarOf = (session: string) => hosts.get(session) ?? session;
+
 /** The 浏览器 tab and the sidebar, on one of its pages. */
-function reveal(session: string, page: string): void {
+export function reveal(session: string, page: string): void {
   browserTabs.show(session, page);
-  toolTabs.reveal(session, 'browser');
+  toolTabs.reveal(sidebarOf(session), 'browser');
 }
 
 /**
@@ -163,10 +180,11 @@ export async function openInBrowser(
     return reply.message;
   }
   browserTabs.add(session, page);
-  toolTabs.reveal(session, 'browser');
+  toolTabs.reveal(sidebarOf(session), 'browser');
   return undefined;
 }
 
 export function resetBrowserTabsForTests(): void {
   browserTabs.resetForTests();
+  hosts.clear();
 }

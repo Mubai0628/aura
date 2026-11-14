@@ -3,7 +3,7 @@ import type { ChromeSessionShares, ChromeSharedTab } from '@aura/contracts/gener
 
 import type { ResultEnvelope } from '../../../shared/aura-api';
 import { AppIcon } from '../app-icons';
-import { userMessage } from '../agent-session/user-message';
+import { failedAction } from '../agent-session/failure-text';
 import { usePolling } from '../ui/usePolling';
 import { useReadOrder } from '../ui/useReadOrder';
 import { chromeControl } from './bridge';
@@ -39,15 +39,15 @@ export function ChromeSessionStrip({ sessionId }: { sessionId: string }) {
   const act = async (
     action: Action,
     work: () => Promise<ResultEnvelope<unknown>> | undefined,
-    fallback: string,
+    failed: (error: unknown) => string,
   ) => {
     setPending(action);
     try {
       const result = await work();
-      if (result === undefined) setFailure(fallback);
-      else setFailure(result.ok ? undefined : userMessage(result.error, fallback));
-    } catch {
-      setFailure(fallback);
+      if (result === undefined) setFailure(failed(undefined));
+      else setFailure(result.ok ? undefined : failed(result.error));
+    } catch (reason) {
+      setFailure(failed(reason));
     } finally {
       setPending(undefined);
       // A read sent before the action finished may answer with what the action changed.
@@ -65,7 +65,8 @@ export function ChromeSessionStrip({ sessionId }: { sessionId: string }) {
             void act(
               'finish',
               () => chromeControl()?.finishAssist({ session_id: sessionId }),
-              '没有交还给 Aura，请重试。',
+              (error) =>
+                failedAction(error, '没有交还给 Aura', '模型仍在等你完成。请再点一次“完成”。'),
             )
           }
           pending={pending}
@@ -84,7 +85,12 @@ export function ChromeSessionStrip({ sessionId }: { sessionId: string }) {
             void act(
               'stop',
               () => chromeControl()?.stop({ session_id: sessionId }),
-              'Chrome 没有停止，请重试。',
+              (error) =>
+                failedAction(
+                  error,
+                  '没有停止共享',
+                  '这些标签页仍共享给这个会话，模型仍可操作；请再点一次“停止”。',
+                ),
             )
           }
           type="button"

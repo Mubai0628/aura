@@ -200,8 +200,13 @@ impl AgentExecution {
                 }
             };
             if let Some((hook, reason)) = hook_blocks.get(&call.call.tool_call_id) {
-                safe_feedback
-                    .insert(call.call.tool_call_id, format!("被 Hook {hook} 阻止：{reason}"));
+                let reason = reason.trim().trim_end_matches(['。', '.']);
+                safe_feedback.insert(
+                    call.call.tool_call_id,
+                    format!(
+                        "tool.hook.blocked: 用户的 Hook {hook} 在调用前拦下了它：{reason}。这个调用没有执行，什么都没改。Hook 是用户定的规则：不要原样再调用，按它给的原因调整，或者问用户。"
+                    ),
+                );
                 planning.push(FrozenToolCallPlanningInputV1 {
                     tool_call_id: call.call.tool_call_id,
                     instance: instance.clone(),
@@ -248,6 +253,23 @@ impl AgentExecution {
             {
                 safe_feedback.insert(call.call.tool_call_id, message);
             }
+            if handler == "http.download"
+                && let Err(error) = &resolved
+                && let Some(message) = super::network::download_folder_feedback(error)
+            {
+                safe_feedback.insert(call.call.tool_call_id, message);
+            }
+            if let Err(error) = &resolved
+                && let Some(message) = planning::shell_folder_feedback(handler, error)
+            {
+                safe_feedback.insert(call.call.tool_call_id, message);
+            }
+            if let Err(error) = &resolved
+                && !safe_feedback.contains_key(&call.call.tool_call_id)
+                && let Some(message) = readable_cause(error)
+            {
+                safe_feedback.insert(call.call.tool_call_id, message);
+            }
             let resources = match resolved {
                 Ok(context) => match planning::resources(self, &context) {
                     Ok(resources) => {
@@ -264,16 +286,15 @@ impl AgentExecution {
                         {
                             safe_feedback.insert(call.call.tool_call_id, message.into());
                         }
-                        planning::rejection_with(
-                            ToolNotExecutedReasonV1::ResourceClaimResolutionFailed,
-                            planning::resource_error_code(&error),
-                        )
+                        if !safe_feedback.contains_key(&call.call.tool_call_id)
+                            && let Some(message) = readable_cause(&error)
+                        {
+                            safe_feedback.insert(call.call.tool_call_id, message);
+                        }
+                        planning::unresolved(handler, call.call.tool_call_id, &error)
                     }
                 },
-                Err(error) => planning::rejection_with(
-                    ToolNotExecutedReasonV1::ResourceClaimResolutionFailed,
-                    planning::resource_error_code(&error),
-                ),
+                Err(error) => planning::unresolved(handler, call.call.tool_call_id, &error),
             };
             planning.push(FrozenToolCallPlanningInputV1 {
                 tool_call_id: call.call.tool_call_id,
@@ -354,6 +375,16 @@ impl AgentExecution {
         Ok(AdmittedBatch { batch, planned, snapshot, calls: contexts })
     }
 }
+/// Why a call's resources could not be resolved, for the model: a known reason in words, or the
+/// first line of the error's chain that already says it as `<code>: <sentence>` (a family's own
+/// refusal). Any other cause stays in the Core log.
+fn readable_cause(error: &anyhow::Error) -> Option<String> {
+    let chain: Vec<String> = error.chain().map(ToString::to_string).collect();
+    tool::refusal_text::known(&chain.join(": ")).map(str::to_owned).or_else(|| {
+        chain.iter().find_map(|cause| tool::refusal_text::readable_line(cause).map(str::to_owned))
+    })
+}
+
 // This hash is used only for scheduler resource evidence, never as permission.
 pub(super) fn evidence(
     value: impl serde::Serialize,

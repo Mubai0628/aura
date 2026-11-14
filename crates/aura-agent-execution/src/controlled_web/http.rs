@@ -1,6 +1,10 @@
 use super::*;
 use aura_network_control::ordinary_tools::OrdinaryToolRequestGrant;
 
+/// The call's own entry was not in its batch's plan, so its time limit is unknown.
+pub(super) const PLAN_CALL_MISSING: &str = "agent.plan_call_missing: Aura could not find this call \
+    in its turn's plan, so it did not send the request. Call it again.";
+
 impl ControlledWeb {
     /// Use the admitted, immutable execution policy rather than a later settings read.
     pub(super) async fn invoke_http_with_policy(
@@ -30,7 +34,7 @@ impl ControlledWeb {
                         .calls
                         .iter()
                         .find(|plan| plan.tool_call_id == id)
-                        .ok_or_else(|| anyhow::anyhow!("agent.plan_call_missing"))?;
+                        .ok_or_else(|| anyhow::anyhow!(PLAN_CALL_MISSING))?;
                     Ok(Duration::from_millis(plan.timeout_ms))
                 },
             )

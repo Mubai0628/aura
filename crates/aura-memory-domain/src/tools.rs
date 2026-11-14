@@ -40,6 +40,7 @@ pub struct MemoryCreateInput {
 #[serde(deny_unknown_fields)]
 pub struct MemoryCreateItem {
     pub path: WorkspacePath,
+    /// 1 to 64 lowercase ASCII letters, digits or '-', such as rules or project-notes.
     pub category: String,
     pub body: String,
     #[serde(default)]
@@ -79,6 +80,7 @@ pub struct MemoryUpdateItem {
     pub target: MemoryTarget,
     pub expected_hash: String,
     pub body: Option<String>,
+    /// 1 to 64 lowercase ASCII letters, digits or '-', such as rules or project-notes.
     pub category: Option<String>,
     /// 0 to 1: how sure the note is.
     #[schemars(range(min = 0, max = 1))]

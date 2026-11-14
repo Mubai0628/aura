@@ -143,15 +143,18 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-function open(view: ProviderConfigurationView) {
+function open(
+  view: ProviderConfigurationView,
+  options: { onNotify?: () => void; settings?: ModelSettingsProjection } = {},
+) {
   render(
     <ProviderConnectionDialog
       onBrowseCatalog={vi.fn()}
       onClose={vi.fn()}
-      onNotify={vi.fn()}
+      onNotify={options.onNotify ?? vi.fn()}
       onSaved={vi.fn(async () => undefined)}
       provider={view}
-      settings={settings}
+      settings={options.settings ?? settings}
       writeUnavailableReason={undefined}
     />,
   );
@@ -171,7 +174,7 @@ test('one region fills the address of each route, and one key connects them', as
     (within(dialog).getByRole('combobox', { name: /Aura 连接预设/u }) as HTMLSelectElement).value,
   ).toBe('*');
   expect(within(dialog).getAllByRole('textbox', { name: '区域' })).toHaveLength(1);
-  await user.type(within(dialog).getByPlaceholderText('输入后通过专用 SecretInput 通道提交'), KEY);
+  await user.type(within(dialog).getByPlaceholderText('输入后经专用的保密通道提交'), KEY);
 
   await user.click(within(dialog).getByRole('button', { name: '保存连接' }));
   expect(within(dialog).getByText('请输入区域')).toBeTruthy();
@@ -232,7 +235,7 @@ test('one route alone is saved at the address its region makes', async () => {
     'mantle-openai-v1',
   );
   await user.type(within(dialog).getByRole('textbox', { name: '区域' }), 'sa-east-1');
-  await user.type(within(dialog).getByPlaceholderText('输入后通过专用 SecretInput 通道提交'), KEY);
+  await user.type(within(dialog).getByPlaceholderText('输入后经专用的保密通道提交'), KEY);
   await user.click(within(dialog).getByRole('button', { name: '保存连接' }));
   await waitFor(() => expect(savedAddresses()).toHaveLength(1));
   expect(savedAddresses()).toEqual(['https://bedrock-mantle.sa-east-1.api.aws/openai/v1']);
@@ -317,8 +320,89 @@ test('only the route no connection is yet of is still to connect, at the region 
     'Amazon Bedrock Mantle /openai/v1',
   );
   await user.type(within(dialog).getByRole('textbox', { name: '区域' }), 'ap-northeast-1');
-  await user.type(within(dialog).getByPlaceholderText('输入后通过专用 SecretInput 通道提交'), KEY);
+  await user.type(within(dialog).getByPlaceholderText('输入后经专用的保密通道提交'), KEY);
   await user.click(within(dialog).getByRole('button', { name: '保存连接' }));
   await waitFor(() => expect(savedAddresses()).toHaveLength(1));
   expect(savedAddresses()).toEqual(['https://bedrock-mantle.ap-northeast-1.api.aws/openai/v1']);
+});
+
+test('a compatibility record that was not read says so, in words', async () => {
+  const user = userEvent.setup();
+  const dialog = open(provider([existing('https://bedrock-mantle.ap-northeast-1.api.aws/v1')]));
+  await user.click(within(dialog).getByRole('button', { name: /Amazon Bedrock Mantle \/v1/u }));
+  const record = await within(dialog).findByRole('region', { name: '兼容记录' });
+  await waitFor(() =>
+    expect(within(record).getByText(/兼容记录没有读到/u).textContent).toBe(
+      '兼容记录没有读到，现在看不出有没有记录；请关闭后重新打开这个连接。',
+    ),
+  );
+  expect(within(record).getByRole('button', { name: '重置' })).toBeTruthy();
+  expect(record.textContent).not.toMatch(/Compatibility|Reset|Fingerprint/u);
+});
+
+test('routes saved one after another name those saved and the one that was not', async () => {
+  vi.mocked(window.aura.v1.createModelEndpointWithCredential)
+    .mockResolvedValueOnce({
+      ok: true,
+      value: {
+        endpoint_projection: {
+          endpoint: { display_name: 'saved', id: 'end_01ARZ3NDEKTSV4RRFFQ69G5FC9' },
+        },
+        models_revision: '6',
+      },
+    } as never)
+    .mockResolvedValueOnce({
+      error: {
+        code: 'models.endpoint.conflict',
+        message: 'models.endpoint.conflict: 这个地址已被另一个连接使用。',
+      },
+      ok: false,
+    } as never);
+  const onNotify = vi.fn();
+  const user = userEvent.setup();
+  const dialog = open(provider([]), { onNotify });
+  await user.click(within(dialog).getByRole('button', { name: /添加连接/u }));
+  await user.type(within(dialog).getByRole('textbox', { name: '区域' }), 'eu-central-1');
+  await user.type(within(dialog).getByPlaceholderText('输入后经专用的保密通道提交'), KEY);
+  await user.click(within(dialog).getByRole('button', { name: '保存连接' }));
+  await waitFor(() => expect(onNotify).toHaveBeenCalled());
+  expect(onNotify).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message:
+        '已保存 Amazon Bedrock Mantle /v1；Amazon Bedrock Mantle /openai/v1 没有保存（这个地址已被另一个连接使用）。请检查 Amazon Bedrock Mantle /openai/v1 后再保存一次。',
+      title: 'Amazon Bedrock Mantle /openai/v1 未保存',
+    }),
+  );
+});
+
+test('a key slot Windows cannot read refuses a new key and says to clear it first', async () => {
+  const onNotify = vi.fn();
+  const user = userEvent.setup();
+  const endpoint = existing('https://bedrock-mantle.ap-northeast-1.api.aws/v1');
+  const slot = {
+    ...settings,
+    active_credentials: [
+      {
+        credential_id: 'crd_01ARZ3NDEKTSV4RRFFQ69G5FC1',
+        endpoint_id: endpoint.id,
+        row_revision: '2',
+        slot_name: 'api-key',
+        state: 'unavailable',
+      },
+    ],
+  } as unknown as ModelSettingsProjection;
+  const dialog = open(provider([endpoint]), { onNotify, settings: slot });
+  await user.click(within(dialog).getByRole('button', { name: /Amazon Bedrock Mantle \/v1/u }));
+  expect(
+    within(dialog).getByText('API Key：Windows 凭据管理器里读不到，请清除后重新保存'),
+  ).toBeTruthy();
+  await user.type(within(dialog).getByLabelText('API Key'), KEY);
+  await user.click(within(dialog).getByRole('button', { name: '保存 API Key' }));
+  expect(onNotify).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message:
+        'Windows 凭据管理器里读不到这个连接原来的 API Key，不能直接替换，设置没有改变。请先点“清除”，再重新输入并保存。',
+      title: 'API Key 未保存',
+    }),
+  );
 });

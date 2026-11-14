@@ -49,15 +49,6 @@ export const skillStateTone = (skill: SkillView): 'success' | 'warning' | 'dange
         ? 'danger'
         : 'warning';
 
-/** Core refuses Skill changes as `skills.<reason>: <sentence>`; the sentence is the user's. */
-export function skillError(value: unknown, fallback = '操作未完成，请刷新后重试。'): string {
-  const text = value instanceof Error ? value.message : typeof value === 'string' ? value : '';
-  const sentence = text.replace(/^[a-z_]+(?:\.[a-z_]+)+:\s*/u, '').trim();
-  return sentence && sentence !== text.trim() && /[㐀-鿿]/u.test(sentence)
-    ? sentence.slice(0, 600)
-    : fallback;
-}
-
 export const bytesLabel = (bytes: number): string =>
   bytes < 1024
     ? `${bytes} 字节`

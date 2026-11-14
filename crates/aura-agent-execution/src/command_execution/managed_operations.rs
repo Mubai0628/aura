@@ -11,7 +11,11 @@ impl CommandExecution {
             self.agent_terminals
                 .list(session)?
                 .into_iter()
-                .filter(|record| record.view.end.is_none())
+                // A terminal the user handed over is the user's, never the model's operation.
+                .filter(|record| {
+                    record.view.end.is_none()
+                        && record.view.owner == aura_windows_user_contract::TerminalOwnerV1::Agent
+                })
                 .map(|record| record.operation_id),
         );
         operations.sort();

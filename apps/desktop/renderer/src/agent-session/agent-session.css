@@ -136,6 +136,10 @@
 .agent-approval-header strong {
   font-size: 13px;
 }
+.agent-approval-from {
+  color: var(--muted);
+  font-size: 12px;
+}
 .agent-approval-kind {
   margin-left: auto;
   color: var(--muted);

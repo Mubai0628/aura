@@ -3,8 +3,8 @@
 use super::*;
 
 /// What the model is told while the user has its terminal.
-pub(super) const TAKEN_OVER: &str = "用户已接管该终端，模型读取和写入已暂停。要等用户交还，调用 terminal.write，input 为空、wait_ms 为最多等待的毫秒数（不超过 30000）：用户交还时立即返回终端最近的输出，不必等用户另发消息。";
-const STILL_HELD: &str = "用户仍在操作该终端（已接管），等待时间已到，没有写入任何内容；可以再用空输入的 terminal.write 继续等待交还，或先做别的。";
+pub(super) const TAKEN_OVER: &str = "terminal.taken_over: 用户已接管该终端，模型读取和写入已暂停。要等用户交还，调用 terminal.write，input 为空、wait_ms 为最多等待的毫秒数（不超过 30000）：用户交还时立即返回终端最近的输出，不必等用户另发消息。";
+const STILL_HELD: &str = "terminal.still_held: 用户仍在操作该终端（已接管），等待时间已到，没有写入任何内容；可以再用空输入的 terminal.write 继续等待交还，或先做别的。";
 /// How much of the terminal's latest output the model reads when the user hands it back.
 const LATEST: usize = 8192;
 const POLL: Duration = Duration::from_millis(200);
@@ -46,7 +46,9 @@ pub(super) async fn handed_back(
                 Err(error)
                     if error.to_string().contains(TAKEN_OVER)
                         && tokio::time::Instant::now() < deadline => {}
-                answer => return answer,
+                Err(error) => return Err(error),
+                // What the screen shows now.
+                Ok(latest) => return owner.on_screen(&id, None, latest),
             }
         } else if tokio::time::Instant::now() >= deadline {
             anyhow::bail!(STILL_HELD);

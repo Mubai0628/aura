@@ -67,6 +67,35 @@ pub(super) fn resource_error_code(error: &anyhow::Error) -> ToolResourceErrorCod
     }
 }
 
+/// The refusal of a call whose resources could not be resolved. A failure that falls into the
+/// generic class goes to Core's log with its cause, bounded, so it can be found again.
+pub(super) fn unresolved(
+    tool: &str,
+    call: aura_domain_common::ToolCallId,
+    error: &anyhow::Error,
+) -> ToolCallResourcePreflightV1 {
+    let code = resource_error_code(error);
+    if code == ToolResourceErrorCode::IdentityResolutionFailed {
+        let cause: String = format!("{error:#}").chars().take(600).collect();
+        aura_core_base::core_log::append_core_log(
+            "tool.preflight_unresolved",
+            json!({"tool": tool, "tool_call_id": call, "cause": cause}),
+        );
+    }
+    rejection_with(ToolNotExecutedReasonV1::ResourceClaimResolutionFailed, code)
+}
+
+/// What the model is told when a Shell call names its folder wrongly.
+pub(super) fn shell_folder_feedback(tool: &str, error: &anyhow::Error) -> Option<String> {
+    let text = error.to_string();
+    (matches!(tool, "shell.powershell" | "shell.cmd") && text.contains(":working_directory"))
+        .then(|| {
+            "working_directory 要写这个工作区里的文件夹：相对路径（如 . 或 src），或工作区里的完整路径。\
+             要在别处运行，在命令里写完整路径或先 cd 过去。"
+                .to_owned()
+        })
+}
+
 pub(super) fn resources(
     service: &AgentExecution,
     context: &CallContext,

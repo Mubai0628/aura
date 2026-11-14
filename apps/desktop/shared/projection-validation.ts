@@ -9,6 +9,7 @@ import {
   isRecord,
 } from './projection-validation/common.js';
 import { isWorkspaceFilesPayload } from './projection-validation/workspace.js';
+import { isWorkspaceSessionPayload } from './projection-validation/workspace-session.js';
 import { isCoreHealthPayload } from './projection-validation/core-health.js';
 import { isPromptInspectorProjection } from './projection-validation/prompt-inspector.js';
 import { projectionPayloadMatchesScope } from './projection-validation/model-scope.js';
@@ -608,49 +609,3 @@ const isNormalizedIssueCode = (value: unknown): value is string => {
     value === 'internal.unexpected'
   );
 };
-
-const isWorkspaceSessionPayload = (value: unknown): boolean =>
-  exactRecord(value, ['sessions', 'workspaces']) &&
-  Array.isArray(value.workspaces) &&
-  value.workspaces.every(isWorkspaceSummary) &&
-  Array.isArray(value.sessions) &&
-  value.sessions.every(isSessionSummary);
-
-const isWorkspaceSummary = (value: unknown): boolean =>
-  recordWithOptional(
-    value,
-    [
-      'authorization_epoch',
-      'canonical_root',
-      'catalog_freshness',
-      'display_name',
-      'revision',
-      'selected_root',
-      'state',
-      'workspace_id',
-    ],
-    ['root_identity'],
-  ) &&
-  typeof value.workspace_id === 'string' &&
-  typeof value.display_name === 'string' &&
-  typeof value.selected_root === 'string' &&
-  typeof value.canonical_root === 'string' &&
-  (value.root_identity === undefined ||
-    value.root_identity === null ||
-    isFileIdentity(value.root_identity)) &&
-  typeof value.state === 'string' &&
-  isRevision(value.revision) &&
-  typeof value.catalog_freshness === 'string' &&
-  isRevision(value.authorization_epoch);
-
-const isFileIdentity = (value: unknown): boolean =>
-  exactRecord(value, ['file_id', 'volume_serial_number']) &&
-  typeof value.file_id === 'string' &&
-  typeof value.volume_serial_number === 'string';
-
-const isSessionSummary = (value: unknown): boolean =>
-  exactRecord(value, ['session_id', 'state', 'title', 'workspace_id']) &&
-  typeof value.session_id === 'string' &&
-  typeof value.workspace_id === 'string' &&
-  typeof value.title === 'string' &&
-  typeof value.state === 'string';

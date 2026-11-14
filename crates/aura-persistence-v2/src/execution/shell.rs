@@ -181,12 +181,10 @@ pub fn query(
             _ => ShellCallState::Completed,
         };
         view.finished_at = Some(result.completed_at);
-        if let O::NotExecuted { reason, error } = &result.outcome {
+        if let O::NotExecuted { reason, .. } = &result.outcome {
             view.diagnostic = Some(
-                error
-                    .as_ref()
-                    .map(|e| e.message.clone())
-                    .unwrap_or_else(|| format!("not executed: {reason:?}")),
+                crate::tool::activity::failure_sentence("shell.powershell", result)
+                    .unwrap_or_else(|| crate::tool::activity::not_run_line(*reason).to_owned()),
             );
         }
     }
@@ -212,8 +210,7 @@ pub fn query(
             };
             view.finished_at = Some(result.completed_at);
             if !receipt["not_started"].is_null() {
-                view.diagnostic =
-                    Some(format!("execution not started: {}", receipt["not_started"]));
+                view.diagnostic = Some(not_started_line(&receipt["not_started"]));
             }
             if !receipt["observation"].is_null() {
                 has_direct_snapshot = true;
@@ -258,7 +255,7 @@ pub fn query(
                 }
             }
             "shell.diagnostic" => {
-                view.diagnostic = payload["reason"].as_str().map(str::to_owned);
+                view.diagnostic = payload["reason"].as_str().map(runner_line);
             }
             "shell.environment_filtered" => {
                 view.filtered_environment_names = serde_json::from_value(payload["names"].clone())?;
@@ -296,7 +293,7 @@ pub fn query(
                     view.stdout = observed.stdout;
                     view.stderr = observed.stderr;
                     view.output_truncated |= observed.output_truncated;
-                    view.diagnostic = Some("Late execution facts recovered; original indeterminate result is retained and was not replayed.".into());
+                    view.diagnostic = Some(LATE_FACTS.into());
                 }
             }
             "shell.runtime_stopped" if view.background == Some(BackgroundState::Running) => {
@@ -347,11 +344,14 @@ pub fn request_stop(
             tx.query_row("SELECT batch_id FROM tool_calls WHERE id=?1", [call.to_string()], |r| {
                 r.get(0)
             })?;
-        crate::tool::result::not_executed(
+        crate::tool::result::not_executed_with_notice(
             tx,
             batch.parse().map_err(|_| Error::Conflict)?,
             call,
             aura_tool_contract::ToolNotExecutedReasonV1::CancelledBeforeDispatch,
+            Some(
+                "shell.stopped_before_start: This command was stopped while it was still waiting to start. Nothing ran and nothing was changed. Run it again if it is still needed.",
+            ),
             at,
         )?;
         Ok(None)
@@ -449,4 +449,49 @@ pub fn lost(
             warnings: if not_dispatched { vec!["execution.not_dispatched".into()] } else { vec![] },
         },
     )
+}
+
+/// What a person reads when Aura found a command's result again after a restart.
+const LATE_FACTS: &str = "Aura 重启后找回了这次命令的结果；原来的“结果未知”记录保留，没有重做。";
+
+/// Why a command did not start, in words.
+fn not_started_line(reason: &Value) -> String {
+    match reason.as_str() {
+        Some("cancelled") => "命令没有启动：任务已停止，什么都没有运行。".into(),
+        _ => "命令没有启动（Aura 的命令运行环境出错），什么都没有运行；可以让模型重试，仍不行请重启 Aura。"
+            .into(),
+    }
+}
+
+/// A problem the command runner reported: its own sentence, or the code it gave, which is the one
+/// clue there is (no other record holds it).
+fn runner_line(reason: &str) -> String {
+    if reason.chars().any(|ch| ('\u{4e00}'..='\u{9fff}').contains(&ch)) {
+        reason.to_owned()
+    } else {
+        format!("命令运行环境报告了一个问题（代码 {reason}）。")
+    }
+}
+
+#[cfg(test)]
+mod text_tests {
+    use super::*;
+
+    #[test]
+    fn a_command_record_says_in_words_why_it_did_not_start_or_what_was_found_later() {
+        assert_eq!(
+            not_started_line(&serde_json::json!("cancelled")),
+            "命令没有启动：任务已停止，什么都没有运行。"
+        );
+        assert!(
+            not_started_line(&serde_json::json!("runner.spawn_failed"))
+                .starts_with("命令没有启动（")
+        );
+        assert_eq!(
+            runner_line("runner.output_capped"),
+            "命令运行环境报告了一个问题（代码 runner.output_capped）。"
+        );
+        assert_eq!(runner_line("输出太多，已截断"), "输出太多，已截断");
+        assert!(!LATE_FACTS.is_ascii());
+    }
 }

@@ -174,3 +174,46 @@ test('many of my commands are drawn a page at a time', async () => {
   cleanup();
   vi.unstubAllGlobals();
 });
+
+test('a delete that did not go through names the command and says it is still there', async () => {
+  const user = userEvent.setup();
+  remove.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'commands.write_failed', message: 'Access is denied. (os error 5)' },
+  });
+  render(<CommandSettings coreReady />);
+  await user.click(
+    within(await waitFor(() => rowOf('review'))).getByRole('button', { name: '删除' }),
+  );
+  await user.click(
+    within(screen.getByRole('alertdialog', { name: '删除 /review' })).getByRole('button', {
+      name: '删除',
+    }),
+  );
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '删除 /review 没有完成，命令还在；请刷新后再试。',
+  );
+});
+
+test('a switch whose answer did not come says it may have taken effect', async () => {
+  const user = userEvent.setup();
+  setEnabled.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  render(<CommandSettings coreReady workspaceId="workspace" />);
+  await user.click(
+    within(await waitFor(() => rowOf('deploy'))).getByRole('button', { name: '停用' }),
+  );
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '没有等到 Aura Core 的答复（Aura Core 没有及时回复），停用 /deploy 可能已经生效；请刷新后核对。',
+  );
+  setEnabled.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'commands.write_failed', message: 'Access is denied. (os error 5)' },
+  });
+  await user.click(within(rowOf('notes')).getByRole('button', { name: '启用' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '启用 /notes 没有完成，命令仍是停用的；请刷新后再试。',
+  );
+});

@@ -18,8 +18,26 @@ pub(in crate::agent_execution) fn admission_feedback(error: &anyhow::Error) -> O
     text.starts_with("browser.").then_some(text)
 }
 
-/// The page every model call acts on: one per session.
+/// The page a model call acts on unless it names one the user handed over: one per session.
 pub(crate) const MODEL_PAGE: &str = "model";
+
+/// The page the call names: one the user handed over (p1, p2…), or none for the model's own.
+fn named_page(input: &Value) -> anyhow::Result<Option<String>> {
+    let Some(page) = input.get("page").filter(|page| !page.is_null()) else { return Ok(None) };
+    let text = page.as_str().unwrap_or_default();
+    if text == MODEL_PAGE {
+        return Ok(None);
+    }
+    let digits = text.strip_prefix('p').unwrap_or("");
+    ensure!(
+        !digits.is_empty()
+            && digits.len() <= 4
+            && !digits.starts_with('0')
+            && digits.bytes().all(|b| b.is_ascii_digit()),
+        "browser.page: “{page}”不是用户交给你的页面编号；用用户交给你时给的编号，例如 p1；不给 page 时是你自己的页面"
+    );
+    Ok(Some(text.to_owned()))
+}
 
 pub(crate) struct BrowserResolution {
     pub resources: Vec<ResourceDescriptor>,
@@ -48,6 +66,18 @@ fn bounded(value: Option<u32>, default: u32, low: u32, high: u32) -> u32 {
     value.unwrap_or(default).clamp(low, high)
 }
 
+/// The call's arguments in the tool's own input type; arguments that do not fit are refused in
+/// Core's words, with what did not fit.
+fn arguments<T: serde::de::DeserializeOwned>(handler: H, input: &Value) -> anyhow::Result<T> {
+    serde_json::from_value(input.clone()).map_err(|error| {
+        anyhow!(
+            "browser.input_invalid: {} 的参数不符合要求（{}），什么都没做；按工具说明改正后再调用。",
+            handler.name(),
+            super::outside_detail(&error.to_string(), 120)
+        )
+    })
+}
+
 impl AgentExecution {
     pub(in crate::agent_execution) fn resolve_browser(
         &self,
@@ -68,7 +98,9 @@ impl AgentExecution {
         let allowed = settings.settings.allowed_rules();
         let blocked = settings.settings.blocked_rules();
         let session = snapshot.session_id;
-        let page = ResourceDescriptor::BrowserPage { page_ref: format!("{session}/{MODEL_PAGE}") };
+        let named = named_page(action)?;
+        let page_id = named.as_deref().unwrap_or(MODEL_PAGE);
+        let page = ResourceDescriptor::BrowserPage { page_ref: format!("{session}/{page_id}") };
         let site = |site: &BrowserSiteV1| ResourceDescriptor::BrowserSite {
             host: site.host.clone(),
             allowed_by_rule: allowed
@@ -77,7 +109,7 @@ impl AgentExecution {
                 .map(ToString::to_string),
         };
         // The page as the host last reported it.
-        let current = self.browser.page_url(session).as_deref().and_then(site_of_url);
+        let current = self.browser.page_url(session, page_id).as_deref().and_then(site_of_url);
         let mut on_page = vec![page.clone()];
         on_page.extend(current.as_ref().map(site));
         let input = action.clone();
@@ -87,12 +119,15 @@ impl AgentExecution {
         let mut risks = vec![];
         let (caps, resources, network, host) = match handler {
             H::BrowserOpen => {
-                let open: BrowserOpenInput = serde_json::from_value(input.clone())?;
+                let open: BrowserOpenInput = arguments(handler, &input)?;
+                ensure!(
+                    open.agent.is_none() || open.url.is_none(),
+                    "browser.open: agent 只和 path 一起用，打开那个子 Agent 工作副本里的文件"
+                );
                 match (open.url, open.path) {
                     (Some(url), None) => {
-                        let address = browser_address(&url).ok_or_else(|| {
-                            anyhow!("browser.open: “{url}”不是网页地址；请给 http(s) 地址，或 localhost:端口")
-                        })?;
+                        let address =
+                            browser_address(&url).ok_or_else(|| not_a_web_address(&url))?;
                         match site_of_url(&address) {
                             None => page_action(
                                 &[C::BrowserRead],
@@ -126,15 +161,43 @@ impl AgentExecution {
                         }
                     }
                     (None, Some(path)) => {
-                        let missing = |error: &dyn std::fmt::Display| {
-                            anyhow!(
-                                "browser.open: 打不开工作区文件 {path}（{error}）；路径相对于工作区根目录"
-                            )
+                        // A sub-agent's worktree is a workspace of its own: the file is found
+                        // there, and the page only reads it.
+                        let copy = open
+                            .agent
+                            .as_deref()
+                            .map(|handle| self.sub_agent_copy(session, handle))
+                            .transpose()?;
+                        let root = match &open.agent {
+                            Some(handle) => format!("{handle} 的工作副本"),
+                            None => "这个工作区".to_owned(),
                         };
-                        let relative = WorkspacePath::parse(&path).map_err(|e| missing(&e))?;
-                        let resolver = self.workspace.resolver(snapshot.workspace_id)?;
-                        let resolved =
-                            resolver.resolve_existing(&relative).map_err(|e| missing(&e))?;
+                        let resolver =
+                            self.workspace.resolver(copy.unwrap_or(snapshot.workspace_id))?;
+                        // A file written in full is opened when it lies inside the root.
+                        let below = match super::local_path::given(resolver.canonical_root(), &path)
+                        {
+                            super::local_path::Given::Relative => path.clone(),
+                            super::local_path::Given::Inside(below) => below,
+                            super::local_path::Given::Outside => bail!(
+                                "browser.open: {path} 不在{root}里，没有打开；这个工具只打开{root}里的文件。path 写相对于{root}根目录的路径，例如 web/index.html"
+                            ),
+                        };
+                        let relative = WorkspacePath::parse(&below).map_err(|_| {
+                            anyhow!(
+                                "browser.open: “{path}”不是{root}里的文件路径，没有打开；path 写相对于{root}根目录的路径，例如 web/index.html，不能有 ..、盘符或设备名"
+                            )
+                        })?;
+                        let resolved = resolver.resolve_existing(&relative).map_err(|error| {
+                            match error {
+                                aura_workspace::WorkspaceError::NotFound { .. } => anyhow!(
+                                    "browser.open: {root}里没有 {below}，没有打开；path 相对于{root}根目录，可以先用 fs.find 找到它"
+                                ),
+                                _ => anyhow!(
+                                    "browser.open: 读不到{root}里的 {below}，没有打开；请确认它还在后重试"
+                                ),
+                            }
+                        })?;
                         ensure!(
                             !resolved.info.is_directory,
                             "browser.open: {path} 是文件夹；请给一个文件，例如 index.html"
@@ -143,16 +206,23 @@ impl AgentExecution {
                             url::Url::from_file_path(&resolved.absolute_path).map_err(|()| {
                                 anyhow!("browser.open: 无法把 {path} 作为本地文件打开")
                             })?;
+                        let (caps, resources) = match copy {
+                            Some(_) => (vec![C::BrowserRead], vec![page.clone()]),
+                            None => (
+                                vec![C::BrowserRead, C::WorkspaceFileRead],
+                                vec![
+                                    page.clone(),
+                                    ResourceDescriptor::WorkspacePath {
+                                        workspace_id: snapshot.workspace_id,
+                                        canonical_relative_path: relative,
+                                        file_target: None,
+                                    },
+                                ],
+                            ),
+                        };
                         (
-                            vec![C::BrowserRead, C::WorkspaceFileRead],
-                            vec![
-                                page.clone(),
-                                ResourceDescriptor::WorkspacePath {
-                                    workspace_id: snapshot.workspace_id,
-                                    canonical_relative_path: relative,
-                                    file_target: None,
-                                },
-                            ],
+                            caps,
+                            resources,
                             OperationNetwork::BrowserSitePolicy,
                             BrowserHostActionV1::Open { url: url.to_string() },
                         )
@@ -161,7 +231,7 @@ impl AgentExecution {
                 }
             }
             H::BrowserNavigate => {
-                let input: BrowserNavigateInput = serde_json::from_value(input.clone())?;
+                let input: BrowserNavigateInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::BrowserSitePolicy,
@@ -169,7 +239,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserSnapshot => {
-                let input: BrowserSnapshotInput = serde_json::from_value(input.clone())?;
+                let input: BrowserSnapshotInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::None,
@@ -179,7 +249,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserScreenshot => {
-                let input: BrowserScreenshotInput = serde_json::from_value(input.clone())?;
+                let input: BrowserScreenshotInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::None,
@@ -190,7 +260,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserClick => {
-                let input: BrowserClickInput = serde_json::from_value(input.clone())?;
+                let input: BrowserClickInput = arguments(handler, &input)?;
                 let point = match (input.x, input.y) {
                     (Some(x), Some(y)) => {
                         ensure!(
@@ -222,7 +292,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserType => {
-                let input: BrowserTypeInput = serde_json::from_value(input.clone())?;
+                let input: BrowserTypeInput = arguments(handler, &input)?;
                 ensure!(
                     input.text.chars().count() <= 20_000,
                     "browser.type: 一次最多输入 20000 个字符"
@@ -239,7 +309,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserPress => {
-                let input: BrowserPressInput = serde_json::from_value(input.clone())?;
+                let input: BrowserPressInput = arguments(handler, &input)?;
                 let key = input.key.trim().to_owned();
                 ensure!(
                     !key.is_empty()
@@ -257,7 +327,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserScroll => {
-                let input: BrowserScrollInput = serde_json::from_value(input.clone())?;
+                let input: BrowserScrollInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserInteraction],
                     OperationNetwork::BrowserSitePolicy,
@@ -269,7 +339,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserHover => {
-                let input: BrowserHoverInput = serde_json::from_value(input.clone())?;
+                let input: BrowserHoverInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserInteraction],
                     OperationNetwork::BrowserSitePolicy,
@@ -277,7 +347,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserSelect => {
-                let input: BrowserSelectInput = serde_json::from_value(input.clone())?;
+                let input: BrowserSelectInput = arguments(handler, &input)?;
                 ensure!(
                     (1..=50).contains(&input.values.len()),
                     "browser.select: 选 1 到 50 个选项"
@@ -292,7 +362,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserWait => {
-                let input: BrowserWaitInput = serde_json::from_value(input.clone())?;
+                let input: BrowserWaitInput = arguments(handler, &input)?;
                 ensure!(
                     input.text.is_some() || input.text_gone.is_some() || input.time_ms.is_some(),
                     "browser.wait: 给出 text、text_gone 或 time_ms"
@@ -309,7 +379,7 @@ impl AgentExecution {
                 )
             }
             H::BrowserConsole => {
-                let input: BrowserConsoleInput = serde_json::from_value(input.clone())?;
+                let input: BrowserConsoleInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::None,
@@ -320,11 +390,11 @@ impl AgentExecution {
                 )
             }
             H::BrowserClose => {
-                let _: BrowserCloseInput = serde_json::from_value(input.clone())?;
+                let _: BrowserCloseInput = arguments(handler, &input)?;
                 page_action(&[C::BrowserRead], OperationNetwork::None, BrowserHostActionV1::Close)
             }
             H::BrowserRequestUser => {
-                let input: BrowserRequestUserInput = serde_json::from_value(input.clone())?;
+                let input: BrowserRequestUserInput = arguments(handler, &input)?;
                 let reason = input.reason.trim().to_owned();
                 ensure!(
                     !reason.is_empty() && reason.chars().count() <= 300,
@@ -341,7 +411,7 @@ impl AgentExecution {
             }
             H::BrowserEvaluate => {
                 ensure!(settings.settings.debugging, DEBUGGING_OFF);
-                let input: BrowserEvaluateInput = serde_json::from_value(input.clone())?;
+                let input: BrowserEvaluateInput = arguments(handler, &input)?;
                 ensure!(
                     !input.expression.trim().is_empty() && input.expression.len() <= 20_000,
                     "browser.evaluate: 给出一段 JavaScript 表达式（最多 20000 字节）"
@@ -366,7 +436,7 @@ impl AgentExecution {
             }
             H::BrowserNetwork => {
                 ensure!(settings.settings.debugging, DEBUGGING_OFF);
-                let input: BrowserNetworkInput = serde_json::from_value(input.clone())?;
+                let input: BrowserNetworkInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::None,
@@ -379,7 +449,7 @@ impl AgentExecution {
             // Read through DevTools; no script runs in the page, nothing changes on it.
             H::BrowserInspect => {
                 ensure!(settings.settings.debugging, DEBUGGING_OFF);
-                let input: BrowserInspectInput = serde_json::from_value(input.clone())?;
+                let input: BrowserInspectInput = arguments(handler, &input)?;
                 ensure!(
                     !input.element.trim().is_empty() && input.element.len() <= 64,
                     "browser.inspect: 给出最新快照里的元素 ref（例如 e3）"
@@ -392,19 +462,42 @@ impl AgentExecution {
             }
             H::BrowserPerformance => {
                 ensure!(settings.settings.debugging, DEBUGGING_OFF);
-                let _: BrowserPerformanceInput = serde_json::from_value(input.clone())?;
+                let _: BrowserPerformanceInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::None,
                     BrowserHostActionV1::Performance,
                 )
             }
-            other => bail!("browser.unsupported: {}", other.name()),
+            other => bail!(
+                "browser.unsupported: 这个版本的 Aura 不能执行 {}，什么都没做。",
+                other.name()
+            ),
         };
         *capabilities = caps;
         *action = json!(host);
         Ok(BrowserResolution { resources, network, risks })
     }
+}
+
+/// Why a `url` does not open. A file of this computer is opened by its path, which the
+/// workspace or a sub-agent's copy confines.
+fn not_a_web_address(url: &str) -> anyhow::Error {
+    let text = url.trim();
+    let bytes = text.as_bytes();
+    let drive = bytes.len() > 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/');
+    let file = drive
+        || text.starts_with("\\\\")
+        || text.get(..5).is_some_and(|scheme| scheme.eq_ignore_ascii_case("file:"));
+    if file {
+        return anyhow!(
+            "browser.open: “{url}”是本机文件，不用网址打开：工作区里的文件给 path，子 Agent 工作副本里的文件给 path 和 agent。按 path 打开不能带 ?参数或 #片段；页面需要时，在本机起一个服务，用 http://localhost:端口 打开。"
+        );
+    }
+    anyhow!("browser.open: “{url}”不是网页地址；请给 http(s) 地址，或 localhost:端口")
 }
 
 /// How long Core waits for the host, by action.

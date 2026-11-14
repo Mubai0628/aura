@@ -6,7 +6,7 @@ import type {
 
 import type { NotificationPreferences } from '../../shared/notifications.js';
 
-export type SessionNoticeKind = 'approval' | 'question' | 'completed' | 'failed';
+export type SessionNoticeKind = 'approval' | 'question' | 'input' | 'completed' | 'failed';
 
 export interface SessionNotice {
   sessionId: string;
@@ -16,6 +16,7 @@ export interface SessionNotice {
 const WAITING: Record<AgentSessionWaitingFor, SessionNoticeKind> = {
   approval: 'approval',
   question: 'question',
+  sensitive_input: 'input',
   context: 'question',
 };
 
@@ -30,6 +31,8 @@ const ENDED: Record<AgentTurnOutcome, SessionNoticeKind | undefined> = {
 const SWITCH: Record<SessionNoticeKind, keyof NotificationPreferences> = {
   approval: 'approvals',
   question: 'questions',
+  // A terminal's request for a secure input waits for the user's answer, as a question does.
+  input: 'questions',
   completed: 'completions',
   failed: 'failures',
 };
@@ -46,9 +49,10 @@ export interface SessionNotifierDeps {
 
 /**
  * What conversations need or have done, from Core's activity read now and then: a conversation
- * that starts waiting for an approval or an answer, and a turn that ended. A turn that leaves the
- * activity is asked about by the next read, which says how it ended. Nothing is said about the
- * conversation in front, about what a switch turns off, or about what already waited at start.
+ * that starts waiting for an approval, an answer or a secure input, and a turn that ended. A turn
+ * that leaves the activity is asked about by the next read, which says how it ended. Nothing is
+ * said about the conversation in front, about what a switch turns off, or about what already
+ * waited at start.
  */
 export class SessionNotifier {
   readonly #deps: SessionNotifierDeps;

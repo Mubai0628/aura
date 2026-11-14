@@ -1,4 +1,5 @@
-import { userMessage } from '../../agent-session/user-message';
+import { localTime } from '../../../../shared/local-time';
+import { grantsNotRead, revokeFailure } from '../grant-words';
 import { useEffect, useState } from 'react';
 import type { MemorySessionConsentView } from '@aura/contracts/generated';
 
@@ -10,11 +11,6 @@ interface Loaded {
 
 function vaultLabel(grant: MemorySessionConsentView): string {
   return grant.scope.scope.kind === 'global' ? '全局记忆库' : '本项目记忆库';
-}
-
-function localTime(value: string): string {
-  const time = new Date(value);
-  return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN', { hour12: false });
 }
 
 /** A ReadOnly session's "本会话允许" answers for memory writes, one per Vault. */
@@ -34,11 +30,11 @@ export function SessionMemoryGrants({ sessionId, open }: { sessionId: string; op
           setLoaded(
             result.ok
               ? { key, grants: result.value }
-              : { key, error: userMessage(result.error, '记忆批准读取失败，请重试。') },
+              : { key, error: grantsNotRead('记忆批准', result.error) },
           );
       })
-      .catch(() => {
-        if (live) setLoaded({ key, error: '读取记忆批准失败，请重试。' });
+      .catch((reason: unknown) => {
+        if (live) setLoaded({ key, error: grantsNotRead('记忆批准', reason) });
       });
     return () => {
       live = false;
@@ -58,15 +54,11 @@ export function SessionMemoryGrants({ sessionId, open }: { sessionId: string; op
         grant_id: grant.grant_id,
         expected_revision: grant.grant_revision,
       });
-      if (!result.ok)
-        setError(
-          result.error.code === 'permission.grant_state_changed'
-            ? '该批准状态已变化，已重新读取。'
-            : userMessage(result.error, '撤销没有完成，请刷新后核对。'),
-        );
+      if (!result.ok) setError(revokeFailure(result.error, '记忆批准', '它仍然有效'));
       setReload((value) => value + 1);
-    } catch {
-      setError('撤销结果未确认，请重新读取。');
+    } catch (reason) {
+      setError(revokeFailure(reason, '记忆批准', '它仍然有效'));
+      setReload((value) => value + 1);
     } finally {
       setPending(undefined);
     }

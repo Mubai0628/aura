@@ -60,3 +60,15 @@ test('failed detection stays visible and retry clears the error', async () => {
   expect(await screen.findByText('本机 Git 可用')).toBeTruthy();
   expect(screen.queryByRole('alert')).toBeNull();
 });
+
+test('a Git site that did not open says where to download Git', async () => {
+  const git = setup(vi.fn().mockResolvedValue(state('missing')));
+  git.openInstallation.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'ipc.main_request_failed', message: 'shell failed' },
+  });
+  fireEvent.click(await screen.findByRole('button', { name: '前往 Git 官网安装或升级' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '没能打开 Git 官网，请在浏览器中访问 https://git-scm.com/download/win 下载。',
+  );
+});

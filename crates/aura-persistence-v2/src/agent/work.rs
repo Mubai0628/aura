@@ -17,7 +17,13 @@ pub fn save_todo(
     next: &TodoState,
     at: UtcTimestamp,
 ) -> StoreResult<()> {
-    next.validate().map_err(|_| Error::Invalid("Todo"))?;
+    // Aura mints item ids and revisions, so a blank title is the one part the model can get wrong.
+    next.validate().map_err(|_| {
+        Error::Invalid(
+            "todo.title: every to-do item needs a title that is not blank; give each item a short \
+             title",
+        )
+    })?;
     if previous.turn_task_id != next.turn_task_id
         || super::turns::load(tx, next.turn_task_id)?.state.terminal()
         || todo(tx, previous.turn_task_id)? != *previous
@@ -167,7 +173,13 @@ pub fn save_query(
     next: &UserQuery,
     at: UtcTimestamp,
 ) -> StoreResult<()> {
-    next.input.validate().map_err(|_| Error::Invalid("user query"))?;
+    next.input.validate().map_err(|_| {
+        Error::Invalid(
+            "query.user_question.questions: ask at least one question; give each a unique, \
+             non-blank id and non-blank text, and give each choice question at least two options \
+             with unique, non-blank ids and labels",
+        )
+    })?;
     if query(tx, next.turn_task_id)?.as_ref() != previous {
         return Err(Error::Conflict);
     }

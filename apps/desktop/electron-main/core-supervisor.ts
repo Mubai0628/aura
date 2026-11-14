@@ -19,6 +19,7 @@ import { recoveryProjectionPlan } from './recovery-projection-plan.js';
 import { CoreExitRecovery, type CoreRestartCause } from './core-exit-recovery.js';
 import { HeartbeatWatch, processActivityReader } from './core-supervisor/heartbeat-watch.js';
 import { appendMainLog } from './core-supervisor/main-log.js';
+import * as statusText from './core-supervisor/status-text.js';
 import { ScopedSubscriptions } from './core-supervisor/scoped-subscriptions.js';
 import { ProjectionCompatibility } from './projection-compatibility.js';
 import type { ProjectionCompatibilitySnapshotV1 } from '@aura/contracts/generated';
@@ -131,7 +132,7 @@ import {
 } from './core-supervisor/projections.js';
 export { STARTUP_CONNECT_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS } from './core-supervisor/config.js';
 export type { CoreSupervisorOptions } from './core-supervisor/config.js';
-import { CORE_UNREACHABLE_MESSAGE } from './core-unavailable.js';
+import { coreUnreachable } from './core-unavailable.js';
 import { RevisionedProjection } from './core-supervisor/revisioned-projection.js';
 import { ConfirmedCommands } from './core-supervisor/confirmed-commands.js';
 import {
@@ -464,11 +465,11 @@ export class CoreSupervisor {
   ): Promise<P05MainResult[Command]> {
     if (!this.#modelSupported) {
       secret.fill(0);
-      throw new Error('Core does not support the P05 Model Control Plane interface');
+      this.#require(false, 'P05 Model Control Plane');
     }
     if (this.#transport === undefined) {
       secret.fill(0);
-      throw new Error(CORE_UNREACHABLE_MESSAGE);
+      throw coreUnreachable();
     }
     // The credential bytes are handed to the transport ONCE, here, and the confirmation that may
     // follow never receives them: it is keyed by the invocation id alone, so no plaintext is
@@ -556,7 +557,7 @@ export class CoreSupervisor {
   /** The authenticated channel; without one a request is refused before anything is sent. */
   #activeTransport(): CoreTransport {
     const transport = this.#transport;
-    if (transport === undefined) throw new Error(CORE_UNREACHABLE_MESSAGE);
+    if (transport === undefined) throw coreUnreachable();
     return transport;
   }
 
@@ -757,6 +758,22 @@ export class CoreSupervisor {
     return this.#endCore('user_restart');
   }
 
+  /** aura-core.exe did not start: missing, or refused by Windows or security software. */
+  #spawnFailed(error: unknown, restartAttempt: number): void {
+    this.#coreProjection.emit(
+      localProjection(
+        this.#coreRuntimeInstanceId,
+        'unavailable',
+        'core.executable_missing',
+        statusText.spawnFailureText(error),
+        true,
+        2,
+        this.#options.safeMode,
+        restartAttempt,
+      ),
+    );
+  }
+
   /** Main ends the Core it owns; the window says so until the exit arrives. */
   #endCore(cause: 'unresponsive' | 'user_restart'): boolean {
     const child = this.#child;
@@ -893,6 +910,7 @@ export class CoreSupervisor {
       `--parent-pid=${process.pid}`,
       `--runtime-instance-id=${this.#coreRuntimeInstanceId}`,
       `--component-manifest=${this.#options.release.manifestPath}`,
+      `--data-root=${this.#options.dataRoot}`,
     ];
     if (this.#options.release.allowDevMismatch)
       coreArguments.push('--allow-dev-component-mismatch');
@@ -949,21 +967,12 @@ export class CoreSupervisor {
     child.stderr?.on('data', (chunk: Buffer | string) => {
       this.#coreStderr = sanitizeCoreStderr(`${this.#coreStderr}${String(chunk)}`);
     });
+    let spawnError: unknown;
     child.once('error', (error) => {
+      spawnError = error;
       if (generation !== this.#coreGeneration || this.#stopping) return;
       void this.#log('core_spawn_failed', { message: error.message });
-      this.#coreProjection.emit(
-        localProjection(
-          this.#coreRuntimeInstanceId,
-          'unavailable',
-          'core.executable_missing',
-          '未找到或无法启动 aura-core.exe。',
-          true,
-          2,
-          this.#options.safeMode,
-          restartAttempt,
-        ),
-      );
+      this.#spawnFailed(error, restartAttempt);
     });
     child.once('exit', (code, signal) => {
       // A process that exits while the startup budgets run is reported as an
@@ -978,21 +987,8 @@ export class CoreSupervisor {
 
     try {
       if (child.pid === undefined) {
-        await this.#log('core_spawn_failed', {
-          message: 'Aura Core process did not expose a process identifier',
-        });
-        this.#coreProjection.emit(
-          localProjection(
-            this.#coreRuntimeInstanceId,
-            'unavailable',
-            'core.executable_missing',
-            '未找到或无法启动 aura-core.exe。',
-            true,
-            2,
-            this.#options.safeMode,
-            restartAttempt,
-          ),
-        );
+        await this.#log('core_spawn_failed', { message: 'Core process has no identifier' });
+        this.#spawnFailed(spawnError, restartAttempt);
         return;
       }
       this.#corePid = child.pid;
@@ -1022,6 +1018,7 @@ export class CoreSupervisor {
       if (generation !== this.#coreGeneration || this.#stopping) return;
       if (this.#childExit !== undefined && startupFailureIsAbandoned(error)) return;
       if (error instanceof CompatibilityFailure) {
+        void this.#log('core_incompatible', { reason: error.message });
         this.#connectionGeneration += 1;
         this.#transport?.close();
         this.#transport = undefined;
@@ -1030,7 +1027,7 @@ export class CoreSupervisor {
             this.#coreRuntimeInstanceId,
             'incompatible',
             'core.incompatible',
-            error.message,
+            statusText.INCOMPATIBLE_CORE,
             true,
             2,
             this.#options.safeMode,
@@ -1538,7 +1535,7 @@ export class CoreSupervisor {
         this.#coreProjection.current,
         'restarting',
         'core.transport_reconnecting',
-        'Core 传输已断开，正在验证同一进程并恢复连接…',
+        statusText.RECONNECTING,
         true,
       ),
     );
@@ -1565,7 +1562,7 @@ export class CoreSupervisor {
               this.#coreProjection.current,
               'restarting',
               'core.reconnect_budget_exhausted',
-              'Core 连接在预算内未能恢复；正在按现有受控流程结束并重启 Core。',
+              statusText.RECONNECT_FAILED,
               false,
             ),
           );
@@ -2029,11 +2026,11 @@ export class CoreSupervisor {
 
   /** Refuses a request for an interface the connected Core did not offer in its handshake. */
   #require(supported: boolean, name: string): void {
-    if (!supported) throw new Error(`Core does not support the ${name} interface`);
+    const starting = this.#transport === undefined || this.snapshot.payload.state !== 'ready';
+    if (!supported) throw statusText.unsupportedInterface(name, starting);
   }
 
   #log(event: string, fields: Record<string, unknown>): Promise<void> {
-    const { localAppData, release } = this.#options;
-    return appendMainLog(localAppData, release.namespaceObjectHash, event, fields);
+    return appendMainLog(this.#options.dataRoot, event, fields);
   }
 }

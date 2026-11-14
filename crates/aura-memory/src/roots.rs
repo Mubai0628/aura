@@ -1,8 +1,8 @@
 use crate::MemoryResult;
 use std::path::{Path, PathBuf};
 
-/// Resolved once by process composition and then passed to all Memory services.
-/// Production has no environment override. Tests use `new` with TEMP paths.
+/// Resolved once by process composition and then passed to all Memory services. Production
+/// takes global memory's folder from `aura_data_location`; tests use `new` with TEMP paths.
 #[derive(Clone, Debug)]
 pub struct VaultRoots {
     pub global: PathBuf,
@@ -11,12 +11,6 @@ pub struct VaultRoots {
 impl VaultRoots {
     pub fn new(global: PathBuf, cache: PathBuf) -> Self {
         Self { global, cache }
-    }
-    pub fn production(cache: PathBuf) -> MemoryResult<Self> {
-        Ok(Self::new(
-            aura_windows_platform::user_profile_directory()?.join(".aura/memories"),
-            cache,
-        ))
     }
     pub fn project(workspace: &Path) -> PathBuf {
         workspace.join(".memories")

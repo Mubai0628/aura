@@ -84,8 +84,11 @@ pub fn prepare(
     let id = &batch.invocation_identity;
     let turn = turns::load(db, id.turn_task_id)?;
     let run = turns::load_run(db, id.agent_run_id)?;
-    if run.parent_agent_run_id.is_some() || turn.lineage_resolution_required {
+    if run.parent_agent_run_id.is_some() {
         return Err(Error::Conflict);
+    }
+    if turn.lineage_resolution_required {
+        return Err(Error::Invalid(LINEAGE_UNRESOLVED));
     }
     let registry =
         crate::tool::registry(db, batch.registry_snapshot_ref.tool_registry_snapshot_id)?
@@ -188,8 +191,11 @@ pub fn prepare(
     if let Some((call, args)) = inputs.get("plan.complete") {
         let input: PlanCompleteInput = arguments(args)?;
         input.validate().map_err(|_| Error::Invalid("Plan completion"))?;
-        if turn.mode != AgentTaskMode::Plan || turn.revision != input.expected_turn_revision {
-            return Err(Error::Conflict);
+        if turn.mode != AgentTaskMode::Plan {
+            return Err(Error::Invalid(NOT_PLAN));
+        }
+        if turn.revision != input.expected_turn_revision {
+            return Err(Error::Invalid(PLAN_REVISION));
         }
         let user = session::user_message(db, turn.session_id, turn.root_user_event_id)?;
         let record = PlanRecord {
@@ -205,7 +211,7 @@ pub fn prepare(
     if let Some((call, args)) = inputs.get("goal.complete") {
         let input: GoalCompleteInput = arguments(args)?;
         if turn.mode != AgentTaskMode::Goal {
-            return Err(Error::Conflict);
+            return Err(Error::Invalid(NOT_GOAL));
         }
         let mut state = work::goal(db, turn.turn_task_id)?;
         state.check_completion(&input).map_err(|_| Error::Invalid("Goal completion gate"))?;
@@ -218,6 +224,19 @@ pub fn prepare(
     }
     Ok(result)
 }
+/// Why a completion call was refused before anything was recorded, as the model reads it.
+const LINEAGE_UNRESOLVED: &str = "agent.completion_lineage_unresolved: the user's newest message is \
+     not yet tied to this turn's task, so the turn cannot end yet. Nothing was changed. Call \
+     task_lineage.reconcile to say how the message relates to the task, then complete.";
+const NOT_PLAN: &str = "plan.complete: this turn is not in plan mode, so there is no plan to \
+     complete. Nothing was changed. End the turn with normal.complete, or with goal.complete in a \
+     Goal.";
+const PLAN_REVISION: &str = "plan.complete: expected_turn_revision is not this turn's current \
+     revision. Nothing was changed. Take the turn's revision from the task state, then call \
+     plan.complete again.";
+const NOT_GOAL: &str = "goal.complete: this turn is not a Goal, so there is no goal to complete. \
+     Nothing was changed. End the turn with normal.complete.";
+
 /// A completion tool's arguments in its own type. Admission checked them against the tool's
 /// schema; one that still does not decode (an id in a form Aura never issues) is the model's to
 /// correct, not a damaged store.

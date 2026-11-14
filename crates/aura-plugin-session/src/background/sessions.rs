@@ -16,7 +16,7 @@ use aura_agent_domain::{
 use aura_core_base::append_core_log;
 use aura_domain_common::{CommandInvocationId, CorrelationId, SessionId, WorkspaceId};
 use aura_extension_service::plugins::PluginRuntime;
-use aura_persistence::{PersistenceError, SESSION_ARCHIVED};
+use aura_persistence::{PersistenceError, SESSION_ARCHIVED, SESSION_SUBAGENT};
 use aura_plugin_host::{CallFuture, ServiceError};
 use aura_plugins::{PluginCapability, PluginChannel, PluginRemote, PluginScope};
 use aura_security_service::p04::permission_defaults::default_permission_mode;
@@ -249,7 +249,9 @@ pub(crate) fn open_now(
         .sessions
         .iter()
         .filter(|session| {
-            session.state != SESSION_ARCHIVED && workspaces.contains(&session.workspace_id)
+            session.state != SESSION_ARCHIVED
+                && session.state != SESSION_SUBAGENT
+                && workspaces.contains(&session.workspace_id)
         })
         .collect();
     (workspaces, sessions)

@@ -278,6 +278,90 @@ pub fn cancellation_requested(
         [attempt.operation_id.to_string()], |row| row.get(0))?)
 }
 
+/// The evidence schema of an attempt whose call ended before anything of it was sent.
+pub const ENDED_BEFORE_START: &str = "execution-ended-before-start-v1";
+
+/// Closes an attempt that was marked dispatched but whose call ended before anything of it was
+/// sent: its turn stopped in between, so the domain refused to start it. Nothing ran, so the
+/// attempt is cancelled with no effect, never left with an unknown outcome. Only a dispatched
+/// attempt without a result can be closed this way.
+pub fn end_before_start(
+    tx: &Transaction<'_>,
+    request: &aura_execution_contract::DispatchRequest,
+    reason: &str,
+    at: UtcTimestamp,
+) -> StoreResult<ExecutionResult> {
+    close_before_start(tx, request, reason, None, at)
+}
+
+/// Closes an attempt that was marked dispatched but whose domain refused to start it while its
+/// turn went on: another call held its file past the wait limit. Nothing was sent, so it failed
+/// with no effect, and `rejection` (the model-safe refusal) is kept for its result.
+pub fn refuse_before_start(
+    tx: &Transaction<'_>,
+    request: &aura_execution_contract::DispatchRequest,
+    reason: &str,
+    rejection: serde_json::Value,
+    at: UtcTimestamp,
+) -> StoreResult<ExecutionResult> {
+    close_before_start(tx, request, reason, Some(rejection), at)
+}
+
+fn close_before_start(
+    tx: &Transaction<'_>,
+    request: &aura_execution_contract::DispatchRequest,
+    reason: &str,
+    rejection: Option<serde_json::Value>,
+    at: UtcTimestamp,
+) -> StoreResult<ExecutionResult> {
+    use aura_execution_contract::*;
+    let attempt = &request.binding.attempt;
+    let stored = load(tx, attempt.operation_id, attempt.ordinal.get())?;
+    let Some(dispatched_at) = stored.dispatched_at else {
+        return Err(Error::Conflict);
+    };
+    if matches!(stored.state, AttemptState::Terminal { .. }) || stored.binding != request.binding {
+        return Err(Error::Conflict);
+    }
+    let evidence = aura_domain_common::ArtifactId::new();
+    // A clock that went back must not put the end before the start mark.
+    let at = at.max(dispatched_at);
+    let result = ExecutionResult {
+        // A stopped turn cancelled it; a refusal while the turn went on failed it.
+        outcome: if rejection.is_some() {
+            ExecutionOutcome::Failed
+        } else {
+            ExecutionOutcome::Cancelled
+        },
+        side_effect: SideEffectStateV1::NoEffect,
+        receipt: ExecutionReceipt {
+            attempt: attempt.clone(),
+            evidence_ref: evidence,
+            postcondition_fingerprint: None,
+            rollback: RollbackEvidence::NotApplicable,
+        },
+        termination: TerminationEvidence::Confirmed { evidence_ref: evidence },
+        completed_at: at,
+        warnings: vec![],
+    };
+    let mut record = serde_json::json!({
+        "schema": ENDED_BEFORE_START, "binding": request.binding, "reason": reason,
+        "dispatched": true });
+    if let Some(rejection) = rejection {
+        record["operation_rejection"] = rejection;
+    }
+    aura_persistence_core::artifact::put(
+        tx,
+        evidence,
+        &attempt.operation_id.to_string(),
+        "application/vnd.aura.ended-before-start+json",
+        &serde_json::to_vec(&record)?,
+        at,
+    )?;
+    complete(tx, attempt.operation_id, attempt.ordinal.get(), &result)?;
+    Ok(result)
+}
+
 /// Closes only an unclaimed reservation, without inventing a dispatched_at.
 /// A concurrent claim makes this transaction fail; the caller must reconcile.
 pub fn reject_prepared(

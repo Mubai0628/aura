@@ -17,32 +17,18 @@ use aura_windows_platform::{
     CredentialApplicationAttribute, CredentialStoreError, SecretBytes, StoredCredential,
     WindowsCredentialStore,
 };
-use thiserror::Error;
 
 pub(crate) mod cleanup;
+mod error;
+
 pub(crate) use cleanup::CredentialCleanup;
+pub use error::P05CredentialJournalError;
 
 const ATTRIBUTE_CREDENTIAL_ID: &str = "Aura_CredentialId";
 const ATTRIBUTE_CREDENTIAL_REVISION: &str = "Aura_CredentialRevision";
 const ATTRIBUTE_TRANSACTION_ID: &str = "Aura_TransactionId";
 const ATTRIBUTE_RECORD_STATE: &str = "Aura_RecordState";
 const ATTRIBUTE_BUNDLE_NAMESPACE_HASH: &str = "Aura_BundleNamespaceHash";
-
-#[derive(Debug, Error)]
-pub enum P05CredentialJournalError {
-    #[error(transparent)]
-    Persistence(#[from] PersistenceError),
-    #[error(transparent)]
-    CredentialStore(#[from] CredentialStoreError),
-    #[error("credential projection construction failed: {0}")]
-    Projection(String),
-    #[error("credential staging or final read-back did not match the frozen J-A attributes")]
-    VerificationMismatch,
-    #[error("credential Journal entered reconciliation_required: {journal_id}")]
-    ReconciliationRequired { journal_id: MutationJournalId },
-    #[error("credential Journal was aborted: {journal_id}")]
-    Aborted { journal_id: MutationJournalId },
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CredentialJournalCompletion {

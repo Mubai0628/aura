@@ -23,6 +23,7 @@ const probe = (): MediaProbe => ({
   has_audio: false,
   container: 'webm',
   codec: null,
+  note: null,
   byte_length: 4000,
 });
 const core = () => ({
@@ -83,6 +84,7 @@ test('result validation checks finite metadata, matching byte size and exact fie
     { path: 'C:/secret.webm' },
     { has_audio: 'unknown' },
     { width: 0 },
+    { note: '解码页写的说明' },
   ])
     expect(() => checkedMediaResult({ ...probe(), ...mutation }, command())).toThrow();
 });

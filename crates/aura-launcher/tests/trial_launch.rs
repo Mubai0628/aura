@@ -26,17 +26,23 @@ struct Install {
 
 impl Install {
     fn new(active: &str, mode: &str) -> Self {
+        Self::with_core(active, mode, format!("core {active}").into_bytes())
+    }
+
+    /// An installation whose active version runs `core` as its Core.
+    fn with_core(active: &str, mode: &str, core: Vec<u8>) -> Self {
         let install =
             Self { root: tempfile::tempdir().unwrap(), data: tempfile::tempdir().unwrap() };
         fs::copy(env!("CARGO_BIN_EXE_AuraLauncher"), install.root.path().join("AuraLauncher.exe"))
             .unwrap();
-        let descriptor = install.add(active, mode);
+        let descriptor = install.add_with_core(active, mode, core);
         install.write(&ActiveInstallState {
             active: active.into(),
             release_descriptor: descriptor,
             previous: None,
             pending: None,
             last_known_good: Some(active.into()),
+            data_location: None,
         });
         install
     }
@@ -131,7 +137,7 @@ fn fake_desktop() -> PathBuf {
     let changed = fs::metadata(source).and_then(|metadata| metadata.modified()).unwrap();
     assert!(
         built.is_some_and(|built| built >= changed),
-        "examples/fake_desktop is missing or older than its source: run `cargo test -p aura-launcher`"
+        "examples/fake_desktop is missing or older than its source: run `cargo xtask test -p aura-launcher`"
     );
     program
 }
@@ -354,4 +360,105 @@ fn a_desktop_that_applied_an_update_restarts_into_the_new_version() {
     assert_eq!(state.active, "0.1.1", "{}", install.log());
     assert_eq!(state.previous.as_deref(), Some("0.1.0"));
     assert_eq!(state.pending, None);
+}
+
+/// At a start that is no version's first, the run `aura.db` owes (Core marks it at a normal exit)
+/// runs before the desktop starts, and a copy set aside 30 days ago or more is removed.
+#[test]
+fn a_normal_start_runs_the_slimming_aura_db_owes_and_drops_a_month_old_replaced_copy() {
+    let install = Install::with_core("0.3.0", "exit", fs::read(fake_desktop()).unwrap());
+    let data = install.store().parent().unwrap().to_path_buf();
+    fs::create_dir_all(data.join("v2-execution")).unwrap();
+    fs::write(install.store(), "conversations").unwrap();
+    fs::write(data.join("v2-execution/aura-v2.db"), "operations").unwrap();
+    let owed = r#"{"schema_version":1,"kept_bytes":1,"owed_runs":0}"#;
+    fs::write(data.join("aura-db-slimming.json"), owed).unwrap();
+    let backups = data.parent().unwrap().join("backups");
+    for name in ["before-0.3.0", "replaced-2026-01-01T00-00-00Z"] {
+        fs::create_dir_all(backups.join(name).join("data")).unwrap();
+        fs::write(backups.join(name).join("data/aura.db"), name).unwrap();
+    }
+    let launched = std::time::SystemTime::now();
+    install.launch();
+    let log = install.log();
+    let slimmed = log.find("\"data_slimmed\"").unwrap_or_else(|| panic!("no run: {log}"));
+    // The run begins at once, so its window (shown half a second into a run) is up within 3 s.
+    let began = fs::read_to_string(install.root.path().join("versions/0.3.0/fake-slim-began.txt"));
+    let began = std::time::UNIX_EPOCH
+        + std::time::Duration::from_millis(began.unwrap().trim().parse().unwrap());
+    let after = began.duration_since(launched).unwrap();
+    assert!(
+        after < std::time::Duration::from_millis(2_500),
+        "the run began {after:?} after launch"
+    );
+    assert!(slimmed < log.find("desktop_starting").unwrap(), "{log}");
+    let marker = fs::read_to_string(data.join("aura-db-slimming.json")).unwrap();
+    assert!(marker.contains("\"owed_runs\":null"), "{marker}");
+    assert!(!backups.join("replaced-2026-01-01T00-00-00Z").exists(), "{log}");
+    assert!(backups.join("before-0.3.0").is_dir());
+    assert!(log.contains("replaced_copies_removed"), "{log}");
+}
+
+impl Install {
+    /// The namespace's folder in the default place, which holds the location record.
+    /// The namespace's default folder, spelled as the launcher passes it on.
+    fn fixed_root(&self) -> PathBuf {
+        let namespace: BundleNamespace = NAMESPACE.parse().unwrap();
+        self.data.path().join("Aura").join("namespaces").join(namespace.object_name_hash())
+    }
+
+    /// Moves the data to `location` the way a move leaves it: the marker in `location`, the record
+    /// in the default place and the copy in `active.json`.
+    fn move_data(&self, location: &Path) {
+        let namespace: BundleNamespace = NAMESPACE.parse().unwrap();
+        fs::create_dir_all(location).unwrap();
+        aura_data_location::write_marker(
+            location,
+            &aura_data_location::DataMarker::new(namespace.clone()),
+        )
+        .unwrap();
+        fs::create_dir_all(self.fixed_root()).unwrap();
+        aura_data_location::write_record(
+            &self.fixed_root().join(aura_data_location::RECORD_FILE),
+            &aura_data_location::LocationRecord::new(namespace, location.to_path_buf()),
+        )
+        .unwrap();
+        let mut state = self.state();
+        state.data_location = Some(location.display().to_string());
+        self.write(&state);
+    }
+}
+
+/// A moved installation: the launcher starts the desktop with the moved locations, reads its
+/// ready report there, keeps the copy when the version becomes active, and leaves the default
+/// folder holding only the record.
+#[test]
+fn a_moved_installation_starts_the_desktop_with_the_moved_locations() {
+    let install = Install::new("0.1.0", "exit");
+    install.add("0.1.1", "ready");
+    install.wait("0.1.1");
+    let moved = install.data.path().join("Moved Aura");
+    install.move_data(&moved);
+    install.launch();
+    let data = moved.join("data");
+    let log = fs::read_to_string(data.join("logs/launcher.jsonl")).unwrap_or_default();
+    let state = install.state();
+    assert_eq!(state.active, "0.1.1", "{log}");
+    assert_eq!(state.data_location, Some(moved.display().to_string()));
+    assert!(log.contains("trial_promoted"), "{log}");
+    let arguments =
+        fs::read_to_string(install.root.path().join("versions/0.1.1/fake-desktop-args.txt"))
+            .unwrap();
+    for expected in [
+        format!("--aura-data-root={}", data.display()),
+        format!("--aura-ui-profile={}", moved.join("ui-profile").display()),
+        format!("--aura-chrome-root={}", install.fixed_root().join("chrome").display()),
+    ] {
+        assert!(arguments.lines().any(|line| line == expected), "{expected} not in {arguments}");
+    }
+    let left: Vec<_> = fs::read_dir(install.fixed_root())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(left, ["location.v1.json"]);
 }

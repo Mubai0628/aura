@@ -2,13 +2,21 @@ import { useState } from 'react';
 import { AppIcon } from './app-icons';
 import { useCoreHealth } from './core-health-store';
 import { useWaitedSeconds, waitedText } from './core-waiting-time';
-import { userMessage } from './agent-session/user-message';
+import { failedAction } from './agent-session/failure-text';
 
 /** A status that has waited since `since`, counting: "<text>，已等待 N 秒". */
 export function WaitingLabel({ text, since }: { text: string; since: string }) {
   const seconds = useWaitedSeconds(since);
   return <>{`${text}，已等待 ${waitedText(seconds)}`}</>;
 }
+
+/** A restart that did not happen: Core keeps working on what it had. */
+const notRestarted = (error: unknown) =>
+  failedAction(
+    error,
+    '没能重启 Aura Core',
+    'Core 仍在处理原来的任务；稍后再点“立即重启”，仍不行请退出 Aura 后重新打开。',
+  );
 
 /** Above the composer while Main waits for a ready Core's heartbeat: the wait, and 立即重启. */
 export function CoreWaitingNotice() {
@@ -25,11 +33,14 @@ function CoreWaitingBar({ since }: { since: string }) {
   const restart = async () => {
     setRestarting(true);
     setFailure(undefined);
-    const result = await window.aura.v1.restartCore();
-    if (!result.ok) {
-      setFailure(userMessage(result.error, '没能重启 Aura Core，请稍后再试。'));
-      setRestarting(false);
+    try {
+      const result = await window.aura.v1.restartCore();
+      if (result.ok) return;
+      setFailure(notRestarted(result.error));
+    } catch (error) {
+      setFailure(notRestarted(error));
     }
+    setRestarting(false);
   };
   return (
     <div className="core-waiting-notice" role="status">

@@ -32,6 +32,7 @@ impl Provider {
             let mut held = tokio::task::JoinSet::new();
             let mut normal_ordinal = 0;
             let mut compaction_ordinal = 0;
+            let mut rate_limited = 0;
             // A branch and its source both continue, so that scenario answers more; so does a turn of
             // eleven reads, a compaction asked twice on the step's request and then in parts, and three
             // turns reading another conversation.
@@ -43,6 +44,7 @@ impl Provider {
                     | Scenario::ClearOldResults
                     | Scenario::CompactToolOnPrefix
                     | Scenario::ReferredHistory
+                    | Scenario::Team { .. }
             ) {
                 16
             } else {
@@ -175,6 +177,29 @@ data: {overloaded}
                     stream.shutdown().await.expect("the stream ends");
                     continue;
                 }
+                if let Scenario::SilentThenText { silences } = scenario {
+                    let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\
+                                Cache-Control: no-cache\r\nConnection: close\r\n\r\n";
+                    let delta = json!({"id":format!("fixture-response-{ordinal}"),"object":"chat.completion.chunk","model":"fixture","choices":[{"index":0,"delta":{"content":"Writing the whole file. "},"finish_reason":null}]});
+                    stream
+                        .write_all(format!("{head}data: {delta}\n\n").as_bytes())
+                        .await
+                        .expect("the answer begins");
+                    if ordinal < silences {
+                        // Nothing more is sent: the stream stays open until the step gives up.
+                        held.spawn(async move {
+                            let _open = stream;
+                            std::future::pending::<()>().await;
+                        });
+                        continue;
+                    }
+                    tokio::time::sleep(super::scenario::SILENT_PAUSE).await;
+                    let end = json!({"id":format!("fixture-response-{ordinal}"),"object":"chat.completion.chunk","model":"fixture","choices":[{"index":0,"delta":{"content":"Done."},"finish_reason":"stop"}],"usage":{"prompt_tokens":20,"completion_tokens":20,"total_tokens":40}});
+                    let end = format!("data: {end}\n\ndata: [DONE]\n\n");
+                    stream.write_all(end.as_bytes()).await.expect("the answer ends");
+                    stream.shutdown().await.expect("the stream ends");
+                    continue;
+                }
                 if matches!(scenario, Scenario::LateAnswer) {
                     // Parked until the test says the caller has already given up, and parked
                     // *beside* the accept loop so a later retry is still served. The answer is
@@ -231,8 +256,24 @@ data: {overloaded}
                     });
                     continue;
                 }
+                if matches!(
+                    scenario,
+                    Scenario::Team { plan: super::scenario::TeamPlan::RateLimited }
+                ) && super::scenario::offers(&body, "agent.report")
+                    && rate_limited < super::scenario::RATE_LIMITED
+                {
+                    rate_limited += 1;
+                    let body = json!({"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"Rate limit reached for requests"}}).to_string();
+                    let response = format!(
+                        "HTTP/1.1 429 Too Many Requests\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    stream.write_all(response.as_bytes()).await.expect("rate limit answer");
+                    continue;
+                }
                 if matches!(scenario, Scenario::Hold)
                     || matches!(scenario, Scenario::RecoveredSession) && ordinal == 0
+                    || matches!(scenario, Scenario::Team { plan } if super::scenario::team::holds(plan, &body))
                 {
                     held.spawn(async move {
                         let _ = stream.read(&mut [0u8; 1]).await;
@@ -543,6 +584,13 @@ Connection: close
                         body.len()
                     );
                     stream.write_all(response.as_bytes()).await.expect("refusal");
+                    continue;
+                }
+                if matches!(scenario, Scenario::Team { plan: super::scenario::TeamPlan::Budget })
+                    && super::scenario::offers(&body, "agent.report")
+                {
+                    let counted = super::scenario::BUDGET_ANSWER;
+                    send_counted(&mut stream, ordinal, delta, None, counted).await;
                     continue;
                 }
                 if matches!(

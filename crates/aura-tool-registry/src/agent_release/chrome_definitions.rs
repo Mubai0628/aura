@@ -20,7 +20,7 @@ pub(super) fn entries(
             89,
             H::ChromeTabs,
             "List the shared Chrome tabs",
-            "List the tabs of the user's own Chrome that the user shared with this conversation or that chrome.open opened for it, with refs (t1) for the other chrome tools, their titles and addresses, and which one is current. No other tab, window or profile is ever visible.",
+            "List the tabs of the user's own Chrome that the user shared with this conversation or that chrome.open opened for it, with refs (t1) for the other chrome tools, their titles and addresses, and which one is current. No other tab, window or profile is ever visible. When none is listed, notice says why: Chrome is not connected, or no tab is shared yet.",
             // Core's own record of the shares, read as task state; Chrome is not asked.
             &[C::AgentTaskRead],
             false,

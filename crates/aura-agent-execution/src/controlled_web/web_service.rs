@@ -161,7 +161,7 @@ impl ControlledWeb {
         };
         let content = &dispatch.request().operation.content;
         let Some(session) = content.identity.session_id else {
-            return failed(anyhow::anyhow!("web.session_required"));
+            return failed(anyhow::anyhow!(super::inspection::SESSION_REQUIRED));
         };
         let kind = content.action_kind.clone();
         let action = crate::agent_execution::network::model_action(&content.action);

@@ -121,6 +121,26 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         DomainOperation
     ),
     route!(
+        "terminal.user.hand_over",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "TerminalRequestV1",
+        "TerminalViewV1",
+        CommandInvocation,
+        DomainOperation
+    ),
+    route!(
+        "terminal.user.hand_over",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "TerminalRequestV1",
+        "TerminalViewV1",
+        CommandInvocation,
+        DomainOperation
+    ),
+    route!(
         "terminal.user.subscribe",
         Agent,
         Main,

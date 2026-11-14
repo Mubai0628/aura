@@ -1,6 +1,5 @@
 use std::{
     path::PathBuf,
-    str::FromStr,
     sync::{
         Arc, Mutex,
         mpsc::{self, Receiver},
@@ -9,14 +8,11 @@ use std::{
 };
 
 use aura_domain_common::{
-    CommandInvocationId, CorrelationId, FileIdentity, Revision, RuntimeInstanceId, SessionId,
-    UtcTimestamp, WorkspaceId,
+    CommandInvocationId, CorrelationId, RuntimeInstanceId, UtcTimestamp, WorkspaceId,
 };
 use aura_permission_domain::SecurityProjectionPayload;
 use aura_runtime_contract::RuntimeProcessKind;
-use aura_workspace_domain::{
-    CatalogFreshness, SessionSummary, WorkspaceSessionProjection, WorkspaceState, WorkspaceSummary,
-};
+use aura_workspace_domain::{SessionSummary, WorkspaceSessionProjection, WorkspaceSummary};
 use rusqlite::{Connection, Transaction, params};
 use serde_json::json;
 
@@ -33,6 +29,10 @@ use crate::{
 // same gate, so a release build neither compiles the module nor a caller of it.
 #[cfg(debug_assertions)]
 use crate::barrier::Barrier;
+pub(crate) use crate::workspace_projection::{
+    catalog_freshness_name, load_workspace_session_projection, parse_catalog_freshness,
+    parse_workspace_state, workspace_state_name,
+};
 
 pub use crate::writer::{
     DEFAULT_SETTLED_RECEIPT_BUDGET, INDEX_QUEUE_CAPACITY, JobSettlement, SETTLEMENT_CAPACITY,
@@ -112,6 +112,7 @@ pub enum PersistenceFaultPoint {
 }
 
 mod permission_gates;
+mod worktree_links;
 use permission_gates::{AuthorityWrite, PermissionGates};
 
 struct PersistenceInner {
@@ -159,6 +160,7 @@ struct PersistenceInner {
         Mutex<Vec<mpsc::Sender<aura_projection_contract::ProjectionChange>>>,
     tool_projection_subscribers:
         Mutex<Vec<mpsc::Sender<aura_projection_contract::ProjectionChange>>>,
+    worktree_links: crate::workspace_projection::WorktreeLinks,
 }
 
 pub use crate::writer::PersistenceArtifactCounters;
@@ -327,6 +329,7 @@ impl PersistenceCoordinator {
                 security_subscribers: Mutex::new(Vec::new()),
                 model_projection_subscribers: Mutex::new(Vec::new()),
                 tool_projection_subscribers: Mutex::new(Vec::new()),
+                worktree_links: Default::default(),
             }),
         };
         if recover_tool_conformance {
@@ -376,7 +379,9 @@ impl PersistenceCoordinator {
     pub fn workspace_session_projection(
         &self,
     ) -> Result<WorkspaceSessionProjection, PersistenceError> {
-        self.inner.readers.with(load_workspace_session_projection)
+        let mut projection = self.inner.readers.with(load_workspace_session_projection)?;
+        self.inner.worktree_links.decorate(&mut projection);
+        Ok(projection)
     }
 
     pub fn subscribe_workspace_sessions(
@@ -880,7 +885,6 @@ impl PersistenceCoordinator {
     /// SQLite busy handler is set from what is left of it: enqueue wait, SQL lock wait
     /// and the operation itself all come out of the same budget. It is never reset
     /// between stages.
-    #[allow(dead_code)]
     pub(crate) fn dispatch_within<T, F>(
         &self,
         class: WorkClass,
@@ -1329,8 +1333,9 @@ impl PersistenceCoordinator {
 
     pub(crate) fn publish_workspace_session(
         &self,
-        projection: CommittedProjection<WorkspaceSessionProjection>,
+        mut projection: CommittedProjection<WorkspaceSessionProjection>,
     ) -> Result<(), PersistenceError> {
+        self.inner.worktree_links.decorate(&mut projection.payload);
         let mut subscribers = self
             .inner
             .workspace_session_subscribers
@@ -1419,98 +1424,6 @@ fn validate_workspace_session(
     Ok(())
 }
 
-pub(crate) fn load_workspace_session_projection(
-    connection: &Connection,
-) -> Result<WorkspaceSessionProjection, PersistenceError> {
-    let mut workspace_statement = connection.prepare(
-        "SELECT workspace_id, display_name, selected_root, canonical_root,
-                root_volume_serial, root_file_id, state, revision,
-                catalog_freshness, authorization_epoch
-         FROM workspaces ORDER BY created_at, workspace_id",
-    )?;
-    let workspace_rows = workspace_statement
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, Option<String>>(4)?,
-                row.get::<_, Option<String>>(5)?,
-                row.get::<_, String>(6)?,
-                row.get::<_, i64>(7)?,
-                row.get::<_, String>(8)?,
-                row.get::<_, i64>(9)?,
-            ))
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut workspaces = Vec::with_capacity(workspace_rows.len());
-    for (
-        workspace_id,
-        display_name,
-        selected_root,
-        canonical_root,
-        volume_serial_number,
-        file_id,
-        state,
-        revision,
-        catalog_freshness,
-        authorization_epoch,
-    ) in workspace_rows
-    {
-        workspaces.push(WorkspaceSummary {
-            workspace_id: WorkspaceId::from_str(&workspace_id)?,
-            display_name,
-            selected_root,
-            canonical_root,
-            root_identity: match (volume_serial_number, file_id) {
-                (Some(volume_serial_number), Some(file_id)) => {
-                    Some(FileIdentity { volume_serial_number, file_id })
-                }
-                (None, None) => None,
-                _ => {
-                    return Err(PersistenceError::InvalidRequest(
-                        "persisted workspace root identity is incomplete".to_owned(),
-                    ));
-                }
-            },
-            state: parse_workspace_state(&state)?,
-            revision: Revision::new(u64::try_from(revision).map_err(|_| {
-                PersistenceError::InvalidRequest("negative workspace revision".to_owned())
-            })?),
-            catalog_freshness: parse_catalog_freshness(&catalog_freshness)?,
-            authorization_epoch: Revision::new(u64::try_from(authorization_epoch).map_err(
-                |_| PersistenceError::InvalidRequest("negative authorization epoch".to_owned()),
-            )?),
-        });
-    }
-
-    let mut session_statement = connection.prepare(
-        "SELECT session_id, workspace_id, title, state
-         FROM sessions WHERE state<>'deleting' ORDER BY created_at, session_id",
-    )?;
-    let session_rows = session_statement
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-            ))
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut sessions = Vec::with_capacity(session_rows.len());
-    for (session_id, workspace_id, title, state) in session_rows {
-        sessions.push(SessionSummary {
-            session_id: SessionId::from_str(&session_id)?,
-            workspace_id: WorkspaceId::from_str(&workspace_id)?,
-            title,
-            state,
-        });
-    }
-    Ok(WorkspaceSessionProjection { workspaces, sessions })
-}
-
 pub(crate) fn insert_event(
     transaction: &Transaction<'_>,
     event: &PersistentEventDraft,
@@ -1597,46 +1510,4 @@ pub(crate) fn to_sql_u64(value: u64) -> Result<i64, PersistenceError> {
     i64::try_from(value).map_err(|_| {
         PersistenceError::InvalidRequest("revision exceeds SQLite integer range".to_owned())
     })
-}
-
-pub(crate) const fn workspace_state_name(state: WorkspaceState) -> &'static str {
-    match state {
-        WorkspaceState::Online => "online",
-        WorkspaceState::Offline => "offline",
-        WorkspaceState::Archived => "archived",
-        WorkspaceState::ReconciliationRequired => "reconciliation_required",
-    }
-}
-
-pub(crate) fn parse_workspace_state(value: &str) -> Result<WorkspaceState, PersistenceError> {
-    match value {
-        "online" => Ok(WorkspaceState::Online),
-        "offline" => Ok(WorkspaceState::Offline),
-        "archived" => Ok(WorkspaceState::Archived),
-        "reconciliation_required" => Ok(WorkspaceState::ReconciliationRequired),
-        _ => Err(PersistenceError::InvalidRequest(format!(
-            "unknown persisted workspace state: {value}"
-        ))),
-    }
-}
-
-pub(crate) const fn catalog_freshness_name(value: CatalogFreshness) -> &'static str {
-    match value {
-        CatalogFreshness::Unavailable => "unavailable",
-        CatalogFreshness::Rebuilding => "rebuilding",
-        CatalogFreshness::Fresh => "fresh",
-        CatalogFreshness::Stale => "stale",
-    }
-}
-
-pub(crate) fn parse_catalog_freshness(value: &str) -> Result<CatalogFreshness, PersistenceError> {
-    match value {
-        "unavailable" => Ok(CatalogFreshness::Unavailable),
-        "rebuilding" => Ok(CatalogFreshness::Rebuilding),
-        "fresh" => Ok(CatalogFreshness::Fresh),
-        "stale" => Ok(CatalogFreshness::Stale),
-        _ => Err(PersistenceError::InvalidRequest(format!(
-            "unknown persisted catalog freshness: {value}"
-        ))),
-    }
 }

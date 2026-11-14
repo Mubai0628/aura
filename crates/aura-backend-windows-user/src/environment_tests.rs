@@ -35,6 +35,17 @@ fn the_execution_baseline_carries_what_creating_an_appcontainer_child_needs() {
 }
 
 #[test]
+fn a_sandboxed_run_still_finds_only_the_packages_modules() {
+    let pinned = "$env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules')";
+    assert!(POWERSHELL_BOOTSTRAP.contains(pinned));
+    assert!(powershell_command_file().contains(pinned));
+    // The user's variant changes that one line and nothing else.
+    let user = user_powershell_command_file();
+    assert!(!user.contains(pinned), "{user}");
+    assert_eq!(user.replacen(USER_MODULE_PATH, pinned, 1), powershell_command_file());
+}
+
+#[test]
 #[ignore = "requires the locally cached pinned PowerShell package; no runtime download"]
 fn managed_powershell_bound_image_initializes_file_provider() {
     check_file_provider(false);

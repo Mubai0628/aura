@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { WebServiceSettingV1 } from '@aura/contracts/generated';
-import { userMessage } from '../agent-session/user-message';
+import { settingsNotSaved } from './failure-words';
 import type { ConfigurationOwner } from './useAgentConfiguration';
 import './execution-strategy.css';
 
@@ -49,7 +49,11 @@ export function WebService({ configuration }: { configuration: ConfigurationOwne
           </select>
         </label>
       </div>
-      {error === undefined ? null : <p role="alert">{userMessage(error)}</p>}
+      {error === undefined ? null : (
+        <p role="alert">
+          {settingsNotSaved(error, '网页服务没有切换', '仍在使用原来的服务', '请稍后再试')}
+        </p>
+      )}
     </div>
   );
 }

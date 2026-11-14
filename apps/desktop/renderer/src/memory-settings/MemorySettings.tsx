@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { MemorySettingsSnapshot, WorkspaceId } from '@aura/contracts/generated';
 import { AppIcon } from '../app-icons';
 import { useMemory } from './useMemory';
+import { MEMORY_FAILURE } from './memory-words';
 import { VaultPanel } from './VaultPanel';
 import { MaintenanceRuns } from './MaintenanceRuns';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
@@ -64,6 +65,7 @@ export function MemorySettings({
                   settings,
                 }),
               '记忆设置已保存',
+              MEMORY_FAILURE.saveSettings,
             );
             if (result) await state.reload();
           }}
@@ -80,11 +82,14 @@ export function MemorySettings({
         )}
         busy={state.busy}
         onOpenLog={() =>
-          state.act(() =>
-            state.call('memory.maintenance.open_log', {
-              scope: 'project',
-              workspace_id: workspaceId ?? null,
-            }),
+          state.act(
+            () =>
+              state.call('memory.maintenance.open_log', {
+                scope: 'project',
+                workspace_id: workspaceId ?? null,
+              }),
+            undefined,
+            MEMORY_FAILURE.openLog,
           )
         }
       />

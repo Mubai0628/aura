@@ -11,6 +11,9 @@ import {
   TERMINAL_OPENING_CANCEL_CHANNEL,
   TERMINAL_OPENING_EVENT_CHANNEL,
 } from '../shared/terminal-opening-api.js';
+import { envelopeOf } from './request-failure-envelopes.js';
+const CORE_ABSENT = new Error('Core unavailable');
+
 export function registerTerminalOpeningIpc(
   getCore: () => CoreSupervisor | undefined,
   trust: (event: IpcMainInvokeEvent) => void,
@@ -20,6 +23,7 @@ export function registerTerminalOpeningIpc(
     if (!contents.isDestroyed()) contents.send(TERMINAL_OPENING_EVENT_CHANNEL, change);
   });
   const watched = new WeakSet<WebContents>();
+  // Without Core, or without a channel to it, nothing was asked: Core is starting or restarting.
   const failure = (error: unknown) => ({
     ok: false as const,
     error:
@@ -27,7 +31,9 @@ export function registerTerminalOpeningIpc(
         ? error.envelope
         : errorEnvelope(
             'terminal.opening.unavailable',
-            '终端打开状态暂不可用，请检查 Core 状态。',
+            error === CORE_ABSENT || envelopeOf(error)?.code === 'ipc.request_not_sent'
+              ? 'Aura Core 正在启动或重启，终端没有打开；等 Core 就绪后再点一次。'
+              : '终端没有打开（Aura 内部出错）；请再点一次，仍不行请重启 Aura。',
             'failed',
           ),
   });
@@ -37,7 +43,7 @@ export function registerTerminalOpeningIpc(
       if (args.length !== 1 || !isTerminalOpeningStart(args[0]))
         throw new Error('invalid opening request');
       const core = getCore();
-      if (!core) throw new Error('Core unavailable');
+      if (!core) throw CORE_ABSENT;
       if (!watched.has(event.sender)) {
         watched.add(event.sender);
         event.sender.once('destroyed', () => openings.closeOwner(event.sender));

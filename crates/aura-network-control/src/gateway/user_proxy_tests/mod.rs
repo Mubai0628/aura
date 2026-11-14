@@ -7,6 +7,7 @@ mod provider;
 mod proxy;
 mod routes;
 mod support;
+mod tun;
 
 use super::*;
 use aura_tool_contract::{ToolNetworkProxyProtocolV1, ToolNetworkProxyV1};

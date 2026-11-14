@@ -60,7 +60,7 @@ test('a changed answer is reread instead of being retried blindly', async () => 
   });
   render(<SessionMemoryGrants sessionId="session" open />);
   await userEvent.setup().click(await screen.findByRole('button', { name: '撤销记忆批准' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('该批准状态已变化，已重新读取');
+  expect((await screen.findByRole('alert')).textContent).toContain('这项批准的状态刚变化');
   await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
 });
 

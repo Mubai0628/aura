@@ -13,6 +13,9 @@ use serde_json::{Value, json};
 /// A screenshot's PNG bytes, width and height.
 type Image = (Vec<u8>, u32, u32);
 
+/// After a step that may have changed the page and did not report back.
+const UNSURE: &str = "不确定这一步是否已经执行，请先用 chrome.snapshot 查看页面。";
+
 struct Answer {
     success: bool,
     side_effect: SideEffectStateV1,
@@ -94,7 +97,12 @@ fn checked(
     value: Value,
     shown: bool,
 ) -> Result<(Value, Option<Image>), String> {
-    let invalid = |error: serde_json::Error| format!("Chrome 返回了无法识别的结果：{error}");
+    let invalid = |error: serde_json::Error| {
+        format!(
+            "Chrome 扩展返回的结果 Aura 读不懂（{}）",
+            super::super::browser::outside_detail(&error.to_string(), 200)
+        )
+    };
     let tab_of =
         |tab: u32, report: &ChromePageReport| chrome.tab_changed(tab, &report.url, &report.title);
     let output = match command {
@@ -165,8 +173,8 @@ fn checked(
             tab_of(*tab_id, &report);
             serde_json::to_value(page(reference, report))
         }
-        ChromeCommand::Inspect { .. } | ChromeCommand::Release { .. } => {
-            return Err("这个命令没有工具结果".into());
+        ChromeCommand::Inspect { .. } | ChromeCommand::Release { .. } | ChromeCommand::Tabs => {
+            return Err("这个命令不是工具调用的命令（Aura 内部不一致）".into());
         }
     };
     output.map(|output| (output, None)).map_err(invalid)
@@ -218,7 +226,11 @@ pub(in crate::agent_execution) async fn invoke(
         .session(call.snapshot.session_id)?
         .into_iter()
         .find(|entry| entry.call.validated.call.tool_call_id == call.validated.call.tool_call_id)
-        .ok_or_else(|| anyhow::anyhow!("chrome.call_not_active"))?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "chrome.call_not_active: 这次 Chrome 调用在发给 Chrome 之前已经结束（回合停止了或调用被取消），什么都没做。"
+            )
+        })?
         .cancel
         .subscribe();
     // The call has started; a later permission change does not undo it.
@@ -317,7 +329,11 @@ async fn carry_out(
 ) -> Answer {
     let Target { reference, site, reused } = target;
     let Some(chrome) = service.chrome.get() else {
-        return failed("chrome.not_connected: Chrome 没有连接 Aura。".into(), false);
+        return failed(
+            "chrome.not_connected: Chrome 没有连接 Aura，这一步没有执行。请用户在 Chrome 里打开 Aura 侧边栏，确认已连接后再试。"
+                .into(),
+            false,
+        );
     };
     let session = call.snapshot.session_id;
     let _hold = match chrome.hold(session) {
@@ -340,7 +356,7 @@ async fn carry_out(
         | ChromeCommand::Console { tab_id, .. }
         | ChromeCommand::Close { tab_id }
         | ChromeCommand::Assist { tab_id, .. } => Some(*tab_id),
-        ChromeCommand::Release { .. } => None,
+        ChromeCommand::Release { .. } | ChromeCommand::Tabs => None,
     };
     // The call was authorized on this site: the user approved it, or the share or the
     // conversation had confirmed it. The share keeps it.
@@ -361,7 +377,10 @@ async fn carry_out(
         chrome.set_with_user(tab, Some(reason));
     }
     let Ok(value) = serde_json::to_value(command) else {
-        return failed("chrome.failed: 命令无法发送".into(), false);
+        return failed(
+            "chrome.failed: Aura 没能把这一步整理成发给 Chrome 的命令，什么都没做。".into(),
+            false,
+        );
     };
     let may_act = acts(command);
     let sent = tokio::select! {
@@ -372,26 +391,27 @@ async fn carry_out(
         chrome.set_with_user(tab, None);
     }
     use aura_chrome_service::chrome_control::ChromeRequestError as E;
-    let unsure = if may_act {
-        "不确定这一步是否已经执行，请先用 chrome.snapshot 查看页面。"
+    let (unsure, again) = if may_act {
+        (UNSURE, UNSURE)
     } else {
-        ""
+        ("页面没有被改动。", "页面没有被改动；可以再试一次。")
     };
     match sent {
         None => failed(format!("chrome.cancelled: 这一步已取消。{unsure}"), may_act),
         Some(Err(E::NotConnected)) => {
-            failed("chrome.not_connected: Chrome 没有连接 Aura，这一步没有执行。".into(), false)
+            failed(
+                "chrome.not_connected: Chrome 没有连接 Aura，这一步没有执行。请用户在 Chrome 里打开 Aura 侧边栏，确认已连接后再试。"
+                    .into(),
+                false,
+            )
         }
         Some(Err(E::TimedOut)) => {
-            failed(format!("chrome.timed_out: Chrome 没有及时回应。{unsure}"), may_act)
+            failed(format!("chrome.timed_out: Chrome 没有及时回应。{again}"), may_act)
         }
         Some(Err(E::Disconnected)) => {
-            failed(format!("chrome.disconnected: Chrome 的连接断开了。{unsure}"), may_act)
+            failed(format!("chrome.disconnected: Chrome 的连接断开了。{again}"), may_act)
         }
-        Some(Err(E::Failed { code, message })) => {
-            let refused = code.starts_with("chrome.refused") || code == "chrome.stopped";
-            failed(format!("{code}: {message}"), may_act && !refused)
-        }
+        Some(Err(E::Failed { code, message })) => failed_in_chrome(&code, &message, may_act),
         Some(Ok(value)) => match checked(chrome, session, command, reference, value, shown) {
             Ok((mut output, image)) => {
                 if let (true, Some(tab)) = (reused, tab) {
@@ -412,7 +432,52 @@ async fn carry_out(
                     image,
                 }
             }
-            Err(message) => failed(format!("chrome.failed: {message}"), may_act),
+            // Chrome finished the step; only its report could not be used.
+            Err(message) if may_act => failed(
+                format!(
+                    "chrome.failed: 这一步在 Chrome 里已经完成，但{message}；请先用 chrome.snapshot 查看页面，不要直接重做。"
+                ),
+                true,
+            ),
+            Err(message) => {
+                failed(format!("chrome.failed: {message}。页面没有被改动；可以再试一次。"), false)
+            }
         },
+    }
+}
+
+/// The extension's own report of a step it could not carry out. A refusal changed nothing; any
+/// other failure of a step that can change the page may have changed it. `chrome.failed` also
+/// carries what Chrome itself threw, so it always says what became of the page.
+fn failed_in_chrome(code: &str, message: &str, may_act: bool) -> Answer {
+    let refused = code.starts_with("chrome.refused") || code == "chrome.stopped";
+    let acted = may_act && !refused;
+    let said = super::super::browser::ended(&super::super::browser::outside_detail(message, 600));
+    let tail = match (acted, code) {
+        (true, _) => UNSURE,
+        (false, "chrome.failed") => "页面没有被改动。",
+        _ => "",
+    };
+    failed(format!("{code}: {said}{tail}"), acted)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn what_chrome_threw_says_whether_the_page_may_have_changed() {
+        let message = "Chrome 执行这一步（click）时出错：No tab with id: 9。";
+        let acted = failed_in_chrome("chrome.failed", message, true);
+        let expected = format!("chrome.failed: {message}{UNSURE}");
+        assert_eq!(acted.error.as_deref(), Some(expected.as_str()));
+        assert_eq!(acted.side_effect, SideEffectStateV1::Unknown);
+        let read = failed_in_chrome("chrome.failed", message, false);
+        let expected = format!("chrome.failed: {message}页面没有被改动。");
+        assert_eq!(read.error.as_deref(), Some(expected.as_str()));
+        assert_eq!(read.side_effect, SideEffectStateV1::NoEffect);
+        let refused = failed_in_chrome("chrome.refused", "这个网站不允许操作", true);
+        assert_eq!(refused.error.as_deref(), Some("chrome.refused: 这个网站不允许操作。"));
+        assert_eq!(refused.side_effect, SideEffectStateV1::NoEffect);
     }
 }

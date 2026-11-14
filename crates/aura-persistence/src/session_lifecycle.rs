@@ -21,6 +21,9 @@ pub const SESSION_IDLE: &str = "idle";
 pub const SESSION_ARCHIVED: &str = "archived";
 /// While its data is being deleted. The workspace/session projection leaves such a Session out.
 pub const SESSION_DELETING: &str = "deleting";
+/// A sub-agent's conversation. It is listed with its Workspace for the desktop to leave out of the
+/// sidebar; it is shown only in the conversation that started it.
+pub const SESSION_SUBAGENT: &str = "subagent";
 
 /// A removed Workspace: the primary registry already deleted its rows and its Sessions' rows; the
 /// execution store's rows and Aura's files for it are still to go. `notification_id` is marked
@@ -82,6 +85,14 @@ impl PersistenceCoordinator {
         self.change_session_state(session_id, target)
     }
 
+    /// Marks a Session as a sub-agent's conversation. Repeating it is harmless.
+    pub fn mark_session_subagent(
+        &self,
+        session_id: SessionId,
+    ) -> Result<SessionSummary, PersistenceError> {
+        self.change_session_state(session_id, SESSION_SUBAGENT)
+    }
+
     /// Hides the Session and records that its data is to be deleted. Repeating it is harmless.
     pub fn mark_session_deleting(
         &self,
@@ -108,12 +119,14 @@ impl PersistenceCoordinator {
     /// so the one transaction that deletes the rest holds the writer briefly.
     pub fn purge_session(&self, session_id: SessionId) -> Result<bool, PersistenceError> {
         let session = session_id.to_string();
-        let planned = self.with_reader(|connection| match state_of(connection, session_id)? {
-            None => Ok(None),
-            Some(state) if state != SESSION_DELETING => {
-                Err(PersistenceError::InvalidRequest("session.not_deleting".into()))
+        let planned = self.read_within(crate::registry_purge::SCAN_BUDGET, |connection| {
+            match state_of(connection, session_id)? {
+                None => Ok(None),
+                Some(state) if state != SESSION_DELETING => {
+                    Err(PersistenceError::InvalidRequest("session.not_deleting".into()))
+                }
+                Some(_) => Ok(Some(crate::registry_purge::of_session(connection, &session)?)),
             }
-            Some(_) => Ok(Some(crate::registry_purge::of_session(connection, &session)?)),
         })?;
         let Some(mut scanned) = planned else {
             return Ok(false);

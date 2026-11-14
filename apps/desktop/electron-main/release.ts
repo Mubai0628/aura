@@ -6,6 +6,7 @@ import type {
   ReleaseDescriptor,
 } from '@aura/contracts/generated';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { resolvePublishedCoreExecutable, selectPackagedCoreExecutable } from './published-core.js';
@@ -177,6 +178,30 @@ const safeReleasePath = (root: string, candidate: string): string => {
   if (back.startsWith('..') || isAbsolute(back))
     throw new Error('component escaped Release Bundle');
   return absolute;
+};
+
+/**
+ * This version's manifest and Core, found before the app is ready, for asking that Core where the
+ * data is when the launcher did not say (`data-locations.ts`).
+ */
+export const locationsQuery = (options: {
+  appIsPackaged: boolean;
+  currentDirectory: string;
+  executablePath: string;
+}): { coreExecutable: string; manifestPath: string } => {
+  const repositoryRoot = resolve(options.currentDirectory, '../../../..');
+  if (!options.appIsPackaged) {
+    return {
+      coreExecutable: resolve(repositoryRoot, 'target/debug/aura-core.exe'),
+      manifestPath: resolve(repositoryRoot, 'target/aura-dev-runtime/component-manifest.json'),
+    };
+  }
+  const versionDirectory = dirname(options.executablePath);
+  const manifestPath = resolve(versionDirectory, 'component-manifest.json');
+  const manifest = parseManifest(JSON.parse(readFileSync(manifestPath, 'utf8')) as unknown);
+  const core = manifest.components.find((component) => component.kind === 'core');
+  if (core === undefined) throw new Error('Release Bundle must contain core');
+  return { coreExecutable: safeReleasePath(versionDirectory, core.relative_path), manifestPath };
 };
 
 export const loadReleaseContext = async (options: {

@@ -15,6 +15,12 @@ pub(super) fn approve_file(
         panic!("explicit file approval proposal");
     };
     let now = UtcTimestamp::now();
+    let folder = f
+        .service()
+        .persistence
+        .workspace(f.turn.workspace_id)
+        .expect("read the Workspace the user answers in")
+        .canonical_root;
     let request = AuthorizationApproval {
         approval_id: ApprovalRequestId::new(),
         revision: Revision::INITIAL,
@@ -40,6 +46,7 @@ pub(super) fn approve_file(
                 backend.class,
                 call.snapshot.session_permission_revision,
                 engine.runtime,
+                Some(&folder),
                 now,
             )
         })

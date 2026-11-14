@@ -8,9 +8,10 @@
 //! a result is workspace data and is sent only as a tool result.
 use aura_agent_domain::*;
 use aura_domain_common::*;
+use aura_execution_contract::SideEffectStateV1;
 use aura_model_domain::*;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, record};
-use aura_tool_contract::ToolResultOutcomeV1;
+use aura_tool_contract::{ToolCancellationReasonV1, ToolResultOutcomeV1};
 use rusqlite::{Connection, OptionalExtension};
 use std::fmt::Write as _;
 
@@ -58,7 +59,7 @@ pub(super) fn note(
         content.push_str("\n\n");
     }
     content.push('[');
-    content.push_str(&why(&reason, cancelled));
+    content.push_str(&why(db, turn, &reason, cancelled)?);
     match unfinished.filter(|u| !u.calls.is_empty()) {
         None => content.push_str(
             " Its messages and finished steps are above as they were; nothing else ran, so the history holds nothing more about it.",
@@ -88,31 +89,60 @@ pub(super) fn note(
     }))
 }
 
-fn why(reason: &str, cancelled: bool) -> String {
-    match reason {
+/// Why the turn stopped, in words, and what may help next: a provider failure names what the
+/// provider did, a Hook its name and reason, the run's own failure its cause.
+fn why(db: &Connection, turn: &TurnTask, reason: &str, cancelled: bool) -> StoreResult<String> {
+    let run = turn.agent_run_id;
+    Ok(match reason {
         "agent.core_restarted" if !cancelled => {
-            "This turn was cut off here: Aura restarted while it was running.".into()
+            if crate::agent::restart_continuation::continued_by_aura(db, turn.turn_task_id)? {
+                "This turn was cut off here: Aura restarted while it was running, then continued it on its own; the 继续 after this note was sent by Aura, not typed by the user.".into()
+            } else {
+                "This turn was cut off here: Aura restarted while it was running.".into()
+            }
         }
-        "agent.cancelled" | "agent.core_restarted" => "The user stopped this turn here.".into(),
         "agent.mode_paused" => "This turn stopped here: the user paused its mode.".into(),
         "agent.mode_terminated" => "This turn stopped here: the user ended its mode.".into(),
-        other => format!("This turn stopped here ({other})."),
-    }
+        _ => match super::stop_cause(db, run, reason, cancelled)? {
+            super::StopCause::UserStopped => "The user stopped this turn here.".into(),
+            super::StopCause::Shutdown => {
+                "This turn was cut off here: Aura shut down while it was running.".into()
+            }
+            cause => match cause.next_step() {
+                Some(next) => format!("This turn stopped here: {}. {next}", cause.english()),
+                None => format!("This turn stopped here: {}.", cause.english()),
+            },
+        },
+    })
 }
 
 /// What is known of a call of the unfinished response. A call with no record was never admitted.
 fn state(db: &Connection, id: ToolCallId) -> &'static str {
     match crate::tool::execution::call(db, id) {
-        Ok(call) => match call.result.map(|result| result.outcome) {
-            Some(ToolResultOutcomeV1::Succeeded) => {
+        Ok(call) => match call.result.map(|result| (result.outcome, result.side_effect_state)) {
+            // Its turn was stopped in the moment after it was marked started; nothing was sent.
+            Some((
+                ToolResultOutcomeV1::Cancelled {
+                    reason: ToolCancellationReasonV1::TurnInterrupted,
+                },
+                SideEffectStateV1::NoEffect | SideEffectStateV1::NotStarted,
+            )) => "it did not run: the turn stopped before it started.",
+            Some((ToolResultOutcomeV1::Succeeded, _)) => {
                 "it finished; context.read_tool_result reads its result."
             }
-            Some(ToolResultOutcomeV1::NotExecuted { .. }) => "it did not run.",
-            Some(ToolResultOutcomeV1::Cancelled { .. }) => {
+            Some((ToolResultOutcomeV1::NotExecuted { .. }, _)) => "it did not run.",
+            Some((ToolResultOutcomeV1::Cancelled { .. }, _)) => {
                 "it was cancelled before it finished; context.read_tool_result reads what it did."
+            }
+            Some((ToolResultOutcomeV1::Indeterminate { .. }, _)) => {
+                "its outcome is unknown: it may or may not have taken effect; context.read_tool_result reads what is known, so check before doing it again."
             }
             Some(_) => "it finished with an error; context.read_tool_result reads it.",
             None if call.attempt_id.is_none() => "it did not run.",
+            // Reserved but never marked started: once its turn stopped it could not start.
+            None if never_dispatched(db, id) => {
+                "it did not run: the turn stopped before it started."
+            }
             None => {
                 "it started, but its result was lost: it may or may not have taken effect, so check before doing it again."
             }
@@ -120,6 +150,14 @@ fn state(db: &Connection, id: ToolCallId) -> &'static str {
         Err(Error::Sqlite(rusqlite::Error::QueryReturnedNoRows)) => "it did not run.",
         Err(_) => "what became of it is not known: check before doing it again.",
     }
+}
+
+/// Whether the attempt of a call left without a result was never marked started.
+fn never_dispatched(db: &Connection, id: ToolCallId) -> bool {
+    crate::tool::activity::attempt_of(db, id)
+        .ok()
+        .flatten()
+        .is_some_and(|attempt| attempt.dispatched_at.is_none())
 }
 
 fn shortened(arguments: &str) -> String {

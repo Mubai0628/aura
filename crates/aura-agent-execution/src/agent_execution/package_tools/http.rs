@@ -16,6 +16,12 @@ use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+// Why a package HTTP call was not sent, for the model: the cause and what the user can change.
+pub(super) const CREDENTIAL_UNBOUND: &str = "http.credential_unbound: 这个工具需要的凭据还没有绑定，请求没有发出。请用户在工具包页给这个工具绑定凭据。";
+const CREDENTIAL_CHANGED: &str = "http.credential_changed: 这次调用批准之后，这个工具的凭据绑定变了，请求没有发出。可以重新调用，会按现在的绑定再确认。";
+const ORIGIN_MISSING: &str =
+    "package.origin_missing: 这次调用的记录里没有它要请求的网站，请求没有发出。可以重新调用。";
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct EmbeddedRequest {
@@ -56,7 +62,11 @@ fn embedded(content: &OperationContent) -> Result<EmbeddedRequest> {
 pub(crate) fn gateway_request(content: &OperationContent) -> Result<GatewayRequest> {
     let request = embedded(content)?;
     let body = base64::engine::general_purpose::STANDARD.decode(&request.body_base64)?;
-    ensure!(url::Url::parse(&request.url)?.scheme() == "https", "package.https_required");
+    let scheme = url::Url::parse(&request.url)?.scheme().to_owned();
+    ensure!(
+        scheme == "https",
+        "package.https_required: 这个工具只能请求 https:// 地址，这次要请求的是 {scheme}:// 地址，请求没有发出。请告诉用户这个工具包的地址需要改成 https。"
+    );
     Ok(GatewayRequest {
         plan: NetworkRequestPlan {
             request_id: NetworkRequestId::new(),
@@ -99,7 +109,7 @@ pub(crate) fn credential_target(
     let (_, placement, _) =
         package_services::http_credential(&tool.tool, tool.settings.as_slice())?
             .filter(|(declared, _, _)| declared == slot)
-            .ok_or_else(|| anyhow::anyhow!("http.credential_unbound"))?;
+            .ok_or_else(|| anyhow::anyhow!(CREDENTIAL_UNBOUND))?;
     Ok(aura_tool_domain::ToolCredentialManagementTargetV1 {
         tool_instance_id: tool.instance.tool_instance_id,
         expected_instance_revision: tool.trust_revision,
@@ -121,7 +131,9 @@ pub(crate) fn usage_placement(
         Declared::HttpFixedHeader { header_name } => {
             Use::FixedHeader { header_name: header_name.clone() }
         }
-        Declared::CommandEnvironment { .. } => anyhow::bail!("http.credential_placement_invalid"),
+        Declared::CommandEnvironment { .. } => anyhow::bail!(
+            "http.credential_placement_invalid: 这个工具的凭据设成了给程序用的环境变量，HTTP 请求用不了它，请求没有发出。请告诉用户这个工具包的凭据设置有误。"
+        ),
     })
 }
 
@@ -133,22 +145,25 @@ pub(crate) fn current_credential(
     target: &aura_tool_domain::ToolCredentialManagementTargetV1,
     origin: &ResourceDescriptor,
 ) -> Result<aura_tool_domain::ToolCredentialAuthorityRecordV1> {
-    let binding = tool.credential.as_ref().ok_or_else(|| {
-        anyhow::anyhow!("http.credential_unbound: 这个工具需要先在工具包页绑定凭据")
-    })?;
+    let binding = tool.credential.as_ref().ok_or_else(|| anyhow::anyhow!(CREDENTIAL_UNBOUND))?;
     let record = persistence
         .list_managed_tool_credentials_v1(target.clone())?
         .into_iter()
         .find(|record| record.credential_id == binding.credential_id)
-        .ok_or_else(|| anyhow::anyhow!("http.credential_unbound: 绑定的凭据已不存在"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "http.credential_unbound: 这个工具绑定的凭据已经被删除，请求没有发出。请用户在工具包页给它重新绑定凭据。"
+            )
+        })?;
     ensure!(
         record.state == aura_tool_domain::ToolCredentialStateV1::Configured
             && record.credential_revision == binding.credential_revision,
-        "http.credential_rebind_required: 绑定的凭据已变化，请在工具包页重新绑定"
+        "http.credential_rebind_required: 这个工具绑定的凭据之后改过或需要重新填写，请求没有发出。请用户在工具包页重新绑定。"
     );
+    let allowed = origin_text(origin)?;
     ensure!(
-        record.allowed_origins.binary_search(&origin_text(origin)?).is_ok(),
-        "http.credential_origin_denied: 凭据的允许网站不包含工具的地址"
+        record.allowed_origins.binary_search(&allowed).is_ok(),
+        "http.credential_origin_denied: 这个工具绑定的凭据不允许发往 {allowed}，请求没有发出。请用户在工具包页把这个网站加进凭据的允许网站。"
     );
     Ok(record)
 }
@@ -156,7 +171,7 @@ pub(crate) fn current_credential(
 /// `https://host[:port]` as credential allowed websites spell it.
 pub(crate) fn origin_text(resource: &ResourceDescriptor) -> Result<String> {
     let ResourceDescriptor::NetworkOrigin { scheme, host, port } = resource else {
-        anyhow::bail!("package.origin_missing")
+        anyhow::bail!(ORIGIN_MISSING)
     };
     let url = url::Url::parse(&format!("{scheme}://{host}:{port}/"))?;
     Ok(url.origin().ascii_serialization())
@@ -175,11 +190,10 @@ pub(crate) fn load_secret(
     )>,
 > {
     let Some(slot) = &tool.credential_slot else {
-        ensure!(content.credentials.is_empty(), "http.credential_changed");
+        ensure!(content.credentials.is_empty(), CREDENTIAL_CHANGED);
         return Ok(None);
     };
-    let binding =
-        tool.credential.as_ref().ok_or_else(|| anyhow::anyhow!("http.credential_unbound"))?;
+    let binding = tool.credential.as_ref().ok_or_else(|| anyhow::anyhow!(CREDENTIAL_UNBOUND))?;
     let reference = content
         .credentials
         .iter()
@@ -187,16 +201,16 @@ pub(crate) fn load_secret(
             reference.credential_id == binding.credential_id
                 && reference.credential_revision == binding.credential_revision
         })
-        .ok_or_else(|| anyhow::anyhow!("http.credential_changed"))?;
-    ensure!(content.credentials.len() == 1, "http.credential_changed");
+        .ok_or_else(|| anyhow::anyhow!(CREDENTIAL_CHANGED))?;
+    ensure!(content.credentials.len() == 1, CREDENTIAL_CHANGED);
     let target = credential_target(tool, slot)?;
     let origin_resource = content
         .resources
         .iter()
         .find(|resource| matches!(resource, ResourceDescriptor::NetworkOrigin { .. }))
-        .ok_or_else(|| anyhow::anyhow!("package.origin_missing"))?;
+        .ok_or_else(|| anyhow::anyhow!(ORIGIN_MISSING))?;
     let ResourceDescriptor::NetworkOrigin { scheme, host, port } = origin_resource else {
-        anyhow::bail!("package.origin_missing")
+        anyhow::bail!(ORIGIN_MISSING)
     };
     // The record may have changed since approval: re-check it at the point of use.
     current_credential(&service.persistence, tool, &target, origin_resource)?;

@@ -16,10 +16,7 @@ use aura_model_domain::{
     CancellationSource, ModelAvailabilityTestState, ModelDiscoveryState,
     ModelOperationCancellationReason, TransportAttemptState, TransportOperationContext,
 };
-use aura_network_control::{
-    ConfigurationTransportPolicyV1, CoreHttpClientGateway, NetworkControlOptions,
-    PersistenceNetworkGrantStore,
-};
+use aura_network_control::{ConfigurationTransportPolicyV1, CoreHttpClientGateway};
 use aura_persistence::ModelDiscoveryTerminalEventContext;
 use aura_persistence::PersistenceCoordinator;
 use aura_persistence::{
@@ -30,7 +27,6 @@ use aura_projection_contract::{ProjectionChange, ProjectionKind, ProjectionScope
 use aura_runtime_contract::{BundleNamespace, ReleaseTrustDomain};
 use tokio::sync::Notify;
 
-use crate::p05_credential::PersistentProviderCredentialResolver;
 use crate::p05_credential::{P05CredentialJournal, P05CredentialJournalError};
 
 pub(crate) mod availability;
@@ -40,6 +36,8 @@ pub(crate) mod config_journal;
 pub(crate) mod configuration_transport;
 pub(crate) mod credential_preflight;
 pub(crate) mod discovery;
+mod failures;
+mod model_gateway;
 pub(crate) mod projection;
 pub mod provider_error;
 pub mod provider_icon;
@@ -255,17 +253,14 @@ impl crate::InitialSessionModelBindingResolver for P05Services {
     fn resolve_initial_session_model_binding(
         &self,
     ) -> Result<aura_model_domain::InitialSessionModelBinding> {
-        let snapshot = self
-            .model_config
-            .snapshot()
-            .context("failed to read the model config for initial Session binding")?;
+        let snapshot = self.model_config.snapshot().context(failures::SESSION_CONFIG_UNREADABLE)?;
         let default = self
             .model_config
             .default_model_selection()
-            .context("failed to read the default model for initial Session binding")?;
+            .context(failures::SESSION_DEFAULT_UNREADABLE)?;
         self.projections
             .initial_session_model_binding(&snapshot, &default)
-            .context("failed to resolve the initial Session model binding")
+            .context(failures::SESSION_BINDING_FAILED)
     }
 }
 
@@ -287,26 +282,19 @@ impl P05Services {
         bundle_namespace: BundleNamespace,
         sync: aura_core_base::sync_boundary::SyncBoundary,
     ) -> Result<Self> {
-        let network_grants =
-            Arc::new(PersistenceNetworkGrantStore::new(persistence.as_ref().clone()));
-        let provider_credentials =
-            Arc::new(PersistentProviderCredentialResolver::new(Arc::clone(&persistence)));
-        let gateway = Arc::new(
-            CoreHttpClientGateway::new(network_grants, None, NetworkControlOptions::default())
-                .with_provider_credentials(provider_credentials),
-        );
+        let gateway = model_gateway::open(&persistence, &settings);
         let absolute_raw_stream_ceiling =
             ConfigurationTransportPolicyV1::agent_model_response_limit_bytes(u64::MAX)
-                .context("P05 Agent response ceiling must be non-zero")?;
+                .context(failures::RESPONSE_CEILING_INVALID)?;
         let max_raw_stream_bytes = usize::try_from(absolute_raw_stream_ceiling)
-            .context("P05 Agent response ceiling does not fit this platform")?;
+            .context(failures::RESPONSE_CEILING_UNSUPPORTED)?;
         let transport_store = Arc::new(
             PersistentTransportStore::new(
                 Arc::clone(&persistence),
                 Arc::new(UnavailableAgentModelArtifactOwnerResolver),
                 max_raw_stream_bytes,
             )
-            .context("failed to initialize the persistent model transport store")?,
+            .context(failures::TRANSPORT_STORE_UNAVAILABLE)?,
         );
         let model_config = Arc::new(ModelConfigService::new(Arc::clone(&settings)));
         let projections =
@@ -338,16 +326,14 @@ impl P05Services {
         // the claim. It is deliberately not part of the shareable reconciliation.
         if env::var_os("AURA_P05_CLEAN_ACCEPTANCE").is_some() {
             if env::var("AURA_P05_CLEAN_ACCEPTANCE").as_deref() != Ok("1") {
-                anyhow::bail!("AURA_P05_CLEAN_ACCEPTANCE must be exactly 1 when present");
+                anyhow::bail!(failures::CLEAN_ACCEPTANCE_FLAG_INVALID);
             }
             if bundle_namespace.trust_domain() != Some(ReleaseTrustDomain::Development) {
-                anyhow::bail!(
-                    "the clean P05 acceptance profile is restricted to a Development namespace"
-                );
+                anyhow::bail!(failures::CLEAN_ACCEPTANCE_NAMESPACE);
             }
             persistence
                 .validate_clean_p05_acceptance_profile()
-                .context("p05.clean_acceptance.integrity_check_failed")?;
+                .context(failures::CLEAN_ACCEPTANCE_INTEGRITY)?;
             aura_core_base::append_core_log(
                 "p05_clean_acceptance_profile_verified",
                 serde_json::json!({
@@ -360,7 +346,7 @@ impl P05Services {
         }
         let provider_catalog = Arc::new(
             open_catalog(Arc::clone(&gateway), Arc::clone(&persistence))
-                .context("failed to initialize the P05 provider catalog")?,
+                .context(failures::CATALOG_UNAVAILABLE)?,
         );
         let provider_icons = ProviderIconService::new(
             Arc::clone(&gateway),
@@ -416,7 +402,7 @@ impl P05Services {
     ) -> Result<()> {
         for journal in persistence
             .incomplete_model_config_mutation_journals()
-            .context("failed to load incomplete P05 model-config journals")?
+            .context(failures::CONFIG_JOURNALS_UNREADABLE)?
         {
             let journal_id = journal.journal_id;
             let schema_version = journal.payload.schema_version;
@@ -452,7 +438,7 @@ impl P05Services {
             }
         }
         cancel_interrupted_model_operations(persistence)
-            .context("failed to cancel P05 operations interrupted by application restart")?;
+            .context(failures::INTERRUPTED_OPERATIONS_UNSETTLED)?;
         let mut credential_projection_factory =
             |journal: &aura_persistence::CredentialMutationJournalRecord,
              status: aura_model_domain::EndpointCredentialStatus| {
@@ -473,7 +459,7 @@ impl P05Services {
             };
         credential_journal
             .recover(&mut credential_projection_factory)
-            .context("failed to recover an incomplete P05 credential journal")?;
+            .context(failures::CREDENTIAL_JOURNAL_UNRECOVERED)?;
         Ok(())
     }
 
@@ -521,26 +507,19 @@ impl P05Services {
         bundle_namespace: BundleNamespace,
         sync: aura_core_base::sync_boundary::SyncBoundary,
     ) -> Result<Self> {
-        let network_grants =
-            Arc::new(PersistenceNetworkGrantStore::new(persistence.as_ref().clone()));
-        let provider_credentials =
-            Arc::new(PersistentProviderCredentialResolver::new(Arc::clone(&persistence)));
-        let gateway = Arc::new(
-            CoreHttpClientGateway::new(network_grants, None, NetworkControlOptions::default())
-                .with_provider_credentials(provider_credentials),
-        );
+        let gateway = model_gateway::open(&persistence, &settings);
         let absolute_raw_stream_ceiling =
             ConfigurationTransportPolicyV1::agent_model_response_limit_bytes(u64::MAX)
-                .context("P05 Agent response ceiling must be non-zero")?;
+                .context(failures::RESPONSE_CEILING_INVALID)?;
         let max_raw_stream_bytes = usize::try_from(absolute_raw_stream_ceiling)
-            .context("P05 Agent response ceiling does not fit this platform")?;
+            .context(failures::RESPONSE_CEILING_UNSUPPORTED)?;
         let transport_store = Arc::new(
             PersistentTransportStore::new(
                 Arc::clone(&persistence),
                 Arc::new(UnavailableAgentModelArtifactOwnerResolver),
                 max_raw_stream_bytes,
             )
-            .context("failed to initialize the persistent model transport store")?,
+            .context(failures::TRANSPORT_STORE_UNAVAILABLE)?,
         );
         let model_config = Arc::new(ModelConfigService::new(Arc::clone(&settings)));
         let projections =
@@ -551,7 +530,7 @@ impl P05Services {
         let credential_journal = P05CredentialJournal::new(Arc::clone(&persistence));
         let provider_catalog = Arc::new(
             open_catalog(Arc::clone(&gateway), Arc::clone(&persistence))
-                .context("failed to initialize the P05 provider catalog")?,
+                .context(failures::CATALOG_UNAVAILABLE)?,
         );
         let provider_icons = ProviderIconService::new(
             Arc::clone(&gateway),
@@ -595,53 +574,45 @@ impl P05Services {
         provider_catalog: Arc<PersistentProviderCatalog>,
         provider_icons: ProviderIconService,
     ) -> Result<Self> {
-        let initial_model_settings = projections
-            .current_model_settings()
-            .context("failed to build initial P05 ModelSettings projection")?;
+        let initial_model_settings =
+            projections.current_model_settings().context(failures::INITIAL_SETTINGS_UNAVAILABLE)?;
         let initial_catalog = project_catalog(
-            &provider_catalog
-                .status()
-                .context("failed to read initial P05 provider catalog status")?,
-            &model_config.snapshot().context("failed to read initial P05 model config snapshot")?,
+            &provider_catalog.status().context(failures::INITIAL_CATALOG_STATUS_UNREADABLE)?,
+            &model_config.snapshot().context(failures::INITIAL_CONFIG_UNREADABLE)?,
             &persistence,
         )
-        .context("failed to build initial P05 ProviderCatalog projection")?;
+        .context(failures::INITIAL_CATALOG_UNAVAILABLE)?;
         let mut initial_projection_drafts = vec![
             ModelProjectionDraft::ModelSettings(initial_model_settings),
             ModelProjectionDraft::ProviderCatalog(initial_catalog),
         ];
         projections
             .complete_model_config_projection_drafts(&mut initial_projection_drafts)
-            .context("failed to complete initial P05 model projections")?;
+            .context(failures::INITIAL_PROJECTIONS_INCOMPLETE)?;
         persistence
             .commit_model_projection_snapshots(initial_projection_drafts)
-            .context("failed to initialize P05 projection state")?;
+            .context(failures::INITIAL_PROJECTIONS_UNSAVED)?;
         provider_icons.schedule_missing();
         if tokio::runtime::Handle::try_current().is_ok()
             && provider_catalog.needs_refresh(aura_domain_common::UtcTimestamp::now())
-            && let Some(ownership) = provider_catalog
-                .begin_refresh()
-                .context("failed to enter P05 provider-catalog refresh state")?
+            && let Some(ownership) =
+                provider_catalog.begin_refresh().context(failures::INITIAL_REFRESH_UNAVAILABLE)?
         {
             // The occupancy's one owner exists before the first fallible step below: the loading
             // projection build and its commit both return `?`, and dropping the handle on either
             // of those exits is what gives the slot back instead of leaving the catalog
             // "refreshing" for the life of the process.
             let loading_catalog = project_catalog(
-                &provider_catalog
-                    .status()
-                    .context("failed to read P05 provider-catalog loading state")?,
-                &model_config
-                    .snapshot()
-                    .context("failed to read P05 model config for catalog refresh")?,
+                &provider_catalog.status().context(failures::INITIAL_REFRESH_STATUS_UNREADABLE)?,
+                &model_config.snapshot().context(failures::INITIAL_REFRESH_CONFIG_UNREADABLE)?,
                 &persistence,
             )
-            .context("failed to build P05 provider-catalog loading projection")?;
+            .context(failures::INITIAL_REFRESH_VIEW_UNAVAILABLE)?;
             persistence
                 .commit_model_projection_snapshots(vec![ModelProjectionDraft::ProviderCatalog(
                     loading_catalog,
                 )])
-                .context("failed to publish P05 provider-catalog loading projection")?;
+                .context(failures::INITIAL_REFRESH_VIEW_UNPUBLISHED)?;
             // The refresh now belongs to the task this starts, which releases the slot when its
             // own storage half really ends.
             drop(spawn_catalog_refresh(
@@ -678,11 +649,11 @@ impl P05Services {
         let current_settings = self
             .projections
             .current_model_settings()
-            .context("failed to build current P05 ModelSettings projection")?;
+            .context(failures::SETTINGS_REFRESH_UNAVAILABLE)?;
         let already_current = self
             .persistence
             .latest_model_projection(ProjectionKind::ModelSettings, ProjectionScope::Global)
-            .context("failed to read the latest P05 ModelSettings projection")?
+            .context(failures::SETTINGS_REFRESH_UNREADABLE)?
             .is_some_and(|change| {
                 matches!(
                     change,
@@ -697,14 +668,14 @@ impl P05Services {
         let mut drafts = vec![ModelProjectionDraft::ModelSettings(current_settings)];
         self.projections
             .complete_model_config_projection_drafts(&mut drafts)
-            .context("failed to rebuild all P05 model projection drafts")?;
+            .context(failures::SETTINGS_REFRESH_INCOMPLETE)?;
         let changes = self
             .persistence
             .commit_model_projection_snapshots(drafts)
-            .context("failed to commit rebuilt P05 model projections")?;
+            .context(failures::SETTINGS_REFRESH_UNSAVED)?;
         self.persistence
             .publish_model_projection_changes(&changes)
-            .context("failed to publish rebuilt P05 model projections")?;
+            .context(failures::SETTINGS_REFRESH_UNPUBLISHED)?;
         Ok(changes)
     }
 

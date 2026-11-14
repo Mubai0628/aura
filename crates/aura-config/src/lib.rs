@@ -40,6 +40,8 @@ mod prompt;
 pub mod recovery;
 pub mod recovery_contract;
 mod service;
+mod system_proxy;
+pub use system_proxy::TOOLS_PROXY_FIELD;
 mod tools;
 mod ui;
 pub use ui::{BackgroundMotion, DefaultTerminal, UiSettings, UiSettingsSnapshot, UiSettingsUpdate};

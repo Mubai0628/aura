@@ -1,0 +1,39 @@
+//! Integration tests of `aura-desktop-control` in one test program, one module per behaviour.
+
+mod act;
+mod alpha;
+mod area;
+mod arrange;
+mod banner;
+mod banner_native;
+mod catalog;
+mod compat;
+mod desktop;
+mod drag;
+mod drag_native;
+mod element_rules;
+mod elements;
+mod front;
+mod glide;
+mod guard;
+mod guard_aura;
+mod guard_native;
+mod hold;
+mod host_loop;
+mod input;
+mod marks;
+mod menu;
+mod own;
+mod password_safety;
+mod payment_safety;
+mod plan;
+mod pointer_marks;
+mod popup;
+mod private_compat;
+mod redact;
+mod screenshot;
+mod walk;
+mod window;
+mod worker;
+
+mod support;

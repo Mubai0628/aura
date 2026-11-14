@@ -1,9 +1,9 @@
 import type { ComputerControlledV1 } from '@aura/contracts/generated';
 
 import { acceptSending, endSending, startSending } from '../agent-session/sending';
-import { userMessage } from '../agent-session/user-message';
 import { sessionReasoning } from '../reasoning-effort';
 import { sessionSpeed } from '../speed-mode';
+import { toldModelFailure } from './failure-words';
 
 /** The conversation a desktop is given back in. */
 export interface GiveBackConversation {
@@ -51,10 +51,10 @@ export async function tellModel(
       return undefined;
     }
     endSending(sessionId);
-    return userMessage(result.error, '操作权已交还，但消息没有发出。');
+    return toldModelFailure(result.error);
   } catch (reason) {
     endSending(sessionId);
-    return userMessage(reason, '操作权已交还，消息结果未确认，请刷新后核对。');
+    return toldModelFailure(reason, true);
   } finally {
     onChanged?.();
   }

@@ -183,6 +183,9 @@ impl NativeTerminal {
         }
         self.console.resize(size)
     }
+    pub fn size(&self) -> io::Result<TerminalSize> {
+        self.console.size()
+    }
     pub fn output_error(&self) -> Option<String> {
         self.console.output_error()
     }

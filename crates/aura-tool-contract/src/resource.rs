@@ -449,6 +449,15 @@ pub enum ResolvedResourceAccessV1 {
     Control,
 }
 
+impl ResolvedResourceAccessV1 {
+    /// Whether this access excludes every other use of the resource while it is held. Reading
+    /// and observing share a resource; every other access is exclusive.
+    #[must_use]
+    pub const fn is_exclusive(self) -> bool {
+        !matches!(self, Self::Read | Self::Observe)
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedResourceClaimV1 {

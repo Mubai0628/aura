@@ -49,6 +49,7 @@ mod provider;
 mod references;
 mod remediation;
 mod submission;
+mod team;
 mod tool_input;
 mod tools;
 mod transient;
@@ -151,8 +152,9 @@ impl AgentApplication {
         #[cfg(feature = "acceptance-barrier")]
         agent_store::acceptance_hold::install_from_environment(&store);
         let interrupted = store.journal().lock()?.database.unit_of_work(|tx| {
-            let interrupted =
+            let mut interrupted =
                 aura_persistence_v2::agent::recovery::startup(tx, UtcTimestamp::now())?;
+            team::recover_after_restart(tx, &mut interrupted, UtcTimestamp::now())?;
             aura_persistence_v2::agent::inbox::startup(tx, UtcTimestamp::now())?;
             aura_persistence_v2::model::memory_maintenance::interrupt_previous_process(
                 tx,
@@ -161,6 +163,7 @@ impl AgentApplication {
             )?;
             Ok::<_, aura_persistence_core::PersistenceCoreError>(interrupted)
         })?;
+        team::restore_worktree_links(&execution, &store)?;
         let app = Self::assemble(execution, commands, p05, settings, store, RunSupervisor::new());
         *app.startup_interrupted.lock().map_err(|_| anyhow::anyhow!("agent.startup_lock"))? =
             interrupted;
@@ -194,6 +197,7 @@ impl AgentApplication {
         supervisor: RunSupervisor,
     ) -> anyhow::Result<Self> {
         debug_assert!(Arc::ptr_eq(store.journal(), &execution.journal), "agent.store_single_owner");
+        team::restore_worktree_links(&execution, &store)?;
         Ok(Self::assemble(execution, commands, p05, settings, store, supervisor))
     }
 
@@ -241,8 +245,11 @@ impl AgentApplication {
                     handle.block_on(async {
                         let journal = work.store.journal();
                         journal.lock()?.database.unit_of_work(|tx| {
-                            aura_persistence_v2::agent::recovery::startup(tx, UtcTimestamp::now())
-                                .map(drop)?;
+                            let mut interrupted = aura_persistence_v2::agent::recovery::startup(
+                                tx,
+                                UtcTimestamp::now(),
+                            )?;
+                            team::recover_after_restart(tx, &mut interrupted, UtcTimestamp::now())?;
                             aura_persistence_v2::agent::inbox::startup(tx, UtcTimestamp::now())?;
                             aura_persistence_v2::model::memory_maintenance::interrupt_previous_process(tx,work.execution.runtime,UtcTimestamp::now())
                         })?;
@@ -441,6 +448,11 @@ impl AgentApplication {
                 // precede the run's last change, and the record is refused as going back in time.
                 let at = UtcTimestamp::now();
                 journal.database.unit_of_work(|tx| {
+                    // Aura's shutdown fired the stop and nobody asked for one: what failed is the
+                    // shutdown's doing, and the run is left for the next start like any other.
+                    if cancelled && !store::cancellation_requested(tx, run)? {
+                        return Ok(false);
+                    }
                     aura_persistence_core::event::append(
                         tx,
                         &aura_persistence_core::event::EventDraft {
@@ -459,7 +471,7 @@ impl AgentApplication {
                             | AgentRunState::AwaitingQuery { .. }
                             | AgentRunState::AwaitingContextRemediation { .. }
                     ) {
-                        return Ok(());
+                        return Ok(true);
                     }
                     store::interrupt_with_diagnostic(
                         tx,
@@ -468,15 +480,22 @@ impl AgentApplication {
                         cancelled,
                         at,
                         diagnostic.as_ref(),
-                    )
+                    )?;
+                    Ok(true)
                 })
             })
             .await;
         match outcome {
-            Ok(_) => {
+            Ok((true, _)) => {
                 // The run's own failure is durable again: its local diagnostic is spent.
                 self.store.diagnostics().clear(run);
             }
+            Ok((false, _)) => self.note_run_diagnostic(
+                run,
+                "recording",
+                "agent.shutdown_left_for_restart",
+                "shutdown ended this generation's task without recording its failure",
+            ),
             Err(error) if error.not_started() => {
                 self.note_run_diagnostic(
                     run,

@@ -166,7 +166,7 @@ test('one key connects every route, each sent its own copy at the revision the l
   expect(within(dialog).queryByRole('textbox', { name: 'Base URL' })).toBeNull();
   expect(within(dialog).queryByRole('combobox', { name: 'API 类型' })).toBeNull();
 
-  await user.type(within(dialog).getByPlaceholderText('输入后通过专用 SecretInput 通道提交'), KEY);
+  await user.type(within(dialog).getByPlaceholderText('输入后经专用的保密通道提交'), KEY);
   await user.click(within(dialog).getByRole('button', { name: '保存连接' }));
 
   await waitFor(() => expect(createCalls()).toHaveLength(3));
@@ -235,7 +235,7 @@ test('only the routes not yet connected are connected', async () => {
   expect((within(dialog).getByLabelText('将保存的连接') as HTMLInputElement).value).toBe(
     'OpenCode Go Chat Completions、OpenCode Go Anthropic Messages',
   );
-  await user.type(within(dialog).getByPlaceholderText('输入后通过专用 SecretInput 通道提交'), KEY);
+  await user.type(within(dialog).getByPlaceholderText('输入后经专用的保密通道提交'), KEY);
   await user.click(within(dialog).getByRole('button', { name: '保存连接' }));
   await waitFor(() => expect(createCalls()).toHaveLength(2));
   expect(createCalls().map(([request]) => request.api_format)).toEqual([
@@ -269,7 +269,7 @@ test('a route that is not saved stops the rest and keeps those saved before it',
   const user = userEvent.setup();
   const dialog = open(provider([]));
   await user.click(within(dialog).getByRole('button', { name: /添加连接/u }));
-  await user.type(within(dialog).getByPlaceholderText('输入后通过专用 SecretInput 通道提交'), KEY);
+  await user.type(within(dialog).getByPlaceholderText('输入后经专用的保密通道提交'), KEY);
   await user.click(within(dialog).getByRole('button', { name: '保存连接' }));
 
   await waitFor(() =>

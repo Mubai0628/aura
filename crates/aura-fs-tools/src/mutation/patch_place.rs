@@ -1,24 +1,90 @@
 //! Where a hunk's lines are in the file, and, for a hunk that fits nowhere, what the file has
 //! instead.
+use diffy::{Hunk, Line};
+use std::cmp::Ordering;
 
-/// A placed hunk's old lines: where they start in the file and how many there are.
-#[derive(Clone, Copy, Debug)]
+/// Which of a hunk's old lines it keeps, and where it adds lines among them.
+#[derive(Clone, Debug)]
+pub(super) struct Shape {
+    /// One per old line: true for an unchanged line, false for a removed one.
+    kept: Vec<bool>,
+    /// One per gap around the old lines: `adds[i]` when the hunk adds lines just before its old
+    /// line `i`, and `adds[kept.len()]` when it adds lines after its last one.
+    adds: Vec<bool>,
+}
+
+impl Shape {
+    pub(super) fn of(hunk: &Hunk<'_, str>) -> Self {
+        let mut shape = Self { kept: Vec::new(), adds: vec![false] };
+        for line in hunk.lines() {
+            match line {
+                Line::Context(_) | Line::Delete(_) => {
+                    shape.kept.push(matches!(line, Line::Context(_)));
+                    shape.adds.push(false);
+                }
+                Line::Insert(_) => {
+                    if let Some(gap) = shape.adds.last_mut() {
+                        *gap = true;
+                    }
+                }
+            }
+        }
+        shape
+    }
+}
+
+/// A placed hunk: where its old lines start in the file, which hunk it is, and its shape.
+#[derive(Clone, Debug)]
 pub(super) struct Region {
     pub at: usize,
-    pub len: usize,
     pub hunk: usize,
+    pub shape: Shape,
 }
 
 impl Region {
+    /// How many old lines it has.
+    pub(super) fn span(&self) -> usize {
+        self.shape.kept.len()
+    }
+
     /// The lines `at..at + len` share a line with these, or one of the two is an insertion point
     /// strictly inside the other.
     fn overlaps(&self, at: usize, len: usize) -> bool {
-        match (self.len, len) {
+        match (self.span(), len) {
             (0, 0) => false,
             (0, _) => at < self.at && self.at < at + len,
-            (_, 0) => self.at < at && at < self.at + self.len,
-            _ => self.at < at + len && at < self.at + self.len,
+            (_, 0) => self.at < at && at < self.at + self.span(),
+            _ => self.at < at + len && at < self.at + self.span(),
         }
+    }
+
+    /// A hunk shaped `shape` at `at` can be applied beside this one: their lines are apart, or the
+    /// one applied later (the later in the file; on a tie, the new one) starts among the other's
+    /// lines and goes on to or past their end, as diff tools write the hunks of nearby changes.
+    /// Then both keep the lines they share, the later one adds no line among them, and they do
+    /// not both add lines right after them, since which goes first would be a guess.
+    fn fits_beside(&self, at: usize, shape: &Shape) -> bool {
+        let len = shape.kept.len();
+        if self.span() == 0 || len == 0 {
+            return !self.overlaps(at, len);
+        }
+        let ((first_at, first), (later_at, later)) = if self.at <= at {
+            ((self.at, &self.shape), (at, shape))
+        } else {
+            ((at, shape), (self.at, &self.shape))
+        };
+        let first_end = first_at + first.kept.len();
+        if first_end <= later_at {
+            return true;
+        }
+        if later_at + later.kept.len() < first_end {
+            return false;
+        }
+        let shared = first_end - later_at;
+        let offset = later_at - first_at;
+        (0..shared).all(|k| first.kept[offset + k] && later.kept[k])
+            && !later.adds[..shared].contains(&true)
+            && !(first.adds[first.kept.len()] && later.adds[shared])
     }
 }
 
@@ -40,35 +106,36 @@ fn fits(lines: &[&str], at: usize, old: &[&str], loose: bool) -> bool {
 }
 
 /// Where a hunk's old lines start: first at or after `cursor`, the end of the hunks before it, as
-/// for a diff in the file's order; then above it, outside the lines earlier hunks change, since a
-/// diff's hunks may come in any order. Where its numbers say when its lines are there; otherwise
-/// where its lines are, if that is one place (the nearest to its numbers when they give one),
-/// trailing spaces aside if need be.
+/// for a diff in the file's order; then among the last lines of those hunks, sharing lines both
+/// keep; then above them, outside the lines earlier hunks change, since a diff's hunks may come in
+/// any order. Where its numbers say when its lines are there; otherwise where its lines are, if
+/// that is one place (the nearest to its numbers when they give one), trailing spaces aside if
+/// need be.
 pub(super) fn place(
     lines: &[&str],
     cursor: usize,
     old: &[&str],
+    shape: &Shape,
     declared: Option<usize>,
     placed: &[Region],
 ) -> Result<usize, String> {
+    let free = |at: usize| placed.iter().all(|region| region.fits_beside(at, shape));
     if old.is_empty() {
-        return declared
-            .filter(|at| {
-                (cursor..=lines.len()).contains(at)
-                    && !placed.iter().any(|region| region.overlaps(*at, 0))
-            })
-            .ok_or_else(|| {
+        return declared.filter(|at| (cursor..=lines.len()).contains(at) && free(*at)).ok_or_else(
+            || {
                 "it has no unchanged or removed lines to place it by; add the lines around the \
                  change"
                     .to_owned()
-            });
+            },
+        );
     }
-    if let Some(at) = declared.filter(|at| *at >= cursor && fits(lines, *at, old, false)) {
+    let end = lines.len().saturating_sub(old.len()) + 1;
+    let from = cursor.saturating_sub(old.len()).min(end);
+    if let Some(at) = declared.filter(|at| *at >= from && fits(lines, *at, old, false) && free(*at))
+    {
         return Ok(at);
     }
-    let free = |at: usize| !placed.iter().any(|region| region.overlaps(at, old.len()));
-    let end = lines.len().saturating_sub(old.len()) + 1;
-    for range in [cursor.min(end)..end, 0..cursor.min(end)] {
+    for range in [cursor.min(end)..end, from..cursor.min(end), 0..from] {
         for loose in [false, true] {
             let found = range
                 .clone()
@@ -94,15 +161,21 @@ pub(super) fn place(
             }
         }
     }
-    Err(explain(lines, old, declared, placed))
+    Err(explain(lines, old, shape, declared, placed))
 }
 
 /// Why a hunk fits nowhere: its lines are lines another hunk already changes, or the place where
 /// the most of its first lines are, with the line that differs there and what the file has.
-fn explain(lines: &[&str], old: &[&str], declared: Option<usize>, placed: &[Region]) -> String {
+fn explain(
+    lines: &[&str],
+    old: &[&str],
+    shape: &Shape,
+    declared: Option<usize>,
+    placed: &[Region],
+) -> String {
     let taken = (0..=lines.len().saturating_sub(old.len()))
         .filter(|at| fits(lines, *at, old, true))
-        .find_map(|at| placed.iter().find(|region| region.overlaps(at, old.len())));
+        .find_map(|at| placed.iter().find(|region| !region.fits_beside(at, shape)));
     if let Some(region) = taken {
         return format!(
             "its lines are lines hunk #{} also changes (from line {}); put both changes into one \
@@ -143,9 +216,11 @@ fn explain(lines: &[&str], old: &[&str], declared: Option<usize>, placed: &[Regi
                 show(expected),
                 show(actual),
                 if actual.trim() == expected.trim() {
-                    " (only the indentation differs)"
+                    " (only the indentation differs)".to_owned()
                 } else {
-                    ""
+                    backslashes(expected, actual)
+                        .map(|note| format!(" ({note})"))
+                        .unwrap_or_default()
                 }
             ),
         };
@@ -162,6 +237,19 @@ fn explain(lines: &[&str], old: &[&str], declared: Option<usize>, placed: &[Regi
     {
         return format!(
             "its first line {} is in the file only with other indentation, at line {}: {}",
+            show(first),
+            at + 1,
+            show(lines[at])
+        );
+    }
+    if let Some((at, note)) = lines
+        .iter()
+        .enumerate()
+        .find_map(|(at, line)| backslashes(first, line).map(|note| (at, note)))
+    {
+        return format!(
+            "its first line {} is in the file only with other backslashes, at line {}: {} \
+             ({note})",
             show(first),
             at + 1,
             show(lines[at])
@@ -196,6 +284,25 @@ fn at_declared(lines: &[&str], old: &[&str], at: usize) -> String {
         }
     }
     "its lines are not in the file in this order".to_owned()
+}
+
+/// How a diff line differs from the file's when only its backslashes do, as when quotes were
+/// escaped twice over.
+fn backslashes(diff: &str, file: &str) -> Option<&'static str> {
+    let (diff, file) = (diff.trim_end(), file.trim_end());
+    if !diff.contains('\\') && !file.contains('\\') {
+        return None;
+    }
+    if diff.replace('\\', "") != file.replace('\\', "") {
+        return None;
+    }
+    match diff.matches('\\').count().cmp(&file.matches('\\').count()) {
+        Ordering::Greater => {
+            Some("only the backslashes differ: the diff has ones the file does not")
+        }
+        Ordering::Less => Some("only the backslashes differ: the file has ones the diff does not"),
+        Ordering::Equal => None,
+    }
 }
 
 fn show(text: &str) -> String {

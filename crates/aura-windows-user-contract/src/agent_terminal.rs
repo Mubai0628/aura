@@ -22,10 +22,10 @@ fn directory() -> String {
     ".".into()
 }
 fn wait() -> u64 {
-    2000
+    15000
 }
-fn page() -> usize {
-    8192
+fn lines() -> u32 {
+    200
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
@@ -67,17 +67,38 @@ pub struct AgentTerminalWriteInput {
 #[serde(deny_unknown_fields)]
 pub struct AgentTerminalReadInput {
     pub terminal_id: String,
-    #[serde(default)]
-    pub offset: u64,
-    #[serde(default = "page")]
-    #[schemars(range(min = 1, max = 65536))]
-    #[schemars(with = "u32")]
-    pub max_bytes: usize,
+    /// The first line to read; the terminal's first line with text is line 1. Without it the
+    /// newest lines are read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1))]
+    pub line: Option<u64>,
+    #[serde(default = "lines")]
+    #[schemars(range(min = 1, max = 2000))]
+    pub max_lines: u32,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AgentTerminalCloseInput {
     pub terminal_id: String,
+}
+/// A page of the lines an Agent terminal shows, numbered from its first line with text.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AgentTerminalLinesV1 {
+    pub terminal_id: String,
+    /// The lines as the terminal shows them, joined with line breaks.
+    pub lines: String,
+    /// The number of the first line in `lines`.
+    pub first_line: u64,
+    /// The number of the terminal's newest line.
+    pub last_line: u64,
+    /// The `line` that reads on after this page; absent when the page reaches the newest line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_line: Option<u64>,
+    /// The oldest line still kept; earlier ones are gone.
+    pub earliest_line: u64,
+    pub running: bool,
+    pub end: Option<TerminalEnd>,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

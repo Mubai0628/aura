@@ -201,8 +201,9 @@ impl SkillRuntime {
     }
 
     pub(crate) fn workspace_root(&self, id: WorkspaceId) -> anyhow::Result<PathBuf> {
-        let runtime =
-            self.workspace.as_ref().ok_or_else(|| anyhow::anyhow!("workspace.unavailable"))?;
+        let runtime = self.workspace.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("workspace.unavailable: 工作区现在不可用，没有执行；请稍后重试。")
+        })?;
         let resolver = runtime.resolver(id)?;
         resolver.verify_root_identity()?;
         Ok(resolver.canonical_root().to_path_buf())

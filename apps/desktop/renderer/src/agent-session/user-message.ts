@@ -1,5 +1,12 @@
 /** Technical diagnostics remain in the journal; product copy explains the next action. */
 const messages: Record<string, string> = {
+  // Main's own answers when Core was not ready or a request was never sent; a request Core did not
+  // answer is said by `unanswered` below.
+  'ipc.core_not_ready':
+    'Aura Core 还没有就绪（正在启动或恢复），这次操作没有发出，什么都没改；就绪后再试。',
+  'ipc.local_overload': '同时进行的操作太多，这次没有发出，什么都没改；请稍后重试。',
+  'ipc.request_not_sent':
+    '这次操作没有发出（与 Aura Core 的连接还没准备好），什么都没改；请稍后重试。',
   'core.tool_policy.config_unavailable':
     '工具设置需要恢复，暂不能开始新的工具调用。请到设置中查看恢复选项。',
   'core.security_authority.config_unavailable':
@@ -57,6 +64,32 @@ const messages: Record<string, string> = {
     '模型服务拒绝了这一步：这个模型的服务节点会拿请求数据训练或保留数据，服务商账号的隐私设置没有允许（例如 OpenCode 的“允许会拿请求数据训练的付费节点”）。这要在服务商那边改，重试不会成功，所以没有自动重试。任务已暂停；改好后在输入框发“继续”即可接着做，也可以换一个模型。',
   'provider_failed: provider_client_not_allowed':
     '这个套餐只允许它名单上的客户端使用，拒绝了 Aura。Aura 只用自己的名字连接，不会冒充别的工具，重试也不会成功，所以没有自动重试。任务已暂停；可以试这家服务商其他协议的连接，或改用普通 API（按量计费的密钥），或换一个模型，然后在输入框发“继续”接着做。',
+  // A Provider's own code without a sentence of its own that says more than its kind; a stream
+  // that reported it is filed as a protocol failure, so these come before the kinds below.
+  'provider_failed: rate_limit_error':
+    '模型服务限流（请求太频繁），已重试仍未成功。任务已暂停，过程输出仍可阅读；稍等一会儿在输入框发“继续”即可接着做，也可以换一个模型。',
+  'provider_failed: too_many_requests':
+    '模型服务限流（请求太频繁），已重试仍未成功。任务已暂停，过程输出仍可阅读；稍等一会儿在输入框发“继续”即可接着做，也可以换一个模型。',
+  'provider_failed: server_error':
+    '模型服务的服务端出错，已重试仍未成功，可能是服务商或它的网关暂时故障。任务已暂停，过程输出仍可阅读；稍后在输入框发“继续”即可接着做，也可以换一个模型或连接。',
+  'provider_failed: api_error':
+    '模型服务的服务端出错，已重试仍未成功，可能是服务商或它的网关暂时故障。任务已暂停，过程输出仍可阅读；稍后在输入框发“继续”即可接着做，也可以换一个模型或连接。',
+  'provider_failed: bad_gateway':
+    '模型服务的服务端出错，已重试仍未成功，可能是服务商或它的网关暂时故障。任务已暂停，过程输出仍可阅读；稍后在输入框发“继续”即可接着做，也可以换一个模型或连接。',
+  'provider_failed: upstream_error':
+    '模型服务的服务端出错，已重试仍未成功，可能是服务商或它的网关暂时故障。任务已暂停，过程输出仍可阅读；稍后在输入框发“继续”即可接着做，也可以换一个模型或连接。',
+  'provider_failed: overloaded':
+    '模型服务繁忙（服务端过载），已自动重试仍未成功。任务已暂停，过程输出仍可阅读；稍后在输入框发“继续”即可接着做。',
+  'provider_failed: provider_output_empty':
+    '模型服务结束了回答，却没有给出任何内容，这一步没有完成。任务已暂停；在输入框发“继续”再试，仍然如此请换一个模型。',
+  'provider_failed: endpoint_fingerprint_changed':
+    '这一步发出前，模型连接的设置被改过，所以没有用旧设置发送。任务已暂停；在输入框发“继续”会按新设置接着做。',
+  'transport.content_encoding_unsupported':
+    '模型服务的回复无法解码（压缩格式不支持），这一步没有完成。任务已暂停；检查代理或网关设置后在输入框发“继续”。',
+  'transport.decompression_failed':
+    '模型服务的回复无法解压，这一步没有完成。任务已暂停；检查代理或网关设置后在输入框发“继续”。',
+  'transport.response_too_large':
+    '模型服务的回复超过了大小上限，这一步没有完成。任务已暂停；在输入框发“继续”再试，仍然如此请检查代理或网关。',
   // A Provider's own refusal whose code has no sentence of its own, by its kind; only when the
   // Provider replied, as Aura's own refusals before a request carry no status.
   '(QuotaOrBalance, HTTP Some(':
@@ -68,6 +101,35 @@ const messages: Record<string, string> = {
   // A reply that does not follow the service's protocol; the decoder that read it records no status.
   '(Protocol, HTTP ':
     '模型服务返回的数据格式不符合预期，这一步没有完成。任务已暂停，过程输出仍可阅读；在输入框发“继续”即可接着做，也可以换一个模型。',
+  // Every other kind of model failure, by the kind Core recorded.
+  '(RateLimit, ':
+    '模型服务限流（请求太频繁），已重试仍未成功。任务已暂停，过程输出仍可阅读；稍等一会儿在输入框发“继续”即可接着做，也可以换一个模型。',
+  '(Transport, HTTP Some(':
+    '模型服务的服务端出错，已重试仍未成功，可能是服务商或它的网关暂时故障。任务已暂停，过程输出仍可阅读；稍后在输入框发“继续”即可接着做，也可以换一个模型或连接。',
+  '(Transport, HTTP None':
+    '连接模型服务失败，已重试仍没有成功，可能是网络或代理暂时不通。任务已暂停，过程输出仍可阅读；网络恢复后在输入框发“继续”即可接着做。',
+  '(StreamInterrupted, ':
+    '与模型服务的连接中途断开，这一步没有完成，已自动重试仍未成功。任务已暂停，过程输出仍可阅读；在输入框发“继续”即可接着做。',
+  '(InvalidRequest, ':
+    '模型服务拒绝了这次请求（参数或内容不被接受），重试不会成功，所以没有自动重试。任务已暂停；可以换一个模型或思考档位，或检查这个连接的兼容设置后在输入框发“继续”。',
+  '(ContentFilter, ':
+    '模型服务的内容审核拦下了这一步，重试同样的内容不会通过。任务已暂停；可以改写或去掉触发审核的内容，或换一个模型，然后在输入框发“继续”。',
+  '(UnsupportedModel, ':
+    '服务商说没有这个模型（名称不对或已下线）。任务已暂停；请到模型设置里核对模型名称，或换一个模型后在输入框发“继续”。',
+  '(UnsupportedParameter, ':
+    '这个模型不接受请求里的某个参数，这一步没有完成。任务已暂停；请换一个思考档位或模型，或在连接设置里调整兼容选项后在输入框发“继续”。',
+  '(ContextWindowExceeded, ':
+    '这次请求超过了模型的上下文上限。任务已暂停；在输入框发“继续”，Aura 会先压缩较早的内容再接着做。',
+  '(EmptyOutput, ':
+    '模型服务结束了回答，却没有给出任何内容，这一步没有完成。任务已暂停；在输入框发“继续”再试，仍然如此请换一个模型。',
+  '(Refusal, ':
+    '模型拒绝回答这一步。任务已暂停，过程输出仍可阅读；可以换个说法在输入框说明下一步，或换一个模型。',
+  '(InvalidToolCall, ':
+    '模型给出的工具调用格式不对，这一步没有完成。任务已暂停，过程输出仍可阅读；在输入框发“继续”再试，仍然如此请换一个模型。',
+  '(Persistence, ':
+    'Aura 没能记下模型的回答，这一步没有完成。任务已暂停，过程输出仍可阅读；在输入框发“继续”即可接着做，仍然如此请重启 Aura。',
+  '(Unknown, ':
+    '模型服务出错，这一步没有完成（原因已记入 Core 日志）。任务已暂停，过程输出仍可阅读；在输入框发“继续”即可接着做，也可以换一个模型。',
   'tools.configuration_revision_conflict': '工具配置已在其他位置更新，请重新载入后再保存。',
   'tools.fixed_selection_invalid': '所选工具已发生变化，请重新载入工具列表。',
   'tools.dynamic_limit_must_be_positive': '动态工具上限必须为大于零的整数。',
@@ -123,15 +185,64 @@ const field = (value: unknown, name: 'code' | 'message'): string | undefined => 
 };
 
 /**
+ * A request Core did not answer in time, or whose connection dropped: a command that may have
+ * reached Core says its effect is not known and was not sent again; anything else, such as a read,
+ * says no answer came, unless the caller's own sentence says what was not done. Main's English
+ * messages are matched for callers that pass the message alone.
+ */
+const UNANSWERED: readonly (readonly [readonly string[], string, string])[] = [
+  [
+    ['ipc.request_timeout', 'Core request timed out'],
+    'Aura Core 在规定时间内没有回复（可能正忙），这次操作是否已生效还不确定，所以没有自动重发；请稍后查看状态，确认没有生效再重试。',
+    'Aura Core 在规定时间内没有回复（可能正忙），这次没有拿到结果；请稍后重试。',
+  ],
+  [
+    ['ipc.transport_lost', 'Aura Core pipe disconnected', 'Transport is closed'],
+    '与 Aura Core 的连接断开了（Core 可能崩溃或正在重启），这次操作是否已生效还不确定，没有自动重发；等 Core 恢复就绪后查看结果，再决定是否重试。',
+    '与 Aura Core 的连接断开了（Core 可能崩溃或正在重启），这次没有拿到结果；等 Core 恢复就绪后重试。',
+  ],
+];
+
+/** Main's statement that a command may already have reached Core: its outcome is not known. */
+const mayHaveRun = (value: unknown): boolean => {
+  if (typeof value !== 'object' || value === null) return false;
+  const details = (value as { details?: unknown }).details;
+  const recovery =
+    typeof details === 'object' && details !== null
+      ? (details as Record<string, unknown>).outcome_recovery
+      : undefined;
+  return (
+    recovery === 'query_runtime.command_outcome_without_replay' ||
+    recovery === 'terminal_input_unconfirmed_do_not_replay'
+  );
+};
+
+const unanswered = (
+  value: unknown,
+  code: string | undefined,
+  text: string,
+  fallback: string | undefined,
+): string | undefined => {
+  const found = UNANSWERED.find(([keys]) =>
+    keys.some((key) => key === code || (code === undefined && text.startsWith(key))),
+  );
+  if (found === undefined) return undefined;
+  return mayHaveRun(value) ? found[1] : (fallback ?? found[2]);
+};
+
+/**
  * What the user reads for a failure from Core or Main: a known code gets its product sentence;
  * Core's own Chinese sentence is shown without its code; English exception text, transport details
  * and internal identifiers never reach the page — the caller's fallback says what to do instead.
  * Accepts an error envelope (`{ code, message }`), an Error or a string.
  */
-export function userMessage(value: unknown, fallback = '操作未完成，请刷新状态后重试。'): string {
+export function userMessage(value: unknown, given?: string): string {
+  const fallback = given ?? '操作未完成，请刷新状态后重试。';
   const code = field(value, 'code');
-  if (code !== undefined && messages[code] !== undefined) return messages[code]!;
   const text = typeof value === 'string' ? value : (field(value, 'message') ?? '');
+  const notAnswered = unanswered(value, code, text, given);
+  if (notAnswered !== undefined) return notAnswered;
+  if (code !== undefined && messages[code] !== undefined) return messages[code]!;
   // Core quotes filenames with 「」. They are user content, even when a name resembles a code.
   const diagnostics = text.replace(/「[^」]*」/gu, '');
   if (
@@ -157,6 +268,18 @@ export function userMessage(value: unknown, fallback = '操作未完成，请刷
     : fallback;
 }
 
+/**
+ * Why the queue stopped starting its messages: the cause in a sentence, that the messages are
+ * kept, and what to do. A cause whose own sentence already says what to do is shown as it is.
+ */
+export function queuePauseMessage(reason: unknown): string {
+  const cause = userMessage(reason, '');
+  if (cause.includes('继续队列')) return cause;
+  return cause
+    ? `排队的消息没能自动开始：${cause.replace(/[。.]+$/u, '')}。消息已保留；处理后点“继续队列”。`
+    : '排队的消息没能自动开始，原因没有记下。消息已保留；点“继续队列”再试，仍不行时重启 Aura。';
+}
+
 /** A restart settles an unfinished turn; nothing it had not finished is replayed. */
 const RESTART_NEXT_STEP = '仍然不行时可以重启 Aura，启动时会收尾这一轮，不会重放没有完成的操作。';
 
@@ -165,13 +288,24 @@ const RESTART_NEXT_STEP = '仍然不行时可以重启 Aura，启动时会收尾
  * what it means for the turn, and what to do next.
  */
 export function stopFailureMessage(error: unknown): string {
+  const code = field(error, 'code');
+  if (code === 'request_timeout' || code === 'ipc.request_timeout')
+    return `服务没有及时回复，这一轮可能仍在停止中。请稍后查看任务状态，仍在运行就再点一次“停止”；${RESTART_NEXT_STEP}`;
   return userMessage(
     error,
-    field(error, 'code') === 'request_timeout'
-      ? `服务没有及时回复，这一轮可能仍在停止中。请稍后查看任务状态，仍在运行就再点一次“停止”；${RESTART_NEXT_STEP}`
-      : `停止没有确认：服务没能确认这一轮已经停下。请稍后再点一次“停止”；${RESTART_NEXT_STEP}`,
+    `停止没有确认：服务没能确认这一轮已经停下。请稍后再点一次“停止”；${RESTART_NEXT_STEP}`,
   );
 }
+
+/** What a background read that will be tried again says when Core did not answer it. */
+export const READ_RETRYING =
+  '暂时读不到最新内容（Aura Core 没有及时回复），下面是上次读到的内容；会自动重试。';
+
+/** Whether `error` says Core did not answer, the connection to it dropped, or it is not ready. */
+export const coreUnreachable = (error: unknown): boolean =>
+  ['ipc.request_timeout', 'ipc.transport_lost', 'ipc.core_not_ready', 'request_timeout'].includes(
+    field(error, 'code') ?? '',
+  );
 
 /** Whether a stop is still under way (its last step is ending) rather than refused. */
 export const stopStillEnding = (error: unknown): boolean =>

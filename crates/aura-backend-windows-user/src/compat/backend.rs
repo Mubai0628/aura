@@ -1,9 +1,9 @@
 //! Verified current-user startup chain; product policy and journaling belong to the adapter.
 use super::redaction::{Cover, Redactor};
-use super::{CompatExecution, environment};
+use super::{CompatExecution, ProcessPolicy, environment, groups::ProcessGroups};
 use crate::checked_program::{self, Links};
 use anyhow::{Result, ensure};
-use aura_windows_platform::{RootJob, VerifiedFile};
+use aura_windows_platform::{GroupJob, RootJob, VerifiedFile};
 use aura_windows_user_contract::{ExecutionFileBinding, ManagedShell, ManagedShellCommand};
 use std::{
     ffi::OsString,
@@ -25,6 +25,7 @@ pub struct CompatBackend {
     pub(super) refresh_environment: bool,
     installation: String,
     image_verification: Duration,
+    pub(super) groups: ProcessGroups,
 }
 
 impl CompatBackend {
@@ -67,6 +68,7 @@ impl CompatBackend {
             refresh_environment: false,
             installation: installation_binding()?,
             image_verification: began.elapsed(),
+            groups: ProcessGroups::default(),
         })
     }
 
@@ -88,7 +90,23 @@ impl CompatBackend {
         command: &ManagedShellCommand,
         offline_proxy: Option<&str>,
     ) -> Result<CompatExecution> {
-        self.launch_inner(command, offline_proxy, aura_windows_platform::spawn_compat_process)
+        self.launch_in(command, offline_proxy, None)
+    }
+
+    /// As [`Self::launch`], with the command's Job nested in the policy's group when Core gives
+    /// one, and the group's own TEMP, TMP and port range in its environment.
+    pub fn launch_in(
+        &self,
+        command: &ManagedShellCommand,
+        offline_proxy: Option<&str>,
+        policy: Option<&ProcessPolicy>,
+    ) -> Result<CompatExecution> {
+        self.launch_inner(
+            command,
+            offline_proxy,
+            policy,
+            aura_windows_platform::spawn_compat_process_in,
+        )
     }
 
     #[cfg(any(test, feature = "compat-adoption"))]
@@ -97,24 +115,31 @@ impl CompatBackend {
         command: &ManagedShellCommand,
         fault: LaunchFault,
     ) -> Result<CompatExecution> {
-        self.launch_inner(command, None, |job, image, arguments, directory, environment, script| {
-            aura_windows_platform::spawn_compat_process_with_fault(
-                job,
-                image,
-                arguments,
-                directory,
-                environment,
-                script,
-                fault,
-            )
-        })
+        self.launch_inner(
+            command,
+            None,
+            None,
+            |_, job, image, arguments, directory, environment, script| {
+                aura_windows_platform::spawn_compat_process_with_fault(
+                    job,
+                    image,
+                    arguments,
+                    directory,
+                    environment,
+                    script,
+                    fault,
+                )
+            },
+        )
     }
 
     fn launch_inner(
         &self,
         command: &ManagedShellCommand,
         offline_proxy: Option<&str>,
+        policy: Option<&ProcessPolicy>,
         launch: impl FnOnce(
+            &[&GroupJob],
             &RootJob,
             &Path,
             &[Vec<u16>],
@@ -150,7 +175,14 @@ impl CompatBackend {
             .collect();
         let secrets = environment::secret_values(&selected);
         let hidden = [Cover::Label, Cover::Label].map(|cover| Redactor::new(&secrets, cover));
-        let environment = environment::build_declared(selected, offline_proxy, declared)?;
+        let mut environment = environment::build_declared(selected, offline_proxy, declared)?;
+        let groups = policy.map(|policy| self.groups.enter(policy)).transpose()?;
+        if let (Some(policy), Some((_, group))) = (policy, &groups) {
+            fs::create_dir_all(&policy.temp_directory)?;
+            super::groups::surround(&mut environment, &policy.temp_directory, &group.ports())?;
+        }
+        let nested: Vec<&GroupJob> =
+            groups.iter().flat_map(|(all, group)| [all.as_ref(), group.job()]).collect();
         let scratch = tempfile::Builder::new().prefix("aura-compat-").tempdir()?;
         let script_path = scratch.path().join(if command.shell == ManagedShell::Cmd {
             "command.cmd"
@@ -160,7 +192,7 @@ impl CompatBackend {
         let script = match command.shell {
             ManagedShell::PowerShell => {
                 crate::environment::write_powershell_script(scratch.path(), &command.script)?;
-                crate::environment::powershell_command_file()
+                crate::environment::user_powershell_command_file()
             }
             ManagedShell::Cmd => {
                 let codepage = aura_windows_platform::dos_drive_path(
@@ -196,6 +228,7 @@ impl CompatBackend {
         let job = RootJob::create_recoverable(&self.installation, &nonce)?;
         let prepared = entered.elapsed();
         let (mut process, timing) = launch(
+            &nested,
             &job,
             Path::new(&image.path),
             &args,

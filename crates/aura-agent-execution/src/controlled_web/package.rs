@@ -35,7 +35,7 @@ impl ControlledWeb {
                         .calls
                         .iter()
                         .find(|plan| plan.tool_call_id == id)
-                        .ok_or_else(|| anyhow::anyhow!("agent.plan_call_missing"))?;
+                        .ok_or_else(|| anyhow::anyhow!(super::http::PLAN_CALL_MISSING))?;
                     Ok(Duration::from_millis(plan.timeout_ms))
                 },
             )
@@ -95,7 +95,8 @@ impl ControlledWeb {
                 &request,
                 usage,
                 UtcTimestamp::from_value(UtcTimestamp::now().value() + time::Duration::seconds(30)),
-            )?;
+            )
+            .map_err(super::proxy::explain_grant)?;
             let operation_id = dispatch.request().operation.operation_id;
             let grant =
                 self.apply_frozen_proxy(operation_id, content.identity.agent_run_id, grant).await?;
@@ -130,11 +131,11 @@ impl ControlledWeb {
             ) {
                 package_http::PackageHttpEvaluation::Completed { value } => Ok(value),
                 package_http::PackageHttpEvaluation::UnexpectedStatus { status } => {
-                    Err(anyhow::anyhow!("package.http_status_{status}"))
+                    Err(anyhow::anyhow!(unexpected_status(status)))
                 }
-                package_http::PackageHttpEvaluation::InvalidResult => {
-                    Err(anyhow::anyhow!("package.http_result_invalid"))
-                }
+                package_http::PackageHttpEvaluation::InvalidResult => Err(anyhow::anyhow!(
+                    "package.http_result_invalid: 这个工具的服务回应了成功状态，但内容不符合工具声明的结果格式，没有当作结果（请求已经发出）。如果反复出现，告诉用户这个工具包可能需要更新。"
+                )),
             }
         })
         .await;
@@ -147,6 +148,21 @@ impl ControlledWeb {
     }
 }
 
+/// A status the tool does not declare as success: the number, that the request was sent, and
+/// what to try for the usual classes.
+fn unexpected_status(status: u16) -> String {
+    let next = match status {
+        401 | 403 | 407 => "可能需要请用户在工具包页检查这个工具绑定的凭据。",
+        404 | 410 => "请检查参数是否指向存在的资源。",
+        429 => "服务在限制请求，请稍等片刻再调用。",
+        500..=599 => "服务出错了，可以稍后重试。",
+        _ => "请检查参数后再调用。",
+    };
+    format!(
+        "package.http_status_{status}: 这个工具的服务回应了 HTTP {status}，不在工具声明的成功状态里，回应没有当作结果（请求已经发出）。{next}"
+    )
+}
+
 /// Whether this operation is a package HTTP call in its exact shape.
 pub(super) fn is_package_http(content: &aura_execution_contract::OperationContent) -> bool {
     aura_security_contract::package_http(
@@ -155,4 +171,17 @@ pub(super) fn is_package_http(content: &aura_execution_contract::OperationConten
         &content.capabilities,
         &content.resources,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    /// The status keeps its code and says the request was sent and what to try.
+    #[test]
+    fn an_undeclared_status_says_the_request_was_sent() {
+        let line = super::unexpected_status(401);
+        assert!(line.starts_with("package.http_status_401: "), "{line}");
+        assert!(line.contains("HTTP 401") && line.contains("请求已经发出"), "{line}");
+        assert!(line.contains("凭据") && line.len() <= 512, "{line}");
+        assert!(super::unexpected_status(503).contains("稍后重试"));
+    }
 }

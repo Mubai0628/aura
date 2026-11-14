@@ -58,6 +58,16 @@
   content: '';
   animation: activity-running 1.4s ease-in-out infinite;
 }
+/* Waiting for the user: steady and amber, as the conversation's square in the sidebar. */
+.activity-value[data-waiting='true']::before {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  background: var(--warning-dot);
+  vertical-align: 1px;
+  content: '';
+}
 @keyframes activity-running {
   50% {
     opacity: 0.35;
@@ -104,6 +114,11 @@
   font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.activity-recent-state {
+  flex: none;
+  color: var(--danger);
+  font-size: 11.5px;
 }
 .activity-section li time {
   flex: none;

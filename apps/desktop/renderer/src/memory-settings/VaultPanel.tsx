@@ -6,6 +6,7 @@ import type {
   WorkspaceId,
 } from '@aura/contracts/generated';
 import type { useMemory } from './useMemory';
+import { MEMORY_FAILURE } from './memory-words';
 /** History records keep stable codes; people read what happened and who did it. */
 const ACTIONS: Record<string, string> = {
   create: '新建',
@@ -40,7 +41,11 @@ export function VaultPanel({
   const request = { scope: vault.scope, workspace_id: workspaceId ?? null };
   const title = vault.scope === 'global' ? '全局记忆' : '项目记忆';
   const simple = async (command: 'memory.vault.open_directory' | 'memory.vault.export') => {
-    const result = await state.act(() => state.call(command, request));
+    const result = await state.act(
+      () => state.call(command, request),
+      undefined,
+      command === 'memory.vault.export' ? MEMORY_FAILURE.export : MEMORY_FAILURE.openDirectory,
+    );
     if (result) setNotice(result.message);
   };
   return (
@@ -77,11 +82,15 @@ export function VaultPanel({
           type="button"
           disabled={state.busy}
           onClick={() =>
-            void state.act(async () => {
-              setPreview(undefined);
-              const result = await state.call('memory.vault.validate', request);
-              setValidation(result);
-            })
+            void state.act(
+              async () => {
+                setPreview(undefined);
+                const result = await state.call('memory.vault.validate', request);
+                setValidation(result);
+              },
+              undefined,
+              MEMORY_FAILURE.validate,
+            )
           }
         >
           校验
@@ -90,12 +99,16 @@ export function VaultPanel({
           type="button"
           disabled={state.busy}
           onClick={() =>
-            void state.act(async () => {
-              setValidation(undefined);
-              setPreview(undefined);
-              const result = await state.call('memory.vault.repair.preview', request);
-              setPreview(result);
-            })
+            void state.act(
+              async () => {
+                setValidation(undefined);
+                setPreview(undefined);
+                const result = await state.call('memory.vault.repair.preview', request);
+                setPreview(result);
+              },
+              undefined,
+              MEMORY_FAILURE.preview,
+            )
           }
         >
           预览修复
@@ -108,6 +121,7 @@ export function VaultPanel({
               const result = await state.act(
                 () => state.call('memory.vault.rebuild', request),
                 '索引已从文件重建',
+                MEMORY_FAILURE.rebuild,
               );
               if (result) await state.reload();
             })()
@@ -165,6 +179,7 @@ export function VaultPanel({
                   () =>
                     state.call('memory.vault.repair.apply', { vault: request, preview_id: token }),
                   '修复已应用',
+                  MEMORY_FAILURE.apply,
                 );
                 if (result) await state.reload();
               })()
@@ -188,17 +203,6 @@ export function VaultPanel({
                 {ACTORS[change.actor] ?? change.actor}
                 <br />
                 <code>{change.path}</code>
-                {change.session_id ? (
-                  <>
-                    {' '}
-                    · 会话 <code>{change.session_id}</code>
-                  </>
-                ) : null}
-                <br />
-                哈希{' '}
-                <code>
-                  {change.before_hash ?? '无'} → {change.after_hash ?? '无'}
-                </code>
               </li>
             ))}
           </ul>

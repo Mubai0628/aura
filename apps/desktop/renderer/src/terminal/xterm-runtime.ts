@@ -1,14 +1,15 @@
-import { userMessage } from '../agent-session/user-message';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import {
   attachTerminalConsumer,
+  clearTerminalFailure,
   configureTerminalRenderer,
   configureTerminalText,
   terminalApi,
   terminalFailure,
   type TerminalRecord,
 } from './store';
+import { inputFailure, resizeFailure } from './failure-words';
 import { adoptTerminalStyles } from './csp-styles';
 import { CONPTY, conptyResizer, type HeldOutput } from './conpty-resize';
 import { applyRepaint, repaintComplete } from './conpty-align';
@@ -136,6 +137,8 @@ export function terminalEngine(record: TerminalRecord): Engine {
       },
     };
   };
+  // What the last input that failed said, until input gets through again.
+  let inputFailed: string | undefined;
   const send = async (input: string, interrupt = false) => {
     if (record.view.end) return;
     // Cursor reports are emulator protocol responses, not user keystrokes.
@@ -147,8 +150,13 @@ export function terminalEngine(record: TerminalRecord): Engine {
       input,
       interrupt,
     });
-    if (result && !result.ok)
-      terminalFailure(record, userMessage(result.error, '终端操作没有完成，请重试。'));
+    if (result && !result.ok) {
+      inputFailed = inputFailure(result.error);
+      terminalFailure(record, inputFailed);
+    } else if (result?.ok && inputFailed !== undefined) {
+      clearTerminalFailure(record, inputFailed);
+      inputFailed = undefined;
+    }
   };
   const data = terminal.onData((value) => {
     void send(value);
@@ -214,6 +222,8 @@ export function mountTerminal(record: TerminalRecord, host: HTMLDivElement) {
   const engine = terminalEngine(record);
   host.appendChild(engine.element);
   let alive = true;
+  // What the last size that failed said, until a size is taken again.
+  let resizeFailed: string | undefined;
   const resizer = conptyResizer(engine.terminal, {
     measure: () =>
       alive && host.clientWidth && host.clientHeight ? engine.fit.proposeDimensions() : undefined,
@@ -227,8 +237,13 @@ export function mountTerminal(record: TerminalRecord, host: HTMLDivElement) {
         columns: size.cols,
         rows: size.rows,
       });
-      if (result && !result.ok)
-        terminalFailure(record, userMessage(result.error, '终端操作没有完成，请重试。'));
+      if (result && !result.ok) {
+        resizeFailed = resizeFailure(result.error);
+        terminalFailure(record, resizeFailed);
+      } else if (result?.ok && resizeFailed !== undefined) {
+        clearTerminalFailure(record, resizeFailed);
+        resizeFailed = undefined;
+      }
     },
     // A closed terminal has nothing left to write to.
     apply: async (output) => {

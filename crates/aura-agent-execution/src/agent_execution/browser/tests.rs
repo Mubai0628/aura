@@ -10,6 +10,7 @@ fn command(session: SessionId, timeout_ms: u32) -> BrowserHostCommandV1 {
         command_id: String::new(),
         runtime_instance_id: RuntimeInstanceId::new(),
         session_id: session,
+        page: None,
         expected_host: None,
         access: BrowserPageAccessV1 { read_only: false, approved_hosts: vec![], file_root: None },
         action: BrowserHostActionV1::Snapshot { max_chars: 12_000 },
@@ -73,7 +74,36 @@ async fn a_command_goes_out_on_mains_connection_and_its_answer_comes_back_by_id(
     let answer = bridge.send(command(session, 5_000), running()).await.expect("answered");
     host.await.expect("host");
     assert!(matches!(answer.outcome, BrowserHostOutcomeV1::Completed { .. }));
-    assert_eq!(bridge.page_url(session).as_deref(), Some("http://127.0.0.1:9/game"));
+    assert_eq!(bridge.page_url(session, "model").as_deref(), Some("http://127.0.0.1:9/game"));
+}
+
+#[tokio::test]
+async fn each_page_is_known_at_the_address_main_last_reported_for_it() {
+    let bridge = Arc::new(BrowserBridge::default());
+    let queue = AsyncPriorityQueue::new();
+    bridge.set_publisher(queue.clone());
+    let session = SessionId::new();
+    let host = {
+        let bridge = Arc::clone(&bridge);
+        tokio::spawn(async move {
+            let sent = next_command(&queue).await;
+            assert_eq!(sent.page.as_deref(), Some("p1"));
+            assert!(bridge.complete(BrowserHostResultV1 {
+                command_id: sent.command_id,
+                page_url: "http://127.0.0.1:9/docs".into(),
+                outcome: BrowserHostOutcomeV1::Completed {
+                    result: serde_json::json!({}),
+                    image: None
+                },
+            }));
+        })
+    };
+    let mut handed = command(session, 5_000);
+    handed.page = Some("p1".into());
+    bridge.send(handed, running()).await.expect("answered");
+    host.await.expect("host");
+    assert_eq!(bridge.page_url(session, "p1").as_deref(), Some("http://127.0.0.1:9/docs"));
+    assert_eq!(bridge.page_url(session, "model"), None, "the model's own page did not move");
 }
 
 #[tokio::test]

@@ -48,7 +48,7 @@ impl PackageServices {
         let mut held = self
             .preparations
             .lock()
-            .map_err(|_| anyhow::anyhow!("package.preparations_unavailable"))?;
+            .map_err(|_| anyhow::anyhow!(crate::failures::PREPARATIONS_UNAVAILABLE))?;
         expire(&mut held);
         while held.len() >= MAX_PREPARATIONS {
             if let Some(oldest) = held.pop_front() {
@@ -70,13 +70,14 @@ impl PackageServices {
             let mut held = self
                 .preparations
                 .lock()
-                .map_err(|_| anyhow::anyhow!("package.preparations_unavailable"))?;
+                .map_err(|_| anyhow::anyhow!(crate::failures::PREPARATIONS_UNAVAILABLE))?;
             expire(&mut held);
-            let index =
-                held.iter().position(|entry| entry.id == request.preparation_id).ok_or_else(
-                    || anyhow::anyhow!("package.preparation_expired: 预览已失效，请重新准备验证"),
-                )?;
-            held.remove(index).ok_or_else(|| anyhow::anyhow!("package.preparation_expired"))?
+            let index = held
+                .iter()
+                .position(|entry| entry.id == request.preparation_id)
+                .ok_or_else(|| anyhow::anyhow!(crate::failures::PREPARATION_EXPIRED))?;
+            held.remove(index)
+                .ok_or_else(|| anyhow::anyhow!(crate::failures::PREPARATION_EXPIRED))?
         };
         if preparation.prepared.preview_hash()? != request.preview_hash {
             let _ = preparation.prepared.cancel();
@@ -87,7 +88,7 @@ impl PackageServices {
         let run_id = handle.run_id;
         self.runs
             .lock()
-            .map_err(|_| anyhow::anyhow!("package.runs_unavailable"))?
+            .map_err(|_| anyhow::anyhow!(crate::failures::RUNS_UNAVAILABLE))?
             .insert(run_id, handle);
         let store = self.store()?;
         let run = packages::conformance::conformance(store.database.connection(), &version)?;
@@ -101,16 +102,16 @@ impl PackageServices {
     ) -> Result<PackageConformanceViewV1> {
         {
             let mut runs =
-                self.runs.lock().map_err(|_| anyhow::anyhow!("package.runs_unavailable"))?;
+                self.runs.lock().map_err(|_| anyhow::anyhow!(crate::failures::RUNS_UNAVAILABLE))?;
             runs.retain(|_, handle| handle.status().is_ok_and(|status| status.running));
             let handle = runs
                 .get(&request.run_id)
-                .ok_or_else(|| anyhow::anyhow!("package.run_not_active"))?;
+                .ok_or_else(|| anyhow::anyhow!(crate::failures::RUN_NOT_ACTIVE))?;
             ensure!(
                 handle.version.package_id == request.version.package_id
                     && handle.version.package_version == request.version.package_version
                     && handle.version.package_fingerprint == request.version.package_fingerprint,
-                "package.run_binding"
+                crate::failures::RUN_BINDING
             );
             handle.cancel();
         }

@@ -7,6 +7,7 @@ import type {
 import { ToolCredentialManager } from '../tool-credentials/ToolCredentialManager';
 import type { PackageCall } from './usePackages';
 import { fingerprintPrefix } from './package-text';
+import { refusedAction } from '../agent-session/failure-text';
 
 interface Props {
   summary: PackageSummaryV1;
@@ -122,9 +123,20 @@ function PackageCredential({
   const slot = tool.credential!;
   const [choices, setChoices] = useState<ToolCredentialAuthorityRecordV1[]>();
   const [choice, setChoice] = useState('');
+  const [loadError, setLoadError] = useState<string>();
   const load = async () => {
-    const result = await window.aura.v1.listToolCredentials(slot.target);
-    if (!result.ok) return;
+    setLoadError(undefined);
+    let result;
+    try {
+      result = await window.aura.v1.listToolCredentials(slot.target);
+    } catch (error) {
+      setLoadError(credentialsNotRead(error));
+      return;
+    }
+    if (!result.ok) {
+      setLoadError(credentialsNotRead(result.error));
+      return;
+    }
     setChoices(
       result.value.credentials.filter(
         (record) =>
@@ -166,6 +178,7 @@ function PackageCredential({
       <button disabled={busy} onClick={() => void load()} type="button">
         读取可绑定的凭据
       </button>
+      {loadError === undefined ? null : <p role="alert">{loadError}</p>}
       {choices === undefined ? null : choices.length === 0 ? (
         <p>没有允许网站包含该地址的已配置凭据。请在上面新建，并在允许网站中填写该地址。</p>
       ) : (
@@ -192,3 +205,11 @@ function PackageCredential({
     </div>
   );
 }
+
+/** Credentials to bind that were not read: why, and that binding waits. */
+const credentialsNotRead = (error: unknown): string =>
+  refusedAction(
+    error instanceof Error ? undefined : error,
+    '可绑定的凭据没有读到',
+    '暂时不能绑定；请稍后重试。',
+  );

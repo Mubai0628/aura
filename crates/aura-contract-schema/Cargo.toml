@@ -12,9 +12,12 @@ aura-plugins = { path = "../aura-plugins" }
 aura-skills = { path = "../aura-skills" }
 aura-activity-domain = { path = "../aura-activity-domain" }
 aura-agent-domain = { path = "../aura-agent-domain" }
+aura-agent-team-contract = { path = "../aura-agent-team-contract" }
 aura-web-domain = { path = "../aura-web-domain" }
 aura-browser-domain = { path = "../aura-browser-domain" }
 aura-chrome-domain = { path = "../aura-chrome-domain" }
+aura-data-move = { path = "../aura-data-move" }
+aura-old-data = { path = "../aura-old-data" }
 aura-desktop-domain = { path = "../aura-desktop-domain" }
 aura-windows-user-contract = { path = "../aura-windows-user-contract" }
 aura-ipc = { path = "../aura-ipc" }

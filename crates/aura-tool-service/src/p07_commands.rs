@@ -211,7 +211,7 @@ impl ToolMutationControlServiceV1 {
             _ => Err(safe_error(
                 ToolRegistryErrorCode::SettingsInvalid.error_code(),
                 ErrorCategory::Validation,
-                "The Tool settings method is outside the closed mutation set.",
+                "这不是工具设置能做的修改，没有执行；请更新 Aura 后重试。",
                 correlation_id,
             )),
         }
@@ -239,7 +239,7 @@ fn decode<T: DeserializeOwned>(
         safe_error(
             ToolRegistryErrorCode::SettingsInvalid.error_code(),
             ErrorCategory::Validation,
-            "The Tool settings request does not match its method contract.",
+            "工具设置的请求格式不对，没有保存；请刷新这一页后重试。",
             correlation_id,
         )
     })
@@ -281,7 +281,7 @@ fn update_instance_configuration(
         safe_error(
             ToolRegistryErrorCode::SettingsInvalid.error_code(),
             ErrorCategory::Validation,
-            "The Tool Instance configuration is not canonicalizable.",
+            "这份工具配置无法按规范保存（可能含有无效的数值），没有保存；请检查填写的内容后重试。",
             correlation_id,
         )
     })?;
@@ -449,7 +449,7 @@ fn workspace_for_session(
             safe_error(
                 ToolRegistryErrorCode::PinUnresolved.error_code(),
                 ErrorCategory::NotFound,
-                "The Session is unavailable for Tool pinning.",
+                "这个会话现在不可用，工具没有固定；请刷新后重试。",
                 correlation_id,
             )
         })
@@ -483,7 +483,7 @@ fn map_command_journal_error(
         PersistenceError::ToolMutationCommandIdempotencyConflict => safe_error(
             ToolDraftErrorCode::IdempotencyConflict.error_code(),
             ErrorCategory::Conflict,
-            "The CommandInvocationId is already bound to a different Tool mutation request.",
+            "这次修改的请求编号和之前的另一次修改重复，没有执行；请刷新后重试。",
             correlation_id,
         ),
         PersistenceError::ToolMutationCommandJournalStateConflict
@@ -500,19 +500,19 @@ fn map_persistence_error(
         PersistenceError::ToolEntityNotFound => safe_error(
             ToolDraftErrorCode::NotFound.error_code(),
             ErrorCategory::NotFound,
-            "The requested Tool entity was not found.",
+            "要修改的工具已不存在，没有保存；请刷新后重试。",
             correlation_id,
         ),
         PersistenceError::ToolEntityRevisionConflict => safe_error(
             ToolDraftErrorCode::RevisionConflict.error_code(),
             ErrorCategory::Conflict,
-            "The requested Tool entity revision is stale.",
+            "工具设置已在别处修改，这次没有保存；请刷新后再改。",
             correlation_id,
         ),
         PersistenceError::ToolEntityStateConflict => safe_error(
             ToolDraftErrorCode::InvalidTransition.error_code(),
             ErrorCategory::Conflict,
-            "The Tool entity state does not permit this operation.",
+            "这个工具当前的状态不允许这样修改，没有保存；请刷新查看后再操作。",
             correlation_id,
         ),
         PersistenceError::CredentialRecordNotFound
@@ -520,7 +520,7 @@ fn map_persistence_error(
         | PersistenceError::CredentialBindingMismatch => safe_error(
             ToolRuntimeErrorCode::CredentialBindingInvalid.error_code(),
             ErrorCategory::Conflict,
-            "The Tool credential binding is unavailable or stale.",
+            "这个工具绑定的凭据已不可用，没有保存；请重新选择凭据。",
             correlation_id,
         ),
         PersistenceError::ToolMutationCommandIdempotencyConflict
@@ -539,7 +539,7 @@ fn map_secret_scan_error(
     safe_error(
         ToolRegistryErrorCode::SettingsInvalid.error_code(),
         ErrorCategory::Permission,
-        "Tool Instance configuration must not contain credential material.",
+        "工具配置里不能直接写密钥或密码，没有保存；请改用工具凭据。",
         correlation_id,
     )
 }
@@ -548,7 +548,7 @@ fn journal_failed(correlation_id: CorrelationId) -> IpcErrorEnvelope {
     safe_error(
         ToolDraftErrorCode::JournalFailed.error_code(),
         ErrorCategory::Internal,
-        "The Tool mutation Journal could not be completed safely.",
+        "工具设置没能安全写入，设置没有改变；请重试，仍然不行时重启 Aura。",
         correlation_id,
     )
 }
@@ -560,9 +560,9 @@ fn safe_error(
     correlation_id: CorrelationId,
 ) -> IpcErrorEnvelope {
     IpcErrorEnvelope {
+        message: format!("{code}: {message}"),
         code,
         category,
-        message: message.to_owned(),
         retryable: false,
         correlation_id,
         terminal: IpcRequestTerminal::Failed,

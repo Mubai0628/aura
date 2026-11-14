@@ -3,8 +3,7 @@ import { useState } from 'react';
 import type { NotificationInput } from './notification-center-store';
 import { AppIcon } from './app-icons';
 import { ModalDialog } from './ModalDialog';
-import { userMessage } from './agent-session/user-message';
-import { MODEL_FAILURE_FALLBACK } from './provider-connection/notices';
+import { modelFailureText } from './provider-connection/model-failure-words';
 
 interface CustomProviderDialogProps {
   expectedRevision: string;
@@ -39,8 +38,8 @@ export function CustomProviderDialog({
     if (!result.ok) {
       onNotify({
         dedupeKey: `model-provider-create:${result.error.code}`,
-        message: userMessage(result.error, MODEL_FAILURE_FALLBACK),
-        title: 'Provider 未保存',
+        message: modelFailureText(result.error),
+        title: '服务商未保存',
         tone: 'danger',
       });
       setSaving(false);
@@ -50,7 +49,7 @@ export function CustomProviderDialog({
     onNotify({
       dedupeKey: `model-provider-created:${result.value.value.id}`,
       message: `${result.value.value.display_name} 已写入 Core 模型配置。`,
-      title: 'Provider 已添加',
+      title: '服务商已添加',
       tone: 'success',
     });
     onClose();

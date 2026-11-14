@@ -10,6 +10,8 @@ use rusqlite::{Connection, Transaction};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 
+mod refusal;
+
 fn input<T: DeserializeOwned>(value: &Value) -> StoreResult<T> {
     serde_json::from_value(value.clone()).map_err(Into::into)
 }
@@ -82,6 +84,7 @@ pub fn execute_with(
     }
     let after = inspect(tx, batch)?;
     let turn = turns::load(tx, batch.invocation_identity.turn_task_id)?;
+    let tool = request.operation.content.action_kind.as_str();
     let operation_rejection = match output.as_ref().err() {
         Some(Error::Invalid(message)) => {
             let detail = if *message == crate::execution::shell::NOT_A_SHELL_CALL {
@@ -89,8 +92,10 @@ pub fn execute_with(
             } else {
                 String::new()
             };
-            classify_invalid(message, &detail)
+            refusal::classify_invalid(message, &detail)
         }
+        Some(Error::Conflict) => Some((refusal::conflict(tool), None)),
+        Some(Error::Json(error)) => refusal::arguments(tool, error).map(|error| (error, None)),
         _ => None,
     };
     if let Some((_, Some(failure))) = &operation_rejection {
@@ -123,8 +128,8 @@ fn dispatch(
     arguments: &Value,
     at: UtcTimestamp,
 ) -> StoreResult<Value> {
-    if disposition_blocks(tx, batch, name)? {
-        return Err(Error::Invalid("agent.mode_disposition_required"));
+    if let Some(refusal) = disposition_blocks(tx, batch, name)? {
+        return Err(Error::Invalid(refusal));
     }
     let id = &batch.invocation_identity;
     let turn = turns::load(tx, id.turn_task_id)?;
@@ -205,8 +210,17 @@ fn dispatch(
         "goal.check" => {
             let i: GoalCheckInput = input(arguments)?;
             let old = work::goal(tx, id.turn_task_id)?;
-            if old.revision != i.expected_goal_revision || i.assessment.trim().is_empty() {
-                return Err(Error::Conflict);
+            if old.revision != i.expected_goal_revision {
+                return Err(Error::Invalid(
+                    "goal.expected_goal_revision: it is not the goal's current revision; read the \
+                     goal with goal.get and send the revision it shows",
+                ));
+            }
+            if i.assessment.trim().is_empty() {
+                return Err(Error::Invalid(
+                    "goal.assessment: it is blank; say in a few words how the work stands against \
+                     the goal",
+                ));
             }
             super::evidence::verify(tx, &i.evidence_refs, &id.agent_run_id.to_string())?;
             let mut state = old.clone();
@@ -227,7 +241,7 @@ fn dispatch(
             let i: QueryUserQuestionInput = input(arguments)?;
             let old = work::query(tx, id.turn_task_id)?;
             if old.as_ref().is_some_and(|q| q.state == UserQueryState::Pending) {
-                return Err(Error::Conflict);
+                return Err(Error::Invalid("query.user_question.pending"));
             }
             let query = UserQuery {
                 query_id: UserQueryId::new(),
@@ -267,17 +281,36 @@ fn dispatch(
         }
         "task_lineage.read_sources" => {
             let i: TaskLineageReadSourcesInput = input(arguments)?;
+            let not_open = Error::Invalid(
+                "task_lineage.read_sources.lineage_id: no lineage open in this session has this \
+                 id; take ids from task_lineage.list_open",
+            );
+            let sources = "task_lineage.read_sources.source_event_ids: each id must be one of \
+                           this lineage's sources, sent once; take them from the lineage's user \
+                           messages";
+            if !session::load(tx, id.session_id)?.open_lineages.contains(&i.lineage_id) {
+                return Err(not_open);
+            }
             let l = lineage::load(tx, i.lineage_id)?;
-            if l.session_id != id.session_id
-                || l.revision != i.expected_lineage_revision
-                || !session::load(tx, id.session_id)?.open_lineages.contains(&l.lineage_id)
-            {
-                return Err(Error::Conflict);
+            if l.session_id != id.session_id {
+                return Err(not_open);
+            }
+            if l.revision != i.expected_lineage_revision {
+                return Err(Error::Invalid(
+                    "task_lineage.read_sources.expected_lineage_revision: it is not the lineage's \
+                     current revision; reload task_lineage.list_open and send the revision it \
+                     shows",
+                ));
             }
             let messages = i
                 .source_event_ids
                 .iter()
-                .map(|e| session::user_message(tx, id.session_id, *e))
+                .map(|e| match session::user_message(tx, id.session_id, *e) {
+                    Err(Error::Sqlite(rusqlite::Error::QueryReturnedNoRows)) => {
+                        Err(Error::Invalid(sources))
+                    }
+                    found => found,
+                })
                 .collect::<StoreResult<Vec<_>>>()?;
             let receipt = l
                 .source_read_receipt(
@@ -287,7 +320,10 @@ fn dispatch(
                     SourceReadReceiptId::new(),
                     at,
                 )
-                .map_err(|_| Error::Conflict)?;
+                .map_err(|error| match error {
+                    AgentError::SourceInvalid => Error::Invalid(sources),
+                    _ => Error::Conflict,
+                })?;
             lineage::save_receipt(tx, &receipt)?;
             value(TaskLineageReadSourcesResult {
                 lineage_id: l.lineage_id,
@@ -322,11 +358,13 @@ fn stale_todo(todo: &TodoState) -> Error {
     })
 }
 
+/// Why a call may not run while the session's special mode waits for its decision: that decision
+/// has to be the only call of its response, and no other call runs before it.
 fn disposition_blocks(
     tx: &Transaction<'_>,
     batch: &ToolBatchRequestV1,
     name: &str,
-) -> StoreResult<bool> {
+) -> StoreResult<Option<&'static str>> {
     let registry =
         crate::tool::registry(tx, batch.registry_snapshot_ref.tool_registry_snapshot_id)?
             .ok_or(Error::Conflict)?;
@@ -347,11 +385,12 @@ fn disposition_blocks(
         names.push(entry.canonical_name.as_str().to_string());
     }
     if names.iter().any(|item| item == "mode.disposition") && batch.calls.len() != 1 {
-        return Ok(true);
+        return Ok(Some("agent.mode_disposition_alone"));
     }
     let required = super::mode::load(tx, batch.invocation_identity.session_id)?
         .is_some_and(|episode| episode.disposition_required && episode.is_active_special());
-    Ok(required && !matches!(name, "mode.disposition" | "query.user_question"))
+    Ok((required && !matches!(name, "mode.disposition" | "query.user_question"))
+        .then_some("agent.mode_disposition_required"))
 }
 
 fn clear_satisfied_lineage(
@@ -409,116 +448,5 @@ fn bound_reconcile(
         relations: tool.relations,
         completion_policy_update: tool.completion_policy_update,
         reason: tool.reason,
-    })
-}
-
-/// `detail` follows the message: what this session's records tell about it, or nothing.
-fn classify_invalid(
-    message: &'static str,
-    detail: &str,
-) -> Option<(ModelSafeToolErrorV1, Option<DeterministicFailure>)> {
-    let failure = lineage_failure(message);
-    let (code, category) = match message {
-        "task_lineage.arguments_invalid"
-        | "task_lineage.constraint.expire_forbids_policy"
-        | "task_lineage.constraint.expire_forbids_relations"
-        | "task_lineage.constraint.reference_forbids_policy"
-        | "task_lineage.constraint.cancel_requires_excerpt" => {
-            (ToolSchemaErrorCode::ArgumentsInvalid.error_code(), ErrorCategory::Validation)
-        }
-        "task_lineage.identity_mismatch" | "task_lineage.target_not_in_session" => (
-            ErrorCode::new("tool.batch.identity_mismatch").expect("registered syntax"),
-            ErrorCategory::Validation,
-        ),
-        "task_lineage.revision_stale" => (
-            ErrorCode::new("tool.batch.control_state_mismatch").expect("registered syntax"),
-            ErrorCategory::Conflict,
-        ),
-        "task_lineage.disposition_not_allowed"
-        | "task_lineage.current_required"
-        | "agent.mode_disposition_required"
-        | "agent.mode_disposition_reason_required" => (
-            ErrorCode::new("task_lineage.disposition_not_allowed").expect("registered syntax"),
-            ErrorCategory::Validation,
-        ),
-        other
-            if other.starts_with("tools.")
-                || other.starts_with("task_lineage.")
-                || other.starts_with("skills.")
-                || other.starts_with("plugins.")
-                || other.starts_with("shell.")
-                || other.starts_with("todo.")
-                || other.starts_with("context.")
-                || other.starts_with("history.") =>
-        {
-            (ToolSchemaErrorCode::ArgumentsInvalid.error_code(), ErrorCategory::Validation)
-        }
-        _ => return None,
-    };
-    let text = failure.as_ref().map(DeterministicFailure::model_message).unwrap_or_else(|| {
-        format!("{message}.{detail} retryable:false means the identical arguments will fail; corrected arguments may be submitted.")
-    });
-    Some((ModelSafeToolErrorV1 { code, category, message: text, retryable: false }, failure))
-}
-
-fn lineage_failure(message: &str) -> Option<DeterministicFailure> {
-    Some(match message {
-        "task_lineage.constraint.expire_forbids_policy" => DeterministicFailure::schema_constraint(
-            "task_lineage.reconcile.completion_policy_update",
-            "expire_prior forbids completion_policy_update",
-            "completion_policy_update set",
-            "Omit completion_policy_update when marking a prior lineage expired.",
-        ),
-        "task_lineage.constraint.expire_forbids_relations" => {
-            DeterministicFailure::schema_constraint(
-                "task_lineage.reconcile.relations",
-                "expire_prior forbids relations",
-                "relations not empty",
-                "Omit relations when marking a prior lineage expired.",
-            )
-        }
-        "task_lineage.constraint.reference_forbids_policy" => {
-            DeterministicFailure::schema_constraint(
-                "task_lineage.reconcile.completion_policy_update",
-                "reference_prior forbids completion_policy_update",
-                "completion_policy_update set",
-                "Omit completion_policy_update when only referencing a prior lineage.",
-            )
-        }
-        "task_lineage.constraint.cancel_requires_excerpt" => {
-            DeterministicFailure::schema_constraint(
-                "task_lineage.reconcile.relations",
-                "cancel_existing requires a later excerpt with kind cancels_task",
-                "missing cancels_task excerpt",
-                "Supply a later_excerpt on a cancels_task relation grounded in the current user message.",
-            )
-        }
-        "task_lineage.arguments_invalid" => DeterministicFailure::schema_constraint(
-            "task_lineage.reconcile",
-            "arguments must satisfy the published combination rules",
-            "invalid combination",
-            "Resubmit only the decision, optional grounded relations, and reason. Core binds identity and revision.",
-        ),
-        "task_lineage.disposition_not_allowed" => DeterministicFailure::disposition(
-            "task_lineage.reconcile.decision",
-            "interrupted and topic-switched lineages cannot become Active; expire or reference them from the current task",
-            "disallowed reactivation or target",
-            "Keep the current Active lineage. Use expire_prior or reference_prior for background records.",
-        ),
-        "task_lineage.identity_mismatch" | "task_lineage.target_not_in_session" => {
-            DeterministicFailure::disposition(
-                "task_lineage.reconcile",
-                "target must belong to this session and the current user event",
-                message,
-                "Reload task_lineage.list_open and use an id from this session.",
-            )
-        }
-        "task_lineage.revision_stale" => DeterministicFailure::disposition(
-            "task_lineage.reconcile",
-            "the bound lineage revision must match the live record",
-            "stale revision",
-            "Reload current task state and resubmit. Do not copy a previous revision.",
-        ),
-        _ => return None,
     })
 }

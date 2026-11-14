@@ -161,10 +161,13 @@ async fn a_turn_cut_off_while_aura_stayed_open_is_continued_and_the_queue_follow
     assert!(matches!(seen[1].turn.state, TurnTaskState::Completed { .. }));
     assert_eq!(said(&seen[2]), "Then the queued request", "the queue follows the continuation");
     assert_eq!(seen[2].auto_continued, None);
-    assert_eq!(
-        provider.requests.lock().expect("requests").len(),
-        3,
-        "the cut-off request is never sent again"
+    let requests = provider.requests.lock().expect("requests").clone();
+    assert_eq!(requests.len(), 3, "the cut-off request is never sent again");
+    let continued = requests[1].to_string();
+    assert!(
+        continued.contains("then continued it on its own")
+            && continued.contains("sent by Aura, not typed by the user"),
+        "the model is told the 继续 is Aura's: {continued}"
     );
     // Once is all: the start's list is spent.
     assert_eq!(agent(&runtime).continue_after_restart(CoreRestartCause::Crash).await, vec![]);
@@ -191,6 +194,10 @@ async fn after_aura_was_closed_only_the_users_continue_continues_and_the_queue_w
     let seen = completed_turns(&runtime, session_id, 2).await;
     assert_eq!(said(&seen[1]), "继续");
     assert_eq!(seen[1].auto_continued, None, "the user continued it");
+    let continued =
+        provider.requests.lock().expect("requests").last().expect("request").to_string();
+    assert!(continued.contains("Aura restarted while it was running."), "{continued}");
+    assert!(!continued.contains("on its own"), "the user's 继续 is the user's: {continued}");
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(turns(&runtime, session_id).await.len(), 2, "the queue waits for the user");
     let inbox = agent(&runtime).inbox(AgentSessionRequest { session_id }).await.expect("inbox");
@@ -270,4 +277,57 @@ async fn a_turn_cut_off_again_right_after_aura_continued_it_is_left_for_the_user
     assert_eq!(seen.len(), 2, "nothing more is started by itself");
     assert!(matches!(seen[1].turn.state, TurnTaskState::RecoveryRequired { .. }));
     assert_eq!(provider.requests.lock().expect("requests").len(), 2);
+}
+
+/// A turn that was running when Aura was closed normally, with time for the runs to end, is cut
+/// off as by any restart: it is not continued by itself when Aura opens again, the user's 继续
+/// continues it, and the model reads that Aura restarted, not that the user stopped it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_turn_running_when_aura_was_closed_waits_for_the_users_continue() {
+    let host = Arc::new(crate::r03_tests::Fixture::new());
+    let provider = Arc::new(Provider::scenario(Scenario::RecoveredSession).await);
+    let (first_host, first_provider) = (host.clone(), provider.clone());
+    let (session_id, cut) = crashed(move || {
+        Box::pin(async move {
+            let (runtime, start) =
+                waiting::begin(&first_host, &first_provider, AgentTaskMode::Normal).await;
+            requests_reach(&first_provider, 1).await;
+            // Aura closes: the agent stops its runs the way a normal exit does.
+            let app = agent(&runtime);
+            app.shutdown();
+            let run = start.run.agent_run_id;
+            tokio::time::timeout(Duration::from_secs(20), async {
+                while app.supervisor().is_active(run) {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("the run ends with the shutdown");
+            (start.turn.session_id, start.turn.turn_task_id)
+        })
+    })
+    .await;
+
+    let runtime = host.start().await;
+    bind_model(&runtime, session_id, cut).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let seen = turns(&runtime, session_id).await;
+    assert_eq!(seen.len(), 1, "nothing continues by itself");
+    let cut_off = matches!(
+        &seen[0].turn.state,
+        TurnTaskState::RecoveryRequired { reason } if reason == "agent.core_restarted"
+    );
+    assert!(cut_off, "the closed turn waits for 继续: {:?}", seen[0].turn.state);
+    crate::r03_tests::success(
+        &runtime,
+        "agent.continue",
+        json!(AgentContinueRequest { session_id, turn_task_id: cut }),
+    )
+    .await;
+    let seen = completed_turns(&runtime, session_id, 2).await;
+    assert_eq!(said(&seen[1]), "继续");
+    let continued =
+        provider.requests.lock().expect("requests").last().expect("request").to_string();
+    assert!(continued.contains("Aura restarted while it was running."), "{continued}");
+    assert!(!continued.contains("The user stopped"), "{continued}");
 }

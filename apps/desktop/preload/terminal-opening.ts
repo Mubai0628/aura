@@ -20,7 +20,10 @@ export function terminalOpeningBridge(
 ): TerminalOpeningApiV1 {
   const invalid = () => ({
     ok: false as const,
-    error: error('terminal.opening.invalid', '终端打开状态格式不兼容。'),
+    error: error(
+      'terminal.opening.invalid',
+      'Aura 界面和 Core 的版本对不上，终端打开的结果读不懂；请重启 Aura，仍然如此请重新运行安装程序修复。',
+    ),
   });
   const invoke = async <T>(channel: string, source: unknown, parse: (value: unknown) => T) => {
     try {

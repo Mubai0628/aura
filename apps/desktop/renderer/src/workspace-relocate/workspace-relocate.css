@@ -1,0 +1,27 @@
+/* A Workspace Core could not open at its folder: its row holds the button that picks where the
+   folder is now, between the name and the row's own buttons. */
+.workspace-row.is-offline {
+  grid-template-columns: 26px minmax(0, 1fr) auto 28px 28px;
+}
+
+.workspace-row.is-offline .workspace-select {
+  color: var(--muted);
+}
+
+.workspace-relocate-button {
+  margin-right: 2px;
+}
+
+.workspace-relocate-dialog .sidebar-field-label {
+  display: block;
+}
+
+.workspace-relocate-dialog .workspace-directory-value {
+  margin: 4px 0 14px;
+}
+
+.workspace-relocate-dialog [role='alert'] {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}

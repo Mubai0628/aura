@@ -46,8 +46,21 @@ fn failed(error: &windows::core::Error) -> UiError {
         UIA_E_ELEMENTNOTENABLED => UiError::NotEnabled,
         UIA_E_NOTSUPPORTED | UIA_E_INVALIDOPERATION | E_NOTIMPL => UiError::NotSupported,
         _ if error.code().0 == EMPTY => UiError::NotSupported,
-        _ => UiError::Failed(format!("UI Automation：{error}")),
+        _ => UiError::Failed(format!("Windows UI Automation 报错“{}”", said(error))),
     }
+}
+
+/// What Windows said about a failed call, with its code, as one bounded line.
+fn said(error: &windows::core::Error) -> String {
+    const LIMIT: usize = 200;
+    let message = error.message();
+    let line = message.lines().map(str::trim).find(|line| !line.is_empty()).unwrap_or_default();
+    let mut said: String =
+        line.chars().take(LIMIT).map(|c| if c.is_control() { ' ' } else { c }).collect();
+    if line.chars().count() > LIMIT {
+        said.push('…');
+    }
+    if said.is_empty() { error.code().to_string() } else { format!("{said} ({})", error.code()) }
 }
 
 impl Automation {
@@ -163,5 +176,21 @@ unsafe fn on_screen(uia: &IUIAutomation2) -> windows::core::Result<IUIAutomation
         let shown =
             uia.CreatePropertyCondition(UIA_IsOffscreenPropertyId, &node::boolean(false))?;
         uia.CreateAndCondition(&uia.ControlViewCondition()?, &shown)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_windows_failure_is_told_in_one_line_with_its_code() {
+        let code = windows::core::HRESULT(0x8000_4005_u32 as i32);
+        let UiError::Failed(message) = failed(&windows::core::Error::from_hresult(code)) else {
+            panic!("an unspecified failure is not one of the known answers");
+        };
+        assert!(message.starts_with("Windows UI Automation 报错“"), "{message}");
+        assert!(message.ends_with("(0x80004005)”"), "{message}");
+        assert!(!message.chars().any(char::is_control), "{message}");
     }
 }

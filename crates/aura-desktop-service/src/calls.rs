@@ -391,13 +391,7 @@ impl crate::DesktopControl {
         let command = aura_desktop_domain::HostCommand::Windows { apps: apps.clone() };
         let windows = match self.run(command, WINDOWS_LIMIT).await? {
             aura_desktop_domain::HostResult::Windows { windows } => windows,
-            other => {
-                return Err(aura_desktop_domain::HostError::new(
-                    aura_desktop_domain::HostErrorCode::Internal,
-                    format!("列窗口时收到了别的结果：{other:?}"),
-                    aura_desktop_domain::Delivery::NotDelivered,
-                ));
-            }
+            other => return Err(crate::control::unexpected("列窗口", &other)),
         };
         Ok(apps
             .into_iter()

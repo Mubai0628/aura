@@ -154,14 +154,11 @@ impl AgentApplication {
                         } else {
                             MemoryMaintenanceState::Failed
                         };
-                        record.reason = Some(
-                            if cancel.is_cancelled() {
-                                "已中断；不重放"
-                            } else {
-                                "整理未完成；原任务结果不变。请查看 Core 诊断。"
-                            }
-                            .into(),
-                        );
+                        record.reason = Some(if cancel.is_cancelled() {
+                            "整理被停下：Aura 正在关闭；原任务结果不变，这次整理不会重做。".into()
+                        } else {
+                            failure_reason(&error)
+                        });
                     }
                     Err(_) => {
                         record.state = MemoryMaintenanceState::Failed;
@@ -289,5 +286,56 @@ impl AgentApplication {
         Ok(self.settings.memory_settings().settings.automatic_maintenance
             && self.execution.persistence.session_permission_state(session)?.mode
                 != aura_security_contract::PermissionMode::ReadOnly)
+    }
+}
+
+/// Why a memory pass did not finish, in words the user reads with its record, from the code its
+/// error begins with.
+fn failure_reason(error: &anyhow::Error) -> String {
+    let text = error.to_string();
+    let (code, cause) = text.split_once(':').unwrap_or((text.as_str(), ""));
+    match code.split(' ').next().unwrap_or_default() {
+        "memory.model_unavailable" | "memory.current_model_required" => {
+            "整理没有完成：当前没有可用的模型；原任务结果不变。".into()
+        }
+        "memory.model_timed_out" => format!(
+            "整理没有完成：模型 {} 分钟内没有答完，已停下；原任务结果不变。",
+            model::MAINTENANCE_LIMIT.as_secs() / 60
+        ),
+        "memory.model_failed" if !cause.trim().is_empty() => {
+            format!("整理没有完成：{}；原任务结果不变。", cause.trim())
+        }
+        "memory.model_failed" => "整理没有完成：模型服务出错；原任务结果不变。".into(),
+        "memory.maintenance_stopped" => {
+            "整理被停下：Aura 正在关闭；原任务结果不变，这次整理不会重做。".into()
+        }
+        "memory.incomplete_output" | "memory.invalid_structured_output" | "memory.output_bound" => {
+            "整理没有完成：模型给出的整理结果不完整或格式不对；原任务结果不变。".into()
+        }
+        "memory.usage_out_of_range" => {
+            "整理没有完成：模型服务报的用量不合常理；原任务结果不变。".into()
+        }
+        _ => "整理没有完成（原因已记入 Core 日志）；原任务结果不变。".into(),
+    }
+}
+
+#[cfg(test)]
+mod failure_reason_tests {
+    #[test]
+    fn a_failed_memory_pass_says_why_in_words() {
+        let said = |text: &str| super::failure_reason(&anyhow::anyhow!(text.to_owned()));
+        assert!(said("memory.model_unavailable: no model").contains("没有可用的模型"));
+        assert!(said("memory.invalid_structured_output").contains("格式不对"));
+        assert_eq!(said("store.busy"), "整理没有完成（原因已记入 Core 日志）；原任务结果不变。");
+        // A timeout, the service's own failure and a stop each say which it was.
+        assert_eq!(
+            said("memory.model_timed_out"),
+            "整理没有完成：模型 10 分钟内没有答完，已停下；原任务结果不变。"
+        );
+        assert_eq!(
+            said("memory.model_failed: 模型服务限流"),
+            "整理没有完成：模型服务限流；原任务结果不变。"
+        );
+        assert!(said("memory.maintenance_stopped").contains("Aura 正在关闭"));
     }
 }

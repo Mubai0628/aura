@@ -1292,11 +1292,11 @@ impl P05Services {
                                 )
                             },
                         )?;
-                        let mut changed_model_profile_ids = prepared.value.clone();
-                        changed_model_profile_ids.sort_unstable();
+                        let changed_model_profile_ids = prepared.value.changed.clone();
                         let result = ProviderBulkAvailabilityResult {
                             provider_id: request.provider_id,
                             changed_model_profile_ids: changed_model_profile_ids.clone(),
+                            skipped_model_profile_ids: prepared.value.skipped.clone(),
                             revision: prepared.candidate_revision,
                         };
                         if !prepared.changed {

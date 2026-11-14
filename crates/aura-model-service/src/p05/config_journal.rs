@@ -90,13 +90,21 @@ pub enum ModelConfigJournalError {
     ModelConfig(#[from] aura_model_config::ModelConfigError),
     #[error(transparent)]
     Projection(#[from] P05ProjectionError),
-    #[error("model config journal payload is invalid: {0}")]
+    #[error(
+        "model.config_journal_invalid: 上次没改完的模型设置记录内容损坏，没能继续；请到设置里查看恢复选项。"
+    )]
     InvalidPayload(#[from] serde_json::Error),
-    #[error("model config journal entered reconciliation_required: {0}")]
+    #[error(
+        "model.config_journal_reconciliation_required: 模型设置的一次修改需要先完成恢复处理，请到设置里查看恢复选项。（记录 {0}）"
+    )]
     ReconciliationRequired(MutationJournalId),
-    #[error("model config journal was aborted: {0}")]
+    #[error(
+        "model.config_journal_aborted: 模型设置的这次修改在提交前被中止，没有改变任何内容，请重试。（记录 {0}）"
+    )]
     Aborted(MutationJournalId),
-    #[error("credential-bearing model config journal requires its dedicated coordinator")]
+    #[error(
+        "model.config_journal_credential_coordinator: 带密钥的模型设置修改走错了处理流程（Aura 内部出错），没有执行；请重试。"
+    )]
     CredentialChildRequiresDedicatedCoordinator,
     #[error(transparent)]
     Credential(#[from] P05CredentialJournalError),

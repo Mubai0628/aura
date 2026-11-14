@@ -22,25 +22,17 @@ use std::sync::{Arc, Mutex};
 pub(crate) mod continuation {
     /// Once per process, after the startup that cut the turns off: Main passed `--continue-after`.
     pub(crate) fn after_startup(state: &crate::RuntimeState) {
-        static ONCE: std::sync::Once = std::sync::Once::new();
-        let Some(cause) = state.options.continue_after else {
-            return;
-        };
-        let crate::StartupMode::Ready(services) = &state.startup_mode else {
+        let (Some(cause), crate::StartupMode::Ready(services)) =
+            (state.options.continue_after, &state.startup_mode)
+        else {
             return;
         };
         // New work waits for a configuration the user has to repair, as a sent message would.
-        let Ok(agent) = services.agent() else {
-            return;
-        };
-        if !services.agent_capability_available() {
-            return;
+        if let Ok(agent) = services.agent()
+            && services.agent_capability_available()
+        {
+            agent.continue_after_restart_once(cause);
         }
-        ONCE.call_once(|| {
-            drop(tokio::spawn(async move {
-                agent.continue_after_restart(cause).await;
-            }));
-        });
     }
 }
 

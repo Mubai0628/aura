@@ -9,7 +9,8 @@ import {
   type AttachmentFileRequest,
   type AttachmentFileResult,
 } from '../shared/attachment-files.js';
-import { runsCode } from '../shared/outside-files.js';
+import { DEFAULT_APP_FAILED, runsCode } from '../shared/outside-files.js';
+import { coreDidNotAnswer } from './request-failure-envelopes.js';
 import { WORKSPACE_MEDIA } from '../shared/workspace-media.js';
 import type { CoreSupervisor } from './core-supervisor.js';
 import type { WorkspaceMedia } from './workspace-media.js';
@@ -17,12 +18,21 @@ import type { WorkspaceMedia } from './workspace-media.js';
 type Core = Pick<CoreSupervisor, 'requestWithBudget'>;
 
 const MISSING = '找不到这个附件，它可能已被移动、删除或替换。';
+const NOT_ANSWERED = 'Aura Core 暂时没有回应，附件没有打开；稍后再试。';
+const HELD = '这个附件正被其他程序占用或没有读取权限，没有打开；关闭占用它的程序后再试。';
+
+/** A file the system would not hand over: another program holds it, or it may not be read. */
+const held = (error: unknown): boolean => {
+  const code = (error as { code?: unknown } | null)?.code;
+  return code === 'EBUSY' || code === 'EPERM' || code === 'EACCES';
+};
 
 /** A zip's entry that did not come out, for a reason Core did not say. */
 const ENTRY_UNFINISHED = '没能从压缩包里取出这个文件，请稍后重试。';
 
 /** Core's sentence for the user, without its code; anything else is said plainly. */
 function reason(error: unknown, entry = false): string {
+  if (coreDidNotAnswer(error)) return NOT_ANSWERED;
   const text = error instanceof Error ? error.message : String(error);
   const said = /agent\.(?:attachment|mentioned_file)_[a-z_]+:\s*(.+)$/u.exec(text);
   return said?.[1]?.trim() || (entry ? ENTRY_UNFINISHED : MISSING);
@@ -124,12 +134,12 @@ export class AttachmentFiles {
             };
           const failure = await shell.openPath(path);
           return failure
-            ? { ok: false, message: `没有打开这个文件：${failure}` }
+            ? { ok: false, message: DEFAULT_APP_FAILED }
             : { ok: true, kind: 'opened', message: '已用默认应用打开' };
         }
       }
-    } catch {
-      return { ok: false, message: MISSING };
+    } catch (error) {
+      return { ok: false, message: held(error) ? HELD : MISSING };
     }
   }
 

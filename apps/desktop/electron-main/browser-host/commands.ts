@@ -18,6 +18,7 @@ const PLAIN = new Set([
   'devtools',
   'picture',
   'text',
+  'hand-over',
 ]);
 const MAX_INPUT = 4096;
 const MAX_EDGE = 20_000;

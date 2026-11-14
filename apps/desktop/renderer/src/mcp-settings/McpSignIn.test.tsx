@@ -192,3 +192,71 @@ test('the trust dialog lists how a server signs in, and never a secret', async (
   expect(shown.textContent).toContain('带密钥的环境变量：GITHUB_TOKEN');
   expect(shown.textContent).not.toContain(SECRET_ID);
 });
+
+test('a secret that did not reach Core says neither it nor the server was saved', async () => {
+  api.setMcpSecret.mockResolvedValue({
+    ok: false,
+    error: {
+      code: 'ipc.mcp.secret_not_sent',
+      message:
+        'Aura Core 正在重启或暂时连不上，这次输入没有发出，什么都没有保存；等 Core 就绪后重新输入即可。',
+    },
+  });
+  const { user, form } = await addForm();
+  await user.click(within(form).getByLabelText('HTTP 地址（Streamable HTTP）'));
+  await user.type(within(form).getByLabelText('地址'), 'https://mcp.example.com/mcp');
+  await user.click(within(form).getByLabelText('密钥（Authorization: Bearer）'));
+  await user.type(within(form).getByLabelText('密钥'), SECRET);
+  await user.click(within(form).getByRole('button', { name: '保存' }));
+  expect(
+    await within(form).findByText(
+      '认证密钥没有保存（Aura Core 正在重启或暂时连不上），服务器设置也没有保存；输入框已清空，请重新填写后再保存。',
+    ),
+  ).toBeTruthy();
+  expect(api.saveMcpServer).not.toHaveBeenCalled();
+});
+
+test('a secret whose save was not confirmed says so, and the server was not saved', async () => {
+  api.setMcpSecret.mockResolvedValue({
+    ok: false,
+    error: {
+      code: 'ipc.command.outcome_unknown',
+      message: '密钥没有确认保存，请刷新后查看服务器状态；不要自动重发。',
+      details: { outcome_recovery: 'query_runtime.command_outcome_without_replay' },
+    },
+  });
+  const { user, form } = await addForm();
+  await user.click(within(form).getByLabelText('HTTP 地址（Streamable HTTP）'));
+  await user.type(within(form).getByLabelText('地址'), 'https://mcp.example.com/mcp');
+  await user.click(within(form).getByLabelText('密钥（Authorization: Bearer）'));
+  await user.type(within(form).getByLabelText('密钥'), SECRET);
+  await user.click(within(form).getByRole('button', { name: '保存' }));
+  expect(
+    await within(form).findByText(
+      '认证密钥是否已保存没有确认，服务器设置没有保存；输入框已清空，请重新填写后再保存。',
+    ),
+  ).toBeTruthy();
+  expect(api.saveMcpServer).not.toHaveBeenCalled();
+});
+
+test('a check that did not finish says why and that nothing was saved', async () => {
+  api.previewMcpServer.mockResolvedValue({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  const { user, form } = await addForm();
+  await user.click(within(form).getByLabelText('HTTP 地址（Streamable HTTP）'));
+  await user.type(within(form).getByLabelText('地址'), 'https://mcp.example.com/mcp');
+  await user.click(within(form).getByRole('button', { name: '检查' }));
+  expect(
+    await within(form).findByText(
+      '检查没有完成（Aura Core 没有及时回复），设置没有保存；请稍后再检查。',
+    ),
+  ).toBeTruthy();
+  api.previewMcpServer.mockResolvedValue({
+    ok: false,
+    error: { code: 'mcp.preview_failed', message: 'English detail' },
+  });
+  await user.click(within(form).getByRole('button', { name: '检查' }));
+  expect(await within(form).findByText('检查没有完成，设置没有保存；修改后再检查。')).toBeTruthy();
+});

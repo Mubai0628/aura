@@ -4,62 +4,17 @@ use std::{env, process::ExitCode};
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    if env::args().any(|argument| argument == "--version" || argument == "-V") {
-        println!("aura-core {}", env!("CARGO_PKG_VERSION"));
-        return ExitCode::SUCCESS;
-    }
-    // Before a newer version's first start the launcher asks this build which stores it would
-    // migrate or write records into that the version it replaces (`--replacing`) refuses, and
-    // copies only those. Nothing is opened for writing and Core does not start.
-    let arguments: Vec<String> = env::args().collect();
-    if let Some(at) = arguments.iter().position(|argument| argument == "--store-migration-check") {
-        let Some(root) = arguments.get(at + 1).map(std::path::PathBuf::from) else {
-            eprintln!("Aura Core argument error: --store-migration-check needs the data folder");
-            return ExitCode::from(2);
-        };
-        let replacing = arguments
-            .iter()
-            .position(|argument| argument == "--replacing")
-            .and_then(|at| arguments.get(at + 1))
-            .map(String::as_str);
-        let answer = |pending: Result<bool, String>| match pending {
-            Ok(pending) => serde_json::json!(pending),
-            Err(error) => serde_json::json!({ "error": error }),
-        };
-        let legacy = aura_persistence::copy_before_start(&root.join("data/aura.db"), replacing)
-            .map_err(|error| error.to_string());
-        let execution = aura_persistence_v2::copy_before_start(
-            &root.join("data").join("v2-execution").join("aura-v2.db"),
-            replacing,
-        )
-        .map_err(|error| error.to_string());
-        println!(
-            "{}",
-            serde_json::json!({
-                "data/aura.db": answer(legacy),
-                "data/v2-execution/aura-v2.db": answer(execution),
-            })
-        );
-        return ExitCode::SUCCESS;
-    }
-    // Before the desktop starts, the launcher has this build clear what older versions wrote into
-    // the execution store and nothing reads (`aura_persistence_v2::slimming::command`).
-    if let Some(at) = arguments.iter().position(|argument| argument == "--store-slim") {
-        let Some(root) = arguments.get(at + 1).map(std::path::PathBuf::from) else {
-            eprintln!("Aura Core argument error: --store-slim needs the data folder");
-            return ExitCode::from(2);
-        };
-        return ExitCode::from(aura_persistence_v2::slimming::command(
-            &root,
-            &aura_windows_platform::free_disk_space,
-            &mut std::io::stdout(),
-        ));
-    }
-    if env::args().any(|argument| argument == "--help" || argument == "-h") {
-        println!(
-            "Aura Core P01 Sidecar\n\nAura Core is started by Electron Main with a private bootstrap contract."
-        );
-        return ExitCode::SUCCESS;
+    // Answered without starting Core: the version and help, the launcher's questions about the
+    // stores, a desktop's about where its data is, and the move of a development run's data.
+    let (arguments, mut out) = (env::args().collect::<Vec<String>>(), std::io::stdout());
+    let answered = aura_core_base::options::version_or_help(&arguments, &mut out)
+        .or_else(|| aura_store_maintenance::command(&arguments, &mut out))
+        .or_else(|| aura_data_location::command(&arguments, &mut out))
+        .or_else(|| {
+            aura_data_move::command(&arguments, &mut out, &aura_store_maintenance::check_stores)
+        });
+    if let Some(code) = answered {
+        return ExitCode::from(code);
     }
     match aura_core::CoreOptions::parse(env::args()) {
         Ok(options) => {

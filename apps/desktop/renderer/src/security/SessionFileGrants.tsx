@@ -1,4 +1,4 @@
-import { userMessage } from '../agent-session/user-message';
+import { grantsNotRead, revokeFailure } from './grant-words';
 import { useEffect, useState } from 'react';
 import type { FileSessionConsentView } from '@aura/contracts/generated';
 
@@ -34,14 +34,14 @@ export function SessionFileGrants({ sessionId, open }: { sessionId: string; open
         setLoaded(
           result.ok
             ? { key: requestKey, grants: result.value }
-            : { key: requestKey, error: userMessage(result.error, '文件批准读取失败，请重试。') },
+            : { key: requestKey, error: grantsNotRead('文件批准', result.error) },
         );
       })
       .catch((reason: unknown) => {
         if (current)
           setLoaded({
             key: requestKey,
-            error: userMessage(reason, '读取文件批准失败。'),
+            error: grantsNotRead('文件批准', reason),
           });
       });
     return () => {
@@ -63,10 +63,11 @@ export function SessionFileGrants({ sessionId, open }: { sessionId: string; open
         grant_id: grant.grant_id,
         expected_revision: grant.grant_revision,
       });
-      if (!result.ok) setError(userMessage(result.error, '撤销没有完成，请刷新后核对。'));
+      if (!result.ok) setError(revokeFailure(result.error, '文件批准', '它仍然有效'));
       setReload((value) => value + 1);
     } catch (reason) {
-      setError(userMessage(reason, '撤销文件批准失败。'));
+      setError(revokeFailure(reason, '文件批准', '它仍然有效'));
+      setReload((value) => value + 1);
     } finally {
       setPending(undefined);
     }

@@ -30,7 +30,10 @@ export async function signInMcpServer(
   const begun = await supervisor.requestAgent('agent.mcp.oauth.sign_in', request);
   if (!opensInBrowser(begun.authorization_url))
     throw new Error('mcp.sign_in_refused: 授权地址不是 https，Aura 没有打开它');
-  // A browser that does not open leaves the link in the settings page to copy.
-  await open(begun.authorization_url).catch(() => undefined);
-  return begun;
+  // A browser that does not open leaves the link in the settings page to copy, and says so.
+  const opened = await open(begun.authorization_url).then(
+    () => true,
+    () => false,
+  );
+  return opened ? begun : { ...begun, browser_opened: false };
 }

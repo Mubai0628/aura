@@ -5,7 +5,10 @@ import type {
   GoalBudget,
 } from '@aura/contracts/generated';
 import { useEffect, useRef, useState } from 'react';
-import { isUnconfirmedCommandOutcome } from '../../../shared/ipc-request-failure';
+import {
+  type IpcFailureLike,
+  isUnconfirmedCommandOutcome,
+} from '../../../shared/ipc-request-failure';
 import { copySessionReasoning, sessionReasoning } from '../reasoning-effort';
 import { copySessionSpeed, sessionSpeed } from '../speed-mode';
 import { getComposerDraft, updateComposerDraft } from './composer-drafts';
@@ -13,6 +16,32 @@ import { quotesOf, removeQuotes } from './quote-reply/quote-store';
 import { quotedMessage } from './quote-reply/quote-text';
 import { acceptSending, endSending, startSending } from './sending';
 import { userMessage } from './user-message';
+import { failedAction } from './failure-text';
+import { NotSent } from './first-send-failure';
+
+/**
+ * What a message that did not go out says: one that may have gone out says so, and a full queue or
+ * a queue that just changed says what to do instead of blaming the model or the connection.
+ */
+export function sendFailure(error: IpcFailureLike & { message: string }): string {
+  if (isUnconfirmedCommandOutcome(error))
+    return '没有等到 Aura Core 的答复，这条消息可能已经发出；草稿已保留。请先看消息历史和队列，确认没有发出再发送。';
+  if (error.message.includes('agent.inbox_full'))
+    return '排队的消息太多，这条没有加入；草稿已保留，请等队列处理掉一些后再发。';
+  if (error.message.includes('revision or identity conflict'))
+    return '队列刚刚有了变化，这条消息没有发出；草稿已保留，请再点发送。';
+  return userMessage(error, '消息未发送，请检查模型与连接后重试。');
+}
+
+/** What a /init or /compact that did not start says, by the same causes as a failed send. */
+export function taskStartFailure(
+  error: IpcFailureLike & { message: string },
+  task: '初始化' | '压缩',
+): string {
+  if (isUnconfirmedCommandOutcome(error))
+    return `没有等到 Aura Core 的答复，${task}可能已经开始；草稿已保留。请先看消息历史，确认没有开始再试。`;
+  return failedAction(error, `${task}没有开始`, '草稿已保留；请检查模型和连接后再试。');
+}
 
 export interface SubmissionPreparation {
   prepare: (modelId: string) => Promise<string>;
@@ -184,7 +213,7 @@ export function useComposerSubmission(
             });
       if (!result.ok) {
         unshow();
-        setError(userMessage(result.error.message, '消息未发送，请检查模型与连接后重试。'));
+        setError(sendFailure(result.error));
         if (isUnconfirmedCommandOutcome(result.error)) setNeedsReview(true);
         onChanged();
         return false;
@@ -204,7 +233,10 @@ export function useComposerSubmission(
     } catch (reason) {
       unshow();
       setError(userMessage(reason, '发送结果未确认。草稿已保留，请核对消息历史与队列。'));
-      if (requestStarted || !preparation || !getComposerDraft(sessionId)?.serverSessionId)
+      if (
+        !(reason instanceof NotSent) &&
+        (requestStarted || !preparation || !getComposerDraft(sessionId)?.serverSessionId)
+      )
         setNeedsReview(true);
       onChanged();
       return false;
@@ -238,7 +270,7 @@ export function useComposerSubmission(
         text: draft,
       });
       if (!result.ok) {
-        setError(userMessage(result.error.message, '初始化没有开始，请检查模型与连接后重试。'));
+        setError(taskStartFailure(result.error, '初始化'));
         if (isUnconfirmedCommandOutcome(result.error)) setNeedsReview(true);
         onChanged();
         return false;
@@ -248,8 +280,16 @@ export function useComposerSubmission(
       onChanged();
       return true;
     } catch (reason) {
-      setError(userMessage(reason, '初始化是否开始尚未确认。草稿已保留，请核对消息历史。'));
-      if (requestStarted || !preparation || !getComposerDraft(sessionId)?.serverSessionId)
+      setError(
+        userMessage(
+          reason,
+          '没有等到 Aura Core 的答复，初始化可能已经开始；草稿已保留。请先看消息历史，确认没有开始再试。',
+        ),
+      );
+      if (
+        !(reason instanceof NotSent) &&
+        (requestStarted || !preparation || !getComposerDraft(sessionId)?.serverSessionId)
+      )
         setNeedsReview(true);
       onChanged();
       return false;
@@ -282,7 +322,7 @@ export function useComposerSubmission(
         focus: draft.trim() || null,
       });
       if (!result.ok) {
-        setError(userMessage(result.error.message, '压缩没有开始，请检查模型与连接后重试。'));
+        setError(taskStartFailure(result.error, '压缩'));
         if (isUnconfirmedCommandOutcome(result.error)) setNeedsReview(true);
         onChanged();
         return false;
@@ -291,7 +331,12 @@ export function useComposerSubmission(
       onChanged();
       return true;
     } catch (reason) {
-      setError(userMessage(reason, '压缩是否开始尚未确认。草稿已保留，请核对消息历史。'));
+      setError(
+        userMessage(
+          reason,
+          '没有等到 Aura Core 的答复，压缩可能已经开始；草稿已保留。请先看消息历史，确认没有开始再试。',
+        ),
+      );
       setNeedsReview(true);
       onChanged();
       return false;

@@ -1,5 +1,6 @@
 //! workspace route adapter; domain services retain authorization and transaction ownership.
 use crate::*;
+use aura_security_service::workspace_follow_up::WorkspaceFollowUp;
 
 /// The typed envelope for a session command the synchronous boundary did not complete.
 ///
@@ -107,12 +108,12 @@ pub(crate) async fn dispatch(
                     }
                     None => Err(broker::error_envelope(
                         request.id,
-                        anyhow::anyhow!("ipc.command_invocation_id_required"),
+                        anyhow::anyhow!(aura_core_base::route_failures::NO_INVOCATION),
                     )),
                 },
                 StartupMode::RecoveryRequired { .. } => Err(broker::error_envelope(
                     request.id,
-                    anyhow::anyhow!("core.recovery_required"),
+                    anyhow::anyhow!(aura_core_base::route_failures::RECOVERY_REQUIRED),
                 )),
             };
             let (terminal, response) = match outcome {
@@ -133,7 +134,7 @@ pub(crate) async fn dispatch(
                     crate::session_lifecycle::dispatch(services, request).await
                 }
                 StartupMode::RecoveryRequired { .. } => {
-                    Err(anyhow::anyhow!("core.recovery_required"))
+                    Err(anyhow::anyhow!(aura_core_base::route_failures::RECOVERY_REQUIRED))
                 }
             };
             let (terminal, response) = match outcome {
@@ -213,21 +214,8 @@ pub(crate) async fn dispatch(
             };
             match result {
                 Ok(value) => {
-                    let restored_workspace_id = match method_name {
-                        method::WORKSPACE_RESTORE => {
-                            serde_json::from_value::<WorkspaceSummary>(value.clone())
-                                .ok()
-                                .map(|workspace| workspace.workspace_id)
-                        }
-                        method::WORKSPACE_CREATE => {
-                            serde_json::from_value::<WorkspaceCreateResult>(value.clone())
-                                .ok()
-                                .map(|result| result.workspace.workspace_id)
-                        }
-                        _ => None,
-                    };
-                    if let Some(workspace_id) = restored_workspace_id {
-                        services.p04()?.on_workspace_restored(workspace_id, request.id);
+                    if let Some(follow_up) = WorkspaceFollowUp::of(method_name, &value) {
+                        services.p04()?.follow_workspace(follow_up, request.id);
                     }
                     // A removed Workspace's execution-store rows and memory files go next.
                     if crate::session_lifecycle::removed_workspace(method_name, &value) {
@@ -255,6 +243,6 @@ pub(crate) async fn dispatch(
             }
         }
 
-        _ => bail!("registered workspace route has no handler"),
+        _ => bail!(aura_core_base::route_failures::ROUTE_UNHANDLED),
     }
 }

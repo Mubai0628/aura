@@ -315,7 +315,7 @@ impl P04Services {
             Err(fault) => {
                 let (fault_code, domain) = fault.stable_code_and_domain();
                 return Err(anyhow!(
-                    "P04 security authority is unavailable ({fault_code}, domain {domain}): {fault}"
+                    "core.security_authority.config_unavailable: 安全与权限设置（{domain}）读不出来，权限与沙箱相关的功能暂时不能用；请到设置里查看恢复选项。（{fault_code}：{fault}）"
                 ));
             }
         };
@@ -348,11 +348,6 @@ impl P04Services {
         };
         services.recover_security_state()?;
         Ok(services)
-    }
-
-    /// Lets the grant list read the session's current turn from the agent journal.
-    pub fn bind_turn_journal(&self, journal: Arc<aura_core_broker::broker::BrokerJournal>) {
-        self.external_grants.bind_turn_journal(journal);
     }
 
     pub fn prepare_quarantine_release(

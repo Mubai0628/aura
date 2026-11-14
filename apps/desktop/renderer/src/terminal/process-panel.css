@@ -30,9 +30,6 @@
   color: var(--muted);
   font-size: 12px;
 }
-.process-call {
-  overflow-wrap: anywhere;
-}
 .process-panel button {
   padding: 5px 9px;
   color: var(--ink);

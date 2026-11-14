@@ -9,7 +9,7 @@ pub fn staged(content: &LoadedPackageContent, root: &Path) -> Result<StagedToolP
     let staged = restore_stored_package_v1(&content.descriptor.manifest, &content.files, root)?;
     ensure!(
         aura_tool_package::package_content_descriptor_v1(&staged)? == content.descriptor,
-        "package.materialized_content_changed"
+        crate::failures::MATERIALIZED_CONTENT_CHANGED
     );
     Ok(staged)
 }

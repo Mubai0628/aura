@@ -54,7 +54,13 @@ async fn a_completion_refused_before_it_runs_says_so_and_that_nothing_changed() 
         panic!("a refusal before dispatch must say why: {:?}", result.outcome)
     };
     assert_eq!(error.code.as_str(), "tool.runtime.dispatch_failed");
-    assert!(error.message.contains("refused this call before running it"), "{}", error.message);
+    // The gate's own requirement is the first thing the model reads, not the preflight's name.
+    assert!(
+        error.message.starts_with("normal.complete: the call does not match this turn's task"),
+        "{}",
+        error.message
+    );
+    assert!(error.message.contains("expected_lineage_revision"), "{}", error.message);
     assert!(error.message.contains("Nothing was changed"), "{}", error.message);
     assert!(
         !aura_persistence_v2::agent::turns::load(db, f.turn.turn_task_id)

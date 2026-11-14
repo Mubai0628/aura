@@ -137,6 +137,7 @@ export interface AuraApiV1 extends SessionConsentsApi {
   browser?: import('./browser-api.js').BrowserApiV1;
   chrome?: import('./chrome-control-api.js').ChromeControlApiV1;
   computer?: import('./computer-control-api.js').ComputerControlApiV1;
+  storage?: import('./storage-api.js').StorageApiV1;
   pluginPanels?: import('./plugin-panel-api.js').PluginPanelsApiV1;
   pluginUi?: import('./plugin-ui-api.js').PluginUiApiV1;
   updateToolCredentialOrigins(
@@ -576,6 +577,42 @@ export interface AuraApiV1 extends SessionConsentsApi {
   readAgentSessionsActivity(
     request: AgentMainParams['agent.sessions.activity'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.sessions.activity']>>;
+  /** The sub-agents a conversation started, with the approvals they wait for. */
+  listAgentTeam(
+    request: AgentMainParams['agent.team.list'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.team.list']>>;
+  /** The user stops one sub-agent of a conversation; the list as it is then. */
+  stopAgentTeamMember(
+    request: AgentMainParams['agent.team.stop'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.team.stop']>>;
+  /** Opens an active sub-agent worktree's folder in the file manager; Core names the folder. */
+  openAgentTeamWorktree(
+    request: AgentMainParams['agent.team.worktree.open'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.team.worktree.open']>>;
+  /** Takes back one thing a sub-agent's commands could do without asking; the list then. */
+  revokeAgentTeamAllowance(
+    request: AgentMainParams['agent.team.allowance.revoke'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.team.allowance.revoke']>>;
+  /** What a sub-agent's worktree, or the conversation's own, changed, with its newest checks. */
+  readAgentTeamChanges(
+    request: AgentMainParams['agent.team.changes'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.team.changes']>>;
+  /** The sub-agents' limits, their defaults and the settings revision. */
+  readAgentTeamSettings(): Promise<ResultEnvelope<AgentMainResult['agent.team.settings']>>;
+  /** Saves the sub-agents' limits over the revision that was read. */
+  setAgentTeamSettings(
+    request: AgentMainParams['agent.team.settings.set'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.team.settings.set']>>;
+  /** Where new worktrees go, how many there are and their bytes, and the drive's free space. */
+  readWorktreeLocation(): Promise<ResultEnvelope<AgentMainResult['agent.team.worktrees.location']>>;
+  /** The folder for new worktrees, or the default again with no `location`. */
+  setWorktreeLocation(
+    request: AgentMainParams['agent.team.worktrees.location.set'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.team.worktrees.location.set']>>;
+  /** Main's own folder dialog for that folder. */
+  selectWorktreeLocation(): Promise<
+    ResultEnvelope<AgentMainResult['agent.team.worktrees.location.select']>
+  >;
   getAgentApproval(
     request: AgentMainParams['agent.approval.get'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.approval.get']>>;

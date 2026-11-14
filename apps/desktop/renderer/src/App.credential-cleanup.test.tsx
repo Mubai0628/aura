@@ -119,7 +119,9 @@ describe('credentials a deletion left in Windows Credential Manager', () => {
     await user.click(within(await notice('凭据清理待完成')).getByRole('button', { name: '重试' }));
 
     const refused = await notice('凭据清理未完成');
-    expect(refused.textContent).toContain('模型设置正在被修改，请稍后再试。');
+    expect(refused.textContent).toContain(
+      '模型设置正在被另一项操作修改，这次更改没有执行，请稍后再试。',
+    );
     expect(within(refused).getByRole('button', { name: '重试' })).toBeTruthy();
   });
 });

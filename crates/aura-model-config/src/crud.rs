@@ -430,12 +430,20 @@ pub fn set_model_subagent_availability(
     Ok(())
 }
 
+/// What a provider-wide change of sub-agent use did: the models it changed, and the models it
+/// left as they were because a sub-agent's model needs an output limit they do not have.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProviderSubagentChange {
+    pub changed: Vec<ModelProfileId>,
+    pub skipped: Vec<ModelProfileId>,
+}
+
 pub fn set_provider_current_models_subagent_availability(
     registry: &mut ModelRegistryConfig,
     provider_id: ProviderId,
     available: bool,
     updated_at: UtcTimestamp,
-) -> Result<Vec<ModelProfileId>, ModelConfigError> {
+) -> Result<ProviderSubagentChange, ModelConfigError> {
     let endpoint_ids = registry
         .providers
         .get(&provider_id)
@@ -455,19 +463,7 @@ pub fn set_provider_current_models_subagent_availability(
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
-    if available {
-        for model_id in &model_ids {
-            let model = registry
-                .models
-                .get(model_id)
-                .ok_or(ModelConfigError::ProfileNotFound(*model_id))?;
-            if model.effective_max_output_tokens().is_none_or(|value| value == 0) {
-                return Err(ModelConfigError::OutputLimitConfigurationRequired(*model_id));
-            }
-        }
-    }
-
-    let mut changed = Vec::with_capacity(model_ids.len());
+    let mut done = ProviderSubagentChange::default();
     for model_id in model_ids {
         let model = registry
             .models
@@ -476,11 +472,19 @@ pub fn set_provider_current_models_subagent_availability(
         if model.available_for_subagents == available {
             continue;
         }
+        // Allowing the whole provider skips a model without an output limit, which the
+        // single-model change refuses; the others still change.
+        if available && model.effective_max_output_tokens().is_none_or(|value| value == 0) {
+            done.skipped.push(model_id);
+            continue;
+        }
         model.available_for_subagents = available;
         model.updated_at = updated_at;
-        changed.push(model_id);
+        done.changed.push(model_id);
     }
-    Ok(changed)
+    done.changed.sort_unstable();
+    done.skipped.sort_unstable();
+    Ok(done)
 }
 
 pub fn delete_model_profile(

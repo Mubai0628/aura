@@ -1,6 +1,5 @@
 import type { AgentMessageAttachment } from '@aura/contracts/generated';
 import { runsCode } from '../../../shared/outside-files';
-import { userMessage } from '../agent-session/user-message';
 import { copyText } from '../clipboard';
 import { toolTabs } from '../right-workspace/tool-tabs';
 import { ToolIcon } from '../tool-icon';
@@ -9,6 +8,7 @@ import { fileMenuEntries, openFile, type FileActionScope } from './file-menu';
 import type { AttachmentFileTarget } from '../../../shared/attachment-files';
 import { sidebarShows } from './file-paths';
 import { attachmentEntry, fileSource, outsideTarget, recordEntry } from './file-sources';
+import { attachmentUnreadable } from './failure-words';
 
 /**
  * What can be done with a file a message carried — the
@@ -61,7 +61,7 @@ async function copyKept(scope: FileActionScope, artifact: string): Promise<void>
     artifact_id: artifact,
   });
   if (!read.ok) {
-    scope.notify(userMessage(read.error, '这个附件已不可用。'));
+    scope.notify(attachmentUnreadable(read.error));
     return;
   }
   const refused = await copyText(read.value.text, '没能复制内容，请重试。');

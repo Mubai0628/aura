@@ -1,7 +1,10 @@
 [workspace]
 members = [
     "crates/aura-agent-domain",
+    "crates/aura-agent-team",
+    "crates/aura-agent-team-contract",
     "crates/aura-message-references",
+    "crates/aura-media-container",
     "crates/aura-commands",
     "crates/aura-hooks",
     "crates/aura-mcp",
@@ -21,6 +24,7 @@ members = [
     "crates/aura-desktop-control",
     "crates/aura-desktop-pip",
     "crates/aura-desktop-service",
+    "crates/aura-system-proxy",
     "crates/aura-web-runtime",
     "crates/aura-execution-helper",
     "crates/aura-windows-user-contract",
@@ -32,6 +36,10 @@ members = [
     "crates/aura-persistence-v2",
     "crates/aura-backend-api",
     "crates/aura-persistence-core",
+    "crates/aura-store-maintenance",
+    "crates/aura-data-location",
+    "crates/aura-data-move",
+    "crates/aura-old-data",
     "crates/aura-execution-contract",
     "crates/aura-runtime-contract",
     "crates/aura-workspace-domain",
@@ -63,6 +71,7 @@ members = [
     "crates/aura-fs-tools",
     "crates/aura-ipc",
     "crates/aura-launcher",
+    "crates/aura-pixel-window",
     "crates/aura-setup",
     "crates/aura-model-domain",
     "crates/aura-model-config",
@@ -102,7 +111,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.97.1"
 
@@ -151,6 +160,7 @@ tokio-util = { version = "0.7", features = ["io"] }
 toml = "1.1.4"
 ulid = "1.2"
 url = { version = "2.5", features = ["serde"] }
+vt100 = "0.18"
 windows-sys = "0.61.2"
 zeroize = "1.8"
 zstd = "0.13.3"
@@ -166,62 +176,16 @@ dbg_macro = "deny"
 todo = "deny"
 unwrap_used = "deny"
 
-# Third-party crates build without debug information in
-# development and test builds; Aura's own crates keep theirs, aura-core only its line tables
-# (below). The programs link faster and the build directory shrinks; only stepping into a
-# dependency in a debugger is lost.
+# Development and test builds: Aura's own crates carry line tables only, third-party crates no
+# debug information. Backtraces keep files and lines; a debugger shows no local variables and
+# cannot step into a dependency. Full debug information made aura-core's development library pass
+# 4 GB, the size rust-lld can read as an archive, and gave every test program a debug file of
+# 100-200 MB. One level for every crate, so a crate split out or added needs no entry here.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package."*"]
 debug = false
-
-# aura-core is one crate of over 100,000 lines. With full debug information its development
-# library passed 4 GB, the size rust-lld can read as an archive, and the link failed. Line tables
-# keep files and lines in backtraces; a debugger shows no local variables inside aura-core.
-[profile.dev.package.aura-core]
-debug = "line-tables-only"
-
-# The crates split out of aura-core keep its development debug level: a debugger sees the same as
-# before the split, and the build directory does not grow.
-[profile.dev.package.aura-core-base]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-agent-application]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-agent-execution]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-tool-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-extension-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-package-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-security-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-workspace-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-core-activity]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-core-broker]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-model-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-chrome-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-desktop-service]
-debug = "line-tables-only"
-
-[profile.dev.package.aura-git-service]
-debug = "line-tables-only"
 
 # Every Core test fixture hashes the ~200 MB test
 # program twice, and SHA-256 built without optimization took 4.1 s each time, most of a test's

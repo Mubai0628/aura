@@ -1,7 +1,8 @@
 //! 设置 → 网络与浏览器 → Chrome: the switch, a pairing code, forgetting the paired extension and
 //! the folder the extension is loaded from; a conversation's shared tabs, the user's "done" for a
-//! tab handed to them, and the user's Stop for a conversation. Only Aura's own pages reach them; a
-//! model never does.
+//! tab handed to them, the user's Stop for a conversation, and the user's tabs for the @ menu with
+//! the one the user hands to a conversation there. Only Aura's own pages reach them; a model never
+//! does.
 use super::*;
 
 pub(super) const ROUTES: &[RouteDescriptor] = &[
@@ -142,6 +143,46 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         AuthenticatedMain,
         "ChromeSessionRequest",
         "ChromeSessionShares",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "chrome.tabs.list",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "EmptyToolInput",
+        "ChromeTabChoices",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "chrome.tabs.list",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "EmptyToolInput",
+        "ChromeTabChoices",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "chrome.tabs.hand_over",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "ChromeTabHandOverRequest",
+        "ChromeHandedTab",
+        CommandInvocation,
+        None
+    ),
+    route!(
+        "chrome.tabs.hand_over",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "ChromeTabHandOverRequest",
+        "ChromeHandedTab",
         CommandInvocation,
         None
     ),

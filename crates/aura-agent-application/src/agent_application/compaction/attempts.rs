@@ -3,6 +3,31 @@
 //! [`ladder`](super::ladder) chooses.
 use super::ladder::{Failure, Rung};
 use super::*;
+use aura_context_runtime::UnusableAnswer;
+
+/// Why an answer that could not be used is asked again, said at the end of the request sent again.
+fn unusable_note(why: UnusableAnswer) -> &'static str {
+    match why {
+        UnusableAnswer::ToolCalls => {
+            "Your previous answer called tools instead of giving the summary, so it could not be used; no tool runs during a compaction request. Write the summary now as one paragraph between <summary> and </summary>, within the length given above, and call no tool."
+        }
+        UnusableAnswer::Other => {
+            "Your previous answer could not be used as the summary: it was cut off, refused, empty, longer than the length given above, or had no complete summary between <summary> and </summary>. Write the summary now as one paragraph between <summary> and </summary>, within that length, and call no tool."
+        }
+    }
+}
+
+/// The closing question of a request asked again after an answer that could not be used: what
+/// it asked, then why the answer could not be used. Everything before it is the request already
+/// sent, so the provider's cache still serves it.
+fn noted(ask: Option<String>, why: UnusableAnswer) -> String {
+    let note = unusable_note(why);
+    match ask {
+        Some(ask) if ask.ends_with(note) => ask,
+        Some(ask) => format!("{ask}\n\n{note}"),
+        None => note.to_owned(),
+    }
+}
 
 impl CompactionAttemptFactory for Execution {
     fn prepare_attempt<'a>(
@@ -140,7 +165,28 @@ impl CompactionAttemptFactory for Execution {
         let Some(rung) = attempts.ladder.next(failure, self.isolated, self.manual) else {
             return false;
         };
-        attempts.next = Some((rung, Box::new(failed.clone())));
+        let mut failed = failed.clone();
+        if let (Rung::Resend, FailedCompactionAttempt::UnusableAnswer { why }) = (rung, how) {
+            let request = &mut failed.logical_request;
+            request.closing_question = Some(noted(request.closing_question.take(), why));
+        }
+        attempts.next = Some((rung, Box::new(failed)));
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_answer_asked_again_is_told_why_after_what_was_asked() {
+        let ask = "Summarize the history above.".to_owned();
+        let once = noted(Some(ask.clone()), UnusableAnswer::ToolCalls);
+        assert!(once.starts_with(&ask) && once.contains("called tools instead"), "{once}");
+        assert_eq!(noted(Some(once.clone()), UnusableAnswer::ToolCalls), once, "said once");
+        let isolated = noted(None, UnusableAnswer::Other);
+        assert!(isolated.starts_with("Your previous answer could not be used"), "{isolated}");
+        assert!(!isolated.contains('\n') && !isolated.ends_with('\n'));
     }
 }

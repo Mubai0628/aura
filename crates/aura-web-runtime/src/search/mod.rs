@@ -11,17 +11,28 @@ pub enum SearchProvider {
     DuckDuckGo,
 }
 
+/// The rule a search's result count breaks.
+pub(crate) const MAX_RESULTS_RULE: &str =
+    "max_results must be between 1 and 20. Nothing was searched.";
+
 pub fn search_url_for(
     provider: SearchProvider,
     query: &str,
     max_results: u32,
 ) -> Result<Url, WebError> {
-    if query.trim().is_empty()
-        || query.len() > 8192
-        || query.contains('\0')
-        || !(1..=20).contains(&max_results)
-    {
-        return Err(WebError::InvalidInput);
+    let broken = if query.trim().is_empty() {
+        Some("the search query is empty; give the words to search for. Nothing was searched.")
+    } else if query.len() > 8192 {
+        Some("the search query is longer than 8192 bytes; shorten it. Nothing was searched.")
+    } else if query.contains('\0') {
+        Some("the search query contains a NUL character; remove it. Nothing was searched.")
+    } else if !(1..=20).contains(&max_results) {
+        Some(MAX_RESULTS_RULE)
+    } else {
+        None
+    };
+    if let Some(rule) = broken {
+        return Err(WebError::invalid(rule));
     }
     let source = match provider {
         SearchProvider::BingChina => "https://cn.bing.com/search",

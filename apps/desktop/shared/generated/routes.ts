@@ -39,6 +39,16 @@ import type {
   AgentSessionsActivityRequest,
   AgentStartRequest,
   AgentSubmitRequest,
+  AgentTeamAllowanceRevokeRequest,
+  AgentTeamChangesRequest,
+  AgentTeamChangesView,
+  AgentTeamListRequest,
+  AgentTeamSettingsSetRequest,
+  AgentTeamSettingsView,
+  AgentTeamStopRequest,
+  AgentTeamView,
+  AgentTeamWorktreeFolder,
+  AgentTeamWorktreeRequest,
   AgentToolActivityPage,
   AgentToolActivityRequest,
   AgentToolSettingsRequest,
@@ -72,10 +82,13 @@ import type {
   BundleRecoveryPlan,
   ChromeControlStatus,
   ChromeExtensionFolder,
+  ChromeHandedTab,
   ChromePairingCode,
   ChromeSessionRequest,
   ChromeSessionShares,
   ChromeSetEnabledRequest,
+  ChromeTabChoices,
+  ChromeTabHandOverRequest,
   ClipboardWriteRequest,
   ClipboardWritten,
   CommandCatalog,
@@ -264,6 +277,9 @@ import type {
   ModelSettingsProjection,
   NativeSessionConsentView,
   NetworkSessionConsentView,
+  OldDataListing,
+  OldDataRemoval,
+  OldDataRemoveRequest,
   OpenedOutside,
   PackageChangeRequestV1,
   PackageConformanceCancelRequestV1,
@@ -379,6 +395,13 @@ import type {
   SkillSetPinnedRequest,
   SkillTrustRequest,
   SkillWorkspaceTrustRequest,
+  StorageCheck,
+  StorageChoice,
+  StorageFolderOpened,
+  StorageOpenFolderRequest,
+  StorageOverview,
+  StorageRestart,
+  StorageSelectedFolder,
   TerminalControlRequestV1,
   TerminalListV1,
   TerminalOutputBatchV1,
@@ -428,6 +451,9 @@ import type {
   WorkspaceSummary,
   WorkspaceToolPinClearRequestV1,
   WorkspaceToolPinSetRequestV1,
+  WorktreeLocationSelected,
+  WorktreeLocationSetRequest,
+  WorktreeLocationView,
 } from '@aura/contracts/generated';
 import type { RendererLifecycleAck } from '../p03-validation.js';
 import type { RendererIssueDiscardConfirmation } from '../p03-validation.js';
@@ -959,6 +985,8 @@ export type AgentMainParams = {
   'agent.session.branch': AgentSessionBranchRequest;
   'agent.result': AgentResultRequest;
   'agent.sessions.activity': AgentSessionsActivityRequest;
+  'agent.team.list': AgentTeamListRequest;
+  'agent.team.stop': AgentTeamStopRequest;
   'agent.inbox': AgentSessionRequest;
   'agent.submit': AgentSubmitRequest;
   'agent.inbox.mutate': AgentInboxMutation;
@@ -1036,12 +1064,21 @@ export type AgentMainParams = {
   'agent.skills.select_directory': SkillSelectDirectoryRequest;
   'agent.skills.select_archive': SkillSelectArchiveRequest;
   'agent.skills.open_directory': SkillRequest;
+  'agent.team.changes': AgentTeamChangesRequest;
+  'agent.team.worktrees.location': EmptyToolInput;
+  'agent.team.worktrees.location.set': WorktreeLocationSetRequest;
+  'agent.team.worktrees.location.select': EmptyToolInput;
+  'agent.team.worktree.open': AgentTeamWorktreeRequest;
+  'agent.team.settings': EmptyToolInput;
+  'agent.team.settings.set': AgentTeamSettingsSetRequest;
+  'agent.team.allowance.revoke': AgentTeamAllowanceRevokeRequest;
   'terminal.user.control': TerminalControlRequestV1;
   'terminal.user.open': UserTerminalOpenRequestV1;
   'terminal.user.list': TerminalSessionRequestV1;
   'terminal.user.write': UserTerminalWriteRequestV1;
   'terminal.user.resize': TerminalResizeRequestV1;
   'terminal.user.close': TerminalRequestV1;
+  'terminal.user.hand_over': TerminalRequestV1;
   'terminal.user.subscribe': TerminalSubscribeRequestV1;
   'terminal.user.sensitive.pending': ManagedProcessRequestV1;
   'terminal.user.sensitive.submit': TerminalSensitiveReplyV1;
@@ -1060,6 +1097,8 @@ export type AgentMainParams = {
   'chrome.stop': ChromeSessionRequest;
   'chrome.shares': ChromeSessionRequest;
   'chrome.assist.finish': ChromeSessionRequest;
+  'chrome.tabs.list': EmptyToolInput;
+  'chrome.tabs.hand_over': ChromeTabHandOverRequest;
   'chrome.extension.open_folder': EmptyToolInput;
   'computer.settings.get': EmptyToolInput;
   'computer.settings.update': ComputerControlSettingsUpdate;
@@ -1070,6 +1109,17 @@ export type AgentMainParams = {
   'computer.give_back': ComputerSessionRequest;
   'computer.always_allow': ComputerAlwaysAllowRequest;
   'agent.attachments.text': AttachmentTextRequest;
+  'storage.overview': EmptyToolInput;
+  'storage.check': StorageChoice;
+  'storage.move.request': StorageChoice;
+  'storage.move.withdraw': EmptyToolInput;
+  'storage.failure.dismiss': EmptyToolInput;
+  'storage.old_data.list': EmptyToolInput;
+  'storage.old_data.remove': OldDataRemoveRequest;
+  'storage.select_folder': EmptyToolInput;
+  'storage.open_folder': StorageOpenFolderRequest;
+  'storage.restart': EmptyToolInput;
+  'storage.move_install': EmptyToolInput;
 };
 export type AgentMainResult = {
   'agent.tools.settings': AgentToolSettingsView;
@@ -1089,6 +1139,8 @@ export type AgentMainResult = {
   'agent.session.branch': AgentSessionBranchResult;
   'agent.result': AgentResultView;
   'agent.sessions.activity': AgentSessionsActivity;
+  'agent.team.list': AgentTeamView;
+  'agent.team.stop': AgentTeamView;
   'agent.inbox': AgentInboxProjection;
   'agent.submit': AgentInboxProjection;
   'agent.inbox.mutate': AgentInboxProjection;
@@ -1166,12 +1218,21 @@ export type AgentMainResult = {
   'agent.skills.select_directory': SkillSelectedDirectory;
   'agent.skills.select_archive': SkillSelectedArchive;
   'agent.skills.open_directory': SkillDirectoryOpened;
+  'agent.team.changes': AgentTeamChangesView;
+  'agent.team.worktrees.location': WorktreeLocationView;
+  'agent.team.worktrees.location.set': WorktreeLocationView;
+  'agent.team.worktrees.location.select': WorktreeLocationSelected;
+  'agent.team.worktree.open': OpenedOutside;
+  'agent.team.settings': AgentTeamSettingsView;
+  'agent.team.settings.set': AgentTeamSettingsView;
+  'agent.team.allowance.revoke': AgentTeamView;
   'terminal.user.control': TerminalViewV1;
   'terminal.user.open': TerminalViewV1;
   'terminal.user.list': TerminalListV1;
   'terminal.user.write': TerminalViewV1;
   'terminal.user.resize': TerminalViewV1;
   'terminal.user.close': TerminalViewV1;
+  'terminal.user.hand_over': TerminalViewV1;
   'terminal.user.subscribe': TerminalOutputBatchV1;
   'terminal.user.sensitive.pending': TerminalSensitivePendingV1;
   'terminal.user.sensitive.submit': TerminalSensitiveResultV1;
@@ -1190,6 +1251,8 @@ export type AgentMainResult = {
   'chrome.stop': ChromeSessionShares;
   'chrome.shares': ChromeSessionShares;
   'chrome.assist.finish': ChromeSessionShares;
+  'chrome.tabs.list': ChromeTabChoices;
+  'chrome.tabs.hand_over': ChromeHandedTab;
   'chrome.extension.open_folder': ChromeExtensionFolder;
   'computer.settings.get': ComputerControlSettingsSnapshot;
   'computer.settings.update': ComputerControlSettingsSnapshot;
@@ -1200,6 +1263,17 @@ export type AgentMainResult = {
   'computer.give_back': ComputerControllingResult;
   'computer.always_allow': ComputerControlSettingsSnapshot;
   'agent.attachments.text': AttachmentText;
+  'storage.overview': StorageOverview;
+  'storage.check': StorageCheck;
+  'storage.move.request': StorageOverview;
+  'storage.move.withdraw': StorageOverview;
+  'storage.failure.dismiss': StorageOverview;
+  'storage.old_data.list': OldDataListing;
+  'storage.old_data.remove': OldDataRemoval;
+  'storage.select_folder': StorageSelectedFolder;
+  'storage.open_folder': StorageFolderOpened;
+  'storage.restart': StorageRestart;
+  'storage.move_install': StorageRestart;
 };
 export type AgentMainCommand = keyof AgentMainParams;
 export type PackageMainParams = {
@@ -1287,6 +1361,8 @@ export type AgentCoreParams = {
   'agent.session.branch': AgentSessionBranchRequest;
   'agent.result': AgentResultRequest;
   'agent.sessions.activity': AgentSessionsActivityRequest;
+  'agent.team.list': AgentTeamListRequest;
+  'agent.team.stop': AgentTeamStopRequest;
   'agent.inbox': AgentSessionRequest;
   'agent.submit': AgentSubmitRequest;
   'agent.inbox.mutate': AgentInboxMutation;
@@ -1364,12 +1440,20 @@ export type AgentCoreParams = {
   'agent.skills.set_pinned': SkillSetPinnedRequest;
   'agent.skills.import': SkillImportRequest;
   'agent.skills.remove': SkillChangeRequest;
+  'agent.team.changes': AgentTeamChangesRequest;
+  'agent.team.worktrees.location': EmptyToolInput;
+  'agent.team.worktrees.location.set': WorktreeLocationSetRequest;
+  'agent.team.worktree.folder': AgentTeamWorktreeRequest;
+  'agent.team.settings': EmptyToolInput;
+  'agent.team.settings.set': AgentTeamSettingsSetRequest;
+  'agent.team.allowance.revoke': AgentTeamAllowanceRevokeRequest;
   'terminal.user.control': TerminalControlRequestV1;
   'terminal.user.open': UserTerminalOpenRequestV1;
   'terminal.user.list': TerminalSessionRequestV1;
   'terminal.user.write': UserTerminalWriteRequestV1;
   'terminal.user.resize': TerminalResizeRequestV1;
   'terminal.user.close': TerminalRequestV1;
+  'terminal.user.hand_over': TerminalRequestV1;
   'terminal.user.subscribe': TerminalSubscribeRequestV1;
   'terminal.user.sensitive.pending': ManagedProcessRequestV1;
   'terminal.user.sensitive.submit': TerminalSensitiveReplyV1;
@@ -1389,6 +1473,8 @@ export type AgentCoreParams = {
   'chrome.stop': ChromeSessionRequest;
   'chrome.shares': ChromeSessionRequest;
   'chrome.assist.finish': ChromeSessionRequest;
+  'chrome.tabs.list': EmptyToolInput;
+  'chrome.tabs.hand_over': ChromeTabHandOverRequest;
   'computer.settings.get': EmptyToolInput;
   'computer.settings.update': ComputerControlSettingsUpdate;
   'computer.catalog': ComputerCatalogRequest;
@@ -1403,6 +1489,13 @@ export type AgentCoreParams = {
   'agent.attachments.locate': AttachmentLocateRequest;
   'agent.attachments.entry': AttachmentEntryRequest;
   'agent.files.mentioned': MentionedFileRequest;
+  'storage.overview': EmptyToolInput;
+  'storage.check': StorageChoice;
+  'storage.move.request': StorageChoice;
+  'storage.move.withdraw': EmptyToolInput;
+  'storage.failure.dismiss': EmptyToolInput;
+  'storage.old_data.list': EmptyToolInput;
+  'storage.old_data.remove': OldDataRemoveRequest;
 };
 export type AgentCoreResult = {
   'agent.tools.settings': AgentToolSettingsView;
@@ -1422,6 +1515,8 @@ export type AgentCoreResult = {
   'agent.session.branch': AgentSessionBranchResult;
   'agent.result': AgentResultView;
   'agent.sessions.activity': AgentSessionsActivity;
+  'agent.team.list': AgentTeamView;
+  'agent.team.stop': AgentTeamView;
   'agent.inbox': AgentInboxProjection;
   'agent.submit': AgentInboxProjection;
   'agent.inbox.mutate': AgentInboxProjection;
@@ -1499,12 +1594,20 @@ export type AgentCoreResult = {
   'agent.skills.set_pinned': SkillRegistryView;
   'agent.skills.import': SkillRegistryView;
   'agent.skills.remove': SkillRegistryView;
+  'agent.team.changes': AgentTeamChangesView;
+  'agent.team.worktrees.location': WorktreeLocationView;
+  'agent.team.worktrees.location.set': WorktreeLocationView;
+  'agent.team.worktree.folder': AgentTeamWorktreeFolder;
+  'agent.team.settings': AgentTeamSettingsView;
+  'agent.team.settings.set': AgentTeamSettingsView;
+  'agent.team.allowance.revoke': AgentTeamView;
   'terminal.user.control': TerminalViewV1;
   'terminal.user.open': TerminalViewV1;
   'terminal.user.list': TerminalListV1;
   'terminal.user.write': TerminalViewV1;
   'terminal.user.resize': TerminalViewV1;
   'terminal.user.close': TerminalViewV1;
+  'terminal.user.hand_over': TerminalViewV1;
   'terminal.user.subscribe': TerminalOutputBatchV1;
   'terminal.user.sensitive.pending': TerminalSensitivePendingV1;
   'terminal.user.sensitive.submit': TerminalSensitiveResultV1;
@@ -1524,6 +1627,8 @@ export type AgentCoreResult = {
   'chrome.stop': ChromeSessionShares;
   'chrome.shares': ChromeSessionShares;
   'chrome.assist.finish': ChromeSessionShares;
+  'chrome.tabs.list': ChromeTabChoices;
+  'chrome.tabs.hand_over': ChromeHandedTab;
   'computer.settings.get': ComputerControlSettingsSnapshot;
   'computer.settings.update': ComputerControlSettingsSnapshot;
   'computer.catalog': ComputerCatalogResult;
@@ -1538,6 +1643,13 @@ export type AgentCoreResult = {
   'agent.attachments.locate': AttachmentLocation;
   'agent.attachments.entry': AttachmentLocation;
   'agent.files.mentioned': AttachmentLocation;
+  'storage.overview': StorageOverview;
+  'storage.check': StorageCheck;
+  'storage.move.request': StorageOverview;
+  'storage.move.withdraw': StorageOverview;
+  'storage.failure.dismiss': StorageOverview;
+  'storage.old_data.list': OldDataListing;
+  'storage.old_data.remove': OldDataRemoval;
 };
 export type AgentCoreCommand = keyof AgentCoreParams;
 export type PackageCoreParams = {
@@ -2982,6 +3094,28 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.team.list': {
+    method: 'agent.team.list',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentTeamListRequest',
+    response_type: 'AgentTeamView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.stop': {
+    method: 'agent.team.stop',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentTeamStopRequest',
+    response_type: 'AgentTeamView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'agent.inbox': {
     method: 'agent.inbox',
     owner: 'agent',
@@ -3829,6 +3963,94 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.team.changes': {
+    method: 'agent.team.changes',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentTeamChangesRequest',
+    response_type: 'AgentTeamChangesView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.worktrees.location': {
+    method: 'agent.team.worktrees.location',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'WorktreeLocationView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.worktrees.location.set': {
+    method: 'agent.team.worktrees.location.set',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'WorktreeLocationSetRequest',
+    response_type: 'WorktreeLocationView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.worktrees.location.select': {
+    method: 'agent.team.worktrees.location.select',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'WorktreeLocationSelected',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.worktree.open': {
+    method: 'agent.team.worktree.open',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentTeamWorktreeRequest',
+    response_type: 'OpenedOutside',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.settings': {
+    method: 'agent.team.settings',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'AgentTeamSettingsView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.settings.set': {
+    method: 'agent.team.settings.set',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentTeamSettingsSetRequest',
+    response_type: 'AgentTeamSettingsView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.allowance.revoke': {
+    method: 'agent.team.allowance.revoke',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentTeamAllowanceRevokeRequest',
+    response_type: 'AgentTeamView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'git.runtime.get': {
     method: 'git.runtime.get',
     owner: 'git',
@@ -4500,6 +4722,17 @@ export const MAIN_ROUTES = {
     cancellation: 'domain_operation',
     test_only: false,
   },
+  'terminal.user.hand_over': {
+    method: 'terminal.user.hand_over',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'TerminalRequestV1',
+    response_type: 'TerminalViewV1',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'terminal.user.subscribe': {
     method: 'terminal.user.subscribe',
     owner: 'agent',
@@ -4698,6 +4931,28 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'chrome.tabs.list': {
+    method: 'chrome.tabs.list',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeTabChoices',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.tabs.hand_over': {
+    method: 'chrome.tabs.hand_over',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'ChromeTabHandOverRequest',
+    response_type: 'ChromeHandedTab',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'chrome.extension.open_folder': {
     method: 'chrome.extension.open_folder',
     owner: 'agent',
@@ -4805,6 +5060,127 @@ export const MAIN_ROUTES = {
     request_type: 'AttachmentTextRequest',
     response_type: 'AttachmentText',
     idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.overview': {
+    method: 'storage.overview',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageOverview',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.check': {
+    method: 'storage.check',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'StorageChoice',
+    response_type: 'StorageCheck',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.move.request': {
+    method: 'storage.move.request',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'StorageChoice',
+    response_type: 'StorageOverview',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.move.withdraw': {
+    method: 'storage.move.withdraw',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageOverview',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.failure.dismiss': {
+    method: 'storage.failure.dismiss',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageOverview',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.old_data.list': {
+    method: 'storage.old_data.list',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'OldDataListing',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.old_data.remove': {
+    method: 'storage.old_data.remove',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'OldDataRemoveRequest',
+    response_type: 'OldDataRemoval',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.select_folder': {
+    method: 'storage.select_folder',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageSelectedFolder',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.open_folder': {
+    method: 'storage.open_folder',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'StorageOpenFolderRequest',
+    response_type: 'StorageFolderOpened',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.restart': {
+    method: 'storage.restart',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageRestart',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.move_install': {
+    method: 'storage.move_install',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageRestart',
+    idempotency: 'command_invocation',
     cancellation: 'none',
     test_only: false,
   },
@@ -6168,6 +6544,28 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.team.list': {
+    method: 'agent.team.list',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentTeamListRequest',
+    response_type: 'AgentTeamView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.stop': {
+    method: 'agent.team.stop',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentTeamStopRequest',
+    response_type: 'AgentTeamView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'agent.inbox': {
     method: 'agent.inbox',
     owner: 'agent',
@@ -7015,6 +7413,83 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.team.changes': {
+    method: 'agent.team.changes',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentTeamChangesRequest',
+    response_type: 'AgentTeamChangesView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.worktrees.location': {
+    method: 'agent.team.worktrees.location',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'WorktreeLocationView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.worktrees.location.set': {
+    method: 'agent.team.worktrees.location.set',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'WorktreeLocationSetRequest',
+    response_type: 'WorktreeLocationView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.worktree.folder': {
+    method: 'agent.team.worktree.folder',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentTeamWorktreeRequest',
+    response_type: 'AgentTeamWorktreeFolder',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.settings': {
+    method: 'agent.team.settings',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'AgentTeamSettingsView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.settings.set': {
+    method: 'agent.team.settings.set',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentTeamSettingsSetRequest',
+    response_type: 'AgentTeamSettingsView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.allowance.revoke': {
+    method: 'agent.team.allowance.revoke',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentTeamAllowanceRevokeRequest',
+    response_type: 'AgentTeamView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'git.runtime.get': {
     method: 'git.runtime.get',
     owner: 'git',
@@ -7686,6 +8161,17 @@ export const CORE_ROUTES = {
     cancellation: 'domain_operation',
     test_only: false,
   },
+  'terminal.user.hand_over': {
+    method: 'terminal.user.hand_over',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'TerminalRequestV1',
+    response_type: 'TerminalViewV1',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'terminal.user.subscribe': {
     method: 'terminal.user.subscribe',
     owner: 'agent',
@@ -7895,6 +8381,28 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'chrome.tabs.list': {
+    method: 'chrome.tabs.list',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'ChromeTabChoices',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'chrome.tabs.hand_over': {
+    method: 'chrome.tabs.hand_over',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'ChromeTabHandOverRequest',
+    response_type: 'ChromeHandedTab',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
   'computer.settings.get': {
     method: 'computer.settings.get',
     owner: 'agent',
@@ -8049,10 +8557,87 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'storage.overview': {
+    method: 'storage.overview',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageOverview',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.check': {
+    method: 'storage.check',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'StorageChoice',
+    response_type: 'StorageCheck',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.move.request': {
+    method: 'storage.move.request',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'StorageChoice',
+    response_type: 'StorageOverview',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.move.withdraw': {
+    method: 'storage.move.withdraw',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageOverview',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.failure.dismiss': {
+    method: 'storage.failure.dismiss',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'StorageOverview',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.old_data.list': {
+    method: 'storage.old_data.list',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'EmptyToolInput',
+    response_type: 'OldDataListing',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'storage.old_data.remove': {
+    method: 'storage.old_data.remove',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'OldDataRemoveRequest',
+    response_type: 'OldDataRemoval',
+    idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
 } as const;
 export function coreRoute(method: string) {
   return Object.hasOwn(CORE_ROUTES, method)
     ? CORE_ROUTES[method as keyof typeof CORE_ROUTES]
     : undefined;
 }
-export const ROUTE_COUNTS = { main: 285, core: 294 } as const;
+export const ROUTE_COUNTS = { main: 309, core: 313 } as const;

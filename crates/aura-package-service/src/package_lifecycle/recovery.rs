@@ -18,10 +18,10 @@ pub(super) struct OwnerLease {
 }
 
 pub(super) fn open(root: &Path) -> Result<Arc<OwnerLease>> {
-    ensure!(root.is_absolute(), "package.absolute_owner_root_required");
+    ensure!(root.is_absolute(), crate::failures::ABSOLUTE_OWNER_ROOT_REQUIRED);
     fs::create_dir_all(root)?;
     let parent = aura_windows_platform::open_verified_tool_output_root(root)?;
-    ensure!(parent.info().is_directory, "package.owner_directory_required");
+    ensure!(parent.info().is_directory, crate::failures::OWNER_DIRECTORY_REQUIRED);
     let marker = root.join("owner.lock");
     match OpenOptions::new().write(true).create_new(true).open(&marker) {
         Ok(mut created) => {
@@ -38,7 +38,7 @@ pub(super) fn open(root: &Path) -> Result<Arc<OwnerLease>> {
     use std::io::Read;
     let mut bytes = Vec::new();
     owner.file().try_clone()?.take(MARKER.len() as u64 + 1).read_to_end(&mut bytes)?;
-    ensure!(bytes == MARKER, "package.owner_marker_invalid");
+    ensure!(bytes == MARKER, crate::failures::OWNER_MARKER_INVALID);
     Ok(Arc::new(OwnerLease { _marker: owner, _root: parent }))
 }
 
@@ -62,7 +62,7 @@ pub(super) fn recover(store: &mut V2Store, root: &Path) -> Result<PackageRecover
         ensure!(
             held.info().is_directory
                 && aura_windows_platform::final_path_within(parent.info(), held.info()),
-            "package.scratch_root_changed"
+            crate::failures::SCRATCH_ROOT_CHANGED
         );
         // Rust's remove_dir_all removes links inside the tree without following
         // them. Reject a root that is itself a link; only this checked absolute

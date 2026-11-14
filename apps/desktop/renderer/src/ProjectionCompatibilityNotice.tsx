@@ -15,11 +15,13 @@ type Surface =
   | 'terminal'
   | 'memory'
   | 'commands'
+  | 'agents'
   | 'plugins'
   | 'hooks'
   | 'mcp'
   | 'skills'
-  | 'archive';
+  | 'archive'
+  | 'storage';
 const title = (kind: ProjectionCompatibilityKey['projection_kind']): string => {
   if (kind === 'core_health') return 'Core 状态';
   if (kind === 'workspace_session') return '工作区与会话';

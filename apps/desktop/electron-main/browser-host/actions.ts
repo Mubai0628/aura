@@ -1,7 +1,8 @@
 /**
- * Carrying out Core's command on a session's model page. Core authorized it; this checks
- * again that the page is still where Core saw it and that the user has not taken it over, acts
- * with Aura's own input, and answers with what the page looks like afterwards.
+ * Carrying out Core's command on a session's model page, or on a page the user handed over that
+ * the command names. Core authorized it; this checks again that the page is still where Core saw
+ * it and that the user has not taken it over, acts with Aura's own input, and answers with what
+ * the page looks like afterwards.
  */
 import type {
   BrowserHostActionV1,
@@ -29,6 +30,7 @@ import { isInput, refused } from './protocol.js';
 import { siteOfUrl } from './site-rules.js';
 import { mediaSection, pageMedia } from './media.js';
 import { BOXED, renderSnapshot, type AxNode, type Box } from './snapshot.js';
+import { closedText } from './policy.js';
 
 export const VIEWPORT = { width: 1280, height: 800 };
 const SNAPSHOT_CHARS = 12_000;
@@ -51,7 +53,16 @@ const TOUCHED: Record<UserTouch, { refusal: string; notice: string }> = {
       '用户刚才自己在这个页面上打开了网址、前进后退或刷新，页面可能变了，这一步没有执行：先用 browser.snapshot 看现在的页面再操作。',
     notice: '用户刚才自己在这个页面上打开了网址、前进后退或刷新；下面是现在的样子。',
   },
+  handed_over: {
+    refusal:
+      '这是用户刚交给你的页面，你还没有看过它，这一步没有执行：先用 browser.snapshot 看现在的页面再操作。',
+    notice: '这是用户交给你的页面；下面是它现在的样子。',
+  },
 };
+const USER_PAGE_CLOSE =
+  '这是用户交给你的页面，模型不能关闭它；用完让它开着，用户会自己关。browser.close 只关你自己的页面。';
+const NO_SUCH_PAGE = (page: string) =>
+  `页面 ${page} 已经关闭，或不是用户交给你的页面：只有用户在消息里用 @ 交给你的页面才有这样的编号；不给 page 时是你自己的页面。`;
 const HELD_NOTICE =
   '用户正在操作这个页面（已接管），下面是现在的样子；Aura 的输入暂停，可以用 browser.request_user 等用户操作完。';
 /** What shows the model its page as it is now. */
@@ -73,10 +84,11 @@ export interface ExecutorDeps {
   /** The page's DevTools connection, made on first use. */
   debuggerFor(contents: PageContents): PageDebugger;
   /** Sets the page's fixed viewport, drawn at the sidebar's width; returns the scale. */
-  emulate(sessionId: string, devtools: PageDebugger): Promise<number>;
-  /** Shows the model's request for the user's help and waits for how it ends. */
+  emulate(sessionId: string, pageId: string, devtools: PageDebugger): Promise<number>;
+  /** Shows the model's request for the user's help on the page and waits for how it ends. */
   assist(
     sessionId: string,
+    pageId: string,
     commandId: string,
     reason: string,
     timeoutMs: number,
@@ -85,6 +97,21 @@ export interface ExecutorDeps {
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 const hostOf = (url: string) => siteOfUrl(url)?.host ?? null;
+
+/**
+ * An exception from the page or DevTools, in a sentence that names the step, with the
+ * exception's own first line (at most 200 characters) as its detail. Core adds whether the step
+ * may have run.
+ */
+function pageFailure(kind: string, error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lines = raw.split('\n').map((part) => part.trim());
+  const line = lines.find((part) => part !== '') ?? '';
+  const chars = [...line].map((c) => (c < ' ' || c === '\u007f' ? ' ' : c));
+  const short = chars.length > 200 ? `${chars.slice(0, 200).join('')}…` : chars.join('');
+  const detail = short.replace(/[.。\s]+$/u, '') || '没有给出原因';
+  return `页面执行这一步（${kind}）时出错：${detail}。`;
+}
 
 /** Waits for the page to stop loading, at most `limit`; a short quiet moment either way. */
 async function settle(contents: PageContents, limit: number): Promise<boolean> {
@@ -137,6 +164,7 @@ async function capture(
   contents: CapturablePage,
   devtools: PageDebugger,
   sessionId: string,
+  pageId: string,
   deps: ExecutorDeps,
   element: string | null | undefined,
   fullPage: boolean,
@@ -197,7 +225,7 @@ async function capture(
         })
       : await contents.capturePage();
   } finally {
-    await deps.emulate(sessionId, devtools);
+    await deps.emulate(sessionId, pageId, devtools);
   }
   if (picture.isEmpty()) return '页面还没有画出任何内容，截图为空；请等页面加载后再试。';
   if (picture.getSize().width > VIEWPORT.width) picture = picture.resize({ width: VIEWPORT.width });
@@ -284,6 +312,7 @@ async function textOnPage(devtools: PageDebugger): Promise<string> {
 async function act(
   deps: ExecutorDeps,
   command: BrowserHostCommandV1,
+  pageId: string,
   contents: CapturablePage,
   devtools: PageDebugger,
   scale: number,
@@ -292,8 +321,8 @@ async function act(
   const session = command.session_id;
   const action: BrowserHostActionV1 = command.action;
   const url = () => contents.getURL();
-  const touched = pages.userHad(session);
-  const held = pages.state(session, MODEL_PAGE_ID)?.userInControl
+  const touched = pages.userHad(session, pageId);
+  const held = pages.state(session, pageId)?.userInControl
     ? HELD_NOTICE
     : touched === undefined
       ? null
@@ -311,9 +340,9 @@ async function act(
     case 'open': {
       let failure: string | null = null;
       try {
-        await pages.loadForModel(session, MODEL_PAGE_ID, action.url);
+        await pages.loadForModel(session, pageId, action.url);
       } catch (error) {
-        const why = pages.refusal(session, MODEL_PAGE_ID, action.url);
+        const why = pages.refusal(session, pageId, action.url);
         if (why !== undefined) return no(why);
         failure = `打不开 ${action.url}：${error instanceof Error ? error.message : String(error)}`;
       }
@@ -324,7 +353,7 @@ async function act(
       const history = contents.navigationHistory;
       if (action.action === 'back' && !history.canGoBack()) return page('没有可以后退的页面');
       if (action.action === 'forward' && !history.canGoForward()) return page('没有可以前进的页面');
-      pages.history(session, MODEL_PAGE_ID, action.action, true);
+      pages.history(session, pageId, action.action, true);
       const loaded = await settle(contents, 20_000);
       return page(loaded ? null : '页面仍在加载，下面是当前的样子');
     }
@@ -335,6 +364,7 @@ async function act(
         contents,
         devtools,
         session,
+        pageId,
         deps,
         action.element,
         action.full_page,
@@ -463,6 +493,7 @@ async function act(
     case 'request_user': {
       const outcome = await deps.assist(
         session,
+        pageId,
         command.command_id,
         action.reason,
         action.timeout_ms,
@@ -471,7 +502,7 @@ async function act(
       if (outcome === 'withdrawn') return no('已停止等待用户');
       // The user may have changed anything: refs from before name nothing now.
       devtools.refs.clear();
-      const state = pages.state(session, MODEL_PAGE_ID);
+      const state = pages.state(session, pageId);
       if (outcome === 'closed' || state === undefined || state.closed || contents.isDestroyed())
         return done(command, 'about:blank', { outcome: 'closed', page: null });
       await settle(contents, 5_000);
@@ -507,7 +538,18 @@ async function act(
   }
 }
 
-/** Carries out one command from Core on the session's model page. */
+/**
+ * The page a command acts on: the one the user handed over under the command's page id, else the
+ * session's model page.
+ */
+export function commandPage(
+  pages: BrowserPages,
+  command: BrowserHostCommandV1,
+): string | undefined {
+  return command.page ? pages.handed(command.session_id, command.page) : MODEL_PAGE_ID;
+}
+
+/** Carries out one command from Core on the session's model page, or the page it names. */
 export async function execute(
   deps: ExecutorDeps,
   command: BrowserHostCommandV1,
@@ -515,12 +557,17 @@ export async function execute(
   const { pages } = deps;
   const session = command.session_id;
   const action = command.action;
-  const state = pages.state(session, MODEL_PAGE_ID);
-  const open = state !== undefined && !state.closed;
-  const current = () => pages.contents(session, MODEL_PAGE_ID)?.getURL() ?? 'about:blank';
   if (!pages.policy.enabled)
-    return refused(command, current(), '内置浏览器已在设置中关闭（设置 → 网络与浏览器）。');
+    return refused(command, 'about:blank', closedText(pages.policy, '这次浏览器操作没有执行'));
+  const pageId = commandPage(pages, command);
+  if (pageId === undefined)
+    return refused(command, 'about:blank', NO_SUCH_PAGE(command.page ?? ''));
+  const handed = pageId !== MODEL_PAGE_ID;
+  const state = pages.state(session, pageId);
+  const open = state !== undefined && !state.closed;
+  const current = () => pages.contents(session, pageId)?.getURL() ?? 'about:blank';
   if (action.kind === 'close') {
+    if (handed) return refused(command, current(), USER_PAGE_CLOSE);
     pages.close(session, MODEL_PAGE_ID);
     return done(command, 'about:blank', { closed: open });
   }
@@ -532,16 +579,15 @@ export async function execute(
     approvedHosts: command.access.approved_hosts,
     fileRoot: command.access.file_root ?? undefined,
   };
-  if (!open)
+  if (!open && !handed)
     pages.open(session, MODEL_PAGE_ID, access, action.kind === 'open' ? action.url : undefined);
-  pages.setAccess(session, MODEL_PAGE_ID, access);
-  const contents = pages.contents(session, MODEL_PAGE_ID) as CapturablePage | undefined;
+  pages.setAccess(session, pageId, access);
+  const contents = pages.contents(session, pageId) as CapturablePage | undefined;
   if (contents === undefined)
     return refused(command, 'about:blank', '页面没有打开，请重试 browser.open。');
   if (isInput(action)) {
-    if (pages.state(session, MODEL_PAGE_ID)?.userInControl)
-      return refused(command, current(), TAKEN_OVER);
-    const touched = pages.userHad(session);
+    if (pages.state(session, pageId)?.userInControl) return refused(command, current(), TAKEN_OVER);
+    const touched = pages.userHad(session, pageId);
     if (touched !== undefined) return refused(command, current(), TOUCHED[touched].refusal);
     const now = hostOf(contents.getURL());
     const expected = command.expected_host ?? null;
@@ -554,15 +600,15 @@ export async function execute(
   }
   // While the model waits for the user's help, the page is the user's, not Aura's at work.
   const working = action.kind !== 'request_user';
-  if (working) pages.setAgentActive(session, MODEL_PAGE_ID, true);
+  if (working) pages.setAgentActive(session, pageId, true);
   try {
     await settle(contents, 5_000);
     const devtools = deps.debuggerFor(contents);
     await devtools.ready();
-    const scale = await deps.emulate(session, devtools);
-    const result = await act(deps, command, contents, devtools, scale);
+    const scale = await deps.emulate(session, pageId, devtools);
+    const result = await act(deps, command, pageId, contents, devtools, scale);
     if (result.outcome.outcome === 'completed' && LOOKS.has(action.kind))
-      pages.modelLooked(session);
+      pages.modelLooked(session, pageId);
     return result;
   } catch (error) {
     return {
@@ -570,11 +616,11 @@ export async function execute(
       page_url: current(),
       outcome: {
         outcome: 'failed',
-        message: error instanceof Error ? error.message : String(error),
+        message: pageFailure(action.kind, error),
         may_have_acted: isInput(action) || action.kind === 'open' || action.kind === 'navigate',
       },
     };
   } finally {
-    if (working) pages.setAgentActive(session, MODEL_PAGE_ID, false);
+    if (working) pages.setAgentActive(session, pageId, false);
   }
 }

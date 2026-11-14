@@ -49,8 +49,13 @@ async fn refuses_authentication(mode: PermissionMode, body: bool) {
             panic!("authentication must be a preflight refusal")
         };
         assert_eq!(error.code.as_str(), "tool.resource.http_model_authentication_forbidden");
+        // Where the credential-like value was, that nothing was sent, and the way that works.
         assert!(
-            error.message.contains("认证信息只能通过工具凭据提供（工具设置里配置凭据与允许网站）")
+            error.message.contains("请求没有发出")
+                && error.message.contains("认证信息只能通过工具凭据提供")
+                && error.message.contains("改用工具设置里绑定的凭据"),
+            "{}",
+            error.message
         );
         assert!(!serde_json::to_string(&error).expect("safe error envelope").contains(canary));
     }

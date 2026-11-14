@@ -44,6 +44,7 @@ pub use source_coverage::coverage_hops_for_events;
 pub mod stream;
 pub mod tool_state;
 pub mod turns;
+pub mod usage;
 pub mod work;
 
 /// Stores exact versioned facts with CAS; R09's Agent Application owns the

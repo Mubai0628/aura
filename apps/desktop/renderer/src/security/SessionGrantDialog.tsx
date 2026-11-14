@@ -2,9 +2,19 @@ import { userMessage } from '../agent-session/user-message';
 import { SessionFileGrants } from './SessionFileGrants';
 import { SessionMemoryGrants } from './memory-grants/SessionMemoryGrants';
 import { SessionNetworkGrants } from './network-grants/SessionNetworkGrants';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ModalDialog } from '../ModalDialog';
 import { idFromBytes } from '../../../shared/id-encoding';
+import { localTime } from '../../../shared/local-time';
+import {
+  CAPABILITY_TEXT,
+  EXTERNAL_CAPABILITY_TEXT,
+  GRANT_STATE_CHANGED,
+  capabilityList,
+  grantsNotRead,
+  nativeRevokeFailure,
+  revokeFailure,
+} from './grant-words';
 import { AppIcon } from '../app-icons';
 import type {
   ExternalGrantView,
@@ -46,7 +56,7 @@ function inForce(grant: DirectoryGrant): boolean {
 
 function directoryTerm(grant: DirectoryGrant): string {
   const term = grant.term === 'workspace' ? '本工作区' : grant.term === 'turn' ? '本轮' : '本会话';
-  return grant.expires_at ? `${term}，至 ${grant.expires_at}` : term;
+  return grant.expires_at ? `${term}，至 ${localTime(grant.expires_at)}` : term;
 }
 
 function consentShell(shell: 'cmd' | 'powershell'): string {
@@ -91,12 +101,21 @@ export function SessionGrantDialog({
   sessionId,
   open = true,
   onClose,
+  title = '会话授权管理',
+  titleId = 'session-grants-title',
+  children,
 }: {
   security: ReturnType<typeof useSecurityControl>;
   sessionId: string;
   /** The dialog stays mounted so "closed" always closes its native layer. */
   open?: boolean;
   onClose: () => void;
+  title?: string;
+  /** Names the dialog. Another dialog built on this one takes its own: the conversation's stays
+   * mounted while closed, and a shared id would name both after whichever comes first. */
+  titleId?: string;
+  /** What else the conversation was allowed, listed first: a sub-agent's allowances. */
+  children?: ReactNode;
 }) {
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
@@ -130,19 +149,19 @@ export function SessionGrantDialog({
           setDirectories({
             status: 'error',
             sessionId: session,
-            message: '目录授权读取失败。',
+            message: grantsNotRead('目录授权', result.error),
           });
           return;
         }
         const rows = (result.value as DirectoryGrant[]).filter(inForce);
         setDirectories({ status: 'ready', sessionId: session, grants: rows });
       })
-      .catch(() => {
+      .catch((reason: unknown) => {
         if (!current) return;
         setDirectories({
           status: 'error',
           sessionId: session,
-          message: '目录授权读取失败。',
+          message: grantsNotRead('目录授权', reason),
         });
       });
     return () => {
@@ -161,7 +180,7 @@ export function SessionGrantDialog({
           setConsents({
             status: 'error',
             sessionId: session,
-            message: 'Native 会话同意读取失败。',
+            message: grantsNotRead('Shell 运行批准', result.error),
           });
           return;
         }
@@ -171,9 +190,13 @@ export function SessionGrantDialog({
           consents: result.value as NativeSessionConsentView[],
         });
       })
-      .catch(() => {
+      .catch((reason: unknown) => {
         if (!current) return;
-        setConsents({ status: 'error', sessionId: session, message: 'Native 会话同意读取失败。' });
+        setConsents({
+          status: 'error',
+          sessionId: session,
+          message: grantsNotRead('Shell 运行批准', reason),
+        });
       });
     return () => {
       current = false;
@@ -198,18 +221,21 @@ export function SessionGrantDialog({
         revokeCommands.current.set(consent.grant_id, request.correlation_id);
       const result = await window.aura.v1.revokeNativeSessionConsent(request);
       if (!result.ok) {
-        setError(
-          result.error.code === 'permission.grant_state_changed'
-            ? '该同意状态已变化，请重新读取后再撤销。'
-            : 'Native 会话同意撤销未提交。',
-        );
+        const message = nativeRevokeFailure(result.error);
+        setError(message);
+        if (message === GRANT_STATE_CHANGED) {
+          // The grant moved on, so a press after reading it again is a new command.
+          revokeCommands.current.delete(consent.grant_id);
+          setConsents({ status: 'loading', sessionId });
+          setReload((value) => value + 1);
+        }
       } else {
         revokeCommands.current.delete(consent.grant_id);
         setConsents({ status: 'loading', sessionId });
         setReload((value) => value + 1);
       }
     } catch (reason) {
-      setError(userMessage(reason, 'Native 会话同意撤销未提交。'));
+      setError(nativeRevokeFailure(reason));
     } finally {
       setPending(undefined);
     }
@@ -223,14 +249,12 @@ export function SessionGrantDialog({
         external_grant_id: id,
         session_id: sessionId,
       });
-      if (!result.ok) setError('目录授权撤销未提交。');
-      else {
-        setDirectories({ status: 'loading', sessionId });
-        setReload((value) => value + 1);
-      }
+      if (!result.ok) setError(revokeFailure(result.error, '目录授权', '这个目录仍可访问'));
     } catch (reason) {
-      setError(userMessage(reason, '目录授权撤销未提交。'));
+      setError(revokeFailure(reason, '目录授权', '这个目录仍可访问'));
     } finally {
+      setDirectories({ status: 'loading', sessionId });
+      setReload((value) => value + 1);
       setPending(undefined);
     }
   };
@@ -247,15 +271,10 @@ export function SessionGrantDialog({
     }
   };
   return (
-    <ModalDialog
-      className="session-grant-dialog"
-      titleId="session-grants-title"
-      open={open}
-      onClose={onClose}
-    >
+    <ModalDialog className="session-grant-dialog" titleId={titleId} open={open} onClose={onClose}>
       <header className="modal-header">
         <div>
-          <h2 id="session-grants-title">会话授权管理</h2>
+          <h2 id={titleId}>{title}</h2>
           <p>撤销工作区授权也会影响该工作区的其他会话。</p>
         </div>
         <button className="icon-button" aria-label="关闭授权管理" type="button" onClick={onClose}>
@@ -263,6 +282,7 @@ export function SessionGrantDialog({
         </button>
       </header>
       <div className="session-grant-body">
+        {children}
         <SessionFileGrants key={sessionId} sessionId={sessionId} open={open} />
         <SessionNetworkGrants key={`network:${sessionId}`} sessionId={sessionId} open={open} />
         <SessionMemoryGrants key={`memory:${sessionId}`} sessionId={sessionId} open={open} />
@@ -293,7 +313,7 @@ export function SessionGrantDialog({
                   <li key={grant.id}>
                     <span>
                       {grant.display_path} · {directoryScope(grant)} · {directoryTerm(grant)} ·{' '}
-                      {grant.capabilities.join('、')}
+                      {capabilityList(grant.capabilities, EXTERNAL_CAPABILITY_TEXT)}
                     </span>
                     <button
                       disabled={pending !== undefined}
@@ -310,7 +330,7 @@ export function SessionGrantDialog({
               <ul className="compact-list">
                 {grants.map((grant) => (
                   <li key={grant.id}>
-                    <span>{grant.capabilities.join('、')}</span>
+                    <span>{capabilityList(grant.capabilities, CAPABILITY_TEXT)}</span>
                     <button
                       disabled={pending !== undefined}
                       type="button"
@@ -348,9 +368,14 @@ export function SessionGrantDialog({
               {consents.consents.map((consent) => (
                 <li key={consent.grant_id}>
                   <span>
-                    {consentShells(consent)} · {consentAvailabilityLabel(consent.availability)} ·
-                    {consent.scope.lifetime === 'session' ? '本会话有效' : '旧 Native 期限规则'} ·
-                    批准于 {consent.issued_at} · 确认窗至 {consent.approved_through}
+                    {[
+                      consentShells(consent),
+                      consentAvailabilityLabel(consent.availability),
+                      consent.scope.lifetime === 'session'
+                        ? '本会话有效'
+                        : '旧版批准，Aura Core 重启或权限设置变化后失效',
+                      `批准于 ${localTime(consent.issued_at)}`,
+                    ].join(' · ')}
                   </span>
                   {consent.availability === 'in_force' ? (
                     <button

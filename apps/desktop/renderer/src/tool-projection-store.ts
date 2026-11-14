@@ -14,6 +14,8 @@ interface ProjectionRouteEntry {
 
 const routes = new Map<string, ProjectionRouteEntry>();
 const cachedChanges = new Map<string, ToolProjectionChange>();
+/** The code each route's last subscription failed with, until one holds or a change arrives. */
+const failures = new Map<string, string>();
 const refreshes = new Map<string, Promise<void>>();
 const retries = new SubscriptionRetries();
 let stopListening: (() => void) | undefined;
@@ -21,14 +23,23 @@ let stopListening: (() => void) | undefined;
 /** Asks Main for an entry's route; a refused route is asked again until it holds. Core answers
  *  a subscription with the route's current state. */
 const ask = (key: string, entry: ProjectionRouteEntry): void => {
+  const notify = () => {
+    for (const listener of entry.listeners) listener();
+  };
   const fail = (code: string) => {
     console.error('Scoped Tool Projection subscription failed', code);
-    if (routes.get(key) === entry) retries.failed(key, () => ask(key, entry));
+    if (routes.get(key) !== entry) return;
+    failures.set(key, code);
+    notify();
+    retries.failed(key, () => ask(key, entry));
   };
   void window.aura.v1.subscribeToolProjection(entry.route).then(
     (result) => {
       if (!result.ok) fail(result.error.code);
-      else if (routes.get(key) === entry) retries.settled(key);
+      else if (routes.get(key) === entry) {
+        retries.settled(key);
+        if (failures.delete(key)) notify();
+      }
     },
     () => fail('bridge_rejected'),
   );
@@ -44,6 +55,7 @@ const publish = (key: string, change: ToolProjectionChange): void => {
     return;
   }
   cachedChanges.set(key, change);
+  failures.delete(key);
   const entry = routes.get(key);
   if (entry === undefined) return;
   for (const listener of entry.listeners) listener();
@@ -129,6 +141,7 @@ export const subscribeScopedToolProjection = (
     current.listeners.delete(listener);
     if (current.listeners.size !== 0) return;
     routes.delete(key);
+    failures.delete(key);
     retries.settled(key);
     current.stopCompatibility();
     void window.aura.v1.unsubscribeToolProjection(current.route).then((result) => {
@@ -166,11 +179,30 @@ export const useScopedToolProjection = <Kind extends ToolProjectionKind>(
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };
 
+/** Why a route is not subscribed, by the code its last subscription failed with; none once held. */
+export const useScopedToolProjectionFailure = (
+  route: ToolProjectionRouteRequest,
+  disabled = false,
+): string | undefined => {
+  const routeKey = toolProjectionRouteKey(route);
+  const subscribe = useCallback(
+    (listener: ProjectionListener) =>
+      disabled ? () => undefined : subscribeScopedToolProjection(route, listener),
+    [disabled, route],
+  );
+  const getSnapshot = useCallback(
+    () => (disabled ? undefined : failures.get(routeKey)),
+    [disabled, routeKey],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+};
+
 export const resetScopedToolProjectionStoreForTests = (): void => {
   for (const entry of routes.values()) entry.stopCompatibility();
   routes.clear();
   retries.reset();
   cachedChanges.clear();
+  failures.clear();
   refreshes.clear();
   stopListening?.();
   stopListening = undefined;

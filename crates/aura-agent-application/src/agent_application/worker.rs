@@ -57,6 +57,7 @@ pub(super) struct RunPanicFact {
 impl AgentApplication {
     /// Admits one run and starts its single real task.
     pub fn launch(self: &Arc<Self>, run: AgentRunId) -> anyhow::Result<()> {
+        self.bind_team();
         // Admission first: a second launch of the same run is refused here, so one run can
         // never have two tasks or two generations.
         let Some(admission) = self.supervisor.admit(run) else {
@@ -107,6 +108,7 @@ impl AgentApplication {
             }
             if let Ok(turn) = &turn {
                 give_desktop_back(&app.execution, turn);
+                app.team_turn_ended(turn).await;
             }
             if let Ok(turn) = turn
                 && matches!(turn.state, TurnTaskState::Completed { .. })
@@ -228,26 +230,23 @@ impl AgentApplication {
                 // user asked for.
                 //
                 // Shutdown still stops **this generation's execution**: the loop ends and the task
-                // really exits. What it must not do is rewrite a wait that is already persisted and
-                // still actionable into a user cancellation. That rewrite is what advanced the run
-                // revision past the remediation record's, so a restart's legitimate
-                // `agent.window.resolve` at the original revision met a revision conflict.
-                let committed_wait = matches!(
-                    run.state,
-                    AgentRunState::AwaitingApproval { .. }
-                        | AgentRunState::AwaitingQuery { .. }
-                        | AgentRunState::AwaitingContextRemediation { .. }
-                );
-                if cancellation_requested || !committed_wait {
+                // really exits. What it must not do is record a stop nobody asked for. A wait that
+                // is already persisted stays actionable at its original revision (rewriting it is
+                // what advanced the run revision past the remediation record's, so a restart's
+                // legitimate `agent.window.resolve` met a revision conflict), and any other state
+                // is left for the next start, which marks the turn cut off by the restart: the user
+                // continues it with 继续, as after any restart. The request is read again here: a
+                // stop written after the read above fires the token only once it is durable.
+                if cancellation_requested || !self.stopped_by_shutdown(run_id, &cancel).await? {
                     self.interrupt(run_id, "agent.cancelled", true).await?;
                 } else {
-                    self.note_run_diagnostic(
-                        run_id,
-                        "teardown",
-                        "agent.shutdown_left_committed_wait",
-                        "shutdown ended this generation's task without cancelling the persisted \
-                         wait, which stays actionable at its original revision",
+                    let committed_wait = matches!(
+                        run.state,
+                        AgentRunState::AwaitingApproval { .. }
+                            | AgentRunState::AwaitingQuery { .. }
+                            | AgentRunState::AwaitingContextRemediation { .. }
                     );
+                    self.left_at_shutdown(run_id, committed_wait);
                 }
                 return Ok(());
             }
@@ -330,7 +329,13 @@ impl AgentApplication {
                     stage.set(RunStage::Provider);
                     match provider::execute(self, prepared.request, &cancel).await? {
                         TransportRunTerminal::Cancelled { .. } => {
-                            self.interrupt(run_id, "agent.cancelled", true).await?;
+                            // The request ended because the run's stop fired; who fired it
+                            // decides what is recorded, as at the top of the loop.
+                            if self.stopped_by_shutdown(run_id, &cancel).await? {
+                                self.left_at_shutdown(run_id, false);
+                            } else {
+                                self.interrupt(run_id, "agent.cancelled", true).await?;
+                            }
                             return Ok(());
                         }
                         TransportRunTerminal::Failed { failure, diagnostic, .. } => {
@@ -375,11 +380,22 @@ impl AgentApplication {
                                         },
                                     )
                                     .await?;
+                                super::transient::log_asked_again(
+                                    run_id,
+                                    snapshot.model_step_id,
+                                    &failure.failure,
+                                    None,
+                                );
                                 continue;
                             }
                             // A step the provider failed for a passing reason is asked
-                            // again as a new step, a bounded number of times in a row.
-                            if super::transient::passing(&failure.failure) {
+                            // again as a new step, a bounded number of times in a row. A
+                            // sub-agent also waits out its provider's rate limit.
+                            let sub_agent = super::transient::rate_limited(&failure.failure)
+                                && super::team::team_member(self, turn.session_id).await?.is_some();
+                            if let Some(limit) =
+                                super::transient::retries(&failure.failure, sub_agent)
+                            {
                                 let streak = self
                                     .store
                                     .read(
@@ -391,7 +407,7 @@ impl AgentApplication {
                                         },
                                     )
                                     .await?;
-                                if streak < super::transient::MAX_RETRIES {
+                                if streak < limit {
                                     let failed = (snapshot.clone(), failure.clone());
                                     self.store
                                         .write(
@@ -408,7 +424,13 @@ impl AgentApplication {
                                             },
                                         )
                                         .await?;
-                                    super::transient::wait(streak, &cancel).await;
+                                    super::transient::log_asked_again(
+                                        run_id,
+                                        snapshot.model_step_id,
+                                        &failure.failure,
+                                        Some(streak),
+                                    );
+                                    super::transient::wait(streak, &failure.failure, &cancel).await;
                                     continue;
                                 }
                             }
@@ -433,10 +455,14 @@ impl AgentApplication {
                     let step =
                         steps.last().ok_or_else(|| anyhow::anyhow!("agent.model_step_missing"))?;
                     let model_step_id = step.model_step_id;
-                    let tools = self
+                    // The step's `agents.wait` calls are read with its settings, in one store step.
+                    let (tools, waits) = self
                         .store
                         .read(StoreStep::run(run_id, "agent.drive.step_tools"), move |db| {
-                            store::step_tool_settings(db, model_step_id)
+                            Ok((
+                                store::step_tool_settings(db, model_step_id)?,
+                                super::team::waits_of(db, model_step_id)?,
+                            ))
                         })
                         .await?;
                     // Admission is one contiguous synchronous section of its own; it is
@@ -444,9 +470,20 @@ impl AgentApplication {
                     // Store owner instead of on this reactive task.
                     self.decide_tool_calls(run_id, model_step_id).await?;
                     self.inspect_chrome_calls(run_id, model_step_id).await?;
+                    // The preparation is polled first: when a stop has already fired and the
+                    // step's computer calls need nothing more, the step is still admitted and its
+                    // calls are recorded as cancelled before dispatch.
                     tokio::select! {
+                        biased;
                         result = self.prepare_computer_calls(run_id, model_step_id) => result?,
                         () = cancel.cancelled() => anyhow::bail!("agent.cancelled"),
+                    }
+                    // A wait for sub-agents yields to a stop before admission.
+                    if !waits.is_empty() {
+                        tokio::select! {
+                            result = self.prewait_team_calls(run_id, waits) => result?,
+                            () = cancel.cancelled() => anyhow::bail!("agent.cancelled"),
+                        }
                     }
                     let batch =
                         Arc::clone(&self.execution).admit_output(model_step_id, tools).await?;
@@ -504,6 +541,9 @@ impl AgentApplication {
                                     },
                                 )
                                 .await?;
+                            // A sub-agent's question the settings answer is answered once the
+                            // run has stopped for it.
+                            self.answer_paused(run_id);
                             return Ok(());
                         }
                     }
@@ -517,6 +557,46 @@ impl AgentApplication {
                 _ => anyhow::bail!("agent.unexpected_active_state"),
             }
         }
+    }
+
+    /// Whether Aura's shutdown fired the run's stop: the token fired and no stop was asked for. A
+    /// user's stop, a mode's end and a revocation write their request before they fire it. Boxed,
+    /// so the run's own future, awaited on a test thread's stack, does not grow by it.
+    fn stopped_by_shutdown<'a>(
+        &'a self,
+        run_id: AgentRunId,
+        cancel: &'a ModelCancellationToken,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<bool>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            if !cancel.is_cancelled() {
+                return Ok(false);
+            }
+            let requested = self
+                .store
+                .read(StoreStep::run(run_id, "agent.drive.shutdown_check"), move |db| {
+                    store::cancellation_requested(db, run_id)
+                })
+                .await?;
+            Ok(!requested)
+        })
+    }
+
+    /// A run Aura's shutdown stopped is left as it was: the next start marks a running turn cut
+    /// off by the restart, and a persisted wait stays actionable at its revision.
+    fn left_at_shutdown(&self, run_id: AgentRunId, committed_wait: bool) {
+        let (code, detail) = if committed_wait {
+            (
+                "agent.shutdown_left_committed_wait",
+                "shutdown ended this generation's task without cancelling the persisted wait",
+            )
+        } else {
+            (
+                "agent.shutdown_left_for_restart",
+                "shutdown ended this generation's task without recording a stop",
+            )
+        };
+        self.note_run_diagnostic(run_id, "teardown", code, detail);
     }
 
     /// The one interruption step, so every stop path writes the same fact the same way.

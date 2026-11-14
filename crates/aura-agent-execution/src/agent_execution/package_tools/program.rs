@@ -5,7 +5,7 @@ use super::installed_tool_for;
 use aura_backend_api::{BackendFuture, ExecutionBackend};
 use aura_backend_core::BrokerPort;
 use aura_domain_common::jcs::canonical_sha256;
-use aura_package_service::package_program;
+use aura_package_service::{failures::code_of, package_program};
 use aura_tool_domain::{CanonicalToolPackageToolV1, PackageConformanceReasonV1 as Reason};
 use serde_json::{Value, json};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -61,7 +61,7 @@ impl ExecutionBackend for PackageProgramBackend {
                 || !self.descriptor.supports_operation(&request.requirement, &request.operation)
             {
                 return Err(BackendError::PreparationRejected {
-                    reason: "package.unsupported_operation".into(),
+                    reason: "package.unsupported_operation: 运行工具包程序的后端不能执行这次调用，程序没有运行。可以重新调用。".into(),
                 });
             }
             let facts = self.port.inspect(&request.operation).await?;
@@ -71,7 +71,7 @@ impl ExecutionBackend for PackageProgramBackend {
                 preparation: facts,
             })
             .map_err(|_| BackendError::PreparationRejected {
-                reason: "package.invalid_preparation".into(),
+                reason: "package.invalid_preparation: Aura 没能准备这次程序调用，程序没有运行。可以重新调用。".into(),
             })
         })
     }
@@ -84,7 +84,7 @@ impl ExecutionBackend for PackageProgramBackend {
                 || self.port.inspect(&request.operation).await? != request.plan.prepared.preparation
             {
                 return Err(BackendError::PreparationRejected {
-                    reason: "package.preparation_changed".into(),
+                    reason: "package.preparation_changed: 这个工具包在调用准备好之后变了（停用、撤销信任、卸载或升级），程序没有运行。可以重新调用。".into(),
                 });
             }
             self.port.claim(&dispatch).await?;
@@ -150,7 +150,11 @@ pub(in crate::agent_execution) async fn invoke(
         .session(call.snapshot.session_id)?
         .into_iter()
         .find(|entry| entry.call.validated.call.tool_call_id == call.validated.call.tool_call_id)
-        .ok_or_else(|| anyhow::anyhow!("package.call_not_active"))?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "package.call_not_active: 这次工具包调用在程序启动之前已经结束（回合停止了或调用被取消），程序没有运行。"
+            )
+        })?
         .cancel
         .subscribe();
     let token = Arc::new(AtomicBool::new(*cancellation.borrow()));
@@ -172,6 +176,10 @@ pub(in crate::agent_execution) async fn invoke(
     let environment = aura_windows_platform::current_user_environment()?;
     tokio::task::spawn_blocking(move || {
         let _lifetime = lifetime;
+        // A program not seen to stop is kept under this call: its locks wait for it.
+        let _kept = aura_backend_windows_user::lingering::enter(
+            request.binding.attempt.operation_id.to_bytes(),
+        );
         super::run::run(
             &service,
             &call,
@@ -198,26 +206,107 @@ pub(super) fn attempt_identity_for(request: &DispatchRequest) -> ToolExecutionAt
     attempt_identity(&request.binding.attempt)
 }
 
-/// The fixed, model-safe failure text for a program outcome. No stderr, path or
-/// raw error reaches the model.
-pub(super) fn failure_text(reason: Reason) -> String {
+const CLEANUP_UNCONFIRMED: &str = "package.cleanup_unconfirmed: 程序是否已经完全停止还没能确认，结果不明，Aura 不会自动重试。程序可能已经做了改动；再运行之前先确认它的效果。";
+const PROGRAM_CREDENTIALS: &str = "package.program_credentials_unsupported: 这个工具用不了：运行程序的工具不能使用 Aura 保存的凭据。请告诉用户这个工具包的凭据设置有误。";
+
+/// The fixed, model-safe failure text for a program outcome: what happened to the run, whether
+/// it may have changed something, and what to check. No stderr, path or raw error reaches the
+/// model.
+pub(super) fn failure_text(reason: Reason, timeout_ms: u64) -> String {
     let base = match reason {
-        Reason::Completed | Reason::CompletedResultUnchecked => "package.completed",
-        Reason::InvalidResult => "package.invalid_result: 程序的输出不符合工具声明的结果格式",
-        Reason::InvalidProtocol => "package.invalid_protocol: 程序没有按 Aura 工具协议回应",
-        Reason::InvalidArtifact => "package.invalid_artifact: 程序的输出文件不符合声明",
-        Reason::Cancelled => "package.cancelled: 调用已取消，程序已停止",
-        Reason::TimedOut => "package.timed_out: 程序超时，已停止",
-        Reason::OutputLimit => "package.output_limit: 程序输出超过上限，已停止",
-        Reason::ProcessFailed => "package.process_failed: 程序运行失败",
-        Reason::TransportUnconfirmed => "package.transport_unconfirmed: 结果不明",
-        Reason::CleanupUnconfirmed => {
-            "package.cleanup_unconfirmed: 程序是否完全停止尚未确认，结果不明，不会自动重试"
+        Reason::Completed => "package.completed: 程序运行完成。",
+        Reason::CompletedResultUnchecked => {
+            "package.result_unchecked: 程序运行完了，但 Aura 没能检查它的结果，结果没有采用。程序可能已经做了改动；再运行之前先确认。"
         }
-        Reason::CredentialReflected => "package.credential_reflected: 输出中出现了不该出现的凭据",
-        Reason::ProgramCredentialUnsupported => {
-            "package.program_credentials_unsupported: 运行程序的工具不能使用 Aura 保存的凭据"
+        Reason::InvalidResult => {
+            "package.invalid_result: 程序运行完了，但输出不符合工具声明的结果格式，结果没有采用。程序可能已经做了改动；如果反复出现，告诉用户这个工具包可能需要更新。"
         }
+        Reason::InvalidProtocol => {
+            "package.invalid_protocol: 程序没有按 Aura 的工具协议回应，结果没有采用。程序可能已经做了改动；如果反复出现，告诉用户这个工具包可能需要更新。"
+        }
+        Reason::InvalidArtifact => {
+            "package.invalid_artifact: 程序交出的文件不符合工具的声明，没有采用。程序可能已经做了改动；如果反复出现，告诉用户这个工具包可能需要更新。"
+        }
+        Reason::Cancelled => {
+            "package.cancelled: 调用被取消，程序已经停止。它在停止前可能已经做了一部分改动。"
+        }
+        Reason::TimedOut => {
+            return format!(
+                "package.timed_out: 程序没有在 {} 秒内完成，已经被停止。它在停止前可能已经做了一部分改动；再运行之前先确认。",
+                timeout_ms.div_ceil(1000)
+            );
+        }
+        Reason::OutputLimit => {
+            "package.output_limit: 程序的输出超过了这次调用允许的上限，已经被停止，结果没有采用。它在停止前可能已经做了一部分改动；可以换更小的输入再调用。"
+        }
+        Reason::ProcessFailed => {
+            "package.process_failed: 程序运行失败（以失败状态退出，或没能正常运行），结果没有采用。它在失败前可能已经做了一部分改动；再运行之前先确认。"
+        }
+        Reason::TransportUnconfirmed => {
+            "package.transport_unconfirmed: Aura 在程序报告结果之前和它断了联系，结果不明。程序可能已经做了改动；再运行之前先确认它的效果。"
+        }
+        Reason::CleanupUnconfirmed => CLEANUP_UNCONFIRMED,
+        Reason::CredentialReflected => {
+            "package.credential_reflected: 程序的输出里出现了凭据，为保护凭据，输出没有交给模型。程序可能已经做了改动；如果反复出现，告诉用户这个工具包有问题。"
+        }
+        Reason::ProgramCredentialUnsupported => PROGRAM_CREDENTIALS,
     };
     base.to_owned()
+}
+
+/// The line for the most telling code a failed start carries (bare from the program runner, or
+/// with the package service's own sentence), when Core has words for the model.
+pub(super) fn start_failure_text(chain: &[String]) -> Option<&'static str> {
+    const LINES: &[(&str, &str)] = &[
+        (
+            "package.execution_report_unconfirmed",
+            "package.execution_report_unconfirmed: 程序已经启动，但 Aura 没能拿到它的运行结果，结果不明。程序可能已经做了改动；再运行之前先确认它的效果。",
+        ),
+        ("package.cleanup_unconfirmed", CLEANUP_UNCONFIRMED),
+        (
+            "package.arguments_invalid",
+            "package.arguments_invalid: 参数不符合这个工具的输入格式，程序没有运行。请按工具说明改好参数再调用。",
+        ),
+        (
+            "package.configuration_required",
+            "package.configuration_required: 这个工具需要的设置还没有填，程序没有运行。请用户在工具包页填好这个工具的设置。",
+        ),
+        (
+            "package.configuration_invalid",
+            "package.configuration_invalid: 这个工具的设置不符合它的要求，程序没有运行。请用户在工具包页改好这个工具的设置。",
+        ),
+        (
+            "package.workspace_required",
+            "package.workspace_required: 这个工具要在工作区里运行，现在没有可用的工作区，程序没有运行。",
+        ),
+        ("package.program_credentials_unsupported", PROGRAM_CREDENTIALS),
+    ];
+    LINES
+        .iter()
+        .find(|(code, _)| chain.iter().any(|text| code_of(text) == *code))
+        .map(|(_, line)| *line)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A failed run says what happened to it and whether it may have changed something; the
+    /// unchecked result is no longer called complete.
+    #[test]
+    fn a_failed_program_says_what_happened() {
+        let unchecked = failure_text(Reason::CompletedResultUnchecked, 0);
+        assert!(unchecked.starts_with("package.result_unchecked: "), "{unchecked}");
+        assert!(failure_text(Reason::TimedOut, 30_000).contains("30 秒"));
+        assert!(failure_text(Reason::TransportUnconfirmed, 0).contains("可能已经做了改动"));
+        let chain =
+            ["package.preparation_failed".to_owned(), "package.arguments_invalid".to_owned()];
+        let line = start_failure_text(&chain).expect("known");
+        assert!(line.starts_with("package.arguments_invalid: ") && line.contains("没有运行"));
+        assert_eq!(start_failure_text(&["package.preparation_failed".to_owned()]), None);
+        // The package service now says its own sentence after the code; the model still gets
+        // Core's line for that code.
+        let said = [aura_package_service::failures::ARGUMENTS_INVALID.to_owned()];
+        assert_eq!(start_failure_text(&said), Some(line));
+    }
 }

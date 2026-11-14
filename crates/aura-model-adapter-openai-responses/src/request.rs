@@ -18,9 +18,9 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
             )
         };
         let conversation = compile(&input.request.conversation_items)?;
-        // A question asked after the step's request - a compaction - is a user message of its own
-        // after the step's input, and what followed it when the model called tools comes next, so
-        // all before them is the step's input as it was sent.
+        // A message after the step's request - a compaction's question or a retry's note - is a
+        // user message of its own after the step's input, and what followed a question when the
+        // model called tools comes next, so all before them is the step's input as it was sent.
         let closing = input
             .request
             .closing_question
@@ -28,17 +28,45 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
             .map(|question| message("user", question))
             .into_iter()
             .chain(compile(&input.request.closing_exchange)?);
-        let state = message("developer", &layout.current);
-        // Where the request's profile asks for it - at OpenAI's cache - the task's current state
-        // goes before the conversation: OpenAI kept a turn's steps only as far as the instructions
-        // while a few hundred tokens or more followed the conversation, and as far as the last step
-        // once nothing did; the state changes rarely within a turn, so each step's input begins
-        // with the one before. Elsewhere the state stays after the conversation, where DeepSeek
-        // cached nearly every step.
-        let history = if aura_model_transport::state_before_conversation(input.snapshot) {
-            std::iter::once(state).chain(conversation).chain(closing).collect::<Vec<_>>()
-        } else {
-            conversation.into_iter().chain(std::iter::once(state)).chain(closing).collect()
+        // Where the request's profile asks for it - at OpenAI's cache - the task's state goes before
+        // the conversation: OpenAI kept a turn's steps only as far as the instructions while a few
+        // hundred tokens or more followed the conversation, and as far as the last step once
+        // nothing did. A provider that caches whole earlier requests keeps the conversation only
+        // while each step's input begins with the one before, so in a conversation the first state
+        // stays in front and each change is added where it happened instead of replacing it.
+        // Elsewhere the state stays after the conversation, where DeepSeek cached nearly every
+        // step.
+        let history = match (
+            aura_model_transport::state_before_conversation(input.snapshot),
+            input.session_id,
+        ) {
+            (true, Some(session)) => {
+                let placement = aura_model_transport::place_state(
+                    session,
+                    &layout.stable,
+                    &conversation,
+                    &layout.current,
+                );
+                let mut history = vec![message("developer", &placement.leading)];
+                let mut from = 0;
+                for (at, state) in &placement.changes {
+                    history.extend(conversation.get(from..*at).unwrap_or_default().iter().cloned());
+                    history.push(message("developer", state));
+                    from = from.max(*at);
+                }
+                history.extend(conversation.get(from..).unwrap_or_default().iter().cloned());
+                history.extend(closing);
+                history
+            }
+            (true, None) => std::iter::once(message("developer", &layout.current))
+                .chain(conversation)
+                .chain(closing)
+                .collect(),
+            (false, _) => conversation
+                .into_iter()
+                .chain(std::iter::once(message("developer", &layout.current)))
+                .chain(closing)
+                .collect(),
         };
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));

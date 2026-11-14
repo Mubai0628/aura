@@ -7,6 +7,18 @@ export const NOTIFICATION_PREFERENCES_CHANNEL = 'aura:v1:notification-preference
 export const NOTIFICATION_FOREGROUND_CHANNEL = 'aura:v1:notification-foreground';
 /** Main asks the window to show what a clicked notification was about. */
 export const NOTIFICATION_OPEN_CHANNEL = 'aura:v1:notification-open';
+/**
+ * The conversations with a notification the user has not looked at: read by the window, and
+ * sent to it whenever they change.
+ */
+export const NOTIFICATION_UNSEEN_CHANNEL = 'aura:v1:notification-unseen';
+
+/** A list of conversation ids; anything else in it is left out. */
+export function readUnseen(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
 
 export interface NotificationPreferences {
   /** A new version of Aura can be downloaded. */
@@ -92,4 +104,9 @@ export interface NotificationsApiV1 {
   /** The conversation in front, or none; a notification about it is not shown. */
   setForegroundSession(sessionId: string | null): void;
   onNotificationOpen(listener: (target: NotificationTarget) => void): () => void;
+  /**
+   * The conversations with a notification the user has not looked at: given at once, then each
+   * time they change.
+   */
+  onUnseenSessions(listener: (sessionIds: string[]) => void): () => void;
 }

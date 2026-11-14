@@ -10,46 +10,23 @@ pub(crate) fn check(root: &Path) -> Result<()> {
     );
     super::architecture::check(root)?;
     super::run(root, "pwsh", &["-NoProfile", "-File", "scripts/r06/check.ps1"])?;
-    super::run(root, "cargo", &["test", "-p", "aura-restricted-user-spike", "--offline"])?;
+    let mut session = super::rust_tests::Session::start(root)?;
+    session.run(&["-p", "aura-restricted-user-spike"])?;
     // Real stream/Job regressions of the shared launcher; never enable ignored
     // P04/AppContainer setup tests or turn a StandardUser pass into R06 proof.
-    super::run(
-        root,
-        "cargo",
-        &[
-            "test",
-            "-p",
-            "aura-windows-platform",
-            "--lib",
-            "--offline",
-            "--features",
-            "restricted-user-spike",
-            "--",
-            "sandbox::restricted_user::",
-            "wfp_spike::",
-            "host_preparation::device_spike::",
-            "sandbox::tests::restricted_process_",
-            "sandbox::tests::terminating_execution_job_",
-        ],
-    )?;
-    super::run(
-        root,
-        "cargo",
-        &[
-            "clippy",
-            "-p",
-            "aura-restricted-user-spike",
-            "-p",
-            "aura-windows-platform",
-            "-p",
-            "xtask",
-            "--all-targets",
-            "--offline",
-            "--",
-            "-D",
-            "warnings",
-        ],
-    )?;
+    session.run(&[
+        "-p",
+        "aura-windows-platform",
+        "--lib",
+        "--",
+        "sandbox::restricted_user::",
+        "wfp_spike::",
+        "host_preparation::device_spike::",
+        "sandbox::tests::restricted_process_",
+        "sandbox::tests::terminating_execution_job_",
+    ])?;
+    session.finish()?;
+    super::rust_tests::clippy(root)?;
     println!(
         "R06 Spike engineering checks passed. Home/Pro, dedicated identity and Offline enforcement remain separate and REQUIRED; R06 is not complete."
     );

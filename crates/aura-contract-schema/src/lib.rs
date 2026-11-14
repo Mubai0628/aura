@@ -2166,6 +2166,7 @@ pub fn canonical_fixture() -> Result<CanonicalContractFixture> {
                 title: "Architecture review".to_owned(),
                 state: "idle".to_owned(),
             }],
+            worktrees: Vec::new(),
         },
     };
     let mut ipc_details = BTreeMap::new();
@@ -2325,6 +2326,7 @@ pub fn canonical_fixture() -> Result<CanonicalContractFixture> {
             previous: None,
             pending: None,
             last_known_good: Some("0.1.0".to_owned()),
+            data_location: None,
         },
     };
     let persistence = PersistenceContractFixture {

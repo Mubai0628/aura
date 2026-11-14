@@ -1,6 +1,7 @@
 //! Desktop management is authenticated independently of model tool permissions.
 //! All roots come from Core's fixed Memory owner and verified workspace resolver.
 use crate::*;
+use aura_core_base::route_failures as failure;
 use aura_core_base::sync_boundary::{SyncSection, SyncSubject};
 use aura_domain_common::WorkspaceId;
 use aura_memory::*;
@@ -99,7 +100,8 @@ fn workspace(
     id: Option<WorkspaceId>,
 ) -> anyhow::Result<Option<MemoryWorkspace>> {
     id.map(|workspace_id| {
-        let runtime = runtime.ok_or_else(|| anyhow::anyhow!("workspace unavailable"))?;
+        let runtime =
+            runtime.ok_or_else(|| anyhow::anyhow!(failure::MEMORY_WORKSPACE_UNAVAILABLE))?;
         let resolver = runtime.resolver(workspace_id)?;
         resolver.verify_root_identity()?;
         Ok(MemoryWorkspace { workspace_id, root: resolver.canonical_root().to_path_buf() })
@@ -159,12 +161,12 @@ pub(super) fn run(
                     serde_json::to_value(vault.preview_repair(&actor)?)?
                 }
                 "memory.export.prepare" => serde_json::to_value(memory.prepare_export(&vault)?)?,
-                _ => anyhow::bail!("unknown memory management route"),
+                _ => anyhow::bail!(failure::ROUTE_UNHANDLED),
             }
         }
     };
     if serde_json::to_vec(&result)?.len() > 2 * 1024 * 1024 {
-        anyhow::bail!("memory response too large");
+        anyhow::bail!(failure::MEMORY_RESPONSE_TOO_LARGE);
     }
     Ok(result)
 }

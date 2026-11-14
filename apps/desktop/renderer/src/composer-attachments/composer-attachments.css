@@ -186,11 +186,13 @@
 }
 
 .attachment-picture-missing {
-  display: grid;
-  place-items: center;
-  width: 120px;
-  height: 64px;
+  display: block;
+  box-sizing: border-box;
+  width: 220px;
+  min-height: 64px;
+  padding: 8px 10px;
   font-size: 11px;
+  line-height: 1.5;
   color: var(--quiet);
 }
 

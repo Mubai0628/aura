@@ -58,7 +58,8 @@ test('denial is a completed operation result; pagination uses the original sessi
       value: { session_id: 'other', calls: [], next_before_call_id: null },
     });
   const component = render(<AgentToolActivityCard sessionId={session} />);
-  await screen.findByText('调用已完成 · 操作被拒绝');
+  // The debug card uses the conversation row's words.
+  await screen.findByText('已拒绝');
   fireEvent.click(screen.getByRole('button', { name: '加载更早调用' }));
   expect(readAgentToolActivity.mock.calls[1]?.[0]).toEqual({
     session_id: session,

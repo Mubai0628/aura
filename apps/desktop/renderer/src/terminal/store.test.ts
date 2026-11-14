@@ -64,3 +64,58 @@ it('delivers a delayed initial page before live output and suppresses duplicates
   removeTerminal('test-terminal');
   expect(terminalSnapshot()).toHaveLength(0);
 });
+
+const view = (terminal_id: string) => ({
+  terminal_id,
+  session_id: 'session',
+  process_id: 1,
+  shell: 'cmd' as const,
+  started_at: '2026-10-14T00:00:00Z',
+  end: null,
+  owner: 'user' as const,
+  controller: 'user' as const,
+  title: '',
+  revision: '1',
+});
+
+it('says when the output could not be followed: not subscribed, or out of step', async () => {
+  const refused = {
+    subscribe: async () => ({
+      ok: false,
+      error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+    }),
+  } as unknown as TerminalApiV1;
+  const unsubscribed = await addTerminal(view('unsubscribed'), refused);
+  expect(unsubscribed.error).toBe(
+    '没有接上这个终端的输出（Aura Core 没有及时回复），屏幕可能不再更新。请关闭这个页签后重新打开终端。',
+  );
+  removeTerminal('unsubscribed');
+  const empty = {
+    subscribe: async () => ({
+      ok: true,
+      value: {
+        runtime_instance_id: 'runtime',
+        session_id: 'session',
+        terminal_id: 'out-of-step',
+        start_offset: 0,
+        next_offset: 0,
+        data_base64: '',
+        truncated: false,
+        end: null,
+      },
+    }),
+  } as unknown as TerminalApiV1;
+  const record = await addTerminal(view('out-of-step'), empty);
+  receiveTerminalOutput({
+    runtime_instance_id: 'runtime',
+    session_id: 'session',
+    terminal_id: 'out-of-step',
+    truncated: false,
+    end: null,
+    start_offset: 0,
+    next_offset: 5,
+    data_base64: btoa('ab'),
+  });
+  expect(record.error).toBe('终端输出没有对上，屏幕已停止更新。请关闭这个页签后重新打开终端。');
+  removeTerminal('out-of-step');
+});

@@ -7,6 +7,7 @@ import { CommandError, type ChromeCommand } from '../protocol.js';
 import { act } from './act.js';
 import { refused, type CommandContext } from './context.js';
 import { consoleOf, report, screenshot, wait } from './look.js';
+import { listTabs } from './tab-list.js';
 import { assist, close, navigate, open } from './tabs.js';
 
 type Check = (value: unknown) => boolean;
@@ -69,6 +70,7 @@ const SHAPES: Record<ChromeCommand['op'], Record<string, Check>> = {
   close: { tab_id: count },
   assist: { tab_id: count, reason: text, timeout_seconds: count },
   release: { tab_ids: list(count) },
+  tabs: {},
 };
 
 /** The command in a message from Core, in exactly one of the shapes Core sends. */
@@ -142,5 +144,7 @@ export async function run(
     case 'release':
       for (const tabId of command.tab_ids) await context.pages.forget(tabId);
       return {};
+    case 'tabs':
+      return listTabs(context);
   }
 }

@@ -98,6 +98,7 @@ pub(super) fn answer(f: &Fixture, approval_id: ApprovalRequestId, decision: Appr
                 &request,
                 revision,
                 runtime,
+                None,
                 UtcTimestamp::now(),
             )
         })
@@ -139,6 +140,12 @@ pub(super) fn error_text(f: &Fixture, id: ToolCallId) -> String {
 
 /// What the session row shows for one call: its brief line and its expandable details.
 pub(super) fn activity(f: &Fixture, id: ToolCallId) -> (String, Vec<String>) {
+    let display = row_display(f, id);
+    (display.summary, display.details)
+}
+
+/// The row a session shows for one call.
+pub(super) fn row_display(f: &Fixture, id: ToolCallId) -> aura_tool_projection::AgentToolDisplay {
     let store = f.service().broker.lock().expect("activity");
     let page = aura_persistence_v2::tool::activity::page(
         store.database.connection(),
@@ -150,8 +157,7 @@ pub(super) fn activity(f: &Fixture, id: ToolCallId) -> (String, Vec<String>) {
         },
     )
     .expect("activity page");
-    let call = page.calls.into_iter().next().expect("the call's row");
-    (call.display.summary, call.display.details)
+    page.calls.into_iter().next().expect("the call's row").display
 }
 
 pub(super) fn pending(f: &Fixture) -> Vec<ApprovalRequestId> {

@@ -112,6 +112,28 @@ const row = async (id: string) => {
   return name.closest('article')!;
 };
 
+test('a catalog page that was not read says why and shows no empty list', async () => {
+  vi.mocked(window.aura.v1.getModelCatalogProvider).mockResolvedValue({
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+    ok: false,
+  } as never);
+  render(
+    <CatalogModelDialog
+      catalogProviderId="opencode-go"
+      endpoints={ENDPOINTS}
+      initialEndpointId={CHAT_ID}
+      onClose={vi.fn()}
+      onNotify={vi.fn()}
+      onSaved={vi.fn(async () => undefined)}
+      settings={settings}
+    />,
+  );
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '目录模型没有读到（Aura Core 没有及时回复），请稍后点“搜索”重试。',
+  );
+  expect(screen.queryByText('没有匹配的目录模型')).toBeNull();
+});
+
 test('each model goes to the connection of its own route', async () => {
   const user = userEvent.setup();
   render(

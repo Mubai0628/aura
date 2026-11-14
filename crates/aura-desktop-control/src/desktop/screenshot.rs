@@ -59,10 +59,15 @@ pub fn shot(show: &[AppEntry], paint: bool, region: Option<Rect>) -> Result<Shot
         )
         .unwrap_or(screen),
     };
-    let layers: Vec<Layer> = windows
-        .iter()
-        .filter(|window| !window.minimized)
-        .map(|window| Layer { rect: window.rect, shown: shown.contains(&window.handle) })
+    let layers: Vec<Layer> = native::bands::covering()
+        .into_iter()
+        .map(|rect| Layer { rect, shown: false })
+        .chain(
+            windows
+                .iter()
+                .filter(|window| !window.minimized)
+                .map(|window| Layer { rect: window.rect, shown: shown.contains(&window.handle) }),
+        )
         .collect();
     let pixels =
         native::screen::capture(area).map_err(|error| super::internal(error.to_string()))?;

@@ -1,11 +1,13 @@
 //! Aura's side of Chrome control: Chrome's registration of the relay, the relay's pipe, pairing,
-//! the challenge every connection answers, and the commands of the one connected extension. A
-//! tool reaches Chrome only through [`ChromeControl::request`].
+//! the challenge every connection answers, the commands of the one connected extension, and what
+//! Aura's own pages ask of it. A tool reaches Chrome only through [`ChromeControl::request`].
 mod access;
 mod connection;
+mod handover;
 mod listener;
 mod pairing;
 mod registration;
+mod routes;
 pub mod secret;
 pub mod shares;
 mod stale_relays;
@@ -15,6 +17,7 @@ pub mod test_extension;
 mod tests;
 
 pub use access::{CallSites, ChromeSessions, PersistedSessions, ResolvedTab};
+pub use routes::dispatch;
 pub use secret::ChromeSecrets;
 #[cfg(any(test, feature = "test-hooks"))]
 pub use secret::MemoryChromeSecrets;
@@ -57,7 +60,8 @@ pub struct ChromeControlOptions {
 
 impl ChromeControlOptions {
     /// The relay installed beside this Core, and this namespace's host name and extension.
-    pub fn for_installation(namespace: &str, local_root: &Path) -> Self {
+    /// `chrome_root` holds this installation's host manifest (`aura_data_location`).
+    pub fn for_installation(namespace: &str, chrome_root: &Path) -> Self {
         // Plain, as Windows reports the relay's image and as the relay names the pipe.
         let core = std::env::current_exe()
             .and_then(std::fs::canonicalize)
@@ -68,12 +72,12 @@ impl ChromeControlOptions {
         // Core's own tests are the relay and Core at once, and never touch the user's registry;
         // every test's Core listens on a pipe of its own.
         let (relay_executable, pipe) = if cfg!(any(test, feature = "test-hooks")) {
-            (core.clone(), pipe_name(local_root))
+            (core.clone(), pipe_name(chrome_root))
         } else {
             (folder.join(RELAY_PROGRAM), pipe_name(&folder))
         };
         Self {
-            manifest_path: local_root.join("chrome").join(format!("{host_name}.json")),
+            manifest_path: chrome_root.join(format!("{host_name}.json")),
             relay_executable,
             pipe_name: pipe,
             extension_id: extension_id_for(namespace).to_owned(),

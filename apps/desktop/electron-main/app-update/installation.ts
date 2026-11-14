@@ -108,11 +108,15 @@ export const runProgram: RunProgram = (program, args) =>
     });
   });
 
-/** The setup program's refusal, and whether the package it was given can be installed as it is. */
+/**
+ * The setup program's refusal, whether the package it was given can be installed as it is, and
+ * the code of a refusal Aura words itself.
+ */
 export class SetupRefusal extends Error {
   constructor(
     message: string,
     readonly packageIntact: boolean,
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -136,5 +140,6 @@ export async function runSetup(
   throw new SetupRefusal(
     typeof value.error === 'string' ? value.error : '安装程序没有完成',
     value.package_intact === true,
+    typeof value.code === 'string' ? value.code : undefined,
   );
 }

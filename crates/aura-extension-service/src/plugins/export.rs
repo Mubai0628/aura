@@ -20,7 +20,7 @@ impl PluginRuntime {
             )
         })?;
         let exported = export_plugin(package, destination)
-            .map_err(|error| anyhow::anyhow!("plugins.export_failed: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("plugins.export_failed: 插件没有导出完，文件没能写到选定的位置（{error}）；请换一个位置后重试。"))?;
         Ok(PluginExported {
             completed: true, message: format!("已导出 {} 个文件", exported.files)
         })

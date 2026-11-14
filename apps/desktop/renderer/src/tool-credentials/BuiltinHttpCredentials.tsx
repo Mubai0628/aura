@@ -1,7 +1,8 @@
-import { userMessage } from '../agent-session/user-message';
+import { answerMissing, connectionCause, refusedAction } from '../agent-session/failure-text';
 import { useMemo, useState } from 'react';
 import type { ToolId } from '@aura/contracts/generated';
-import { useScopedToolProjection } from '../tool-projection-store';
+import { useScopedToolProjection, useScopedToolProjectionFailure } from '../tool-projection-store';
+import { projectionNotRead } from '../tool-settings/failure-words';
 import {
   ToolCredentialBindingControl,
   type ToolMutationRunner,
@@ -17,6 +18,7 @@ function Details({ toolId }: { toolId: ToolId }) {
     [toolId],
   );
   const view = useScopedToolProjection(route)?.payload;
+  const failure = useScopedToolProjectionFailure(route);
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<string>();
   const runMutation: ToolMutationRunner = async (key, operation, title) => {
@@ -24,7 +26,7 @@ function Details({ toolId }: { toolId: ToolId }) {
     setBusy(key);
     try {
       const result = await operation();
-      setMessage(result.ok ? title : userMessage(result.error, '没有保存，请重试。'));
+      setMessage(result.ok ? title : bindingFailure(key, result.error));
       await window.aura.v1.refreshToolProjection(route);
     } catch {
       setMessage('操作结果未确认，请刷新凭据状态。');
@@ -44,7 +46,11 @@ function Details({ toolId }: { toolId: ToolId }) {
       </p>
       {message ? <p role="status">{message}</p> : null}
       {!instances ? (
-        <p role="status">正在读取 HTTP 工具凭据绑定…</p>
+        <p role="status">
+          {failure === undefined
+            ? '正在读取 HTTP 工具凭据绑定…'
+            : projectionNotRead('HTTP 工具凭据绑定', failure)}
+        </p>
       ) : (
         instances.map((instance) =>
           instance.credential_slot_binding ? (
@@ -85,6 +91,18 @@ function Details({ toolId }: { toolId: ToolId }) {
     </section>
   );
 }
+/** A bind, or a clear (`key` starting `clear:`), that did not happen or was not answered. */
+function bindingFailure(key: string, error: unknown): string {
+  const clear = key.startsWith('clear:');
+  if (answerMissing(error))
+    return `没有等到 Aura Core 的答复（${connectionCause(error)}），${
+      clear ? '绑定可能已经清除' : '凭据可能已经绑定'
+    }；请收起后重新打开这里核对。`;
+  return clear
+    ? refusedAction(error, '绑定没有清除', 'HTTP 工具仍使用原来的凭据；请重试。')
+    : refusedAction(error, '凭据没有绑定', 'HTTP 工具的绑定保持原样；请重试。');
+}
+
 export function BuiltinHttpCredentials({ toolId }: { toolId: ToolId }) {
   const [open, setOpen] = useState(false);
   return (

@@ -4,6 +4,7 @@ import { copyText } from '../clipboard';
 import { ToolIcon } from '../tool-icon';
 import { QuotedWords } from './quote-reply/QuotedWords';
 import { userMessage } from './user-message';
+import { connectionCause, failedAction } from './failure-text';
 import './pending-additions.css';
 
 /**
@@ -69,9 +70,24 @@ function PendingAddition({
         expected_revision: inbox.revision,
         action: { action: 'revoke', message_id: message.message_id },
       });
-      if (!result.ok) setFailure(userMessage(result.error.message, '没能撤回，请重试。'));
-    } catch {
-      setFailure('撤回结果未确认，请查看输入框上方的队列。');
+      if (!result.ok)
+        setFailure(
+          connectionCause(result.error)
+            ? failedAction(
+                result.error,
+                '没能撤回',
+                '这条消息可能仍会作为这一轮的输入；请看输入框上方的队列。',
+              )
+            : userMessage(
+                result.error,
+                '这条消息已经交给模型（或队列刚刚变化），没能撤回；它会作为这一轮的输入。',
+              ),
+        );
+    } catch (reason) {
+      const cause = connectionCause(reason) ?? '与 Aura Core 的连接出了问题';
+      setFailure(
+        `撤回的结果没有确认（${cause}），没有自动重发；请看输入框上方的队列，消息还在就可以再撤回。`,
+      );
     } finally {
       setBusy(false);
       onChanged();

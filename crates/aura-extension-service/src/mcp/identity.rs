@@ -19,17 +19,25 @@ pub fn tool_id(server_id: &str, wire_name: &str) -> ToolId {
     ToolId::from_bytes(derive(&format!("aura.mcp-tool.tool-id.v1\0{server_id}\0{wire_name}")))
 }
 
-/// Everything a tool's derived definition and instance depend on besides its ID: the
-/// server's listing of the tool, the configuration the user trusted, and the server settings
-/// the definition shows (its display name and call timeout). A revision is assigned to
-/// exactly one key, so a renamed server or a new timeout is a new revision, never the same
-/// revision with other content.
+/// How a definition is derived from the inputs of [`definition_key`]. A build that derives
+/// another definition from the same inputs (another audience, say) takes the next number, so
+/// the tool takes the next revision instead of meeting the definition an earlier build stored
+/// under the same one. Keys from before this number existed are derivation 1; derivation 2
+/// lets sub-agents be given the tools.
+const DERIVATION: u32 = 2;
+
+/// Everything a tool's derived definition and instance depend on besides its ID: how they are
+/// derived, the server's listing of the tool, the configuration the user trusted, and the
+/// server settings the definition shows (its display name and call timeout). A revision is
+/// assigned to exactly one key, so a renamed server, a new timeout or a new derivation is a new
+/// revision, never the same revision with other content.
 pub fn definition_key(
     server: &McpServerConfig,
     config_fingerprint: &str,
     tool: &NormalizedTool,
 ) -> Result<String, aura_domain_common::jcs::CanonicalJsonError> {
     aura_domain_common::jcs::canonical_sha256(&serde_json::json!({
+        "derivation": DERIVATION,
         "tool": tool,
         "config_fingerprint": config_fingerprint,
         "display_name": server.display_name,

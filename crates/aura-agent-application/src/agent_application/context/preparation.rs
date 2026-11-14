@@ -81,12 +81,17 @@ impl AgentApplication {
         // The provider's default connection, or the
         // next backup when the connections before it failed in this run's current streak.
         let order = aura_model_config::connection_order(&config.registry, &model_profile);
-        let failed = self
+        let (failed, asked_again_after) = self
             .store
             .read(StoreStep::run(run_id, "agent.context.failed_connections"), move |db| {
-                aura_persistence_v2::model::transient_retry::failed_connections(db, run_id)
+                Ok((
+                    aura_persistence_v2::model::transient_retry::failed_connections(db, run_id)?,
+                    aura_persistence_v2::model::transient_retry::asked_again_after(db, run_id)?,
+                ))
             })
             .await?;
+        let idle_retry = asked_again_after.as_deref()
+            == Some(aura_persistence_v2::model::transient_retry::STREAM_IDLE);
         let routed = aura_model_config::next_connection(&order, &failed)
             .or_else(|| order.first().copied())
             .unwrap_or(model_profile.endpoint_id);
@@ -251,7 +256,12 @@ impl AgentApplication {
             authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
             content: serde_json::to_string(&prompt_state(&state, &history.items))?,
         }];
-        task_state_fragments.extend(activity_summary.fragments()?);
+        // A sub-agent sees its task sheet, the project's instructions and the project memory, and
+        // the user's Skills when it was given their tools: not what other conversations are doing.
+        let member = super::super::team::team_member(self, turn.session_id).await?;
+        if member.is_none() {
+            task_state_fragments.extend(activity_summary.fragments()?);
+        }
         // The workspace's AGENTS.md, read again for every step: the folders' files with the task's
         // state, which changes anyway, the root file before the conversation.
         let agents =
@@ -269,9 +279,26 @@ impl AgentApplication {
                 ContextCompressibility::NeverCompress,
             ),
         ];
-        // The pinned Skills and the names of the others go first, then the root AGENTS.md.
-        let mut instructions =
-            self.turn_skill_fragments(run_id, turn.workspace_id, turn.revision).await?;
+        // The pinned Skills and the names of the others go first, then the root AGENTS.md. A
+        // sub-agent in a worktree has the Skills of the workspace it was made from.
+        let skills = member.as_ref().is_none_or(|member| {
+            member
+                .details
+                .grant
+                .tools
+                .as_ref()
+                .is_none_or(|tools| tools.iter().any(|tool| tool == "skills.load"))
+        });
+        let mut instructions = if skills {
+            let workspace = self
+                .execution
+                .persistence
+                .worktree_parent(turn.workspace_id)
+                .unwrap_or(turn.workspace_id);
+            self.turn_skill_fragments(run_id, workspace, turn.revision).await?
+        } else {
+            Vec::new()
+        };
         instructions.extend(agents.root);
         sections.push(section(
             ContextSectionKind::WorkspaceAgentsInstructions,
@@ -323,7 +350,7 @@ impl AgentApplication {
                         .then(|| "compaction_command".to_owned()),
                 )
                 .collect(),
-            child_agent: false,
+            child_agent: member.is_some(),
             recovery_kinds: Default::default(),
             compaction: false,
             maintenance_kind: None,
@@ -508,7 +535,11 @@ impl AgentApplication {
             attachments: context.attachments,
             provider_continuation: context.provider_continuation,
             output_request: context.output_request,
-            closing_question: None,
+            // After everything the step sends, so the cut-off request's cache still serves it.
+            closing_question: asked_again_after
+                .as_deref()
+                .and_then(super::provider::retry_note)
+                .map(str::to_owned),
             closing_exchange: Vec::new(),
         };
         // Boundary: the final commit. It is one indivisible transaction - the goal-budget
@@ -652,6 +683,7 @@ impl AgentApplication {
                 manifest: context.model_egress_manifest,
                 attachments: attachments.into(),
                 backup_waiting,
+                idle_retry,
             },
         }))
     }

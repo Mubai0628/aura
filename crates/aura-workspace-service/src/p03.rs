@@ -1,12 +1,13 @@
 mod editor;
+mod workspace_files_config;
+mod workspace_open;
 use std::{collections::BTreeMap, sync::Arc, time::Duration, time::Instant};
+pub use workspace_files_config::P03ToolsConfigValidator;
+use workspace_files_config::WorkspaceFilesConfig;
 
 use anyhow::{Context, Result};
-use aura_config::{
-    ConfigModule, ConfigValidationError, ModuleConfigDocument, ModuleConfigValidator,
-    SettingsFacade,
-};
-use aura_core_base::{append_core_log, blocking_pool, command_settlement, config_degradation};
+use aura_config::SettingsFacade;
+use aura_core_base::{append_core_log, blocking_pool, command_settlement};
 use aura_domain_common::{CorrelationId, ErrorCategory, ErrorCode};
 use aura_fs_tools::{FsToolError, FsToolPolicy, FsToolService};
 use aura_ipc::method;
@@ -20,13 +21,12 @@ use aura_workspace_domain::{
     FsCreateDirectoryRequest, FsDeleteRequest, FsFindPathsRequest, FsGlobRequest, FsHashRequest,
     FsInspectRequest, FsListRequest, FsMoveRequest, FsReadBinaryRangeRequest, FsReadTextRequest,
     FsSearchTextRequest, FsStatRequest, FsWriteFileRequest, IssueDiscardConfirmationInput,
-    LargeFileReadMode, RendererLifecycleUnavailableInput, ResolveWorkspaceLifecycleInput,
+    RendererLifecycleUnavailableInput, ResolveWorkspaceLifecycleInput,
     WorkspaceLifecycleOperationQuery, WorkspaceLifecyclePrepareDeliveredInput,
 };
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-const WORKSPACE_FILES_CONFIG_KEY: &str = "workspace_files";
 pub const FILE_RESOURCE_BUSY_CODE: &str = "fs.resource_busy";
 
 /// The external destination's live-short-commit code, owned by the P04 publisher.
@@ -456,36 +456,13 @@ impl P03Services {
         let config = WorkspaceFilesConfig::from_settings(settings)?;
         let config_ms = elapsed_ms(started);
         let started = std::time::Instant::now();
-        let workspace = WorkspaceRuntime::open_with_activity_publisher(
-            Arc::clone(&persistence),
-            WorkspaceRuntimeOptions {
-                catalog: CatalogOptions {
-                    max_partition_files: config.catalog.max_partition_files,
-                    max_partition_text_bytes: config.catalog.max_partition_text_bytes,
-                    max_index_file_bytes: config.catalog.max_index_file_bytes,
-                },
-                watcher_coalesce: Duration::from_millis(config.watcher.coalesce_milliseconds),
-                watcher_poll_interval: Duration::from_millis(
-                    config.watcher.poll_interval_milliseconds,
-                ),
-                watcher_rescan_attempts: config.watcher.rescan_attempts,
-                ..WorkspaceRuntimeOptions::default()
-            },
-            // The buffer store publishes its **real commits** through this hook: once
-            // before its write window opens and once when that window really settled or failed.
-            // The hook is a plain closure over the process's one index, so the store gains no
-            // dependency on the information module and a broken index still cannot affect a save:
-            // the return value is discarded and the closure runs outside every store gate.
-            Some(std::sync::Arc::new(move |fact: aura_workspace::BufferCommitFact<'_>| {
-                aura_core_activity::agent_activity::publish_buffer_commit_activity(
-                    &fact,
-                    runtime_instance_id,
-                    &activity_index,
-                    &activity_observer,
-                );
-            })),
-        )
-        .context("failed to initialize Workspace runtime")?;
+        let workspace = workspace_open::open_workspace_runtime(
+            &persistence,
+            &config,
+            activity_index,
+            activity_observer,
+            runtime_instance_id,
+        )?;
         let workspace_ms = elapsed_ms(started);
         let started = std::time::Instant::now();
         let fs = FsToolService::new(
@@ -503,7 +480,7 @@ impl P03Services {
                 mutation_wait: std::time::Duration::from_secs(5),
             },
         )
-        .context("failed to initialize fs.* tools")?;
+        .context("workspace.fs_tools_unavailable: 文件工具没能启动，工作区与文件工具暂时不能用；请重启 Aura，仍然如此请到设置里查看恢复选项。")?;
         // Sub-stage attribution for the startup stage this open dominates: the
         // whole block used to be one opaque "p03_services_open" boundary, so a
         // slow cold open could not be told apart from a slow catalog load.
@@ -705,184 +682,6 @@ impl P03Services {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct P03ToolsConfigValidator;
-
-impl ModuleConfigValidator for P03ToolsConfigValidator {
-    fn validate(
-        &self,
-        module: ConfigModule,
-        document: &ModuleConfigDocument,
-    ) -> Result<(), ConfigValidationError> {
-        if module != ConfigModule::Tools {
-            return Ok(());
-        }
-        WorkspaceFilesConfig::from_document(document)
-            .map(|_| ())
-            .map_err(|error| ConfigValidationError::Semantic(error.to_string()))
-    }
-}
-
-#[derive(Clone, Debug, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct WorkspaceFilesConfig {
-    catalog: CatalogConfig,
-    limits: LimitsConfig,
-    read: ReadConfig,
-    watcher: WatcherConfig,
-}
-
-impl WorkspaceFilesConfig {
-    /// Reads the Workspace Files settings, or reports the real configuration
-    /// fault with the domain that caused it.
-    ///
-    /// The settings are a genuine dependency of the workspace runtime, so
-    /// this refuses rather than inventing bounds. What changed is that the
-    /// refusal names the domain and the stable fault code, which is what lets the
-    /// caller degrade **one capability** instead of the whole runtime.
-    fn from_settings(settings: &SettingsFacade) -> Result<Self> {
-        let snapshot = settings.snapshot(ConfigModule::Tools).map_err(|error| {
-            anyhow::anyhow!(
-                "tools.json Workspace Files settings are unavailable ({}, domain {}): {error}",
-                config_degradation::config_fault_code(&error),
-                error.module().map_or("unknown", ConfigModule::key),
-            )
-        })?;
-        Self::from_document(&snapshot.document)
-    }
-
-    fn from_document(document: &ModuleConfigDocument) -> Result<Self> {
-        let config = document.values.get(WORKSPACE_FILES_CONFIG_KEY).map_or_else(
-            || Ok(Self::default()),
-            |value| serde_json::from_value(value.clone()).context("invalid workspace_files"),
-        )?;
-        config.validate()?;
-        Ok(config)
-    }
-
-    fn validate(&self) -> Result<()> {
-        anyhow::ensure!(
-            self.catalog.max_partition_files > 0,
-            "max_partition_files must be positive"
-        );
-        anyhow::ensure!(
-            self.catalog.max_partition_text_bytes > 0,
-            "max_partition_text_bytes must be positive"
-        );
-        anyhow::ensure!(
-            self.catalog.max_index_file_bytes > 0,
-            "max_index_file_bytes must be positive"
-        );
-        anyhow::ensure!(
-            self.watcher.coalesce_milliseconds > 0,
-            "watcher coalesce must be positive"
-        );
-        anyhow::ensure!(
-            self.watcher.poll_interval_milliseconds > 0,
-            "watcher poll interval must be positive"
-        );
-        anyhow::ensure!(
-            self.watcher.rescan_attempts > 0,
-            "watcher rescan attempts must be positive"
-        );
-        FsToolPolicy {
-            large_file_read_mode: self.read.large_file_read_mode,
-            full_text_read_limit_bytes: self.read.full_text_read_limit_bytes,
-            small_range_line_limit: self.read.small_range_line_limit,
-            small_range_character_limit: self.read.small_range_character_limit,
-            default_binary_range_bytes: self.read.default_binary_range_bytes,
-            max_binary_range_bytes: self.read.max_binary_range_bytes,
-            max_changeset_operations: self.limits.max_changeset_operations,
-            max_search_results: self.limits.max_search_results,
-            mutation_wait: std::time::Duration::from_secs(5),
-        }
-        .validate()
-        .map_err(anyhow::Error::msg)
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct CatalogConfig {
-    max_partition_files: u64,
-    max_partition_text_bytes: u64,
-    max_index_file_bytes: u64,
-}
-
-impl Default for CatalogConfig {
-    fn default() -> Self {
-        let defaults = CatalogOptions::default();
-        Self {
-            max_partition_files: defaults.max_partition_files,
-            max_partition_text_bytes: defaults.max_partition_text_bytes,
-            max_index_file_bytes: defaults.max_index_file_bytes,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct ReadConfig {
-    large_file_read_mode: LargeFileReadMode,
-    full_text_read_limit_bytes: u64,
-    small_range_line_limit: u64,
-    small_range_character_limit: u64,
-    default_binary_range_bytes: u32,
-    max_binary_range_bytes: u32,
-}
-
-impl Default for ReadConfig {
-    fn default() -> Self {
-        let defaults = FsToolPolicy::default();
-        Self {
-            large_file_read_mode: defaults.large_file_read_mode,
-            full_text_read_limit_bytes: defaults.full_text_read_limit_bytes,
-            small_range_line_limit: defaults.small_range_line_limit,
-            small_range_character_limit: defaults.small_range_character_limit,
-            default_binary_range_bytes: defaults.default_binary_range_bytes,
-            max_binary_range_bytes: defaults.max_binary_range_bytes,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct LimitsConfig {
-    max_changeset_operations: usize,
-    max_search_results: usize,
-}
-
-impl Default for LimitsConfig {
-    fn default() -> Self {
-        let defaults = FsToolPolicy::default();
-        Self {
-            max_changeset_operations: defaults.max_changeset_operations,
-            max_search_results: defaults.max_search_results,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct WatcherConfig {
-    coalesce_milliseconds: u64,
-    poll_interval_milliseconds: u64,
-    rescan_attempts: u32,
-}
-
-impl Default for WatcherConfig {
-    fn default() -> Self {
-        let defaults = WorkspaceRuntimeOptions::default();
-        Self {
-            coalesce_milliseconds: u64::try_from(defaults.watcher_coalesce.as_millis())
-                .expect("default coalesce fits u64"),
-            poll_interval_milliseconds: u64::try_from(defaults.watcher_poll_interval.as_millis())
-                .expect("default poll interval fits u64"),
-            rescan_attempts: defaults.watcher_rescan_attempts,
-        }
-    }
-}
-
 fn is_p03_main_command(value: &str) -> bool {
     aura_ipc::routes::owned_by(value, aura_ipc::routes::RouteOwner::Workspace)
 }
@@ -933,20 +732,17 @@ fn encode<T: serde::Serialize>(
 
 fn fs_error(error: FsToolError, correlation_id: CorrelationId) -> IpcErrorEnvelope {
     let message = error.to_string();
+    let invalid = |code| (code, ErrorCategory::Validation, false);
     let (code, category, retryable) = match error {
         FsToolError::Workspace(error) => return workspace_error(error, correlation_id),
         FsToolError::Persistence(error) => return persistence_error(error, correlation_id),
         FsToolError::ScopeUnavailable => {
             ("file.scope_unavailable", ErrorCategory::Permission, false)
         }
-        FsToolError::InvalidRequest(_) => ("fs.invalid_request", ErrorCategory::Validation, false),
-        FsToolError::LargeFileRangeRequired => {
-            ("fs.range_required", ErrorCategory::Validation, false)
-        }
-        FsToolError::TextRangeTooLarge => ("fs.range_too_large", ErrorCategory::Validation, false),
-        FsToolError::BinaryRangeTooLarge => {
-            ("fs.binary_range_too_large", ErrorCategory::Validation, false)
-        }
+        FsToolError::InvalidRequest(_) => invalid("fs.invalid_request"),
+        FsToolError::LargeFileRangeRequired => invalid("fs.range_required"),
+        FsToolError::TextRangeTooLarge { .. } => invalid("fs.range_too_large"),
+        FsToolError::BinaryRangeTooLarge => invalid("fs.binary_range_too_large"),
         FsToolError::ExpectedAbsent { .. }
         | FsToolError::ExpectedDirectory { .. }
         | FsToolError::ExpectedHash { .. } => {
@@ -1293,12 +1089,10 @@ pub fn envelope(
 
 #[cfg(test)]
 mod tests {
-    use aura_config::ModuleConfigDocument;
     use aura_domain_common::{CorrelationId, ErrorCategory};
     use aura_persistence::PersistenceError;
-    use serde_json::json;
 
-    use super::{WorkspaceFilesConfig, persistence_error};
+    use super::persistence_error;
 
     /// A bounded wait and a permanent data error are different answers.
     ///
@@ -1331,51 +1125,5 @@ mod tests {
         assert_eq!(data.code.as_str(), "workspace.not_found");
         assert_eq!(data.category, ErrorCategory::NotFound);
         assert_ne!(data.code, busy.code);
-    }
-
-    #[test]
-    fn confirmed_p03_defaults_are_stable() {
-        let config = WorkspaceFilesConfig::from_document(&ModuleConfigDocument::empty())
-            .expect("default P03 tools config");
-        assert_eq!(config.read.full_text_read_limit_bytes, 2 * 1024 * 1024);
-        assert_eq!(config.catalog.max_index_file_bytes, 1024 * 1024);
-        assert_eq!(config.read.small_range_line_limit, 500);
-        assert_eq!(config.read.small_range_character_limit, 65_536);
-        assert_eq!(config.limits.max_changeset_operations, 64);
-        assert_eq!(config.limits.max_search_results, 100);
-        assert_eq!(config.watcher.coalesce_milliseconds, 250);
-        assert_eq!(config.watcher.poll_interval_milliseconds, 5_000);
-        assert_eq!(config.watcher.rescan_attempts, 3);
-    }
-
-    #[test]
-    fn tools_json_overrides_are_typed_and_unknown_fields_are_rejected() {
-        let mut document = ModuleConfigDocument::empty();
-        document.values.insert(
-            "workspace_files".to_owned(),
-            json!({
-                "read": { "full_text_read_limit_bytes": 4 * 1024 * 1024 },
-                "limits": { "max_search_results": 75 }
-            }),
-        );
-        let config = WorkspaceFilesConfig::from_document(&document).expect("valid override");
-        assert_eq!(config.read.full_text_read_limit_bytes, 4 * 1024 * 1024);
-        assert_eq!(config.limits.max_search_results, 75);
-        assert_eq!(config.watcher.rescan_attempts, 3);
-
-        document.values.insert(
-            "workspace_files".to_owned(),
-            json!({ "read": { "private_unreviewed_limit": 1 } }),
-        );
-        assert!(WorkspaceFilesConfig::from_document(&document).is_err());
-    }
-
-    #[test]
-    fn invalid_zero_watcher_retry_count_is_rejected() {
-        let mut document = ModuleConfigDocument::empty();
-        document
-            .values
-            .insert("workspace_files".to_owned(), json!({ "watcher": { "rescan_attempts": 0 } }));
-        assert!(WorkspaceFilesConfig::from_document(&document).is_err());
     }
 }

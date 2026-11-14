@@ -1,10 +1,20 @@
 import { userMessage } from '../agent-session/user-message';
+import { answerMissing, connectionCause, refusedAction } from '../agent-session/failure-text';
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { CommandEntry, CommandSource, WorkspaceId } from '@aura/contracts/generated';
 import { AppIcon } from '../app-icons';
 import { PagedList } from '../ui/PagedList';
 import { SkeletonRows } from '../ui/SkeletonRows';
 import './command-settings.css';
+
+/**
+ * A command action (`what`, naming the command) that did not go through: one whose answer did not
+ * come may have taken effect; otherwise why, and `rest`: what is in force and what to do.
+ */
+const commandFailure = (error: unknown, what: string, rest: string): string =>
+  answerMissing(error)
+    ? `没有等到 Aura Core 的答复（${connectionCause(error)}），${what} 可能已经生效；请刷新后核对。`
+    : refusedAction(error, `${what} 没有完成`, rest);
 
 interface Loaded {
   key: string;
@@ -55,6 +65,7 @@ export function CommandSettings({
     label: string,
     work: () => Promise<{ ok: boolean; error?: { message: string } }>,
     done: string,
+    failed: (error: unknown) => string,
   ) {
     if (busy) return;
     setBusy(label);
@@ -62,13 +73,11 @@ export function CommandSettings({
     try {
       const result = await work();
       setNotice(
-        result.ok
-          ? { alert: false, text: done }
-          : { alert: true, text: userMessage(result.error, '操作未完成，请刷新后核对。') },
+        result.ok ? { alert: false, text: done } : { alert: true, text: failed(result.error) },
       );
       if (result.ok) setReload((value) => value + 1);
     } catch (reason) {
-      setNotice({ alert: true, text: userMessage(reason, '操作结果未确认，请刷新后核对。') });
+      setNotice({ alert: true, text: failed(reason) });
     } finally {
       setBusy(undefined);
     }
@@ -84,6 +93,12 @@ export function CommandSettings({
           enabled: !command.enabled,
         }),
       command.enabled ? `已停用 /${command.name}` : `已启用 /${command.name}`,
+      (error) =>
+        commandFailure(
+          error,
+          `${command.enabled ? '停用' : '启用'} /${command.name}`,
+          `命令仍${command.enabled ? '在启用' : '是停用的'}；请刷新后再试。`,
+        ),
     );
   const open = (source: CommandSource, name: string | null) =>
     act(
@@ -99,6 +114,7 @@ export function CommandSettings({
           : result;
       },
       '已打开目录',
+      (error) => userMessage(error, '打开目录没有完成；请稍后再试。'),
     );
   const remove = (command: CommandEntry) => {
     setRemoving(undefined);
@@ -111,6 +127,7 @@ export function CommandSettings({
           revision: command.revision ?? '',
         }),
       `已删除 /${command.name}`,
+      (error) => commandFailure(error, `删除 /${command.name}`, '命令还在；请刷新后再试。'),
     );
   };
 

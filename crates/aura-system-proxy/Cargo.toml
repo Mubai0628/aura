@@ -1,0 +1,12 @@
+[package]
+name = "aura-system-proxy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aura-tool-contract = { path = "../aura-tool-contract" }
+aura-windows-platform = { path = "../aura-windows-platform" }
+
+[lints]
+workspace = true

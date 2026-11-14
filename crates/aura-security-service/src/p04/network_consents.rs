@@ -16,7 +16,7 @@ impl P04Services {
             let journal = self
                 .external_grants
                 .bound_journal()
-                .ok_or_else(|| anyhow!("permission.journal_unbound"))?;
+                .ok_or_else(|| anyhow!("permission.journal_unbound: Aura 的批准记录还没准备好（刚启动或正在恢复），这次没有完成；请稍后再试。"))?;
             let mut store = journal.lock()?;
             match method_name {
                 method::NETWORK_SESSION_CONSENT_LIST => {
@@ -49,12 +49,14 @@ impl P04Services {
                         store.database.connection(),
                         input.grant_id,
                     )?
-                    .ok_or_else(|| anyhow!("permission.grant_state_changed"))?;
+                    .ok_or_else(|| anyhow!("permission.grant_state_changed: 没能确认这项网络批准的最新状态，请刷新列表核对。"))?;
                     Ok(serde_json::to_value(
-                        view(grant).ok_or_else(|| anyhow!("permission.grant_state_changed"))?,
+                        view(grant).ok_or_else(|| anyhow!("permission.grant_state_changed: 没能确认这项网络批准的最新状态，请刷新列表核对。"))?,
                     )?)
                 }
-                _ => Err(anyhow!("permission.unknown_consent_command")),
+                _ => Err(anyhow!(
+                    "permission.unknown_consent_command: Aura Core 处理不了这个网络批准请求（Aura 内部出错），没有执行；请重启 Aura 后重试。"
+                )),
             }
         };
         work().map_err(|e| error_envelope(correlation, e))

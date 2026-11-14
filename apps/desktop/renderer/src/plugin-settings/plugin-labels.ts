@@ -8,7 +8,7 @@ import type {
   PluginView,
 } from '@aura/contracts/generated';
 
-export { bytesLabel, skillError as pluginError } from '../skill-settings/skill-labels';
+export { bytesLabel } from '../skill-settings/skill-labels';
 
 /** The colour a state is shown in: usable, needs the user, or cannot be used. */
 export type StateTone = 'success' | 'warning' | 'danger' | 'muted' | 'active';

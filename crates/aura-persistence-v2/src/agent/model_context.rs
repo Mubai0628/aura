@@ -11,6 +11,10 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact
 use rusqlite::Connection;
 mod continuation;
 mod cut_off;
+mod stop_cause;
+pub(crate) use stop_cause::STOP_NOTE;
+pub use stop_cause::{HookStop, StopCause, StopNote, stop_cause};
+pub(crate) mod result_text;
 
 pub struct ModelHistory {
     pub items: Vec<LogicalConversationItem>,
@@ -132,8 +136,10 @@ pub(crate) fn turn_items(
         let output = history::output(db, step.model_step_id)?;
         let snapshot = crate::model::step_snapshot(db, step.model_step_id)?;
         let evidence = crate::model::request_evidence(db, snapshot.id)?.ok_or(Error::Conflict)?;
-        // The calls as admitted, with any arguments a `tool.before_call` Hook changed.
-        let normalized = crate::hooks::admitted_calls(db, &snapshot, &evidence, &output)?;
+        // The calls as admitted, with any arguments a `tool.before_call` Hook changed, and what
+        // a call whose arguments were read from a string of JSON tells the model with its result.
+        let (normalized, notes) =
+            crate::hooks::admitted_calls_noted(db, &snapshot, &evidence, &output)?;
         // History names each call as the model made it, so a `tools.call` stays
         // `tools.call` with its own arguments; the admitted calls pair with the batch.
         let made = derive_p07_normalized_tool_calls_v1(&snapshot, &evidence, &output)
@@ -205,19 +211,23 @@ pub(crate) fn turn_items(
                 envelope.validate().map_err(|_| Error::Conflict)?;
                 let succeeded =
                     matches!(result.outcome, aura_tool_contract::ToolResultOutcomeV1::Succeeded);
+                // A result is named by the tool that ran - for a call made through
+                // `tools.call`, the tool it named - so its data class, its cleared line and the
+                // way it reads stay that tool's.
+                let name = executed_name(db, call, &made[index], &evidence, &output)?;
                 // A `tool.after_call` / `tool.on_error` Hook may have replaced what
                 // the model sees; the stored result itself is unchanged.
                 let content = match crate::hooks::result_override(db, call.tool_call_id, succeeded)?
                 {
                     Some(text) => text,
                     // The model reads the result's view, not its stored envelope.
-                    None => envelope.model_text(),
+                    None => result_text::model_text(&name, &envelope),
+                };
+                let content = match notes.get(&call.tool_call_id) {
+                    Some(note) => format!("{note}\n\n{content}"),
+                    None => content,
                 };
                 let event:String=db.query_row("SELECT event_id FROM events WHERE owner=?1 AND kind='tool.call_completed' AND json_extract(payload,'$.tool_call_id')=?2",[batch_id.to_string(),call.tool_call_id.to_string()],|r|r.get(0))?;
-                // A result is named by the tool that ran - for a call made through
-                // `tools.call`, the tool it named - so its data class and its cleared line stay
-                // that tool's.
-                let name = executed_name(db, call, &made[index], &evidence, &output)?;
                 results.push(LogicalConversationItem::ToolResult {
                     source_event_id: event.parse().map_err(|_| Error::Conflict)?,
                     tool_call_id: call.tool_call_id,

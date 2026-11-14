@@ -35,6 +35,7 @@ async fn a_saved_concurrency_limit_is_applied_to_the_global_capacity_owner() {
                 max_retries: DEFAULT_MAX_TOOL_RETRIES,
                 use_recommended_fixed_tool_ids: false,
                 network_proxy: None,
+                network_proxy_follows_system: None,
                 web_service: None,
             },
         )
@@ -74,6 +75,7 @@ async fn a_stale_revision_cannot_move_the_applied_capacity_back() {
                 max_retries: DEFAULT_MAX_TOOL_RETRIES,
                 use_recommended_fixed_tool_ids: false,
                 network_proxy: None,
+                network_proxy_follows_system: None,
                 web_service: None,
             },
         )
@@ -96,6 +98,7 @@ async fn a_stale_revision_cannot_move_the_applied_capacity_back() {
                 max_retries: DEFAULT_MAX_TOOL_RETRIES,
                 use_recommended_fixed_tool_ids: false,
                 network_proxy: None,
+                network_proxy_follows_system: None,
                 web_service: None,
             },
         )
@@ -153,6 +156,7 @@ async fn a_late_reader_cannot_apply_an_older_capacity() {
                 max_retries: held.max_retries,
                 use_recommended_fixed_tool_ids: false,
                 network_proxy: None,
+                network_proxy_follows_system: None,
                 web_service: None,
             },
         )

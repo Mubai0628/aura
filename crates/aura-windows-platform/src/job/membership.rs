@@ -15,12 +15,16 @@ use windows_sys::Win32::{
 
 impl RootJob {
     pub(crate) fn duplicate_for_launch(&self) -> io::Result<OwnedHandle> {
+        Self::duplicate_handle(&self.handle)
+    }
+
+    pub(super) fn duplicate_handle(job: &OwnedHandle) -> io::Result<OwnedHandle> {
         let mut duplicate: HANDLE = ptr::null_mut();
         // SAFETY: duplicate this live Job into this same process, without inheritance.
         if unsafe {
             DuplicateHandle(
                 GetCurrentProcess(),
-                self.handle.as_raw(),
+                job.as_raw(),
                 GetCurrentProcess(),
                 &mut duplicate,
                 0,
@@ -35,6 +39,11 @@ impl RootJob {
     }
 
     pub fn contains_identity(&self, expected: &ProcessIdentity) -> io::Result<bool> {
+        Self::contains_in(&self.handle, expected)
+    }
+
+    /// Whether the process is in `job` or in a Job nested in it.
+    pub(super) fn contains_in(job: &OwnedHandle, expected: &ProcessIdentity) -> io::Result<bool> {
         // SAFETY: query-only, non-inheritable process handle, immediately owned.
         let handle = OwnedHandle::from_raw(unsafe {
             OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, expected.process_id)
@@ -44,7 +53,7 @@ impl RootJob {
         }
         let mut present = 0;
         // SAFETY: both exact live handles and initialized BOOL output.
-        if unsafe { IsProcessInJob(handle.as_raw(), self.handle.as_raw(), &mut present) } == 0 {
+        if unsafe { IsProcessInJob(handle.as_raw(), job.as_raw(), &mut present) } == 0 {
             return Err(io::Error::last_os_error());
         }
         Ok(present != 0)

@@ -31,7 +31,7 @@ import { ReferenceChips } from './composer-references/ReferenceChips';
 import { ProgramBlocks } from './composer-references/ProgramBlocks';
 import { useProgramBlocks } from './composer-references/program-tokens';
 import { useReferenceMenu, type ConversationOption } from './composer-references/useReferenceMenu';
-import { userMessage } from './agent-session/user-message';
+import { connectionCause, failedAction } from './agent-session/failure-text';
 import { ComposerAttachments } from './composer-attachments/ComposerAttachments';
 import type { FileActionScope } from './files/file-menu';
 import { attachmentDrafts } from './composer-attachments/attachment-files';
@@ -208,8 +208,9 @@ function Composer({
     onOpen: catalog.reload,
   });
   // A typed "@" lists the workspace's files and folders, the usable Skills, its other
-  // conversations and this conversation's terminals and pages; a path picked is written as
-  // "@path" in the words, a Skill is chosen as with "+ → Skill", the rest become chips.
+  // conversations, this conversation's terminals and pages and the user's Chrome tabs; a path
+  // picked is written as "@path" in the words, a Skill is chosen as with "+ → Skill", the rest
+  // become chips.
   const references = useReferenceMenu({
     textarea: textareaRef,
     draft,
@@ -239,15 +240,29 @@ function Composer({
         if (await submission.sendCompaction()) slash.setBlock(undefined);
         return;
       }
-      const result = await window.aura.v1.requestAgentCompaction({
-        session_id: sessionId,
-        agent_run_id: activeRunId,
-        focus: draft.trim() || null,
-      });
+      let result;
+      try {
+        result = await window.aura.v1.requestAgentCompaction({
+          session_id: sessionId,
+          agent_run_id: activeRunId,
+          focus: draft.trim() || null,
+        });
+      } catch (reason) {
+        const cause = connectionCause(reason) ?? '与 Aura Core 的连接出了问题';
+        setCommandNotice({
+          alert: true,
+          text: `压缩是否登记没有确认（${cause}），任务照常继续；请稍后看任务有没有压缩，没有再输入 /compact。`,
+        });
+        return;
+      }
       if (!result.ok) {
         setCommandNotice({
           alert: true,
-          text: userMessage(result.error.message, '压缩没有登记，请稍后再试。'),
+          text: failedAction(
+            result.error,
+            '压缩没有登记',
+            '任务照常继续，不会压缩；请稍后再输入 /compact。',
+          ),
         });
         return;
       }
@@ -423,6 +438,7 @@ function Composer({
           available={references.available}
           error={references.error}
           resourceProblems={references.resourceProblems}
+          chromeProblem={references.chromeProblem}
           onPick={references.pick}
           onHover={references.hover}
           onDismiss={references.close}

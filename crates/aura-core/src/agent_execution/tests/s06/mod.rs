@@ -15,4 +15,5 @@ mod non_recursive_contents;
 mod ordinary_reads;
 mod permission_changes;
 mod prepared_files;
+mod workspace_move;
 mod workspace_walk;

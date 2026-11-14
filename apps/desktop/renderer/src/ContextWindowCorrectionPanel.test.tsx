@@ -172,3 +172,28 @@ test('unknown response across unmount retains the draft and blocks a duplicate w
   ).toBe(true);
   expect(resolve).not.toHaveBeenCalled();
 });
+
+test('a window that was not changed, or a step that was not rechecked, says why and that the task waits', async () => {
+  settings.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+  });
+  render(<ContextWindowCorrectionPanel {...props} />);
+  fireEvent.change(screen.getByLabelText('完整上下文窗口（Token）'), {
+    target: { value: '128000' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '保存并重新检查' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '上下文窗口没有改（Aura Core 没有及时回复），任务仍暂停着；请核对数值后再试。',
+  );
+  resolve.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'agent.context_window_refused', message: 'refused' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '保存并重新检查' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toBe(
+      '上下文窗口已经保存，但任务没有重新检查，任务仍暂停着；可以再点一次。',
+    ),
+  );
+});

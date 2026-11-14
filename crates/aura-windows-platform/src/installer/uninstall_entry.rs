@@ -7,10 +7,11 @@ use std::{
 };
 
 use windows_sys::Win32::{
-    Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR},
+    Foundation::{ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS, WIN32_ERROR},
     System::Registry::{
-        HKEY, HKEY_CURRENT_USER, KEY_WRITE, REG_DWORD, REG_OPTION_NON_VOLATILE, REG_SZ,
-        RRF_RT_REG_SZ, RegCloseKey, RegCreateKeyExW, RegDeleteTreeW, RegGetValueW, RegSetValueExW,
+        HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_DWORD, REG_OPTION_NON_VOLATILE, REG_SZ,
+        RRF_RT_REG_SZ, RegCloseKey, RegCreateKeyExW, RegDeleteTreeW, RegEnumKeyExW, RegGetValueW,
+        RegOpenKeyExW, RegSetValueExW,
     },
 };
 
@@ -43,6 +44,66 @@ pub fn read_uninstall_location(key: &str) -> io::Result<Option<PathBuf>> {
     read_location(HKEY_CURRENT_USER, key)
 }
 
+/// Every entry Aura writes (`Aura`, and `Aura-test-<run>` for a test release) with the folder it
+/// names; `None` for an entry that names none.
+pub fn aura_uninstall_entries() -> io::Result<Vec<(String, Option<PathBuf>)>> {
+    aura_entries(HKEY_CURRENT_USER)
+}
+
+fn is_aura_entry(name: &str) -> bool {
+    name.eq_ignore_ascii_case("Aura")
+        || name.get(..10).is_some_and(|start| start.eq_ignore_ascii_case("Aura-test-"))
+}
+
+pub(crate) fn aura_entries(root: HKEY) -> io::Result<Vec<(String, Option<PathBuf>)>> {
+    let path = wide_null(UNINSTALL);
+    let mut handle: HKEY = ptr::null_mut();
+    // SAFETY: the root is a predefined or open key and every pointer is live for the call.
+    let status = unsafe { RegOpenKeyExW(root, path.as_ptr(), 0, KEY_READ, &mut handle) };
+    if status == ERROR_FILE_NOT_FOUND {
+        return Ok(Vec::new());
+    }
+    check(status)?;
+    let key = Key(handle);
+    let mut names = Vec::new();
+    for index in 0_u32.. {
+        // A key's name has at most 255 characters.
+        let mut name = vec![0_u16; 256];
+        let mut length = u32::try_from(name.len()).unwrap_or(u32::MAX);
+        // SAFETY: the key is open for reading and the name buffer holds `length` characters.
+        let status = unsafe {
+            RegEnumKeyExW(
+                key.0,
+                index,
+                name.as_mut_ptr(),
+                &mut length,
+                ptr::null(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+        if status == ERROR_NO_MORE_ITEMS {
+            break;
+        }
+        check(status)?;
+        let length = usize::try_from(length).unwrap_or(name.len()).min(name.len());
+        let name = String::from_utf16(&name[..length])
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "a key name is not UTF-16"))?;
+        if is_aura_entry(&name) {
+            names.push(name);
+        }
+    }
+    drop(key);
+    names
+        .into_iter()
+        .map(|name| {
+            let location = read_location(root, &name)?;
+            Ok((name, location))
+        })
+        .collect()
+}
+
 fn subkey(key: &str) -> io::Result<Vec<u16>> {
     if key.is_empty() || key.contains(['\\', '/']) {
         return Err(io::Error::new(
@@ -61,7 +122,7 @@ pub(super) struct Key(pub(super) HKEY);
 
 impl Drop for Key {
     fn drop(&mut self) {
-        // SAFETY: the handle was opened by RegCreateKeyExW and is closed once.
+        // SAFETY: the handle was opened by RegCreateKeyExW or RegOpenKeyExW and is closed once.
         unsafe { RegCloseKey(self.0) };
     }
 }
@@ -210,5 +271,40 @@ mod tests {
         assert!(remove_entry(hive.key(), "AuraTest").expect("remove"));
         assert!(!remove_entry(hive.key(), "AuraTest").expect("remove again"));
         assert!(write_entry(hive.key(), &UninstallEntry { key: r"A\B", ..entry }).is_err());
+    }
+
+    #[test]
+    fn only_the_entries_aura_writes_are_listed_with_their_folders() {
+        let folder = tempfile::tempdir().expect("hive folder");
+        let hive = AppHive::open(&folder.path().join("test.hive")).expect("app hive");
+        assert_eq!(aura_entries(hive.key()).expect("no Uninstall key yet"), Vec::new());
+        let location = |name: &str| folder.path().join(name);
+        for key in ["Aura", "Aura-test-run1", "AuraSync", "Other", "aura-TEST-run2"] {
+            let place = location(key);
+            write_entry(
+                hive.key(),
+                &UninstallEntry {
+                    key,
+                    display_name: key,
+                    display_version: "0.3.0",
+                    publisher: "x",
+                    install_location: &place,
+                    display_icon: &place,
+                    uninstall_command: "x",
+                    estimated_size_kb: 1,
+                },
+            )
+            .expect("write");
+        }
+        let mut listed = aura_entries(hive.key()).expect("listed");
+        listed.sort();
+        assert_eq!(
+            listed,
+            vec![
+                ("Aura".to_owned(), Some(location("Aura"))),
+                ("Aura-test-run1".to_owned(), Some(location("Aura-test-run1"))),
+                ("aura-TEST-run2".to_owned(), Some(location("aura-TEST-run2"))),
+            ]
+        );
     }
 }

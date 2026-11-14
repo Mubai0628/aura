@@ -95,7 +95,7 @@ pub fn run_case(
             )?;
             Ok(result)
         }
-        Err(error) if !cleaned => Err(error.context("package.cleanup_unconfirmed")),
+        Err(error) if !cleaned => Err(error.context(crate::failures::CLEANUP_UNCONFIRMED)),
         Err(error) => Err(error),
     };
     result.map_err(|error| {
@@ -122,24 +122,24 @@ fn execute(
         .tools
         .iter()
         .find(|tool| tool.tool_key == *tool_key)
-        .ok_or_else(|| anyhow::anyhow!("package.tool_missing"))?;
+        .ok_or_else(|| anyhow::anyhow!(crate::failures::TOOL_MISSING))?;
     ensure!(
         !matches!(tool.runtime, CanonicalToolPackageRuntimeV1::DeclarativeHttp { .. }),
-        "package.program_runtime_required"
+        crate::failures::PROGRAM_RUNTIME_REQUIRED
     );
     ensure!(
         tool.capability_requirements.contains(&PackageCapabilityRequirementV1::ProcessExecute),
-        "package.process_capability_required"
+        crate::failures::PROCESS_CAPABILITY_REQUIRED
     );
     let validator = CompiledToolSchemaV1::compile(tool.model.input_schema.canonical_document())?;
-    ensure!(validator.validate(arguments).valid, "package.arguments_invalid");
+    ensure!(validator.validate(arguments).valid, crate::failures::ARGUMENTS_INVALID);
     match (&tool.instance_configuration.0, context.instance_configuration) {
         (Some(schema), Some(value)) => ensure!(
             CompiledToolSchemaV1::compile(schema.canonical_document())?.validate(value).valid,
-            "package.configuration_invalid"
+            crate::failures::CONFIGURATION_INVALID
         ),
         (None, None) => {}
-        _ => anyhow::bail!("package.configuration_required"),
+        _ => anyhow::bail!(crate::failures::CONFIGURATION_REQUIRED),
     }
     let runtime = tool.runtime.to_runtime_descriptor_v1();
     let directory = match &runtime {
@@ -148,15 +148,16 @@ fn execute(
             DeclarativeCommandV1::Argv { working_directory, .. }
             | DeclarativeCommandV1::PowershellScript { working_directory, .. } => working_directory,
         },
-        _ => anyhow::bail!("package.program_runtime_required"),
+        _ => anyhow::bail!(crate::failures::PROGRAM_RUNTIME_REQUIRED),
     };
     ensure!(
         !matches!(directory, CommandWorkingDirectoryV1::WorkspaceRoot)
             || context.workspace_root.is_some(),
-        "package.workspace_required"
+        crate::failures::WORKSPACE_REQUIRED
     );
     let system = aura_windows_platform::windows_directory()?;
-    let system = system.to_str().ok_or_else(|| anyhow::anyhow!("package.system_path_invalid"))?;
+    let system =
+        system.to_str().ok_or_else(|| anyhow::anyhow!(crate::failures::SYSTEM_PATH_INVALID))?;
     let null = serde_json::Value::Null;
     let mut prepared = prepare_tool_sandbox_runtime_v1(
         &runtime,
@@ -175,7 +176,7 @@ fn execute(
     )?;
     // D1: the Native exception never covers credential isolation, so a program tool
     // never receives an Aura-held credential.
-    ensure!(prepared.credential_slot.is_none(), "package.program_credentials_unsupported");
+    ensure!(prepared.credential_slot.is_none(), crate::failures::PROGRAM_CREDENTIALS_UNSUPPORTED);
     if prepared.runtime_kind == PreparedCommandRuntimeKindV1::PowershellScript {
         prepared
             .arguments
@@ -203,7 +204,7 @@ fn execute(
                 AURA_TOOL_OUTPUT_ROOT_ENVIRONMENT_VARIABLE_V1.into(),
                 output
                     .to_str()
-                    .ok_or_else(|| anyhow::anyhow!("package.output_path_invalid"))?
+                    .ok_or_else(|| anyhow::anyhow!(crate::failures::OUTPUT_PATH_INVALID))?
                     .to_owned(),
             ),
         ]);

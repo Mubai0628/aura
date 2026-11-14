@@ -4,7 +4,9 @@ pub use broker::*;
 
 mod activity;
 mod agent_configuration;
+mod argument_repair;
 pub use agent_configuration::*;
+pub use argument_repair::{ArgumentRepairV1, repair_string_encoded_arguments};
 mod batch;
 mod builtins;
 mod definition;
@@ -18,6 +20,7 @@ mod network_proxy;
 pub use network_proxy::{ToolNetworkProxyErrorV1, ToolNetworkProxyProtocolV1, ToolNetworkProxyV1};
 mod events;
 mod model_view;
+pub use model_view::not_run_message;
 mod package;
 mod registry;
 mod resource;
@@ -58,11 +61,11 @@ pub use definition::{
     ToolSchemaSnapshotV1, ToolSourceContractFingerprintV1, ToolSourceKindV1,
 };
 pub use errors::{
-    ToolBatchErrorCode, ToolConformanceErrorCode, ToolDraftErrorCode, ToolErrorCatalogEntryV1,
-    ToolErrorCatalogV1, ToolErrorRetryClassV1, ToolErrorVisibilityV1, ToolHookErrorCode,
-    ToolNetworkErrorCode, ToolPackageErrorCode, ToolRegistryErrorCode, ToolResourceErrorCode,
-    ToolResultErrorCode, ToolRuntimeErrorCode, ToolSchedulerErrorCode, ToolSchemaErrorCode,
-    tool_error_catalog_v1, validate_tool_error_catalog,
+    ToolApprovalErrorCode, ToolBatchErrorCode, ToolConformanceErrorCode, ToolDraftErrorCode,
+    ToolErrorCatalogEntryV1, ToolErrorCatalogV1, ToolErrorRetryClassV1, ToolErrorVisibilityV1,
+    ToolHookErrorCode, ToolNetworkErrorCode, ToolPackageErrorCode, ToolRegistryErrorCode,
+    ToolResourceErrorCode, ToolResultErrorCode, ToolRuntimeErrorCode, ToolSchedulerErrorCode,
+    ToolSchemaErrorCode, tool_error_catalog_v1, validate_tool_error_catalog,
 };
 pub use events::{
     SessionToolPinChangedPayloadV1, ToolBatchAdmissionRejectedPayloadV1,

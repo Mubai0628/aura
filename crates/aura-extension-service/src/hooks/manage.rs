@@ -126,7 +126,9 @@ impl HookContext {
                         .transpose()?,
                 })?
             }
-            other => anyhow::bail!("hooks.unknown_route: {other}"),
+            other => anyhow::bail!(
+                "hooks.unknown_route: Hook 设置不认识这个操作（{other}），没有执行；请更新 Aura 后重试。"
+            ),
         })
     }
 
@@ -184,8 +186,9 @@ impl HookContext {
 
     fn trust(&self, request: HookTrustRequest) -> anyhow::Result<HookRegistryView> {
         let path = normalized(&request.path)?;
-        let package = scan_package(Path::new(&path))
-            .map_err(|error| anyhow::anyhow!("hooks.invalid_package: {error}"))?;
+        let package = scan_package(Path::new(&path)).map_err(|error| {
+            anyhow::anyhow!("hooks.invalid_package: 这个文件夹不是可用的 Hook 包：{error}")
+        })?;
         anyhow::ensure!(
             package.fingerprint == request.expected_fingerprint,
             "hooks.content_changed: Hook 包在预览之后变了，请重新预览再信任"
@@ -193,7 +196,7 @@ impl HookContext {
         let registry = self.settings.hook_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
-            "hooks.registry_unavailable: {}",
+            "hooks.registry_unavailable: Hook 设置暂时读不出来，没有改动：{}",
             registry.issue.unwrap_or_default()
         );
         let mut entries = registry.entries;
@@ -220,7 +223,7 @@ impl HookContext {
         let registry = self.settings.hook_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
-            "hooks.registry_unavailable: {}",
+            "hooks.registry_unavailable: Hook 设置暂时读不出来，没有改动：{}",
             registry.issue.unwrap_or_default()
         );
         let mut entries = registry.entries;

@@ -1,8 +1,12 @@
 //! Closed, credential-free preflight explanations. Never publish raw Git diagnostics.
+use aura_git_service::git::DETAIL_LABEL;
+use std::borrow::Cow;
+
 pub(in crate::agent_execution) fn admission_feedback(
     error: &anyhow::Error,
-) -> Option<&'static str> {
-    Some(match error.to_string().split(':').next()? {
+) -> Option<Cow<'static, str>> {
+    let text = error.to_string();
+    let fixed = match text.split(':').next()? {
         "git.multiple_remote_urls" => {
             "git.multiple_remote_urls: 此远端有多个地址，无法绑定单一目的地批准；请在终端处理或配置单一推送地址。"
         }
@@ -39,6 +43,43 @@ pub(in crate::agent_execution) fn admission_feedback(
         "git.config_invalid" => {
             "git.config_invalid: 仓库的 Git 配置无法读取；请用户在终端修复配置后再试。"
         }
-        _ => return None,
-    })
+        _ => return own_words(&text).map(Cow::Owned),
+    };
+    Some(Cow::Borrowed(fixed))
+}
+
+/// Another `git.*` refusal in the Git service's own words, cut before the Git output that
+/// follows them.
+fn own_words(text: &str) -> Option<String> {
+    let line = text.lines().next()?.trim();
+    let (code, rest) = line.split_once(": ")?;
+    let coded = code.starts_with("git.")
+        && code
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '.' | '_'));
+    let sentence = rest.split(DETAIL_LABEL).next()?.trim();
+    (coded && sentence.chars().count() >= 8).then(|| format!("{code}: {sentence}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_known_preflight_refusal_keeps_its_fixed_words() {
+        let said = admission_feedback(&anyhow::anyhow!("git.not_repository: anything"));
+        let said = said.expect("known code");
+        assert!(said.starts_with("git.not_repository: 此工作区不是 Git 仓库"), "{said}");
+    }
+
+    #[test]
+    fn another_git_refusal_is_said_without_the_raw_git_output() {
+        let error = anyhow::anyhow!(
+            "git.index_locked: Git 索引被锁定。请等其他 Git 操作结束后再试。{DETAIL_LABEL}fatal: Unable to create 'C:/repo/.git/index.lock'"
+        );
+        let said = admission_feedback(&error).expect("worded refusal");
+        assert_eq!(said, "git.index_locked: Git 索引被锁定。请等其他 Git 操作结束后再试。");
+        assert_eq!(admission_feedback(&anyhow::anyhow!("workspace is offline")), None);
+        assert_eq!(admission_feedback(&anyhow::anyhow!("git.unexplained")), None);
+    }
 }

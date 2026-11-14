@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AgentToolGroups } from './AgentToolGroups';
-import { userMessage } from '../agent-session/user-message';
+import { settingsNotRead, settingsNotSaved } from './failure-words';
 import type { ConfigurationOwner } from './useAgentConfiguration';
 import { SkeletonRows } from '../ui/SkeletonRows';
 import './agent-tools.css';
@@ -69,7 +69,13 @@ export function AgentToolList({ configuration }: { configuration: ConfigurationO
           <SkeletonRows label="正在读取工具" />
         ) : (
           <>
-            <p role="alert">{userMessage(loadError)}</p>
+            <p role="alert">
+              {settingsNotRead(
+                loadError,
+                '工具配置',
+                '现在不能修改工具；请稍后点“重新读取工具配置”。',
+              )}
+            </p>
             <button type="button" className="button" onClick={() => void reload()}>
               重新读取工具配置
             </button>
@@ -120,7 +126,7 @@ export function AgentToolList({ configuration }: { configuration: ConfigurationO
       </div>
       {error ? (
         <p className="settings-status-line" role="alert">
-          {userMessage(error)}
+          {settingsNotSaved(error, '工具选择没有保存', '仍按原来的选择运行', '请稍后再保存')}
         </p>
       ) : null}
       {saved ? (

@@ -15,6 +15,21 @@ import { SharedTabs } from './shares.js';
 
 const SECRET_KEY = 'pairing_secret';
 
+/**
+ * What Chrome or the extension threw, in a sentence that names the step, with the exception's
+ * own first line (at most 200 characters) as its detail. Core adds what became of the page.
+ */
+function chromeFailure(op: string | undefined, error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const lines = raw.split('\n').map((part) => part.trim());
+  const line = lines.find((part) => part !== '') ?? '';
+  const chars = [...line].map((c) => (c < ' ' || c === '\u007f' ? ' ' : c));
+  const short = chars.length > 200 ? `${chars.slice(0, 200).join('')}…` : chars.join('');
+  const detail = short.replace(/[.。\s]+$/u, '') || '没有给出原因';
+  const step = op === undefined ? '这一步' : `这一步（${op}）`;
+  return `Chrome 执行${step}时出错：${detail}。`;
+}
+
 export function storageSecrets(area: StorageArea): SecretStore {
   return {
     async load() {
@@ -188,8 +203,10 @@ export class Background {
     const controller = new AbortController();
     this.#running.set(id, controller);
     let outcome: CommandOutcome;
+    let op: string | undefined;
     try {
       const command = parseCommand(value);
+      op = command.op;
       outcome = {
         status: 'done',
         value: await run(this.#context(controller.signal), command, origin),
@@ -198,11 +215,7 @@ export class Background {
       outcome =
         error instanceof CommandError
           ? { status: 'failed', code: error.code, message: error.message }
-          : {
-              status: 'failed',
-              code: 'chrome.failed',
-              message: error instanceof Error ? error.message : String(error),
-            };
+          : { status: 'failed', code: 'chrome.failed', message: chromeFailure(op, error) };
     } finally {
       this.#running.delete(id);
     }

@@ -35,7 +35,6 @@ use aura_persistence::{
     ModelDiscoveryTransportTransition, ModelProjectionDraft, PersistenceError,
 };
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use url::Url;
 
 use super::{
@@ -48,6 +47,10 @@ use super::{
     },
     provider_error::summarize_provider_error,
 };
+
+mod error;
+
+pub(crate) use error::ModelDiscoveryServiceError;
 
 pub(crate) struct PreparedModelDiscovery {
     id: ModelDiscoveryRunId,
@@ -67,34 +70,6 @@ pub(crate) struct ModelDiscoveryQueueCompletion {
     pub accepted: aura_model_domain::ModelDiscoveryStartAccepted,
     pub projection_changes: Vec<aura_projection_contract::ProjectionChange>,
     pub newly_queued: bool,
-}
-
-#[derive(Debug, Error)]
-pub(crate) enum ModelDiscoveryServiceError {
-    #[error("model discovery configuration is invalid")]
-    InvalidConfiguration,
-    #[error("model discovery configuration revision changed")]
-    ConfigurationRevisionChanged,
-    #[error("model discovery credential is unavailable")]
-    CredentialUnavailable,
-    #[error("another model-config mutation is active")]
-    ModelConfigMutationInProgress,
-    #[error(transparent)]
-    Persistence(#[from] PersistenceError),
-    #[error(transparent)]
-    Transport(#[from] ConfigurationTransportError),
-    #[error(transparent)]
-    ConfigJournal(#[from] ModelConfigJournalError),
-    #[error("model discovery revision overflow")]
-    RevisionOverflow,
-    #[error("model discovery projection could not be constructed")]
-    MissingProjection,
-    #[error("model discovery operation was not found")]
-    OperationNotFound,
-    #[error("model discovery worker terminated unexpectedly")]
-    WorkerTerminated,
-    #[error("model discovery operational revision conflict: expected {expected}, actual {actual}")]
-    OperationRevisionConflict { expected: u64, actual: u64 },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

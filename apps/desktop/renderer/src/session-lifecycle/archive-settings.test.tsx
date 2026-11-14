@@ -145,7 +145,7 @@ test('a refused delete says why in its dialog and can be tried again', async () 
   fireEvent.click(within(dialog).getByRole('button', { name: '删除会话' }));
   await waitFor(() =>
     expect(within(dialog).getByRole('alert').textContent).toBe(
-      '请先归档这个会话，再到“设置 → 归档”里删除。',
+      '没有删除：请先归档这个会话，再到“设置 → 归档”里删除。',
     ),
   );
   fireEvent.click(within(dialog).getByRole('button', { name: '删除会话' }));

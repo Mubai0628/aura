@@ -80,6 +80,8 @@ mod agent_mcp;
 mod agent_plugin_session;
 mod agent_plugins;
 mod agent_skills;
+mod agent_team_settings;
+mod agent_worktrees;
 mod browser;
 mod chrome;
 mod computer;
@@ -90,6 +92,7 @@ mod model;
 mod package;
 mod runtime;
 mod security;
+mod storage;
 mod terminal;
 mod terminal_input;
 mod tool;
@@ -107,6 +110,8 @@ pub fn registry() -> impl Iterator<Item = &'static RouteDescriptor> {
         .chain(agent_plugins::ROUTES)
         .chain(agent_plugin_session::ROUTES)
         .chain(agent_skills::ROUTES)
+        .chain(agent_worktrees::ROUTES)
+        .chain(agent_team_settings::ROUTES)
         .chain(git::ROUTES)
         .chain(package::ROUTES)
         .chain(memory::ROUTES)
@@ -119,6 +124,7 @@ pub fn registry() -> impl Iterator<Item = &'static RouteDescriptor> {
         .chain(chrome::ROUTES)
         .chain(computer::ROUTES)
         .chain(media::ROUTES)
+        .chain(storage::ROUTES)
 }
 pub fn core_route(method: &str) -> Option<&'static RouteDescriptor> {
     registry().find(|route| route.surface == RouteSurface::Core && route.method == method)
@@ -188,7 +194,7 @@ mod tests {
     /// against the declarations, against the generated
     /// `resources/ipc/routes.v1.json` (301 entries = this registry minus the single
     /// test-only driver route) and against the generated preload bindings.
-    const MAIN_PER_MODULE: [(&str, usize); 21] = [
+    const MAIN_PER_MODULE: [(&str, usize); 24] = [
         // `agent.attachments.text` (ReadOnly, both surfaces), the preload's
         // `readAttachmentText`: the text of a text file one of the conversation's messages
         // carried, found by its artifact in that session. Where an outside attachment is now
@@ -201,16 +207,21 @@ mod tests {
         // Settings → 网络与浏览器 → Chrome: status, the switch, a pairing code, forgetting the
         // paired extension, opening the extension's folder (Main only), and stopping everything
         // Chrome does for Aura; a conversation's shared tabs and the user's "done" for a tab
-        // handed to them. None of them reaches a page or a model.
-        ("chrome", 8),
+        // handed to them; the user's tabs for the composer's 「@」 (titles and addresses only) and
+        // the one picked there, shared with the conversation and read once for the message
+        // (`chrome.tabs.list` ReadOnly, `chrome.tabs.hand_over` CommandInvocation). A model
+        // reaches none of them.
+        ("chrome", 10),
         // Settings → 电脑操控: read and save the settings, the programs for the composer's 「@」 and
         // their icons, a conversation's programs under control, the user's Stop and giving the
         // desktop back after a takeover, and the approval card's 总是允许 (ReadOnly and
         // CommandInvocation, both surfaces). None of them acts on the desktop or reaches a model.
         ("computer", 8),
         ("memory", 10),
-        // desktop-only user terminals: explicit Main/Core binding, no model authority.
-        ("terminal", 7),
+        // desktop-only user terminals: explicit Main/Core binding, no model authority. The user's
+        // 「@」 on one (`terminal.user.hand_over`, CommandInvocation) gives it to the conversation's
+        // model until the user takes it back.
+        ("terminal", 8),
         // `session.archive`, `.restore`, `.delete` (Main and Core) and the Main-only
         // `workspace.delete`, which issues the removal confirmation the user gave.
         ("workspace", 33),
@@ -274,8 +285,28 @@ mod tests {
         // `agent.workspace.rebuild_index` (CommandInvocation, both surfaces), the preload's
         // `rebuildWorkspaceIndex`: a workspace's file index walked again after it failed. Adds
         // `agent.continue` (CommandInvocation, both surfaces), the preload's `continueAgent`:
-        // the user's 继续 for a turn a restart cut off.
-        ("agent", 42),
+        // the user's 继续 for a turn a restart cut off. Adds the read-only `agent.team.list`
+        // (both surfaces), the preload's `listAgentTeam`: the sub-agents a conversation started,
+        // their state and the approvals they wait for. Adds `agent.team.stop`
+        // (CommandInvocation, both surfaces), the preload's `stopAgentTeamMember`: the user stops
+        // one of them from the 多 Agent page.
+        ("agent", 44),
+        // Worktrees: what one changed (ReadOnly), where new ones go and choosing that folder
+        // (ReadOnly and CommandInvocation), all on both surfaces; the preload's
+        // `readAgentTeamChanges`, `readWorktreeLocation` and `setWorktreeLocation`. Main's own
+        // folder dialog for the location (Main only), `selectWorktreeLocation`. Only sub-agents
+        // work in worktrees, which the main agent's tools merge and discard, approved by the user.
+        // Adds the Main-only `agent.team.worktree.open` (CommandInvocation), the preload's
+        // `openAgentTeamWorktree`: the window names a sub-agent, Core names its worktree's folder
+        // on the Core-only `agent.team.worktree.folder`, only while it is in use, and Main opens
+        // that folder in the file manager, never a file or a program.
+        ("agent_worktrees", 5),
+        // The sub-agents' limits under 设置 → 智能能力 → 多 Agent: read (ReadOnly) and saved over
+        // their revision (CommandInvocation), both surfaces; the preload's
+        // `readAgentTeamSettings` and `setAgentTeamSettings`. Adds `agent.team.allowance.revoke`
+        // (CommandInvocation, both surfaces), the preload's `revokeAgentTeamAllowance`: the user
+        // takes back one thing a sub-agent's commands could do without asking; it never grants.
+        ("agent_team_settings", 3),
         // Adds Settings → Hook in its own module: list, preview and invocation records
         // (ReadOnly), trust, untrust, enable, remove and reorder (CommandInvocation, both
         // surfaces), and the Main-only folder picker. None of them runs a Hook; trust is
@@ -333,6 +364,14 @@ mod tests {
         // the interface settings — the session's debugging information and the default
         // terminal. `TrustedRenderer` on Main, `AuthenticatedMain` on Core; they start nothing.
         ("ui", 2),
+        // 设置 → 系统 → 存储: the overview, checking a folder, asking for a move and taking it back,
+        // dismissing why the last one did not happen, listing the old data and removing what the
+        // user picked of it (ReadOnly and CommandInvocation, both surfaces), and Main's own
+        // folder dialog, opening a part's folder, closing Aura for the launcher's move and
+        // closing it for the installed setup program, which moves the installation (Main only).
+        // None of them moves anything while Aura runs; removing old data takes only what no
+        // installation uses.
+        ("storage", 11),
     ];
 
     /// The two surfaces are not symmetric, and the difference is deliberate. Every
@@ -341,7 +380,7 @@ mod tests {
     /// a Core command: the native directory dialog and folder operations, the local
     /// read models, and attaching the file the user picked as a read-only external
     /// grant.
-    const MAIN_ONLY: [&str; 25] = [
+    const MAIN_ONLY: [&str; 31] = [
         "agent.commands.open_directory",
         // Main opens the Chrome extension's folder in the file manager.
         "chrome.extension.open_folder",
@@ -355,6 +394,10 @@ mod tests {
         "agent.skills.open_directory",
         "agent.skills.select_archive",
         "agent.skills.select_directory",
+        // Main's own dialog for the folder new worktrees go under.
+        "agent.team.worktrees.location.select",
+        // Main opens a sub-agent's worktree folder that Core names.
+        "agent.team.worktree.open",
         "memory.vault.open_directory",
         "memory.maintenance.open_log",
         "memory.vault.export",
@@ -368,18 +411,24 @@ mod tests {
         "workspace.select_directory",
         "workspace_files.get",
         "workspace_session.get",
+        "storage.select_folder",
+        "storage.open_folder",
+        "storage.restart",
+        "storage.move_install",
     ];
 
     /// The Core surface holds the authoritative commands. These have no renderer
     /// entry: internal broker channels, the runtime ledger, host preparation,
     /// and lifecycle handshakes. Git reads use the authenticated Main bridge.
-    const CORE_ONLY: [&str; 34] = [
+    const CORE_ONLY: [&str; 35] = [
         "media.host.read",
         "media.host.result",
         // Where an attached file outside the workspace is now, for Main to stream or open
         // it; the window names the attachment and never learns the place.
         "agent.attachments.locate",
         "agent.attachments.entry",
+        // Where a sub-agent's worktree is, for Main to open it; the window never learns it.
+        "agent.team.worktree.folder",
         "agent.files.mentioned",
         "memory.export.prepare",
         "memory.export.entry",
@@ -459,7 +508,7 @@ mod tests {
         // to be accepted here on purpose. A stale count is how this inventory went
         // unnoticed before, so the per-module table is compared rather than the
         // total alone.
-        let modules: [(&str, &[RouteDescriptor]); 21] = [
+        let modules: [(&str, &[RouteDescriptor]); 24] = [
             ("media", media::ROUTES),
             ("browser", browser::ROUTES),
             ("chrome", chrome::ROUTES),
@@ -476,11 +525,14 @@ mod tests {
             ("agent_plugins", agent_plugins::ROUTES),
             ("agent_plugin_session", agent_plugin_session::ROUTES),
             ("agent_skills", agent_skills::ROUTES),
+            ("agent_worktrees", agent_worktrees::ROUTES),
+            ("agent_team_settings", agent_team_settings::ROUTES),
             ("tool", tool::ROUTES),
             ("runtime", runtime::ROUTES),
             ("terminal", terminal::ROUTES),
             ("terminal_input", terminal_input::ROUTES),
             ("ui", ui::ROUTES),
+            ("storage", storage::ROUTES),
         ];
         for (name, routes) in modules {
             let expected = MAIN_PER_MODULE

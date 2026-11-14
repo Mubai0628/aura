@@ -17,7 +17,7 @@ pub(super) fn target(arguments: Option<&Value>) -> Option<String> {
 pub(super) fn summarize(view: &mut AgentToolDisplay, value: &Value) {
     let Some(files) = value["files"].as_array() else { return };
     if value["disposition"] == "deferred_by_editor_activity" {
-        view.summary = "文件正在编辑器中修改，未写入".into();
+        view.summary = "没有写入：你正在编辑器里改这些文件；保存或关闭后再运行 /init。".into();
         return;
     }
     view.summary = format!("已写入 {} 个文件", files.len());

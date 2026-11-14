@@ -74,7 +74,7 @@ export class CoreExitRecovery {
       state: escalate ? 'app_crash_escalated' : 'restarting',
       statusCode: escalate ? 'core.crash_escalated' : 'core.restarting',
       statusMessage: escalate
-        ? 'Aura Core 重复崩溃，已交由 Launcher 恢复。'
+        ? 'Aura Core 反复意外退出，Aura 将关闭并交给启动器恢复；启动器会显示恢复窗口，可以重新启动、进入安全模式或回到上一版本。'
         : `Core 已退出，准备第 ${String(attempt)} 次恢复…`,
     };
   }

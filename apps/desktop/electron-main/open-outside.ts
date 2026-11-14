@@ -2,7 +2,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import { shell } from 'electron';
 import type { AgentMainParams, AgentMainResult } from '../shared/generated/routes.js';
-import { runsCode, workspaceRelativeParts } from '../shared/outside-files.js';
+import { runsCode, workspaceRelativeParts, DEFAULT_APP_FAILED } from '../shared/outside-files.js';
 import type { CoreSupervisor } from './core-supervisor.js';
 
 type FileRequest = AgentMainParams['agent.files.open_outside'];
@@ -73,9 +73,7 @@ export async function openWorkspaceFileOutside(
   if ((await stat(target)).isFile() && runsCode(target))
     return refused('这是可执行文件或脚本，Aura 不会直接运行它；可以在文件资源管理器中查看。');
   const failure = await shell.openPath(target);
-  return failure
-    ? refused(`没有打开这个文件：${failure}`)
-    : { completed: true, message: '已用默认应用打开' };
+  return failure ? refused(DEFAULT_APP_FAILED) : { completed: true, message: '已用默认应用打开' };
 }
 
 /**

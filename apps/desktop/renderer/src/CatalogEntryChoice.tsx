@@ -7,9 +7,8 @@ import type {
 } from '@aura/contracts/generated';
 import { useEffect, useState } from 'react';
 
-import { userMessage } from './agent-session/user-message';
 import type { NotificationInput } from './notification-center-store';
-import { MODEL_FAILURE_FALLBACK } from './provider-connection/notices';
+import { modelFailureText } from './provider-connection/model-failure-words';
 
 const entryKey = (entry: ProviderCatalogMatchCandidate) =>
   `${entry.catalog_provider_id}/${entry.catalog_model_id}`;
@@ -81,7 +80,7 @@ export function CatalogEntryChoice({
       if (!result.ok) {
         onNotify({
           dedupeKey: `目录条目未保存:${result.error.code}`,
-          message: userMessage(result.error, MODEL_FAILURE_FALLBACK),
+          message: modelFailureText(result.error),
           title: '目录条目未保存',
           tone: 'danger',
         });

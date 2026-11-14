@@ -1,5 +1,6 @@
 //! A directory record derived from file consent cannot outlive that consent.
 use super::*;
+mod moved_approvals;
 
 impl ExternalGrantService {
     pub(super) fn file_approval_in_force(
@@ -10,6 +11,14 @@ impl ExternalGrantService {
         if approvals.is_empty() {
             return Ok(true);
         }
+        // A record derived from a file approval reaches nothing once the approval does not:
+        // after its Workspace moved to another folder.
+        let workspace = self.persistence.workspace(record.workspace_id).ok().map(|workspace| {
+            aura_security_contract::ApprovalWorkspace {
+                canonical_root: workspace.canonical_root,
+                authorization_epoch: workspace.authorization_epoch,
+            }
+        });
         let journal = self.bound_journal().ok_or(ExternalGrantError::PermissionGrantUnavailable)?;
         let store = journal.lock().map_err(|_| ExternalGrantError::PermissionGrantUnavailable)?;
         let db = store.database.connection();
@@ -29,7 +38,10 @@ impl ExternalGrantService {
                         .map_err(|_| ExternalGrantError::PermissionGrantUnavailable)?
                         .is_some()
                     && grant.scope.file_consent.as_ref().is_some_and(|consent| {
-                        consent.session_id == record.session_id
+                        aura_security_contract::file_consent_in_its_workspace(
+                            consent,
+                            workspace.as_ref(),
+                        ) && consent.session_id == record.session_id
                             && consent.principal_id
                                 == aura_domain_common::PrincipalId::from_bytes(
                                     record.session_id.to_bytes(),

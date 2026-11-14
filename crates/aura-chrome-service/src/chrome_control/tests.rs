@@ -9,6 +9,7 @@ use aura_config::{AuraPaths, SettingsFacade};
 use serde_json::json;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+mod handover;
 mod lock;
 
 struct Fixture {

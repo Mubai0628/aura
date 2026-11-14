@@ -1,7 +1,8 @@
 import type { WorkspaceLifecycleSummary } from '@aura/contracts/generated';
+import { LifecycleRefused, lifecycleNotCompleted } from './failure-words';
 
 /**
- * Archiving or removing a Workspace runs Main's lifecycle barrier, which asks this window
+ * Archiving, moving or removing a Workspace runs Main's lifecycle barrier, which asks this window
  * for its unsaved editor buffers before Core commits. Aura's editor keeps none, so every
  * preparation is answered at once with none. The answer is kept for whoever started the
  * operation: it can arrive before the call that started it returns.
@@ -56,7 +57,11 @@ export function lifecycleOutcome(
     };
     const timer = window.setTimeout(() => {
       waiters.delete(operationId);
-      reject(new Error('工作区操作没有在一分钟内完成，请刷新后查看。'));
+      reject(
+        new Error(
+          '工作区操作一分钟内没有结束，可能仍在进行；请稍后看工作区的状态，再决定是否重试。',
+        ),
+      );
     }, timeoutMs);
     const early = outcomes.get(operationId);
     if (early !== undefined) {
@@ -71,10 +76,25 @@ const completed = async (begun: Promise<unknown>) => {
     { ok: true; value: { operation_id: string } } | { ok: false; error: unknown };
   if (!result.ok) throw result.error;
   const summary = await lifecycleOutcome(result.value.operation_id);
-  if (summary.state !== 'completed') {
-    throw new Error('工作区操作没有完成，请刷新后查看。');
-  }
+  if (summary.state === 'completed') return;
+  // A blocked operation holds the Workspace until it is resolved: it is withdrawn, so the
+  // Workspace can be acted on again once what blocked it has ended.
+  if (summary.state === 'blocked') await withdrawLifecycle(summary);
+  throw new LifecycleRefused(
+    lifecycleNotCompleted(summary, summary.operation === 'permanent_delete' ? '删除' : '归档'),
+  );
 };
+
+/** Gives up an operation stopped by work in the Workspace, leaving the Workspace as it was. */
+export async function withdrawLifecycle(summary: WorkspaceLifecycleSummary): Promise<void> {
+  await window.aura.v1
+    .resolveWorkspaceLifecycle({
+      operation_id: summary.operation_id,
+      expected_lifecycle_revision: summary.lifecycle_revision,
+      action: 'return_to_editing',
+    })
+    .catch(() => undefined);
+}
 
 /** Archives a Workspace: it leaves the sidebar and can be restored in 设置 → 归档. */
 export async function archiveWorkspace(workspaceId: string, revision: string): Promise<void> {
@@ -100,7 +120,8 @@ export async function deleteArchivedWorkspace(workspaceId: string): Promise<void
   await completed(window.aura.v1.deleteWorkspace({ workspace_id: workspaceId }));
 }
 
-async function currentWorkspace(workspaceId: string) {
+/** The Workspace as Core has it now, so a lifecycle call names its current revision. */
+export async function currentWorkspace(workspaceId: string) {
   const projection = await window.aura.v1.getWorkspaceSessions();
   if (!projection.ok) throw projection.error;
   const workspace = projection.value.payload.workspaces.find(

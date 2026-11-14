@@ -61,3 +61,28 @@ async fn s07_n8_large_download_publishes_complete_bytes_and_hash() {
         "download reports hash of actual bytes"
     );
 }
+
+/// Two downloads of one response into folders of the workspace that do not exist yet: the first
+/// to start makes them, the second finds them made, and both files are published.
+#[tokio::test]
+async fn downloads_into_folders_that_do_not_exist_yet_make_them_and_publish() {
+    let server = Server::start().await;
+    let f = fixture(PermissionMode::WorkspaceReadWrite, &["http.download"]).await;
+    let batch = f.admit(&[
+        (
+            "http.download",
+            json!({"url":format!("{}/binary/64",server.url),"path":".cache/s00/one.bin"}),
+        ),
+        (
+            "http.download",
+            json!({"url":format!("{}/binary/32",server.url),"path":".cache/s00/two.bin"}),
+        ),
+    ]);
+    let ids = [batch.batch.calls[0].tool_call_id, batch.batch.calls[1].tool_call_id];
+    f.execute(batch).await;
+    for id in ids {
+        f.output(id);
+    }
+    assert_eq!(std::fs::read(f.root.join(".cache/s00/one.bin")).expect("one"), vec![b'Z'; 64]);
+    assert_eq!(std::fs::read(f.root.join(".cache/s00/two.bin")).expect("two"), vec![b'Z'; 32]);
+}

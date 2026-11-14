@@ -15,11 +15,10 @@ mod git;
 pub(super) use git::dispatch as git;
 mod package;
 pub(super) use package::dispatch as package;
-mod browser_settings;
-mod chrome;
+#[cfg(test)]
+mod chrome_tests;
 mod media;
 mod memory;
-mod ui_settings;
 pub(super) fn is_management(method: &str) -> bool {
     aura_ipc::routes::core_route(method).is_some_and(|route| {
         route.auth == aura_ipc::routes::RouteAuth::AuthenticatedMain

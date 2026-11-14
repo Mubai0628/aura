@@ -4,11 +4,12 @@ import type { ResultEnvelope } from '../../../shared/aura-api';
 import { McpAlerts, McpDetails, McpHeading, type McpChange } from './McpDetails';
 import { McpServerForm } from './McpServerForm';
 import { AppIcon } from '../app-icons';
-import { mcpError, mcpNeedsTrust, mcpStateTone, mcpSwitchable, mcpTransport } from './mcp-labels';
+import { mcpNeedsTrust, mcpStateTone, mcpSwitchable, mcpTransport } from './mcp-labels';
 import { SettingsItemDialog, SettingsRow, SettingsRowOpen } from '../ui/SettingsItem';
 import { ListSentinel, SkeletonRows } from '../ui/SkeletonRows';
 import { useIncrementalList } from '../ui/useIncrementalList';
 import './mcp-settings.css';
+import { userMessage } from '../agent-session/user-message';
 
 const NONE: readonly never[] = [];
 
@@ -38,10 +39,10 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
         if (result.ok) {
           setRegistry(result.value);
           setLoadError(undefined);
-        } else setLoadError(mcpError(result.error.message, 'MCP 服务器列表读取失败，请重试。'));
+        } else setLoadError(userMessage(result.error, 'MCP 服务器列表读取失败，请重试。'));
       },
       (reason: unknown) => {
-        if (live) setLoadError(mcpError(reason, 'MCP 服务器列表读取失败，请重试。'));
+        if (live) setLoadError(userMessage(reason, 'MCP 服务器列表读取失败，请重试。'));
       },
     );
     return () => {
@@ -69,14 +70,15 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
       if (outcome) setNotice(outcome);
       if (outcome?.alert) setReload((value) => value + 1);
     } catch (reason) {
-      setNotice({ alert: true, text: mcpError(reason, '操作结果未确认，请刷新后核对。') });
+      setNotice({ alert: true, text: userMessage(reason, '操作结果未确认，请刷新后核对。') });
       setReload((value) => value + 1);
     } finally {
       setBusy(undefined);
     }
   }
   const applied = (result: ResultEnvelope<McpRegistryView>, done: string): Notice => {
-    if (!result.ok) return { alert: true, text: mcpError(result.error.message) };
+    if (!result.ok)
+      return { alert: true, text: userMessage(result.error, 'MCP 设置没有改变；请刷新后重试。') };
     setRegistry(result.value);
     return { alert: false, text: done };
   };
@@ -146,8 +148,14 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
     run(`sign-in:${server.config.id}`, async () => {
       const result = await window.aura.v1.signInMcpServer({ id: server.config.id });
       setReload((value) => value + 1);
-      if (!result.ok) return { alert: true, text: mcpError(result.error.message) };
+      if (!result.ok)
+        return { alert: true, text: userMessage(result.error, '没有打开登录页面；请刷新后重试。') };
       setSignInLink({ id: server.config.id, url: result.value.authorization_url });
+      if (result.value.browser_opened === false)
+        return {
+          alert: true,
+          text: '没能打开系统浏览器（可能没有设置默认浏览器），登录还没开始；请复制下面的链接到浏览器中打开，完成后这里会自动更新。',
+        };
       return {
         alert: false,
         text: `已在浏览器中打开 ${result.value.authorization_server} 的登录页面；完成后这里会自动更新`,
@@ -166,7 +174,8 @@ export function McpSettings({ coreReady }: { coreReady: boolean }) {
       setReload((value) => value + 1);
       setRefreshed((value) => value + 1);
       setTools(server.config.id);
-      if (!result.ok) return { alert: true, text: mcpError(result.error.message) };
+      if (!result.ok)
+        return { alert: true, text: userMessage(result.error, '这次检测没有完成；请刷新后重试。') };
       return result.value.server.state === 'ready'
         ? {
             alert: false,

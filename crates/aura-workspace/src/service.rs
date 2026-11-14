@@ -3,6 +3,7 @@ mod online;
 mod saving;
 mod signals;
 mod watching;
+mod worktree;
 use signals::WorkspaceProjectionSignals;
 use std::{
     collections::HashMap,

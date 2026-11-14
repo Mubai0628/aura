@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BrowserSettingsSnapshot } from '@aura/contracts/generated';
@@ -116,6 +116,37 @@ describe('设置 → 网络与浏览器', () => {
     expect(command).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: '清除' }));
     expect(command).toHaveBeenCalledWith({ kind: 'clear-data' });
+    expect(await screen.findByText('已清除内置浏览器的登录状态和缓存。')).toBeTruthy();
+  });
+
+  it('browsing data that was not cleared says why and that it is kept', async () => {
+    command.mockResolvedValueOnce({ ok: false, message: '浏览器没有回应' });
+    const user = userEvent.setup();
+    render(<BrowserSettings coreReady />);
+    await screen.findByText('docs.rs');
+    await user.click(screen.getByRole('button', { name: '清除浏览数据' }));
+    await user.click(screen.getByRole('button', { name: '清除' }));
+    expect(
+      await screen.findByText(
+        '浏览数据没有清除（浏览器没有回应），登录状态和缓存仍在；请稍后再试。',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('settings that were not read can be read again from 重试', async () => {
+    getSettings.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'ipc.request_timeout', message: 'Core request timed out' },
+    });
+    const user = userEvent.setup();
+    render(<BrowserSettings coreReady />);
+    const alert = (await screen.findByText(/浏览器设置没有读到/u)).closest('p') as HTMLElement;
+    expect(alert.textContent).toBe(
+      '浏览器设置没有读到（Aura Core 没有及时回复），暂时不能修改；请点“重试”。重试',
+    );
+    await user.click(within(alert).getByRole('button', { name: '重试' }));
+    expect(await screen.findByText('docs.rs')).toBeTruthy();
+    expect(screen.queryByText(/浏览器设置没有读到/u)).toBeNull();
   });
 
   it('shows the issue of settings Core cannot trust, with nothing switched on', async () => {
@@ -142,10 +173,10 @@ describe('设置 → 网络与浏览器 after Core comes back', () => {
       error: { code: 'ipc.transport_lost', message: 'Aura Core pipe I/O failed' },
     });
     const view = render(<BrowserSettings coreReady />);
-    await screen.findByText('浏览器设置读取失败，请重试。');
+    await screen.findByText(/浏览器设置没有读到（与 Aura Core 的连接断开了）/u);
     view.rerender(<BrowserSettings coreReady={false} />);
     view.rerender(<BrowserSettings coreReady />);
     await screen.findByText('docs.rs');
-    expect(screen.queryByText('浏览器设置读取失败，请重试。')).toBeNull();
+    expect(screen.queryByText(/浏览器设置没有读到/u)).toBeNull();
   });
 });

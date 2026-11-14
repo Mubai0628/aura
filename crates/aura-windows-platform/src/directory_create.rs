@@ -39,17 +39,7 @@ pub fn handle_bound_create_directory(
     leaf: &OsStr,
 ) -> Result<VerifiedFile, HandlePublishError> {
     crate::atomic_file::ensure_parent_unchanged(parent)?;
-    let mut components = Path::new(leaf).components();
-    if !parent.info().is_directory
-        || !matches!(components.next(), Some(Component::Normal(_)))
-        || components.next().is_some()
-    {
-        return Err(HandlePublishError::InvalidFileName);
-    }
-    let mut name = leaf.encode_wide().collect::<Vec<_>>();
-    if name.contains(&0) || name.contains(&u16::from(b':')) {
-        return Err(HandlePublishError::InvalidFileName);
-    }
+    let mut name = child_name(parent, leaf)?;
     // FILE_CREATE refuses any occupant, so the returned handle owns exactly the newly created
     // object.
     let file = native_directory(parent.file(), &mut name, GENERIC_READ | SYNCHRONIZE, FILE_CREATE)?;
@@ -69,6 +59,49 @@ pub fn handle_bound_create_directory(
             }),
         },
     }
+}
+
+/// Opens the folder `leaf` directly below `parent` by handle, without following a reparse point:
+/// a link, a file, or anything whose final path is not below `parent` is refused.
+pub fn handle_bound_open_child_directory(
+    parent: &VerifiedFile,
+    leaf: &OsStr,
+) -> Result<VerifiedFile, HandlePublishError> {
+    crate::atomic_file::ensure_parent_unchanged(parent)?;
+    let mut name = child_name(parent, leaf)?;
+    let file = native_directory(parent.file(), &mut name, GENERIC_READ | SYNCHRONIZE, FILE_OPEN)?;
+    let child = verified_from_file(file)?;
+    if child.info().is_reparse_point
+        || !child.info().is_directory
+        || !crate::final_path_within(parent.info(), child.info())
+    {
+        return Err(io::Error::other("not an ordinary folder below its verified parent").into());
+    }
+    Ok(child)
+}
+
+/// Removes the folder `created` is the receipt of, wherever it is now, if it is empty. One that
+/// holds anything stays, and the call fails.
+pub fn handle_bound_remove_created_directory(
+    created: &VerifiedFile,
+) -> Result<(), HandlePublishError> {
+    delete_created(created.file())
+}
+
+/// `leaf` as one native name component below the directory `parent`.
+fn child_name(parent: &VerifiedFile, leaf: &OsStr) -> Result<Vec<u16>, HandlePublishError> {
+    let mut components = Path::new(leaf).components();
+    if !parent.info().is_directory
+        || !matches!(components.next(), Some(Component::Normal(_)))
+        || components.next().is_some()
+    {
+        return Err(HandlePublishError::InvalidFileName);
+    }
+    let name = leaf.encode_wide().collect::<Vec<_>>();
+    if name.contains(&0) || name.contains(&u16::from(b':')) {
+        return Err(HandlePublishError::InvalidFileName);
+    }
+    Ok(name)
 }
 
 /// Removes the directory `receipt` names, wherever it is now. The receipt has no DELETE access, so
@@ -177,6 +210,29 @@ mod tests {
         let held = crate::open_verified_publish_parent(&root.path().join("created"))
             .expect("the new directory held as a publication parent");
         assert_eq!(held.info().identity, created.info().identity);
+    }
+
+    #[test]
+    fn a_child_opens_only_as_an_ordinary_folder_and_a_made_one_goes_back_only_while_empty() {
+        let root = tempfile::tempdir().expect("root");
+        std::fs::create_dir(root.path().join("plain")).expect("a folder");
+        std::fs::write(root.path().join("file"), b"x").expect("a file");
+        let parent = crate::open_verified_publish_parent(root.path()).expect("parent");
+        let plain = handle_bound_open_child_directory(&parent, OsStr::new("plain")).expect("plain");
+        assert!(plain.info().is_directory && !plain.info().is_reparse_point);
+        assert!(handle_bound_open_child_directory(&parent, OsStr::new("file")).is_err());
+        assert!(handle_bound_open_child_directory(&parent, OsStr::new("a:b")).is_err());
+        assert!(matches!(
+            handle_bound_open_child_directory(&parent, OsStr::new("absent")),
+            Err(HandlePublishError::Windows(error)) if error.kind() == io::ErrorKind::NotFound
+        ));
+        let made = handle_bound_create_directory(&parent, OsStr::new("made")).expect("made");
+        std::fs::write(root.path().join("made/kept.txt"), b"x").expect("content");
+        assert!(handle_bound_remove_created_directory(&made).is_err(), "it holds a file");
+        assert!(root.path().join("made/kept.txt").exists());
+        std::fs::remove_file(root.path().join("made/kept.txt")).expect("emptied");
+        handle_bound_remove_created_directory(&made).expect("an empty one goes");
+        assert!(!root.path().join("made").exists());
     }
 
     #[test]

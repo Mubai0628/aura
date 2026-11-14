@@ -2,12 +2,19 @@ import { useSyncExternalStore } from 'react';
 
 /**
  * The right sidebar holds tabs. 终端、文件 open as many times as asked;
- * 审查、进程、浏览器、提示词监测 open once, and once open they leave the "+" menu. A terminal the model opened
+ * 审查、进程、浏览器、多 Agent、提示词监测 open once, and once open they leave the "+" menu. A terminal the model opened
  * becomes a tab only when the user asks to see it. A plugin's panel opens once per plugin. Each
  * conversation keeps its own tabs while Aura runs.
  */
 export type ToolKind =
-  'review' | 'terminal' | 'process' | 'browser' | 'files' | 'prompt-inspector' | 'plugin-panel';
+  | 'review'
+  | 'terminal'
+  | 'process'
+  | 'browser'
+  | 'files'
+  | 'agents'
+  | 'prompt-inspector'
+  | 'plugin-panel';
 
 export const TOOL_KINDS: readonly ToolKind[] = [
   'review',
@@ -15,6 +22,7 @@ export const TOOL_KINDS: readonly ToolKind[] = [
   'process',
   'browser',
   'files',
+  'agents',
   'prompt-inspector',
   'plugin-panel',
 ];
@@ -36,6 +44,7 @@ export const TOOL_NAMES: Record<ToolKind, string> = {
   process: '进程',
   browser: '浏览器',
   files: '文件',
+  agents: '多 Agent',
   'prompt-inspector': '提示词监测',
   'plugin-panel': '插件面板',
 };

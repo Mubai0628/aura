@@ -66,9 +66,26 @@ pub struct AgentToolSettingsUpdate {
         deserialize_with = "deserialize_proxy_edit"
     )]
     pub network_proxy: Option<Option<crate::ToolNetworkProxyV1>>,
+    /// Read so that an older client's request still decodes; it changes nothing. Model requests
+    /// and tools follow the proxy Windows names whenever `network_proxy` is switched off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network_proxy_follows_system: Option<bool>,
     /// Absent leaves the stored web service untouched.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub web_service: Option<WebServiceSettingV1>,
+}
+
+/// The proxy Windows names for the current user, which model requests and tools follow while
+/// Aura's own proxy is switched off.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SystemNetworkProxyV1 {
+    /// The proxy they use; absent when Windows names none that Aura can use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<crate::ToolNetworkProxyV1>,
+    /// Why it is not used, and what to do instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue: Option<String>,
 }
 
 /// The service `web.search` and `web.fetch` use.
@@ -126,7 +143,9 @@ pub struct AgentToolSettingsView {
     pub max_retries: u8,
     pub fixed_tool_ids: Vec<ToolId>,
     pub tools: Vec<AgentToolCatalogEntry>,
-    /// The proxy that tools will actually use. Empty when disabled or the stored field is unusable.
+    /// The proxy stored in Aura's settings, switched on or off. While it is switched on, model
+    /// requests and tools use it instead of the system's. Empty when none is stored or the stored
+    /// field is unusable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub network_proxy: Option<crate::ToolNetworkProxyV1>,
     /// Why the stored field is not in effect. Other Tools settings stay readable and writable.
@@ -138,6 +157,13 @@ pub struct AgentToolSettingsView {
     /// A field-only recovery preview. Applying it must use this preview's Tools revision.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub network_proxy_recovery: Option<AgentNetworkProxyRecoveryPreviewV1>,
+    /// Always false; kept so older readers still decode the view. Following the system needs no
+    /// choice: it is what happens while `network_proxy` is switched off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub network_proxy_follows_system: bool,
+    /// What Windows names now, followed while `network_proxy` is switched off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_network_proxy: Option<SystemNetworkProxyV1>,
     /// The stored web service choice.
     #[serde(default)]
     pub web_service: WebServiceSettingV1,

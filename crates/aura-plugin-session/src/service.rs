@@ -54,12 +54,12 @@ impl PluginSessions {
             }
             "agent.plugin_session.send" => {
                 let command =
-                    command.ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?;
+                    command.ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required: 这次修改缺少请求编号，没有执行；请重试。"))?;
                 serde_json::to_value(self.send(command, serde_json::from_value(params)?).await?)?
             }
             "agent.plugin_session.run" => {
                 let command =
-                    command.ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required"))?;
+                    command.ok_or_else(|| anyhow::anyhow!("ipc.command_invocation_id_required: 这次修改缺少请求编号，没有执行；请重试。"))?;
                 serde_json::to_value(self.run(command, serde_json::from_value(params)?).await?)?
             }
             "agent.plugin_session.settings" => {
@@ -83,7 +83,9 @@ impl PluginSessions {
             "agent.plugin_session.status" => {
                 serde_json::to_value(self.status(serde_json::from_value(params)?).await?)?
             }
-            _ => anyhow::bail!("ipc.route_unknown"),
+            _ => anyhow::bail!(
+                "ipc.route_unknown: 插件会话不认识这个操作，没有执行；请更新 Aura 后重试。"
+            ),
         })
     }
 
@@ -102,16 +104,12 @@ impl PluginSessions {
             let config = self.agent.p05.model_config.snapshot().ok()?;
             config.registry.models.get(&id).map(|model| model.display_name.clone())
         });
-        let (activity, usage, todo, context, cursor) = self
+        let (mut activity, usage, todo, context, cursor) = self
             .agent
             .store
             .read(StoreStep::operation("plugin_session.state"), move |db| {
-                let activity = under_way::sessions(db)?
-                    .sessions
-                    .into_iter()
-                    .find(|activity| activity.session_id == session_id);
                 Ok((
-                    activity,
+                    under_way::sessions(db)?,
                     plugin_session::usage(db, session_id)?,
                     plugin_session::todo(db, session_id)?,
                     plugin_session::context_use(db, session_id)?,
@@ -119,6 +117,8 @@ impl PluginSessions {
                 ))
             })
             .await?;
+        self.agent.input_waits(&mut activity);
+        let activity = activity.sessions.into_iter().find(|found| found.session_id == session_id);
         let (activity, waiting_for) = match activity {
             None => (PluginSessionActivity::Idle, None),
             Some(found) if found.waiting_for.is_some() => {
@@ -195,7 +195,7 @@ impl PluginSessions {
             own_prompt(&catalog.commands, &plugin, &name)
         })
         .await
-        .map_err(|error| anyhow::anyhow!("plugin_session.interrupted: {error}"))??;
+        .map_err(|_| anyhow::anyhow!("plugin_session.interrupted: 插件会话的这次操作在后台意外中断，可能没有完成；请刷新查看后再决定是否重试。"))??;
         let text = expanded(&template, request.arguments.trim());
         let key = request.dedupe_key.as_deref();
         self.deliver(command, &request.plugin, request.session_id, &text, key).await
@@ -227,7 +227,7 @@ impl PluginSessions {
             plugins.set_text_setting(&request.plugin, &request.key, &request.value)
         })
         .await
-        .map_err(|error| anyhow::anyhow!("plugin_session.interrupted: {error}"))??;
+        .map_err(|_| anyhow::anyhow!("plugin_session.interrupted: 插件会话的这次操作在后台意外中断，可能没有完成；请刷新查看后再决定是否重试。"))??;
         Ok(PluginSettingValues { values })
     }
 
@@ -371,7 +371,7 @@ impl PluginSessions {
             }
         })
         .await
-        .map_err(|error| anyhow::anyhow!("plugin_session.interrupted: {error}"))?
+        .map_err(|_| anyhow::anyhow!("plugin_session.interrupted: 插件会话的这次操作在后台意外中断，可能没有完成；请刷新查看后再决定是否重试。"))?
     }
 
     /// The conversation's title, which also says it exists.

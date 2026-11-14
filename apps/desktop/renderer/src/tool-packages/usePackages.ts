@@ -1,4 +1,3 @@
-import { userMessage } from '../agent-session/user-message';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PackageListV1 } from '@aura/contracts/generated';
 import type {
@@ -6,6 +5,7 @@ import type {
   PackageMainParams,
   PackageMainResult,
 } from '../../../shared/package-api';
+import { packageFailure, packageNotSent } from './package-words';
 
 export type PackageCall = <C extends PackageMainCommand>(
   command: C,
@@ -16,6 +16,8 @@ export type PackageCall = <C extends PackageMainCommand>(
 export function usePackages() {
   const [list, setList] = useState<PackageListV1>();
   const [message, setMessage] = useState<string>();
+  // Why the list was never read; the page offers to read it again.
+  const [listError, setListError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const live = useRef(true);
   const working = useRef(false);
@@ -30,9 +32,9 @@ export function usePackages() {
       const result = await window.aura.v1.packages.invoke(command, params);
       if (!live.current) return undefined;
       if (result.ok) return result.value;
-      setMessage(userMessage(result.error, '操作没有完成，请刷新后核对。'));
+      setMessage(packageFailure(command, params, result.error));
     } catch {
-      if (live.current) setMessage('工具包请求未完成，请刷新后查看结果。');
+      if (live.current) setMessage(packageNotSent(command, params));
     }
     return undefined;
   }, []);
@@ -58,21 +60,25 @@ export function usePackages() {
     },
     [refresh],
   );
+  /** Reads the list for the page, and why when it was not read. */
+  const load = useCallback(
+    () =>
+      window.aura.v1.packages.invoke('packages.list', {}).then(
+        (result) => {
+          if (!live.current) return;
+          if (result.ok) {
+            setList(result.value);
+            setListError(undefined);
+          } else setListError(packageFailure('packages.list', {}, result.error));
+        },
+        () => {
+          if (live.current) setListError(packageNotSent('packages.list', {}));
+        },
+      ),
+    [],
+  );
   useEffect(() => {
-    let current = true;
-    void window.aura.v1.packages
-      .invoke('packages.list', {})
-      .then((result) => {
-        if (!current) return;
-        if (result.ok) setList(result.value);
-        else setMessage(userMessage(result.error, '工具包列表读取失败，请重试。'));
-      })
-      .catch(() => {
-        if (current) setMessage('无法读取工具包列表，请重试。');
-      });
-    return () => {
-      current = false;
-    };
-  }, []);
-  return { list, message, setMessage, busy, call, act, refresh };
+    void load();
+  }, [load]);
+  return { list, listError, load, message, setMessage, busy, call, act, refresh };
 }

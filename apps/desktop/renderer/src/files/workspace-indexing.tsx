@@ -1,7 +1,8 @@
 import type { WorkspaceIndexingStatus } from '@aura/contracts/generated';
 import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { userMessage } from '../agent-session/user-message';
+import { failedAction } from '../agent-session/failure-text';
+import { indexFailureText } from './failure-words';
 import { useWorkspaceFiles } from '../workspace-files-store';
 
 /** The workspace's index build while it runs, or when it did not cover the whole tree. */
@@ -29,7 +30,10 @@ export function WorkspaceIndexBadge({ workspaceId }: { workspaceId: string }) {
       return <IncompleteBadge indexing={indexing} />;
     case 'failed':
       return (
-        <span className="workspace-index-badge is-failed" title={indexing.failure ?? undefined}>
+        <span
+          className="workspace-index-badge is-failed"
+          title={indexFailureText(indexing.failure)}
+        >
           索引失败
         </span>
       );
@@ -116,7 +120,9 @@ export function FileTreeIndexing({ workspaceId }: { workspaceId: string }) {
 }
 
 /** Walks the folder again; the reply says only whether the walk started. */
-function useRebuild(workspaceId: string, refused: string) {
+function useRebuild(workspaceId: string, what: string, button: string) {
+  const refused = (reason: unknown) =>
+    failedAction(reason, what, `索引保持原样；请稍后再点“${button}”。`);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string>();
   const rebuild = async () => {
@@ -124,9 +130,9 @@ function useRebuild(workspaceId: string, refused: string) {
     setError(undefined);
     try {
       const result = await window.aura.v1.rebuildWorkspaceIndex({ workspace_id: workspaceId });
-      if (!result.ok) setError(userMessage(result.error.message, refused));
+      if (!result.ok) setError(refused(result.error));
     } catch (reason) {
-      setError(userMessage(reason, refused));
+      setError(refused(reason));
     } finally {
       setAsking(false);
     }
@@ -142,10 +148,10 @@ function FailedIndex({
   workspaceId: string;
   failure: string | undefined;
 }) {
-  const { asking, error, rebuild } = useRebuild(workspaceId, '重建没有开始，请稍后再试。');
+  const { asking, error, rebuild } = useRebuild(workspaceId, '重建没有开始', '重建索引');
   return (
     <div className="file-tree-indexing is-failed" role="alert">
-      <p>文件索引没有建立：{failure ?? '原因未知'}</p>
+      <p>{indexFailureText(failure)}</p>
       <button type="button" disabled={asking} onClick={() => void rebuild()}>
         重建索引
       </button>
@@ -156,7 +162,7 @@ function FailedIndex({
 
 /** Folders a walk left out for want of memory, with the way to fill them in now. */
 function LeftOutFolders({ workspaceId, count }: { workspaceId: string; count: number }) {
-  const { asking, error, rebuild } = useRebuild(workspaceId, '补建没有开始，请稍后再试。');
+  const { asking, error, rebuild } = useRebuild(workspaceId, '补建没有开始', '立即补建');
   return (
     <div className="file-tree-indexing">
       <p>{count} 个文件夹暂未建索引</p>

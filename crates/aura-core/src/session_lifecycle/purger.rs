@@ -19,6 +19,7 @@ pub(crate) struct Purger {
     pub(super) broker: Arc<broker::BrokerJournal>,
     pub(super) store: Arc<AgentStore>,
     commands: Option<Arc<command_execution::CommandExecution>>,
+    agent: Option<Arc<crate::agent_application::AgentApplication>>,
 }
 
 impl Purger {
@@ -28,6 +29,7 @@ impl Purger {
             broker: Arc::clone(&services.broker),
             store: Arc::clone(&services.agent_store),
             commands: services.commands().ok(),
+            agent: services.agent().ok(),
         }
     }
 
@@ -77,7 +79,7 @@ impl Purger {
         let busy = self
             .store
             .read(StoreStep::operation("session.lifecycle.check"), move |db| {
-                Ok(aura_persistence_v2::agent::session::load(db, session)?.active_turn.is_some())
+                session_purge::busy(db, session)
             })
             .await?;
         anyhow::ensure!(!busy, "session.busy: 这个会话还有任务在运行，请先停止当前任务。");
@@ -114,7 +116,18 @@ impl Purger {
     /// Hides the Session, then deletes everything Aura holds for it on its own task: the route
     /// answers once the Session is hidden.
     pub(crate) async fn delete(&self, session: SessionId) -> anyhow::Result<()> {
-        self.registry(move |p| p.mark_session_deleting(session)).await?;
+        // Its sub-agents' conversations go with it.
+        let mut sessions = self
+            .store
+            .read(StoreStep::operation("session.lifecycle.subagents"), move |db| {
+                session_purge::subagent_sessions(db, session)
+            })
+            .await?;
+        sessions.push(session);
+        self.registry(move |p| {
+            sessions.iter().try_for_each(|s| p.mark_session_deleting(*s).map(drop))
+        })
+        .await?;
         self.clone().spawn(CoreBusyActivityV1::DeletingSession);
         Ok(())
     }
@@ -123,6 +136,10 @@ impl Purger {
     /// primary-registry rows. Repeating it after an interruption is safe.
     async fn finish(&self, session: SessionId) -> anyhow::Result<()> {
         self.stop(&[session]).await?;
+        // Their folders and branches go first: the rows that name them go next.
+        if let Some(agent) = &self.agent {
+            agent.remove_session_worktrees(session).await?;
+        }
         self.purge_execution(session).await?;
         self.registry(move |p| p.purge_session(session)).await?;
         Ok(())

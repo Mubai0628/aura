@@ -28,7 +28,7 @@ import { pagePicture, type PicturedContents } from '../browser-host/page-picture
 import type { CoreSupervisor } from '../core-supervisor.js';
 import type { PluginUiHub } from '../plugin-ui/index.js';
 import { coreCall, declared, readPanelCall, shownItem } from './calls.js';
-import { readPanelCommand, readPanelSite, shownMessage } from './commands.js';
+import { notOpened, readPanelCommand, readPanelSite, shownMessage } from './commands.js';
 import { PluginPanels, type OpenPanel, type PanelView } from './panels.js';
 import { PANEL_RECHECK_MS, recheckPanels } from './recheck.js';
 import {
@@ -175,7 +175,7 @@ export function installPluginPanels(options: PluginPanelHostOptions): PluginPane
           } catch (error) {
             // A panel Core no longer offers does not stay open.
             panels.close(sessionId, plugin);
-            return { ok: false, message: shownMessage(error, '插件面板没有打开') };
+            return { ok: false, message: notOpened(error) };
           }
         case 'show': {
           const scale = zoom();

@@ -45,7 +45,7 @@ impl ExecutionBackend for NativeGitBackend {
                 || !self.descriptor.supports_operation(&request.requirement, &request.operation)
             {
                 return Err(BackendError::PreparationRejected {
-                    reason: "git.unsupported_operation".into(),
+                    reason: "git.unsupported_operation: Git 写入通道不接受这次调用（它与准备时的调用不一致，或不是 Git 写入），没有执行任何 Git 命令。请重新调用；仍然失败时请告诉用户。".into(),
                 });
             }
             let facts = self.port.inspect(&request.operation).await?;
@@ -55,7 +55,7 @@ impl ExecutionBackend for NativeGitBackend {
                 preparation: facts,
             })
             .map_err(|_| BackendError::PreparationRejected {
-                reason: "git.invalid_preparation".into(),
+                reason: "git.invalid_preparation: Aura 没能记录这次 Git 写入的准备结果，没有执行任何 Git 命令。请重新调用；仍然失败时请告诉用户。".into(),
             })
         })
     }
@@ -68,7 +68,7 @@ impl ExecutionBackend for NativeGitBackend {
                 || self.port.inspect(&request.operation).await? != request.plan.prepared.preparation
             {
                 return Err(BackendError::PreparationRejected {
-                    reason: "git.preparation_changed".into(),
+                    reason: "git.preparation_changed: 准备之后仓库、Git 程序、相关配置或远端目标已经改变，这次 Git 写入没有执行，仓库没有改变。请先用 git.status 核对，再重新调用。".into(),
                 });
             }
             self.port.claim(&dispatch).await?;

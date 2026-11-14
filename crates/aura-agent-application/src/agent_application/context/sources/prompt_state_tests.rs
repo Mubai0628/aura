@@ -135,14 +135,20 @@ fn the_control_state_follows_the_history_the_request_carries() {
         (section.fragments[0].content.clone(), section.fragments[1].content.clone())
     };
     input.recent_history_items = vec![shows("todo.replace", &current)];
-    write_control_state(&mut input, &state(&current)).expect("written");
+    write_control_state(&mut input, &state(&current), &[]).expect("written");
     let (control, other) = written(&input);
     assert!(!control.contains("todo") && control.contains("read_only"), "{control}");
     assert_eq!(other, "as assembled", "another fragment of the section is left as it was");
     input.recent_history_items = vec![result("todo.replace", "[cleared]".to_owned(), false)];
-    write_control_state(&mut input, &state(&current)).expect("written");
+    write_control_state(&mut input, &state(&current), &[]).expect("written");
     let (control, _) = written(&input);
     assert!(control.contains(r#""todo":{"#) && control.contains("first"), "{control}");
+    assert!(!control.contains("pictures_not_sent"), "{control}");
+    write_control_state(&mut input, &state(&current), &["plan.png".to_owned()]).expect("written");
+    let (control, _) = written(&input);
+    let control: serde_json::Value = serde_json::from_str(&control).expect("the control state");
+    let note = control["pictures_not_sent"].as_str().expect("the unread pictures are named");
+    assert!(note.contains("plan.png") && note.contains("not seen"), "{note}");
 }
 
 #[test]

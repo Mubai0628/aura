@@ -21,6 +21,7 @@ pub(super) fn view(entry: &TerminalSummary, terminal: &TerminalSession) -> Resul
         title: String::new(),
         tool_call_id: None,
         revision: aura_domain_common::Revision::INITIAL,
+        handed_over: false,
     })
 }
 fn batch(
@@ -54,7 +55,11 @@ impl CommandExecution {
     ) -> Result<serde_json::Value> {
         if request.method == "terminal.user.write" {
             let input: UserTerminalWriteRequestV1 = serde_json::from_value(request.params.clone())?;
-            ensure!(input.input.len() <= 65_536, "terminal.input_too_large");
+            ensure!(
+                input.input.len() <= 65_536,
+                "terminal.input_too_large: 一次输入最多 65536 字节，这次是 {} 字节，没有输入任何内容。请分几次输入。",
+                input.input.len()
+            );
         }
         let session: SessionId = serde_json::from_value(
             request.params.get("session_id").cloned().context("terminal.session_required")?,
@@ -79,18 +84,19 @@ impl CommandExecution {
         }
         if request.method == "terminal.user.list" {
             let input: TerminalSessionRequestV1 = serde_json::from_value(request.params.clone())?;
+            let kept = self.agent_terminals.list(session)?;
+            // A user's terminal handed to the model is listed once, as its record shows it.
             let mut terminals = registry
                 .list(session)?
                 .into_iter()
-                .filter(|v| v.kind == TerminalKind::User)
+                .filter(|v| {
+                    v.kind == TerminalKind::User
+                        && !kept.iter().any(|record| record.view.terminal_id == v.id)
+                })
                 .map(|v| view(&v, registry.get(session, &v.id)?.as_ref()))
                 .collect::<Result<Vec<_>>>()?;
             terminals.extend(
-                self.agent_terminals
-                    .list(session)?
-                    .into_iter()
-                    .filter(|record| !record.tab_closed)
-                    .map(|record| record.view),
+                kept.into_iter().filter(|record| !record.tab_closed).map(|record| record.view),
             );
             terminals.sort_by(|a, b| a.terminal_id.cmp(&b.terminal_id));
             terminals
@@ -111,6 +117,11 @@ impl CommandExecution {
         if request.method == "terminal.user.control" {
             let input: TerminalControlRequestV1 = serde_json::from_value(request.params.clone())?;
             return Ok(serde_json::to_value(self.agent_terminals.control(input).await?)?);
+        }
+        // The user's @ on the terminal, as the message is sent.
+        if request.method == "terminal.user.hand_over" {
+            let _: TerminalRequestV1 = serde_json::from_value(request.params.clone())?;
+            return Ok(serde_json::to_value(self.agent_terminals.hand_over(session, id).await?)?);
         }
         // A key for an Agent terminal of this Core goes straight to it: reading the record here
         // waited for every output save, and a person typing fell behind.
@@ -209,7 +220,7 @@ impl CommandExecution {
                 }
                 return Ok(serde_json::to_value(ack)?);
             }
-            ensure!(record.view.end.is_none(), "终端已结束，请新建终端。");
+            ensure!(record.view.end.is_none(), "terminal.ended: 终端已结束，请新建终端。");
         }
         let entry = registry
             .list(session)?
@@ -235,10 +246,15 @@ impl CommandExecution {
             "terminal.user.resize" => {
                 let input: TerminalResizeRequestV1 =
                     serde_json::from_value(request.params.clone())?;
-                tokio::task::spawn_blocking(move || {
-                    terminal.resize(TerminalSize { columns: input.columns, rows: input.rows })
+                let size = TerminalSize { columns: input.columns, rows: input.rows };
+                // The output so far was printed at the old size, what follows at the new one.
+                let at = tokio::task::spawn_blocking(move || -> Result<u64> {
+                    let at = terminal.output_end()?;
+                    terminal.resize(size)?;
+                    Ok(at)
                 })
                 .await??;
+                self.agent_terminals.resized(&id, size, at);
             }
             "terminal.user.close" => {
                 let _: TerminalRequestV1 = serde_json::from_value(request.params.clone())?;
@@ -312,7 +328,7 @@ impl CommandExecution {
                 );
                 return Ok(serde_json::to_value(first)?);
             }
-            _ => anyhow::bail!("terminal.route_unknown"),
+            _ => anyhow::bail!("terminal.route_unknown: Aura 不认识这个终端请求，没有执行。"),
         }
         Ok(serde_json::to_value(if entry.kind == TerminalKind::User {
             view(&entry, registry.get(session, &entry.id)?.as_ref())?

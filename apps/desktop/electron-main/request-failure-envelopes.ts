@@ -90,3 +90,21 @@ export function requestRecoveryEnvelope(
         },
       };
 }
+
+/** The envelope a failure carries, when it carries one. */
+export const envelopeOf = (error: unknown): IpcErrorEnvelope | undefined =>
+  error instanceof Error && 'envelope' in error
+    ? (error as { envelope: IpcErrorEnvelope }).envelope
+    : undefined;
+
+/** Main's codes for a request Core did not answer, or never received. */
+const NO_ANSWER = new Set([
+  'ipc.request_timeout',
+  'ipc.transport_lost',
+  'ipc.request_not_sent',
+  'ipc.core_not_ready',
+]);
+
+/** Whether a request failed because Core did not answer it, not because Core refused it. */
+export const coreDidNotAnswer = (error: unknown): boolean =>
+  NO_ANSWER.has(envelopeOf(error)?.code ?? '');

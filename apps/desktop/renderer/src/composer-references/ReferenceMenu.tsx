@@ -12,6 +12,7 @@ const ICONS: Record<ReferenceOption['kind'], IconName> = {
   session: 'chat',
   terminal: 'terminal',
   page: 'browser',
+  chrome: 'browser',
   resource: 'plug',
   program: 'desktop',
 };
@@ -22,15 +23,16 @@ const GROUPS: readonly [ReferenceOption['kind'], string][] = [
   ['session', '会话'],
   ['terminal', '终端'],
   ['page', '浏览器标签页'],
+  ['chrome', 'Chrome 标签页'],
   ['resource', 'MCP 资源'],
   ['program', '电脑上的程序'],
 ];
 
 /**
  * The list behind a typed "@": the workspace's files and folders, then the usable Skills, the
- * other conversations, this conversation's terminals and browser pages, the resources of its ready
- * MCP servers with the servers that could not list theirs, and the computer's programs. Focus
- * stays in the composer
+ * other conversations, this conversation's terminals and browser pages, the user's Chrome tabs, the
+ * resources of its ready MCP servers with the servers that could not list theirs, and the
+ * computer's programs. Focus stays in the composer
  * while it is open; a press anywhere outside the list closes it, and the line ↑↓ chose stays in
  * view.
  */
@@ -41,6 +43,7 @@ export function ReferenceMenu({
   available,
   error,
   resourceProblems = [],
+  chromeProblem,
   onPick,
   onHover,
   onDismiss,
@@ -51,6 +54,8 @@ export function ReferenceMenu({
   available: boolean;
   error?: string | undefined;
   resourceProblems?: readonly McpResourceProblem[] | undefined;
+  /** Why the connected Chrome extension could not list its tabs. */
+  chromeProblem?: string | undefined;
   onPick: (option: ReferenceOption) => void;
   onHover: (index: number) => void;
   onDismiss: () => void;
@@ -100,7 +105,8 @@ export function ReferenceMenu({
           <AppIcon name={ICONS[option.kind]} size={13} />
         )}
         <span>{option.label}</span>
-        {(option.kind === 'page' || option.kind === 'resource') && option.detail ? (
+        {(option.kind === 'page' || option.kind === 'chrome' || option.kind === 'resource') &&
+        option.detail ? (
           <small>{option.detail}</small>
         ) : null}
         {option.loaded ? <small>已加载</small> : null}
@@ -119,7 +125,15 @@ export function ReferenceMenu({
       ) : null}
       {GROUPS.map(([kind, name]) => {
         const shown = options.filter((option) => option.kind === kind);
-        const problems = kind === 'resource' ? resourceProblems : [];
+        const problems =
+          kind === 'resource'
+            ? resourceProblems.map((problem) => ({
+                key: problem.server_id,
+                text: `${problem.server_name}：${problem.reason}`,
+              }))
+            : kind === 'chrome' && chromeProblem
+              ? [{ key: 'chrome', text: chromeProblem }]
+              : [];
         return shown.length || problems.length ? (
           <section key={kind}>
             <p>{name}</p>
@@ -129,8 +143,8 @@ export function ReferenceMenu({
               </ul>
             ) : null}
             {problems.map((problem) => (
-              <p role="status" key={problem.server_id}>
-                {`${problem.server_name}：${problem.reason}`}
+              <p role="status" key={problem.key}>
+                {problem.text}
               </p>
             ))}
           </section>

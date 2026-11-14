@@ -9,11 +9,12 @@ pub(super) fn entries(
 ) -> Result<Vec<AgentBuiltinEntry>, BuiltinToolDefinitionSetError> {
     let read = &[ResolvedCapability::WorkspaceFileRead];
     [
+        // Revision 2: codec and frame rate from the file's header, and why they are null.
         entry::<MediaProbeInput, MediaProbeResult>(
             84,
             AgentBuiltinHandler::MediaProbe,
             "Inspect a video file",
-            "Read a video's metadata with Chromium's decoder: duration in seconds, dimensions, frame rate when available, audio-track presence, container and codec when available, and byte length. path names a workspace file or an external file with an active single-file read grant for this conversation. ReadOnly is allowed. Inspect metadata when it helps choose frame times or a contact sheet; attaching a video never starts decoding automatically. Unknown metadata is null. This tool does not listen to audio or transcribe it.",
+            "Read a video's metadata: duration in seconds, dimensions and audio-track presence from Chromium's decoder; codec and frame rate from the file's own header for MP4, MOV, WebM and MKV (the average rate when frame durations vary); container and byte length. path names a workspace file or an external file with an active single-file read grant for this conversation. ReadOnly is allowed. Inspect metadata when it helps choose frame times or a contact sheet; attaching a video never starts decoding automatically. Unknown metadata is null, and note says why codec or frame_rate is. This tool does not listen to audio or transcribe it.",
             read,
             false,
             at,

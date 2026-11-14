@@ -4,6 +4,7 @@
 //! `CARGO_MANIFEST_DIR`) would otherwise see another value than under a cargo started from a
 //! shell, and nearly the whole workspace would be rebuilt each time the two take turns.
 use std::{
+    ffi::OsStr,
     path::Path,
     process::{Command, Stdio},
 };
@@ -13,7 +14,7 @@ use anyhow::{Context, Result, ensure};
 use crate::{BUILD_JOBS, TEST_THREADS};
 
 /// `program`, without the package variables cargo set for xtask.
-pub(crate) fn command(program: &str) -> Command {
+pub(crate) fn command(program: impl AsRef<OsStr>) -> Command {
     let mut command = Command::new(program);
     for (name, _) in std::env::vars_os() {
         let name = name.to_string_lossy();

@@ -1,0 +1,74 @@
+.storage-settings {
+  display: grid;
+  gap: 12px;
+}
+
+.storage-place .storage-path {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.storage-place .storage-worktree-facts {
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-refusals p {
+  margin: 0;
+}
+
+.storage-refusals ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.storage-old-items {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.storage-old-items label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.storage-old-items .storage-old-meta {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-old-items .storage-path {
+  margin: 2px 0 0 24px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.storage-move-parts {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.storage-move-parts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.storage-move-parts li span:last-child {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

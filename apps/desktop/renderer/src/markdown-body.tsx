@@ -7,6 +7,7 @@ import { FileLinkContext, useFileLink } from './files/file-links';
 import type { FileReference } from './files/file-paths';
 import { remarkLocalFileLinks } from './files/local-links';
 import { remarkAddresses, sameAddress, textAddress } from './markdown-addresses';
+import { remarkCjkStrong } from './markdown-cjk-strong';
 import { remarkWindowsPaths } from './markdown-paths';
 import { remarkTypedBackslashes } from './typed-backslashes';
 import { remarkTypedLineBreaks } from './typed-line-breaks';
@@ -134,12 +135,14 @@ const REHYPE_PLUGINS = [defaultRehypePlugins.sanitize, hardenTextOnly()].filter(
   (plugin) => plugin !== undefined,
 ) as NonNullable<StreamdownProps['rehypePlugins']>;
 
-/** The renderer's own Markdown passes; then paths keep their backslashes
- *  ([`remarkWindowsPaths`]), and links to local files become file paths
- *  ([`remarkLocalFileLinks`]) before the link guard sees their addresses. Then web
- *  addresses end where Chinese punctuation begins, and emails stay text ([`remarkAddresses`]). */
+/** The renderer's own Markdown passes; then bold that touches Chinese text is bold
+ *  ([`remarkCjkStrong`]), paths keep their backslashes ([`remarkWindowsPaths`]), and links to
+ *  local files become file paths ([`remarkLocalFileLinks`]) before the link guard sees their
+ *  addresses. Then web addresses end where Chinese punctuation begins, and emails stay text
+ *  ([`remarkAddresses`]). */
 const REMARK_PLUGINS = [
   ...Object.values(defaultRemarkPlugins),
+  remarkCjkStrong,
   remarkWindowsPaths,
   remarkLocalFileLinks,
   remarkAddresses,
@@ -166,6 +169,7 @@ const WORDS_REHYPE_PLUGINS = [...REHYPE_PLUGINS, rehypeProgramMentions] as NonNu
 /** A person's own words are read without escapes, so their paths need no pass of their own. */
 const WORDS_REMARK_PLUGINS = [
   ...Object.values(defaultRemarkPlugins),
+  remarkCjkStrong,
   remarkTypedLineBreaks,
   remarkLocalFileLinks,
   remarkAddresses,

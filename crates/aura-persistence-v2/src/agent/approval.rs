@@ -23,6 +23,29 @@ pub fn pending(db: &Connection, run: AgentRunId) -> StoreResult<Vec<ApprovalRequ
         })
         .collect()
 }
+/// Whether the call of `operation` in `run` waits for the user's answer to its approval.
+pub fn awaits_answer(
+    db: &Connection,
+    run: AgentRunId,
+    operation: SecurityOperationId,
+) -> StoreResult<bool> {
+    let mut q = db.prepare(
+        "SELECT payload FROM events WHERE owner=?1 AND kind='agent.execution_approval' \
+         ORDER BY sequence DESC",
+    )?;
+    let views = q
+        .query_map([run.to_string()], |r| r.get::<_, String>(0))?
+        .map(|r| Ok(serde_json::from_str::<ExecutionApprovalView>(&r?)?))
+        .collect::<StoreResult<Vec<_>>>()?;
+    for view in views.iter().filter(|view| view.operation.operation_id == operation) {
+        if crate::security_approval::load(db, view.approval.approval_id)?.state
+            == ApprovalState::Pending
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 pub fn view(
     db: &Connection,
     input: &ExecutionApprovalRequest,
@@ -150,6 +173,7 @@ pub fn resolve(
     input: &ExecutionApprovalResolutionRequest,
     session_permission_revision: u64,
     core_runtime_instance_id: RuntimeInstanceId,
+    workspace_root: Option<&str>,
     at: UtcTimestamp,
 ) -> StoreResult<AgentRunId> {
     let v = view(
@@ -188,14 +212,16 @@ pub fn resolve(
         v.backend.class,
         session_permission_revision,
         core_runtime_instance_id,
+        workspace_root,
         at,
     )?;
     if grant.is_none() {
-        crate::tool::result::not_executed(
+        crate::tool::result::not_executed_with_notice(
             tx,
             batch,
             call,
             aura_tool_contract::ToolNotExecutedReasonV1::PermissionDenied,
+            Some(APPROVAL_DENIED),
             at,
         )?;
     }
@@ -230,11 +256,12 @@ pub fn invalidate_mode(
     for call in &batch.batch.calls {
         let stored = crate::tool::execution::call(tx, call.tool_call_id)?;
         if stored.attempt_id.is_none() && stored.result.is_none() {
-            crate::tool::result::not_executed(
+            crate::tool::result::not_executed_with_notice(
                 tx,
                 tool_batch_id,
                 call.tool_call_id,
                 aura_tool_contract::ToolNotExecutedReasonV1::PermissionDenied,
+                Some(APPROVAL_INVALIDATED),
                 at,
             )?;
         }
@@ -256,6 +283,18 @@ pub fn deadline(db: &Connection, run: AgentRunId) -> StoreResult<Option<UtcTimes
         .collect::<StoreResult<Vec<_>>>()
         .map(|v| v.into_iter().min())
 }
+/// What the model and the user read for a call the user refused when asked. The stored reason
+/// stays `permission_denied`, the one older Cores read; this line says what happened.
+const APPROVAL_DENIED: &str = "approval.denied: 用户在批准时拒绝了这个调用。它没有执行，什么都没改。不要原样再调用：不用它接着做，或者问用户想怎么做。";
+
+/// What the model and the user read for a call whose approval the session's permission mode
+/// replaced while it waited.
+const APPROVAL_INVALIDATED: &str = "approval.invalidated: 等待批准时会话的权限模式变了，这个调用没有执行，什么都没改。还需要的话重新调用，会按新的模式处理。";
+
+/// What the model reads for a call whose approval expired before the user answered. The stored
+/// reason stays `permission_denied`, the one older Cores read; this line says what happened.
+const APPROVAL_EXPIRED: &str = "approval.expired: 这个调用的批准请求在用户回答之前就过期了。这不是拒绝：用户没有拒绝，调用也没有执行，什么都没改。用户可能暂时不在：建议先做完不需要它的部分，再告诉用户需要批准什么、为什么，等用户回来再调用（会重新请求批准）。";
+
 /// Expiry records the unexecuted call and resumes the same admitted batch.
 /// It never creates a Grant or reserves a new Attempt.
 pub fn expire(tx: &Transaction<'_>, id: AgentRunId, at: UtcTimestamp) -> StoreResult<bool> {
@@ -280,11 +319,12 @@ pub fn expire(tx: &Transaction<'_>, id: AgentRunId, at: UtcTimestamp) -> StoreRe
         let call =
             *admitted.operations.iter().find(|(_, o)| **o == v.operation).ok_or(Error::Conflict)?.0;
         crate::security_approval::close(tx, pending, ApprovalState::Expired, at)?;
-        crate::tool::result::not_executed(
+        crate::tool::result::not_executed_with_notice(
             tx,
             batch,
             call,
             aura_tool_contract::ToolNotExecutedReasonV1::PermissionDenied,
+            Some(APPROVAL_EXPIRED),
             at,
         )?;
         closed = true;

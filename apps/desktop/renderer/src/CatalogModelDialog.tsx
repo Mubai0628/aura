@@ -9,9 +9,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppIcon } from './app-icons';
 import { ModalDialog } from './ModalDialog';
 import type { NotificationInput } from './notification-center-store';
-import { userMessage } from './agent-session/user-message';
 import { byModelVariants, modelTarget } from './provider-connection/model-routes';
-import { MODEL_FAILURE_FALLBACK } from './provider-connection/notices';
+import { catalogPageFailure, modelFailureText } from './provider-connection/model-failure-words';
 
 interface CatalogModelDialogProps {
   catalogProviderId: string;
@@ -83,7 +82,7 @@ export function CatalogModelDialog({
       });
       setLoading(false);
       if (!result.ok) {
-        setError(userMessage(result.error, '模型目录读取失败，请重试。'));
+        setError(catalogPageFailure(result.error));
         return;
       }
       setPage(result.value);
@@ -108,7 +107,7 @@ export function CatalogModelDialog({
         if (!active) return;
         setLoading(false);
         if (!result.ok) {
-          setError(userMessage(result.error, '模型目录读取失败，请重试。'));
+          setError(catalogPageFailure(result.error));
           return;
         }
         setPage(result.value);
@@ -149,7 +148,7 @@ export function CatalogModelDialog({
     await onSaved();
     onNotify({
       dedupeKey: `catalog-model-created:${result.value.value.id}`,
-      message: `${result.value.value.display_name} 已复制当前 models.dev 快照并创建为本地 Model Profile。`,
+      message: `${result.value.value.display_name} 已按当前 models.dev 快照创建为本地模型配置。`,
       title: '目录模型已添加',
       tone: 'success',
     });
@@ -236,7 +235,7 @@ export function CatalogModelDialog({
           <div className="model-empty-state provider-model-empty" role="status">
             正在读取 models.dev 目录…
           </div>
-        ) : models.length === 0 ? (
+        ) : models.length === 0 && error !== undefined ? null : models.length === 0 ? (
           <div className="model-empty-state provider-model-empty">
             <strong>没有匹配的目录模型</strong>
             <p>你仍可关闭目录并手工创建 Model Profile。</p>
@@ -312,7 +311,6 @@ export function CatalogModelDialog({
         )}
 
         <footer className="modal-actions">
-          <span>Catalog Revision {page?.catalog_revision ?? '—'}</span>
           <span className="modal-action-spacer" />
           {page?.next_model_id === null || page?.next_model_id === undefined ? null : (
             <button
@@ -354,7 +352,7 @@ const notifyFailure = (
 ) => {
   notify({
     dedupeKey: `${title}:${error.code}`,
-    message: userMessage(error, MODEL_FAILURE_FALLBACK),
+    message: modelFailureText(error),
     title,
     tone: 'danger',
   });

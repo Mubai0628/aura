@@ -43,9 +43,10 @@ pub use native_session::{
 pub use shell_consent::{ShellConsentLifetime, built_in_shell, shell_consent_covers_capability};
 mod file_consent;
 pub use file_consent::{
-    FileConsentProtection, FileConsentTarget, FileSessionConsentRef,
-    file_capabilities_are_consentable, file_consent_capabilities, file_consent_target_covers,
-    file_consent_target_of, file_entry_key, file_object_key,
+    ApprovalWorkspace, FileConsentProtection, FileConsentTarget, FileSessionConsentRef,
+    file_capabilities_are_consentable, file_consent_capabilities, file_consent_in_its_workspace,
+    file_consent_target_covers, file_consent_target_of, file_entry_key, file_object_key,
+    grant_in_its_workspace,
 };
 mod permission;
 pub use permission::{

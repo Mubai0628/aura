@@ -32,9 +32,11 @@ pub enum P05ProjectionError {
     Persistence(#[from] PersistenceError),
     #[error(transparent)]
     CredentialStatus(#[from] ModelCredentialStatusError),
-    #[error("model projection is unavailable: {0}")]
+    #[error("models.projection.unavailable: 暂时读不到模型设置的状态，请刷新后再看。（{0}）")]
     Unavailable(String),
-    #[error("model endpoint origin is invalid while constructing a projection")]
+    #[error(
+        "models.projection.endpoint_origin_invalid: 有个连接的地址无法解析，模型设置页没能显示它；请到模型设置里改好这个连接的 Base URL。"
+    )]
     InvalidEndpointOrigin,
 }
 

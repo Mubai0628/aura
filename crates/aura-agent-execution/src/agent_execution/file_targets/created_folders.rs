@@ -49,6 +49,10 @@ impl AgentExecution {
             *now = was.clone();
             moved = true;
         }
+        // A download's target, checked again, names the deeper folder as well.
+        if moved && download_anchored_deeper(&frozen.action, &adopted.action) {
+            adopted.action = frozen.action.clone();
+        }
         Ok(moved && adopted == *frozen)
     }
 
@@ -87,6 +91,23 @@ fn only_ordinary_folders(root: &std::path::Path, path: &WorkspacePath) -> std::i
     Ok(false)
 }
 
+/// The same download, its target anchored at a folder of its way made since.
+fn download_anchored_deeper(frozen: &serde_json::Value, fresh: &serde_json::Value) -> bool {
+    let (Some(before), Some(after)) = (frozen.get("download_target"), fresh.get("download_target"))
+    else {
+        return false;
+    };
+    let mut rest = fresh.clone();
+    rest["download_target"] = before.clone();
+    let decode = |value: &serde_json::Value| {
+        serde_json::from_value::<aura_fs_tools::download::DownloadTarget>(value.clone()).ok()
+    };
+    rest == *frozen
+        && decode(before)
+            .zip(decode(after))
+            .is_some_and(|(before, after)| after.anchored_deeper_than(&before))
+}
+
 /// The same new entry, anchored at a deeper folder of its own path.
 fn anchored_deeper(before: &FileConsentTarget, after: &FileConsentTarget) -> bool {
     before.canonical_path == after.canonical_path
@@ -100,11 +121,39 @@ fn anchored_deeper(before: &FileConsentTarget, after: &FileConsentTarget) -> boo
 
 #[cfg(test)]
 mod tests {
-    use super::only_ordinary_folders;
+    use super::{download_anchored_deeper, only_ordinary_folders};
     use aura_domain_common::WorkspacePath;
 
     fn path(value: &str) -> WorkspacePath {
         WorkspacePath::parse(value).expect("a workspace path")
+    }
+
+    #[test]
+    fn a_download_whose_folders_were_made_since_is_the_same_download() {
+        let target = |anchor: &str, missing: &[&str]| {
+            serde_json::json!({
+                "url": "https://example.com/pkg.zip",
+                "path": ".cache/s00/pkg.zip",
+                "download_target": {
+                    "path": "C:\\w\\.cache\\s00\\pkg.zip",
+                    "parent_identity": {"volume_serial_number": "1", "file_id": anchor},
+                    "identity": null,
+                    "blake3": null,
+                    "workspace_path": ".cache/s00/pkg.zip",
+                    "missing_folders": missing,
+                }
+            })
+        };
+        let checked = target("root", &[".cache", "s00"]);
+        assert!(download_anchored_deeper(&checked, &target("cache", &["s00"])));
+        assert!(download_anchored_deeper(&checked, &target("s00", &[])));
+        assert!(!download_anchored_deeper(&target("s00", &[]), &checked), "never shallower");
+        let mut elsewhere = target("s00", &[]);
+        elsewhere["download_target"]["path"] = "C:\\other\\pkg.zip".into();
+        assert!(!download_anchored_deeper(&checked, &elsewhere));
+        let mut other_url = target("s00", &[]);
+        other_url["url"] = "https://example.com/other.zip".into();
+        assert!(!download_anchored_deeper(&checked, &other_url));
     }
 
     #[test]

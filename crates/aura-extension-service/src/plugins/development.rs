@@ -7,6 +7,30 @@ use super::runtime::{PluginRuntime, problems};
 use aura_plugins::{PluginDevelopmentRequest, PluginSetting, PluginView, scan_plugin};
 use std::path::Path;
 
+/// The lock over plugin changes was poisoned by a change that failed part way; it stays so until
+/// Aura restarts.
+pub(super) const BUSY: &str = "plugins.busy: 之前有一次插件改动中途出错，插件现在不能再改，这次什么都没改。请用户重启 Aura 后再试。";
+
+/// The plugin registry cannot be read, with the reason it gives, bounded. A '；' in the reason
+/// would split it into two of the install's problems, so it is written as '，'.
+pub(super) fn registry_unavailable(issue: &str) -> anyhow::Error {
+    let mut reason = String::new();
+    for c in issue.lines().next().unwrap_or_default().trim().chars() {
+        if reason.len() + c.len_utf8() > 200 {
+            reason.push('…');
+            break;
+        }
+        reason.push(match c {
+            '；' => '，',
+            c if c.is_control() || c == '{' || c == '}' => ' ',
+            c => c,
+        });
+    }
+    anyhow::anyhow!(
+        "plugins.registry_unavailable: 插件的设置记录现在读不了（{reason}），这次什么都没改。请用户在 设置 → 插件 里查看。"
+    )
+}
+
 /// An import of a plugin whose name a plugin in development has is refused: the import would
 /// otherwise take the folder the user is writing.
 pub(super) fn refuse_taken_name(saved: Option<&PluginSetting>) -> anyhow::Result<()> {
@@ -23,17 +47,16 @@ impl PluginRuntime {
     /// Installs the plugin in `folder` in development, or returns it as it is when this folder
     /// already is. A name another plugin has is refused.
     pub fn install_development(&self, folder: &Path) -> anyhow::Result<PluginView> {
-        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!("plugins.busy"))?;
+        let _changing = self.changing.lock().map_err(|_| anyhow::anyhow!(BUSY))?;
         let registry = self.settings().plugin_registry();
-        anyhow::ensure!(
-            registry.issue.is_none(),
-            "plugins.registry_unavailable: {}",
-            registry.issue.clone().unwrap_or_default()
-        );
+        if let Some(issue) = &registry.issue {
+            return Err(registry_unavailable(issue));
+        }
         let folder = std::fs::canonicalize(folder)
             .map_err(|_| anyhow::anyhow!("plugins.invalid: 找不到这个文件夹"))?;
-        let package = scan_plugin(&folder, &self.hashes)
-            .map_err(|error| anyhow::anyhow!("plugins.invalid: {}", problems(&error).join("；")))?;
+        let package = scan_plugin(&folder, &self.hashes).map_err(|error| {
+            anyhow::anyhow!("plugins.invalid: 这个插件不符合要求：{}", problems(&error).join("；"))
+        })?;
         let name = package.manifest.name.clone();
         let shown = aura_domain_common::display_path(&folder);
         match registry.plugin(&name).map(|saved| saved.development.as_ref()) {

@@ -609,7 +609,7 @@ impl PathCatalog {
                 continue;
             }
             scanned_entries = scanned_entries.saturating_add(1);
-            if entry.kind == CatalogEntryKind::File
+            if super::git_metadata::findable(entry, directory)
                 && patterns.iter().any(|pattern| pattern.matches(&entry.file_name))
             {
                 matches.push(entry.clone());
@@ -1129,11 +1129,7 @@ pub(super) fn build_entry(
     let identity = info.identity.clone();
     let ignored = classify_ignored(ignores, child_absolute, is_directory);
     let generated = is_generated_path(&child_path);
-    let hidden_from_search = child_path
-        .as_str()
-        .split('/')
-        .next()
-        .is_some_and(|component| component.eq_ignore_ascii_case(".git"));
+    let hidden_from_search = super::git_metadata::inside(&child_path);
     let metadata = fs::symlink_metadata(child_absolute)
         .map_err(|source| io_error("read workspace entry metadata", child_absolute, source))?;
     let kind = if info.is_reparse_point {

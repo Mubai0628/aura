@@ -36,15 +36,18 @@ import type { WorkspaceLayoutPreferences } from './ui-preferences';
 import { readWorkspaceLayoutPreferences, writeWorkspaceLayoutPreferences } from './ui-preferences';
 import { WorkspaceView } from './WorkspaceView';
 import { SessionGrantDialog } from './security/SessionGrantDialog';
+import { SubagentGrantDialog } from './agent-team/SubagentGrantDialog';
+import { useSubagentGrants } from './agent-team/subagent-grants';
 import { WorkspaceShellSplitPane } from './WorkspaceShellSplitPane';
 import { useWorkspaceSessions } from './workspace-session-store';
 import { answerWorkspaceLifecycle } from './session-lifecycle/workspace-lifecycle';
 import { busyPresentation } from './core-busy';
 import { readOpenSession, rememberOpenSession } from './open-session';
 import { frontOf, useDesktopNotifications } from './notification-settings/useDesktopNotifications';
+import { listedWorkspaces, worktreeParents } from './worktree-links';
 
 const CORE_PRESENTATION: Record<CoreLifecycleState, CoreStatusPresentation> = {
-  app_crash_escalated: { label: 'Launcher 正在接管恢复', tone: 'danger' },
+  app_crash_escalated: { label: '启动器正在接管恢复', tone: 'danger' },
   incompatible: { label: '组件版本不兼容', tone: 'danger' },
   not_started: { label: 'Core 尚未启动', tone: 'muted' },
   ready: { label: 'Aura Core 已就绪', tone: 'success' },
@@ -53,6 +56,30 @@ const CORE_PRESENTATION: Record<CoreLifecycleState, CoreStatusPresentation> = {
   starting: { label: '正在启动 Aura Core', tone: 'warning' },
   unavailable: { label: '无法启动 Aura Core', tone: 'danger' },
 };
+
+/** What a Core that is not ready means for the user, when its own status says nothing readable. */
+const CORE_NOT_READY: Partial<Record<CoreLifecycleState, string>> = {
+  not_started:
+    'Aura Core 还没有启动，暂时不能发送消息或读取会话；它启动就绪后会自动恢复，不需要操作。',
+  starting: 'Aura Core 正在启动，暂时不能发送消息或读取会话；就绪后会自动恢复，不需要操作。',
+  restarting:
+    'Aura Core 正在重新启动，暂时不能发送消息或读取会话；就绪后会自动恢复，没有完成的操作不会重放。',
+  unavailable:
+    'Aura Core 没能启动，暂时不能发送消息或读取会话。请重启 Aura；仍然如此，请查看 Core 日志。',
+  incompatible: 'Aura 的组件版本不一致，Core 没有启动。请重新安装或更新 Aura。',
+  app_crash_escalated:
+    'Aura Core 反复意外退出，Aura 将关闭并交给启动器恢复；启动器会显示恢复窗口，可以重新启动、进入安全模式或回到上一版本。',
+  recovery_required:
+    'Aura Core 发现需要恢复的数据，已进入诊断模式，暂时不能发送消息或读取会话；请到设置中查看恢复选项。',
+};
+
+/** The start page and the notice when Core gave no workspace list; the store asks again. */
+const WORKSPACE_LIST_UNREAD =
+  '工作区和会话列表还没从 Aura Core 读到（Core 可能还在启动或正忙），列表暂时为空；Aura 会自动再读，长时间仍为空请重启 Aura。';
+
+/** Core's state could not be read; the store reads it again. */
+const HEALTH_UNREAD =
+  '这次没能及时从 Aura Core 读到状态（Core 可能正忙），暂时不能确认 Core 是否就绪；Aura 会自动再读，读到后这条提示自动消失。';
 
 /** The background store check found damage (Core's status says what to do). */
 const STORE_CHECK_FAILED = 'core.store_check_failed';
@@ -83,34 +110,57 @@ export function App() {
   useStartupSplash(startupPhase);
   const busy = coreState === 'ready' ? projection?.payload.busy : undefined;
   const waiting = coreState === 'ready' ? projection?.payload.waiting : undefined;
-  const corePresentation = health.loading
+  // What a Core that is not ready means, in Core's own Chinese words when it gave some.
+  // A state read that failed says nothing about Core: it is not a Core that has not started.
+  const healthUnread = !health.loading && health.error !== undefined && projection === undefined;
+  const notReadyMessage = healthUnread
+    ? HEALTH_UNREAD
+    : userMessage(
+        projection?.payload.status_message,
+        CORE_NOT_READY[coreState] ?? 'Aura Core 当前无法提供完整能力。',
+      );
+  const corePresentation: CoreStatusPresentation = health.loading
     ? { label: '正在连接 Aura Core', tone: 'warning' as const }
-    : waiting
-      ? { label: 'Aura Core 正在处理', tone: 'warning' as const }
-      : projection?.payload.status_code === STORE_CHECK_FAILED
-        ? {
-            label: '数据库检查发现问题',
-            tone: 'danger' as const,
-            detail: projection.payload.status_message,
-          }
-        : busy
-          ? busyPresentation(busy)
-          : CORE_PRESENTATION[coreState];
+    : healthUnread
+      ? { label: 'Aura Core 状态暂时读不到', tone: 'warning' as const, detail: HEALTH_UNREAD }
+      : waiting
+        ? { label: 'Aura Core 正在处理', tone: 'warning' as const }
+        : projection?.payload.status_code === STORE_CHECK_FAILED
+          ? {
+              label: '数据库检查发现问题',
+              tone: 'danger' as const,
+              detail: projection.payload.status_message,
+            }
+          : busy
+            ? busyPresentation(busy)
+            : coreState === 'ready'
+              ? CORE_PRESENTATION.ready
+              : { ...CORE_PRESENTATION[coreState], detail: notReadyMessage };
   const actualWorkspaces = workspaceSessions.projection?.payload.workspaces ?? [];
   const actualSessions = workspaceSessions.projection?.payload.sessions ?? [];
   // The frozen design keeps the main list for active work: the main list only
   // *offers* archive, and archived Workspaces are handled in 设置 → 归档.
-  const visibleWorkspaces = actualWorkspaces.filter((workspace) => workspace.state !== 'archived');
+  // A worktree's workspace is archived with its worktree; the user's conversation in it stays.
+  const worktrees = worktreeParents(workspaceSessions.projection?.payload);
+  const visibleWorkspaces = listedWorkspaces(
+    actualWorkspaces.filter(
+      (workspace) => workspace.state !== 'archived' || worktrees.has(workspace.workspace_id),
+    ),
+    actualSessions,
+    worktrees,
+  );
 
   const projectedNavigation: WorkspaceNavigationItem[] = visibleWorkspaces.map((workspace) => ({
     id: workspace.workspace_id,
     name: workspace.display_name,
     root: workspace.selected_root,
+    offline: workspace.state === 'offline',
     sessions: [
       ...actualSessions
         .filter((session) => session.workspace_id === workspace.workspace_id)
-        // An archived conversation is listed in 设置 → 归档, not here.
-        .filter((session) => session.state !== 'archived')
+        // An archived conversation is listed in 设置 → 归档, not here; a sub-agent's is shown in
+        // the conversation that started it.
+        .filter((session) => session.state !== 'archived' && session.state !== 'subagent')
         .filter(
           (session) =>
             !drafts.some(
@@ -138,6 +188,7 @@ export function App() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(restored?.workspaceId ?? '');
   const [selectedSessionId, setSelectedSessionId] = useState(restored?.sessionId ?? '');
   const [grantsOpen, setGrantsOpen] = useState(false);
+  const subagentGrants = useSubagentGrants();
   const {
     dismiss: dismissNotification,
     items: notifications,
@@ -247,20 +298,14 @@ export function App() {
   const runtimeNotice =
     coreState !== 'ready'
       ? {
-          message: userMessage(
-            health.error ?? projection?.payload.status_message,
-            'Aura Core 当前无法提供完整能力。',
-          ),
+          message: notReadyMessage,
           title: corePresentation.label,
           tone: corePresentation.tone,
         }
       : workspaceSessions.error === undefined
         ? undefined
         : {
-            message: userMessage(
-              workspaceSessions.error,
-              '工作区与会话列表暂时读不到，请检查 Aura Core 状态后重试。',
-            ),
+            message: WORKSPACE_LIST_UNREAD,
             title: '工作区列表暂不可用',
             tone: 'danger' as const,
           };
@@ -327,6 +372,10 @@ export function App() {
         sessionId={activeSession?.session_id ?? ''}
         onClose={() => setGrantsOpen(false)}
       />
+      {/* A sub-agent's grants, opened from its record or its card; mounted only while shown. */}
+      {subagentGrants ? (
+        <SubagentGrantDialog key={subagentGrants.sessionId} target={subagentGrants} />
+      ) : null}
       {screen === 'workspace' ? (
         <WorkspaceShellSplitPane
           left={
@@ -421,7 +470,7 @@ export function App() {
                   : CORE_PRESENTATION[coreState === 'restarting' ? 'restarting' : 'starting'].label
               }
               workspaceName={selectedWorkspace?.name}
-              error={workspaceSessions.error?.message}
+              error={workspaceSessions.error ? WORKSPACE_LIST_UNREAD : undefined}
               runtimeNotice={runtimeNotice}
               onCreated={selectWorkspace}
               onNewSession={

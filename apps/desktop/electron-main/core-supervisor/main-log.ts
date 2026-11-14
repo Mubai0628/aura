@@ -1,14 +1,13 @@
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
-/** Appends one event to the namespace's `logs/main.jsonl`, Main's own diagnostic log. */
+/** Appends one event to `logs/main.jsonl` in the installation's data folder, Main's own log. */
 export async function appendMainLog(
-  localAppData: string,
-  namespaceObjectHash: string,
+  dataRoot: string,
   event: string,
   fields: Record<string, unknown>,
 ): Promise<void> {
-  const path = resolve(localAppData, 'Aura/namespaces', namespaceObjectHash, 'logs/main.jsonl');
+  const path = resolve(dataRoot, 'logs/main.jsonl');
   await mkdir(dirname(path), { recursive: true });
   await appendFile(
     path,

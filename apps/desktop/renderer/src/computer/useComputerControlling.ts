@@ -1,17 +1,14 @@
 import { useCallback, useState } from 'react';
 import type { ComputerControlledV1, ComputerPipStatus } from '@aura/contracts/generated';
 
-import { userMessage } from '../agent-session/user-message';
 import { usePolling } from '../ui/usePolling';
 import { useReadOrder } from '../ui/useReadOrder';
 import { computerControl } from './bridge';
+import { giveBackFailure, stopFailure } from './failure-words';
 import { type GiveBackConversation, tellModel } from './give-back';
 
 /** How often an open conversation reads which programs its model is controlling. */
 export const CONTROLLING_POLL_MS = 2_000;
-
-const NOT_STOPPED = '没有停止，请重试。';
-const NOT_GIVEN_BACK = '没有交还，请重试。';
 
 /** `*` while 全部停止 is out. */
 type Pending = string;
@@ -75,6 +72,7 @@ export function useComputerControlling(
     sessionId === undefined || computerControl() === undefined ? undefined : poll,
     CONTROLLING_POLL_MS,
   );
+  const apps = read !== undefined && read.session === sessionId ? read.apps : [];
   const fail = (session: string, text: string | undefined) =>
     setFailed(text === undefined ? undefined : { session, text });
   /** What Core answered is newer than any read still out. */
@@ -93,14 +91,14 @@ export function useComputerControlling(
         session_id: sessionId,
         ...(app === undefined ? {} : { app_id: app }),
       });
-      if (result === undefined) fail(sessionId, NOT_STOPPED);
-      else if (!result.ok) fail(sessionId, userMessage(result.error, NOT_STOPPED));
+      if (result === undefined) fail(sessionId, stopFailure(undefined, apps, app));
+      else if (!result.ok) fail(sessionId, stopFailure(result.error, apps, app));
       else {
         fail(sessionId, undefined);
         answered(sessionId, result.value);
       }
-    } catch {
-      fail(sessionId, NOT_STOPPED);
+    } catch (reason) {
+      fail(sessionId, stopFailure(reason, apps, app));
     } finally {
       setPending(undefined);
     }
@@ -110,19 +108,18 @@ export function useComputerControlling(
     setGivingBack(app.app_id);
     try {
       const result = await computerControl()?.giveBack({ session_id: sessionId });
-      if (result === undefined) fail(sessionId, NOT_GIVEN_BACK);
-      else if (!result.ok) fail(sessionId, userMessage(result.error, NOT_GIVEN_BACK));
+      if (result === undefined) fail(sessionId, giveBackFailure(undefined, app));
+      else if (!result.ok) fail(sessionId, giveBackFailure(result.error, app));
       else {
         answered(sessionId, result.value);
         fail(sessionId, await tellModel(sessionId, app, conversation));
       }
-    } catch {
-      fail(sessionId, NOT_GIVEN_BACK);
+    } catch (reason) {
+      fail(sessionId, giveBackFailure(reason, app));
     } finally {
       setGivingBack(undefined);
     }
   };
-  const apps = read !== undefined && read.session === sessionId ? read.apps : [];
   return {
     apps,
     pip: read?.session === sessionId ? read?.pip : undefined,

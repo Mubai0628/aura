@@ -1,5 +1,6 @@
 use super::super::*;
 use super::support::Fixture;
+use aura_execution_contract::SideEffectStateV1;
 use aura_workspace_domain::{GitBranchInput, GitCommitInput};
 use std::sync::atomic::Ordering;
 mod edge_cases;
@@ -33,14 +34,72 @@ fn hook_rejection_is_explained_without_bypassing_it() {
     f.file("tracked", b"changed\n");
     f.file(".git/hooks/pre-commit", b"#!/bin/sh\nprintf ran >hook.marker\necho 'pre-commit hook rejected fixture' >&2\nexit 1\n");
     let mut w = writer(&f, Arc::new(AtomicBool::new(false)));
-    let error = w.commit(&selected()).expect_err("hook refuses").to_string();
+    let result = w.commit(&selected());
+    assert_eq!(w.side_effect(&result), SideEffectStateV1::Unknown);
+    let error = result.expect_err("hook refuses").to_string();
     assert!(
         error.contains("git.hook_rejected") && error.contains("pre-commit hook rejected fixture"),
         "{error}"
     );
     assert_eq!(std::fs::read(f.root.path().join("hook.marker")).expect("hook child ran"), b"ran");
     assert_eq!(f.git(&["rev-parse", "HEAD"]), before);
-    assert_eq!(w.side_effect(false), aura_execution_contract::SideEffectStateV1::Unknown);
+    assert_eq!(f.git(&["diff", "--cached", "--name-only"]), b"tracked\n");
+    assert!(error.contains("请用 git.status 核对暂存区"), "{error}");
+}
+
+#[test]
+fn selecting_an_unchanged_file_preserves_unrelated_staged_changes() {
+    let f = base();
+    f.file("other", b"kept in the index\n");
+    f.git(&["add", "--", "other"]);
+    let before = f.git(&["rev-parse", "HEAD"]);
+    let staged = f.git(&["diff", "--cached", "--binary"]);
+    assert!(!staged.is_empty());
+    let mut w = writer(&f, Arc::new(AtomicBool::new(false)));
+    let result = w.commit(&selected());
+    assert_eq!(w.side_effect(&result), SideEffectStateV1::NoEffect, "{result:?}");
+    let error = result.expect_err("selected path has no changes").to_string();
+    assert!(error.starts_with("git.nothing_to_commit: "), "{error}");
+    assert!(!error.contains("暂存") && !error.contains("Git 输出"), "{error}");
+    assert_eq!(f.git(&["diff", "--cached", "--binary"]), staged);
+    assert_eq!(f.git(&["rev-parse", "HEAD"]), before);
+}
+
+#[test]
+fn staged_only_with_an_empty_index_leaves_unstaged_content_alone() {
+    let f = base();
+    f.file("tracked", b"unstaged edit\n");
+    let before = f.git(&["rev-parse", "HEAD"]);
+    let mut w = writer(&f, Arc::new(AtomicBool::new(false)));
+    let result = w.commit(&GitCommitInput { paths: vec![], staged_only: true, ..selected() });
+    assert_eq!(w.side_effect(&result), SideEffectStateV1::NoEffect, "{result:?}");
+    let error = result.expect_err("empty index").to_string();
+    assert!(error.starts_with("git.nothing_to_commit: "), "{error}");
+    assert!(f.git(&["diff", "--cached", "--name-only"]).is_empty());
+    assert_eq!(f.git(&["rev-parse", "HEAD"]), before);
+    assert_eq!(std::fs::read(f.root.path().join("tracked")).expect("worktree"), b"unstaged edit\n");
+}
+
+#[test]
+fn a_hook_mimicking_the_empty_commit_footer_still_has_unknown_effects() {
+    let f = base();
+    let before = f.git(&["rev-parse", "HEAD"]);
+    f.file(
+        ".git/hooks/pre-commit",
+        br#"#!/bin/sh
+printf called >.git/hook.marker
+printf 'On branch main\nnothing to commit, working tree clean\n'
+exit 1
+"#,
+    );
+    let mut w = writer(&f, Arc::new(AtomicBool::new(false)));
+    let result = w.commit(&selected());
+    assert_eq!(w.side_effect(&result), SideEffectStateV1::Unknown, "{result:?}");
+    let error = result.expect_err("hook refused").to_string();
+    assert!(!error.starts_with("git.nothing_to_commit: "), "{error}");
+    assert!(f.root.path().join(".git/hook.marker").is_file());
+    assert_eq!(f.git(&["rev-parse", "HEAD"]), before);
+    assert!(f.git(&["diff", "--cached", "--name-only"]).is_empty());
 }
 
 #[test]
@@ -164,12 +223,13 @@ fn cancelling_a_running_hook_is_unknown_and_stops_its_descendants() {
     });
     let mut w = writer(&f, cancel);
     let began = std::time::Instant::now();
-    let error = w.commit(&selected()).expect_err("cancel running hook");
+    let result = w.commit(&selected());
+    assert_eq!(w.side_effect(&result), SideEffectStateV1::Unknown);
+    let error = result.expect_err("cancel running hook");
     assert!(trigger.join().expect("trigger"), "hook reached its real child start");
     assert!(error.is::<GitWriteInterrupted>(), "{error}");
     assert!(error.to_string().contains("禁止自动重放"));
     assert!(error.to_string().contains("中断后 HEAD 未移动"), "{error}");
-    assert_eq!(w.side_effect(false), aura_execution_contract::SideEffectStateV1::Unknown);
     assert!(began.elapsed() < Duration::from_secs(8));
     assert!(!f.root.path().join("hook.finished").exists());
 }
@@ -196,7 +256,8 @@ fi
     assert_eq!(lines.len(), 3, "{marker}");
     assert!(lines[0].starts_with("http://127.0.0.1:"), "{marker}");
     assert_eq!(lines[0], lines[1]);
-    assert!(lines[2].is_empty());
+    // Only this computer goes past the reject proxy.
+    assert_eq!(lines[2], "localhost,127.0.0.1,::1", "{marker}");
     let diagnostic =
         std::fs::read_to_string(f.root.path().join("offline.error")).expect("Git refusal");
     assert!(diagnostic.contains("transport 'file' not allowed"), "{diagnostic}");
@@ -212,12 +273,14 @@ fn invalid_selection_and_cancel_before_start_have_no_effect() {
         GitCommitInput { paths: vec!["../outside".into()], ..selected() },
     ] {
         let mut w = writer(&f, Arc::new(AtomicBool::new(false)));
-        assert!(w.commit(&input).is_err());
-        assert_eq!(w.side_effect(false), aura_execution_contract::SideEffectStateV1::NoEffect);
+        let result = w.commit(&input);
+        assert!(result.is_err());
+        assert_eq!(w.side_effect(&result), SideEffectStateV1::NoEffect);
     }
     let cancelled = Arc::new(AtomicBool::new(false));
     let mut w = writer(&f, cancelled.clone());
     cancelled.store(true, Ordering::Release);
-    assert!(w.commit(&selected()).is_err());
-    assert_eq!(w.side_effect(false), aura_execution_contract::SideEffectStateV1::NoEffect);
+    let result = w.commit(&selected());
+    assert!(result.is_err());
+    assert_eq!(w.side_effect(&result), SideEffectStateV1::NoEffect);
 }

@@ -1,11 +1,13 @@
 import { ChosenSkillsLine } from '../composer-skills/SkillChoice';
 import { MessageReferencesLine } from '../composer-references/MessageReferences';
 import { MessageAttachments } from '../composer-attachments/MessageAttachments';
+import { turnFailureMessage } from './turn-failure';
 import { userMessage } from './user-message';
+import { failedAction } from './failure-text';
+import { useUiSettings } from '../ui-settings-store';
 import { agentDiagnosticIdentity } from './diagnostic-identity';
 import type {
   AgentInboxProjection,
-  AgentSessionBranchResult,
   AgentSessionProjection,
   AgentTurnView,
   AgentToolActivityEntry,
@@ -27,7 +29,7 @@ import { PendingAdditions } from './PendingAdditions';
 import { SendingMessage } from './SendingMessage';
 import { endSending, shownIn, useSending } from './sending';
 import { useConversationScroll } from './useConversationScroll';
-import { useToolCallDirectory } from './useToolCallDirectory';
+import { ToolCallsUnreadable, useToolCallDirectory } from './useToolCallDirectory';
 import { latestToolCompletion } from './tool-completion';
 import { TurnSummary } from './TurnSummary';
 import { AppIcon } from '../app-icons';
@@ -35,6 +37,7 @@ import { AutoContinuedNote, ContinueButton } from './TurnContinuation';
 import { continuable } from './turn-continuation';
 import { terminalTurn } from './turn-state';
 import { QuoteReply } from './quote-reply/QuoteReply';
+import type { BranchMade } from './branch';
 
 const uncertainRelated = new Set<string>();
 export function Conversation({
@@ -50,6 +53,7 @@ export function Conversation({
   title = '',
   onBranched,
   onOpenSession,
+  readOnly = false,
 }: {
   /** The conversation shown, also while its projection loads. */
   sessionId?: string | undefined;
@@ -64,9 +68,11 @@ export function Conversation({
   /** This conversation's title, named in the branch dialog. */
   title?: string | undefined;
   /** A branch was made; the caller opens it. Without it no turn offers 新建分支. */
-  onBranched?: ((made: AgentSessionBranchResult) => void) | undefined;
+  onBranched?: ((made: BranchMade) => void) | undefined;
   /** Opens another conversation; `false` when it no longer exists. */
   onOpenSession?: ((sessionId: string) => boolean) | undefined;
+  /** Shown, not steered: nothing here continues, implements, sends, withdraws or quotes. */
+  readOnly?: boolean;
 }) {
   const [branchTurn, setBranchTurn] = useState<string>();
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -91,12 +97,14 @@ export function Conversation({
   const visibleCallIds = (projection?.turns ?? []).flatMap((item) =>
     item.assistant_messages.flatMap((message) => message.tool_call_ids),
   );
+  const [callsUnreadable, setCallsUnreadable] = useState(false);
   const toolCalls = useToolCallDirectory(
     projection?.session_id,
     projection?.runtime_instance_id,
     visibleCallIds,
     `${last?.turn.turn_task_id ?? ''}:${last?.turn.revision ?? ''}:${last?.turn.state.state ?? ''}`,
     !projection?.active,
+    setCallsUnreadable,
   );
   const completed = useMemo(() => latestToolCompletion(toolCalls), [toolCalls]);
   useEffect(() => {
@@ -133,7 +141,7 @@ export function Conversation({
     >
       {loading && !sending ? <p role="status">正在加载会话…</p> : null}
       {error ? <p role="alert">{userMessage(error)}</p> : null}
-      {!loading && !error && !projection?.turns.length && !sending ? (
+      {!readOnly && !loading && !error && !projection?.turns.length && !sending ? (
         <div className="agent-empty">
           <h3>开始一个新任务</h3>
           <p>选择模型，输入你的需求。</p>
@@ -148,30 +156,33 @@ export function Conversation({
           root={viewportRef}
         />
       ) : null}
-      {projection?.turns.map((item, index) => (
-        <Fragment key={item.turn.turn_task_id}>
-          <Turn
-            item={item}
-            onBranch={onBranched ? () => setBranchTurn(item.turn.turn_task_id) : undefined}
-            toolCalls={toolCalls}
-            viewportRef={viewportRef}
-            anchored={anchored}
-            awaitingContext={
-              projection.active?.run.state.state === 'awaiting_context_remediation' &&
-              projection.active.run.agent_run_id === item.turn.agent_run_id
-            }
-            idle={!projection.active}
-            last={index === projection.turns.length - 1}
-            inbox={projection.inbox}
-            onChanged={onChanged}
-            loadTurnOlder={loadTurnOlder}
-          />
-          {/* The line between what a branch carried and its own turns. */}
-          {item.imported && !projection.turns[index + 1]?.imported && projection.branch_origin ? (
-            <BranchOrigin origin={projection.branch_origin} onOpenSource={onOpenSession} />
-          ) : null}
-        </Fragment>
-      ))}
+      <ToolCallsUnreadable.Provider value={callsUnreadable}>
+        {projection?.turns.map((item, index) => (
+          <Fragment key={item.turn.turn_task_id}>
+            <Turn
+              item={item}
+              onBranch={onBranched ? () => setBranchTurn(item.turn.turn_task_id) : undefined}
+              toolCalls={toolCalls}
+              viewportRef={viewportRef}
+              anchored={anchored}
+              awaitingContext={
+                projection.active?.run.state.state === 'awaiting_context_remediation' &&
+                projection.active.run.agent_run_id === item.turn.agent_run_id
+              }
+              idle={!projection.active}
+              last={index === projection.turns.length - 1}
+              inbox={readOnly ? undefined : projection.inbox}
+              onChanged={onChanged}
+              loadTurnOlder={loadTurnOlder}
+              readOnly={readOnly}
+            />
+            {/* The line between what a branch carried and its own turns. */}
+            {item.imported && !projection.turns[index + 1]?.imported && projection.branch_origin ? (
+              <BranchOrigin origin={projection.branch_origin} onOpenSource={onOpenSession} />
+            ) : null}
+          </Fragment>
+        ))}
+      </ToolCallsUnreadable.Provider>
       {sending && !arrived ? <SendingMessage sending={sending} /> : null}
       {branchTurn && projection && onBranched ? (
         <BranchDialog
@@ -185,7 +196,7 @@ export function Conversation({
           onClose={() => setBranchTurn(undefined)}
         />
       ) : null}
-      {shownSession ? (
+      {shownSession && !readOnly ? (
         <QuoteReply
           key={shownSession}
           rootRef={messagesRef}
@@ -225,6 +236,7 @@ function Turn({
   inbox,
   onChanged,
   loadTurnOlder,
+  readOnly,
 }: {
   item: AgentTurnView;
   onBranch?: (() => void) | undefined;
@@ -237,9 +249,11 @@ function Turn({
   inbox?: AgentInboxProjection | undefined;
   onChanged: () => void;
   loadTurnOlder: (id: string) => Promise<boolean | undefined>;
+  readOnly: boolean;
 }) {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const debug = useUiSettings().settings.show_debug_information;
   const sending = useRef(false);
   const [needsReview, setNeedsReview] = useState(() =>
     uncertainRelated.has(item.turn.turn_task_id),
@@ -261,12 +275,18 @@ function Turn({
         goal_budget: null,
       });
       if (!result.ok) {
-        setError(result.error.message);
+        setError(
+          failedAction(result.error, '没能开始实施计划', '计划保持原样；请稍后再点“实施”。', {
+            conflict: '计划刚刚有了变化，这次没有开始实施；请看最新的计划后再点“实施”。',
+          }),
+        );
         if (isUnconfirmedCommandOutcome(result.error)) uncertain();
       } else setError(undefined);
       onChanged();
     } catch {
-      setError('操作结果未确认，请核对历史。');
+      setError(
+        '“实施”的请求没有确认是否送达（与 Aura Core 的连接出了问题），没有自动重发；请先看会话里有没有开始实施的一轮。',
+      );
       uncertain();
       onChanged();
     } finally {
@@ -355,7 +375,7 @@ function Turn({
         <PlanCard
           plan={item.plan}
           carried={item.imported === true}
-          disabled={!idle || busy || needsReview}
+          disabled={readOnly || !idle || busy || needsReview}
           onImplement={() => void implementPlan()}
         />
       ) : null}
@@ -392,30 +412,25 @@ function Turn({
       ) : null}
       {item.diagnostic || 'reason' in item.turn.state ? (
         <p role="alert">
-          {userMessage(
+          {turnFailureMessage(
             item.diagnostic ?? ('reason' in item.turn.state ? item.turn.state.reason : ''),
-            '任务暂时中断。过程输出仍可阅读，请在输入框说明下一步。',
           )}
           {(() => {
-            const identity = agentDiagnosticIdentity(item.diagnostic);
+            const identity = debug ? agentDiagnosticIdentity(item.diagnostic) : undefined;
             return identity ? (
               <small className="agent-diagnostic-identity">{identity}</small>
             ) : null;
           })()}
-          {continuable(item, last, idle) ? (
+          {!readOnly && continuable(item, last, idle) ? (
             <ContinueButton item={item} onChanged={onChanged} />
           ) : null}
         </p>
       ) : null}
       <HookTurnSummary item={item} />
-      {item.source?.kind === 'implement_plan' ? (
-        <small>
-          关联计划：{item.source.source_turn_task_id} · 修订 {item.source.expected_revision}
-        </small>
-      ) : null}
+      {item.source?.kind === 'implement_plan' ? <small>按上面的计划实施</small> : null}
       {needsReview ? (
         <p role="status">
-          上次操作结果未确认，请先核对关联任务。
+          上次“实施”的结果没有确认，没有自动重发；请先看会话里有没有开始实施的一轮，确认没有再点下面的按钮。
           <button
             type="button"
             onClick={() => {
@@ -428,7 +443,7 @@ function Turn({
           </button>
         </p>
       ) : null}
-      {error ? <p role="alert">{userMessage(error)}</p> : null}
+      {error ? <p role="alert">{error}</p> : null}
       {answer || terminalTurn(item.turn.state.state) ? (
         // The answer's actions sit
         // just under the line that ends the turn; what the turn took sits at its right.

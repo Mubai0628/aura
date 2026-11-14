@@ -98,6 +98,27 @@ test('a test release’s own listing offers the package it serves itself over ht
   expect((await updates(false).handle({ command: 'check' })).phase).toBe('up_to_date');
 });
 
+test('starting removes the packages of this version and older and keeps a newer one', async () => {
+  const install = await installation({ active: '0.1.1', previous: '0.1.0', pending: null });
+  const folder = join(install.dataRoot, 'updates');
+  await mkdir(folder, { recursive: true });
+  const kept = [
+    packageName('0.1.2'),
+    `${packageName('0.1.10')}.part`,
+    'settings.json',
+    'notes.txt',
+  ];
+  const installed = [packageName('0.1.0'), packageName('0.1.1'), `${packageName('0.1.1')}.part`];
+  for (const name of [...kept, ...installed]) await writeFile(join(folder, name), 'x');
+  const { updates } = service(install, [], []);
+  try {
+    await updates.start();
+  } finally {
+    updates.stop();
+  }
+  expect(readdirSync(folder).sort()).toEqual([...kept].sort());
+});
+
 // After 重启并更新 the new version first runs on trial: the record still names the old one as
 // active and this one as waiting until the launcher sees this window ready and records it.
 test('a version running on trial waits for nothing and learns its previous version once recorded', async () => {

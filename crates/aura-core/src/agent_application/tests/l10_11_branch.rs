@@ -317,10 +317,13 @@ async fn a_branch_carries_its_sources_compaction() {
     let provider = Provider::scenario(Scenario::BranchingCompaction).await;
     let (runtime, source, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
-    // Larger than the retention budget, so the call reading it is what compaction replaces.
+    // Larger than the retention budget, so the call reading it is what compaction replaces;
+    // the request carrying it (the file's lines after their numbers) stays some 7 KB under the
+    // window's input budget, so the turn's own instructions and tool descriptions have room to
+    // grow.
     std::fs::write(
         host.root.path().join("waiting-workspace").join(provider_fixture::COMPACTION_SOURCE_FILE),
-        "a line of the compacted source file\n".repeat(3_400),
+        "a line of the compacted source file\n".repeat(2_900),
     )
     .expect("compaction source");
     let first = turn(&runtime, source, model, FIRST).await;

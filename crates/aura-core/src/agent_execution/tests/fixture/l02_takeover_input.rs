@@ -116,7 +116,8 @@ async fn a_key_typed_into_a_taken_over_terminal_does_not_wait_for_output_persist
         json!({"session_id":session,"terminal_id":id,"controller":"agent"}),
     )
     .await;
-    let read = run(&mut f, "terminal.read", json!({"terminal_id":id,"max_bytes":65536})).await;
-    assert!(read["output"].as_str().expect("saved output").contains("77107"), "{read}");
+    let read =
+        run(&mut f, "terminal.read", json!({"terminal_id":id,"line":1,"max_lines":2000})).await;
+    assert!(read["lines"].as_str().expect("lines").contains("77107"), "{read}");
     run(&mut f, "terminal.close", json!({"terminal_id":id})).await;
 }

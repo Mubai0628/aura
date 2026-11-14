@@ -318,9 +318,12 @@ pub fn message_with_attachments(typed: &str, parts: &[AttachedPart<'_>]) -> Stri
                  task needs it",
                 size(*byte_length)
             )),
-            AttachedPart::ExternalFile { path, byte_length, external_grant_id, .. } => {
+            // The grant applies by itself when the file is read at this path; no tool takes its id.
+            AttachedPart::ExternalFile { path, byte_length, .. } => {
                 text.push_str(&format!(
-                    "external file `{path}` ({}), not included: read this one file with external grant `{external_grant_id}` if the task needs it; read only, for this conversation",
+                    "external file `{path}` ({}), outside the workspace, not included: read it \
+                     with fs.read at this full path if the task needs it; the user's grant covers \
+                     this one file, read only, in this conversation",
                     size(*byte_length)
                 ));
             }
@@ -483,5 +486,28 @@ mod tests {
             &[AttachedPart::File { path: "a.zip", byte_length: 10, listing: None }],
         );
         assert!(alone.starts_with("Attached to this message:"), "{alone}");
+    }
+
+    #[test]
+    fn a_file_outside_the_workspace_is_read_at_its_full_path() {
+        // The grant applies by itself when the file is read at that path; no tool takes its id.
+        let grant = ExternalGrantId::new();
+        let text = message_with_attachments(
+            "看看",
+            &[AttachedPart::ExternalFile {
+                path: "C:\\Logs\\build.log",
+                byte_length: 2048,
+                external_grant_id: grant,
+                listing: None,
+            }],
+        );
+        assert_eq!(
+            text,
+            "看看\n\nAttached to this message:\n\
+             - external file `C:\\Logs\\build.log` (2 KB), outside the workspace, not included: \
+             read it with fs.read at this full path if the task needs it; the user's grant \
+             covers this one file, read only, in this conversation"
+        );
+        assert!(!text.contains(&grant.to_string()), "{text}");
     }
 }

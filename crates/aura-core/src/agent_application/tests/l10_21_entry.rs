@@ -157,6 +157,69 @@ async fn a_write_through_the_entry_asks_exactly_as_the_write_itself() {
     assert!(!target.exists(), "nothing is written while the write waits for approval");
 }
 
+/// A conversation that had a terminal before its turn began gets the terminal tools in that turn's
+/// list, so it writes to and reads the terminal without going through the entry; the list still
+/// stays the same for the whole turn.
+#[tokio::test]
+async fn a_conversation_that_had_a_terminal_gets_the_terminal_tools_from_its_next_turn() {
+    use aura_windows_user_contract::{
+        ManagedShell, TerminalControllerV1, TerminalOwnerV1, TerminalViewV1,
+    };
+    let host = crate::r03_tests::Fixture::new();
+    let provider = Provider::scenario(Scenario::EntryRefused).await;
+    let (runtime, session, model) = waiting::prepare(&host, &provider).await;
+    let first = waiting::start(&runtime, session, model, AgentTaskMode::Normal).await;
+    let request = AgentRunRequest { session_id: session, agent_run_id: first.run.agent_run_id };
+    waiting::wait(&runtime, &request, completed).await;
+    let before = provider.requests.lock().expect("requests").len();
+    let terminal_tools =
+        ["terminal.open", "terminal.write", "terminal.read", "terminal.close"].map(wire);
+    for request in provider.requests.lock().expect("requests").iter() {
+        assert!(!terminal_tools.iter().any(|tool| listed(request).contains(tool)));
+    }
+    // A terminal the conversation opened in that turn.
+    let record = aura_persistence_v2::terminal::AgentTerminalRecord {
+        view: TerminalViewV1 {
+            session_id: session,
+            terminal_id: "fixture-terminal".into(),
+            shell: ManagedShell::Cmd,
+            process_id: 1,
+            started_at: aura_domain_common::UtcTimestamp::now(),
+            end: None,
+            owner: TerminalOwnerV1::Agent,
+            controller: TerminalControllerV1::Agent,
+            title: String::new(),
+            tool_call_id: None,
+            revision: aura_domain_common::Revision::INITIAL,
+            handed_over: false,
+        },
+        operation_id: aura_domain_common::SecurityOperationId::new(),
+        runtime_instance_id: aura_domain_common::RuntimeInstanceId::new(),
+        working_directory: String::new(),
+        requires_network: false,
+        tab_closed: false,
+    };
+    services(&runtime)
+        .agent_required()
+        .store()
+        .write(agent_store::StoreStep::operation("test.terminal_record"), move |journal| {
+            journal.database.unit_of_work(|tx| aura_persistence_v2::terminal::save(tx, &record))
+        })
+        .await
+        .expect("the terminal record");
+    let next = waiting::start(&runtime, session, model, AgentTaskMode::Normal).await;
+    let request = AgentRunRequest { session_id: session, agent_run_id: next.run.agent_run_id };
+    waiting::wait(&runtime, &request, completed).await;
+    let requests = provider.requests.lock().expect("requests").clone();
+    let list = listed(&requests[before]);
+    for tool in &terminal_tools {
+        assert!(list.contains(tool), "{tool} is in the next turn's list: {list:?}");
+    }
+    for later in &requests[before + 1..] {
+        assert_eq!(listed(later), list, "the list stays the same during the turn");
+    }
+}
+
 /// A trusted `tool.before_call` Hook that blocks every call of `tool`.
 async fn blocking_hook(runtime: &crate::RuntimeState, root: &std::path::Path, tool: &str) {
     let directory = root.join("hooks").join("guard");
@@ -206,6 +269,6 @@ async fn a_hook_on_the_named_tool_sees_and_stops_a_call_made_through_the_entry()
     let requests = provider.requests.lock().expect("requests").clone();
     assert!(!listed(&requests[0]).contains(&wire("agent.activity.query")));
     let seen = result_for(&requests[1], "fixture_0_0");
-    assert!(seen.contains("被 Hook guard 阻止：不许查询"), "{seen}");
+    assert!(seen.contains("用户的 Hook guard 在调用前拦下了它：不许查询"), "{seen}");
     assert!(!seen.contains("contract_version"), "the blocked query never ran: {seen}");
 }

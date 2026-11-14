@@ -27,7 +27,7 @@ impl PackageServices {
         let store = self.store()?;
         let db = store.database.connection();
         let entry = packages::catalog::package(db, package)?
-            .ok_or_else(|| anyhow::anyhow!("package.not_found"))?;
+            .ok_or_else(|| anyhow::anyhow!(crate::failures::NOT_FOUND))?;
         summary(db, &entry)
     }
 }
@@ -37,7 +37,7 @@ pub(super) fn find_version(
     reference: &PackageVersionRefV1,
 ) -> Result<(CatalogEntry, PackageVersionBindingV1)> {
     let entry = packages::catalog::package(db, reference.package_id)?
-        .ok_or_else(|| anyhow::anyhow!("package.not_found"))?;
+        .ok_or_else(|| anyhow::anyhow!(crate::failures::NOT_FOUND))?;
     let binding = entry
         .versions
         .iter()
@@ -46,7 +46,7 @@ pub(super) fn find_version(
                 && version.binding.package_fingerprint == reference.package_fingerprint
         })
         .map(|version| version.binding.clone())
-        .ok_or_else(|| anyhow::anyhow!("package.version_not_found"))?;
+        .ok_or_else(|| anyhow::anyhow!(crate::failures::VERSION_NOT_FOUND))?;
     Ok((entry, binding))
 }
 
@@ -87,7 +87,7 @@ pub(super) fn conformance_view(
             report_hash: None,
         });
     };
-    ensure!(run.version == *binding, "package.conformance_binding");
+    ensure!(run.version == *binding, crate::failures::CONFORMANCE_BINDING);
     let report_hash = run.report.as_ref().map(packages::conformance::report_hash).transpose()?;
     Ok(PackageConformanceViewV1 {
         version: binding.clone(),
@@ -113,7 +113,7 @@ fn summary(db: &Connection, entry: &CatalogEntry) -> Result<PackageSummaryV1> {
             let descriptor = version
                 .descriptor
                 .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("package.content_unavailable"))?;
+                .ok_or_else(|| anyhow::anyhow!(crate::failures::CONTENT_UNAVAILABLE))?;
             let settings = packages::installed_settings(db, binding)?;
             let revision = entry.trust_revision.unwrap_or(Revision::INITIAL);
             let tools = descriptor

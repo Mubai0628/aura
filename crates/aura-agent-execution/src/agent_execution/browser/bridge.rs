@@ -31,8 +31,8 @@ type Pending = HashMap<String, oneshot::Sender<BrowserHostResultV1>>;
 pub struct BrowserBridge {
     publisher: Mutex<Option<AsyncPriorityQueue>>,
     pending: Mutex<Pending>,
-    /// The address each session's model page was last reported at.
-    pages: Mutex<HashMap<SessionId, String>>,
+    /// The address each page the model drives was last reported at, by session and page.
+    pages: Mutex<HashMap<(SessionId, String), String>>,
     settings: OnceLock<Arc<SettingsFacade>>,
     /// Set only by a test that plays the host itself, so its own requests do not move the channel.
     pinned: AtomicBool,
@@ -65,13 +65,15 @@ impl BrowserBridge {
         self.pinned.store(true, Ordering::SeqCst);
     }
 
-    pub fn page_url(&self, session: SessionId) -> Option<String> {
-        self.pages.lock().ok()?.get(&session).cloned()
+    /// The page's last reported address: the session's model page (`model`), or a page the user
+    /// handed over, by its id.
+    pub fn page_url(&self, session: SessionId, page: &str) -> Option<String> {
+        self.pages.lock().ok()?.get(&(session, page.to_owned())).cloned()
     }
 
-    pub fn note_page(&self, session: SessionId, url: &str) {
+    pub fn note_page(&self, session: SessionId, page: &str, url: &str) {
         if let Ok(mut pages) = self.pages.lock() {
-            pages.insert(session, url.to_owned());
+            pages.insert((session, page.to_owned()), url.to_owned());
         }
     }
 
@@ -136,7 +138,8 @@ impl BrowserBridge {
         tokio::select! {
             answer = tokio::time::timeout(wait, receiver) => match answer {
                 Ok(Ok(result)) => {
-                    self.note_page(command.session_id, &result.page_url);
+                    let page = command.page.as_deref().unwrap_or(super::resolve::MODEL_PAGE);
+                    self.note_page(command.session_id, page, &result.page_url);
                     Ok(result)
                 }
                 Ok(Err(_)) => Err(BridgeError::Interrupted),

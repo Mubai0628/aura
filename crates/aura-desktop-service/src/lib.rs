@@ -22,7 +22,7 @@ pub use calls::{
 };
 pub use control::{
     CATALOG_FOR, CATALOG_LIMIT, Caller, Controlled, Controlling, DesktopControl, ICON_SIZE,
-    ICONS_LIMIT, ICONS_PER_READ, taken_over_refusal,
+    ICONS_LIMIT, ICONS_PER_READ, result_kind, taken_over_refusal,
 };
 pub use launch::{HOST_PROGRAM, HostEvent, HostLauncher, HostProcess, Lines, ProgramHost};
 pub use link::{HostLink, LinkError, READY_WITHIN, REPLY_MARGIN};

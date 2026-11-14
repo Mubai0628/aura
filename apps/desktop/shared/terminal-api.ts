@@ -22,6 +22,8 @@ export interface TerminalApiV1 extends TerminalOpeningApiV1 {
   close: Request<'terminal.user.close'>;
   subscribe: Request<'terminal.user.subscribe'>;
   control: Request<'terminal.user.control'>;
+  /** Gives the terminal to the model, as a message that refers to it with @ is sent. */
+  handOver: Request<'terminal.user.hand_over'>;
   pendingSensitive: Request<'terminal.user.sensitive.pending'>;
   cancelSensitive: Request<'terminal.user.sensitive.cancel'>;
   submitSensitive: (

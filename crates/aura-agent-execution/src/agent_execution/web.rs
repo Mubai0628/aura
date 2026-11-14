@@ -25,7 +25,10 @@ impl ExecutionBackend for WebBackend {
                 || !broker::descriptor(service.runtime)
                     .supports_operation(&request.requirement, &request.operation)
             {
-                return Err(preparation("agent.web_unsupported"));
+                return Err(preparation(
+                    "agent.web_unsupported: the web tools cannot run this call as it was prepared. \
+                     Nothing was sent. Call it again.",
+                ));
             }
             // Boundary: `verify_source` takes the journal lock directly, so it runs
             // whole on the one bounded Agent Store owner instead of on the reactive task.
@@ -41,11 +44,14 @@ impl ExecutionBackend for WebBackend {
                         StoreStep::run(run_id(&call), "agent.http.download_preflight"),
                         StoreAccess::Read,
                         move || {
-                            Ok(checker.fs.preflight_download(
-                                &target,
-                                snapshot.workspace_id,
-                                snapshot.session_id,
-                            )?)
+                            checker
+                                .fs
+                                .preflight_download(
+                                    &target,
+                                    snapshot.workspace_id,
+                                    snapshot.session_id,
+                                )
+                                .map_err(network::download_folder_error)
                         },
                     )
                     .await
@@ -76,7 +82,10 @@ impl ExecutionBackend for WebBackend {
             if request.operation != call.operation
                 || request.plan.prepared.backend != broker::descriptor(service.runtime)
             {
-                return Err(rejected("agent.web_binding_changed"));
+                return Err(rejected(
+                    "agent.web_binding_changed: what runs this call changed after it was \
+                     prepared. Nothing was sent. Call it again.",
+                ));
             }
             service.verify_source_section(&call).await.map_err(rejected)?;
             let attempt = request.binding.attempt.clone();
@@ -121,11 +130,14 @@ impl ExecutionBackend for WebBackend {
                     .await
                     .map_err(rejected)?;
                 if current.state == AttemptState::Prepared && current.dispatched_at.is_none() {
-                    return Err(rejected(
-                        outcome
-                            .err()
-                            .map_or_else(|| "agent.web_no_claim".into(), |e| e.to_string()),
-                    ));
+                    return Err(rejected(outcome.err().map_or_else(
+                        || {
+                            "agent.web_no_claim: the call ended before it started. \
+                             Nothing was sent. Call it again if it is still needed."
+                                .into()
+                        },
+                        |e| e.to_string(),
+                    )));
                 }
                 return Err(BackendError::DispatchUnknown { attempt });
             }

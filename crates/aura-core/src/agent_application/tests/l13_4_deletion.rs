@@ -77,6 +77,20 @@ async fn deleting_for_good_asks_the_user_even_in_full_access() {
             .await;
     waiting::wait(&run.runtime, &run.request, asking).await;
     assert!(run.root.join("old.txt").exists(), "nothing is deleted before the user answers");
+    // Its row waits for the user's answer instead of looking queued behind other work.
+    let page = crate::r03_tests::success(
+        &run.runtime,
+        "agent.tool_activity",
+        json!({"session_id": run.request.session_id, "before_call_id": null, "limit": 10}),
+    )
+    .await;
+    let statuses: Vec<_> = page["calls"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|call| call["summary"]["status"].clone())
+        .collect();
+    assert_eq!(statuses, [json!("waiting_approval")], "{page}");
 }
 
 #[tokio::test]

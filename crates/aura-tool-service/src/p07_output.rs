@@ -30,23 +30,41 @@ struct AcceptedOutputV1 {
 
 #[derive(Debug, Error)]
 pub enum ToolOutputProcessingErrorV1 {
-    #[error("the Runtime output authorization does not match this Attempt")]
+    #[error(
+        "tool.output.authorization_mismatch: 工具输出的授权与这次运行对不上，输出没有采用；请重新运行这个工具。"
+    )]
     Authorization,
-    #[error("the Runtime declared conflicting output facts for one slot")]
+    #[error(
+        "tool.output.slot_conflict: 工具对同一个输出位置报了互相矛盾的信息，输出没有采用；这需要工具作者修正它的输出声明。"
+    )]
     SlotConflict,
-    #[error("two Runtime output slots resolve to the same file")]
+    #[error(
+        "tool.output.file_alias: 工具的两个输出指向了同一个文件，输出没有采用；这需要工具作者修正它的输出声明。"
+    )]
     FileAlias,
-    #[error("the Runtime output count or byte limit was exceeded")]
+    #[error(
+        "tool.output.limit_exceeded: 工具输出的文件个数或大小超过了上限，输出没有采用；请减少输出后再运行。"
+    )]
     LimitExceeded,
-    #[error("the Runtime output media type is invalid")]
+    #[error(
+        "tool.output.media_type_invalid: 工具输出声明的文件类型无效，输出没有采用；这需要工具作者修正它的输出声明。"
+    )]
     InvalidMediaType,
-    #[error("the Runtime output file failed its no-follow identity checks")]
+    #[error(
+        "tool.output.file_invalid: 工具输出的文件没有通过身份检查（例如是链接，或在运行中被替换），输出没有采用；请重新运行这个工具。"
+    )]
     InvalidFile,
-    #[error("the Runtime output length or SHA-256 does not match its declaration")]
+    #[error(
+        "tool.output.content_mismatch: 工具输出文件的长度或 SHA-256 与它的声明不一致，输出没有采用；请重新运行这个工具。"
+    )]
     ContentMismatch,
-    #[error("the Runtime output contains the Attempt credential canary")]
+    #[error(
+        "tool.output.credential_leak: 工具输出里出现了这次运行的凭据检测标记（可能泄露了凭据），输出没有采用；请检查这个工具会不会把凭据写进输出。"
+    )]
     CredentialCanary,
-    #[error("the Attempt output root could not be cleaned")]
+    #[error(
+        "tool.output.cleanup_failed: 这次运行的临时输出文件夹没能清理干净，输出没有采用；请重新运行这个工具。"
+    )]
     Cleanup,
     #[error(transparent)]
     Persistence(#[from] PersistenceError),

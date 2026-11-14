@@ -8,6 +8,7 @@ import {
 import { isValidApiKeyBytes } from '../shared/p05-validation.js';
 import { CoreSupervisor } from './core-supervisor.js';
 import { errorEnvelope } from './core-transport.js';
+import { SECRET_TEXT, secretNotSent } from './secret-failures.js';
 
 /** One closed channel: metadata is validated independently of zeroized SecretInput bytes. */
 export function registerToolSecretIpc(
@@ -49,7 +50,8 @@ export function registerToolSecretIpc(
       };
     } catch (error) {
       const envelope =
-        error instanceof Error && 'envelope' in error
+        secretNotSent(error, 'tool_credential_not_sent', SECRET_TEXT.notSent) ??
+        (error instanceof Error && 'envelope' in error
           ? (error as { envelope: IpcErrorEnvelope }).envelope
           : {
               ...errorEnvelope(
@@ -60,7 +62,7 @@ export function registerToolSecretIpc(
               details: submitted
                 ? { outcome_recovery: 'query_runtime.command_outcome_without_replay' }
                 : {},
-            };
+            });
       return { ok: false, error: envelope };
     } finally {
       if (source instanceof Uint8Array) source.fill(0);

@@ -42,20 +42,33 @@ pub(crate) const fn origin(source: SkillSource) -> SkillOrigin {
     }
 }
 
-// The model reads one of these fixed sentences; nothing about the folders is echoed back.
-const UNAVAILABLE: &str = "skills.unavailable: 没有这个名字的可用 Skill（没有启用、工作区还没信任或已移走），请用 skills.search 查找可用的 Skill";
-const AMBIGUOUS: &str = "skills.ambiguous: 有几个可用的 Skill 同名；请用 from 指明是哪一个（名字列表方括号里的写法，或 skills.search 结果里的 from）";
-const ARGUMENTS: &str = "skills.arguments_invalid: 参数不对，请按工具说明填写";
-const NOT_NOW: &str = "skills.unavailable_now: 暂时读不到 Skill，请稍后再试";
+// The model reads one of these fixed sentences when a call is refused: the cause, that nothing
+// was read, and what to do. The refusal is recorded as the line, a full stop and a sentence of its
+// own, so a line ends without one. Nothing about the folders is echoed back; the answer must be a
+// fixed text, so each tool names its own fields.
+const UNAVAILABLE: &str = "skills.unavailable: 没有这个名字的可用 Skill（没有启用、工作区还没信任或已移走），什么都没读。请用 skills.search 查找可用的 Skill";
+const AMBIGUOUS: &str = "skills.ambiguous: 有几个可用的 Skill 同名，什么都没读。请用 from 指明是哪一个（名字列表方括号里的写法，或 skills.search 结果里的 from）";
+const ARGUMENTS_SEARCH: &str = "skills.arguments_invalid: skills.search 只接受 query（文字：要找的词，空字符串列出全部）和可选的 limit（整数：条数，默认 20，最多 50），什么都没读";
+const ARGUMENTS_LOAD: &str = "skills.arguments_invalid: skills.load 只接受 name（文字：Skill 的名字）和可选的 from（文字：同名时指明是哪一个），什么都没读";
+const ARGUMENTS: &str = "skills.arguments_invalid: 没有这个 Skill 工具，什么都没读。可用的是 skills.search 和 skills.load";
+const WORKSPACE: &str = "skills.workspace_unavailable: 这个工作区现在读不了（可能被移动、删除或换了磁盘），什么都没读。请用户确认工作区还在后再试";
+const NOT_NOW: &str =
+    "skills.unavailable_now: Skill 功能现在没有在运行，什么都没读。请稍后再试；反复出现时告诉用户";
 
 /// The fixed sentence for a refusal; anything unexpected is reported without its detail.
 fn refusal(error: &anyhow::Error) -> &'static str {
     let text = error.to_string();
-    [UNAVAILABLE, AMBIGUOUS, ARGUMENTS].into_iter().find(|known| *known == text).unwrap_or(NOT_NOW)
+    [UNAVAILABLE, AMBIGUOUS, ARGUMENTS_SEARCH, ARGUMENTS_LOAD, ARGUMENTS, WORKSPACE]
+        .into_iter()
+        .find(|known| *known == text)
+        .unwrap_or(NOT_NOW)
 }
 
-fn input<T: serde::de::DeserializeOwned>(arguments: &Value) -> anyhow::Result<T> {
-    serde_json::from_value(arguments.clone()).map_err(|_| anyhow::anyhow!(ARGUMENTS))
+fn input<T: serde::de::DeserializeOwned>(
+    arguments: &Value,
+    refused: &'static str,
+) -> anyhow::Result<T> {
+    serde_json::from_value(arguments.clone()).map_err(|_| anyhow::anyhow!(refused))
 }
 
 fn entry(skill: &LocatedSkill) -> anyhow::Result<LoadedSkillEntry> {
@@ -121,16 +134,20 @@ fn answer(
     name: &str,
     arguments: &Value,
 ) -> anyhow::Result<Value> {
-    let runtime = runtime(service)?;
-    let workspace = Some(call.snapshot.workspace_id);
+    let runtime = runtime(service).map_err(|_| anyhow::anyhow!(NOT_NOW))?;
+    let workspace = Some(service.skills_workspace(call.snapshot.workspace_id));
+    // A listing fails only when the workspace's root cannot be resolved or is no longer the
+    // folder it was.
+    let unreadable = |_: anyhow::Error| anyhow::anyhow!(WORKSPACE);
     Ok(match name {
         "skills.search" => {
-            let input: SkillsSearchInput = input(arguments)?;
+            let input: SkillsSearchInput = input(arguments, ARGUMENTS_SEARCH)?;
             let limit = input
                 .limit
                 .map_or(DEFAULT_RESULTS, |limit| usize::try_from(limit).unwrap_or(MAX_RESULTS))
                 .clamp(1, MAX_RESULTS);
-            let (found, truncated) = loading::search(&runtime, workspace, &input.query, limit)?;
+            let (found, truncated) =
+                loading::search(&runtime, workspace, &input.query, limit).map_err(unreadable)?;
             let skills = found
                 .into_iter()
                 .map(|skill| SkillFound {
@@ -142,8 +159,9 @@ fn answer(
             serde_json::to_value(SkillsFoundResult { skills, truncated })?
         }
         "skills.load" => {
-            let input: SkillsLoadInput = input(arguments)?;
-            let loaded = loading::load(&runtime, workspace, &input.name, input.from.as_deref())?
+            let input: SkillsLoadInput = input(arguments, ARGUMENTS_LOAD)?;
+            let loaded = loading::load(&runtime, workspace, &input.name, input.from.as_deref())
+                .map_err(unreadable)?
                 .map_err(|not| match not {
                     NotLoaded::Unavailable => anyhow::anyhow!(UNAVAILABLE),
                     NotLoaded::Ambiguous => anyhow::anyhow!(AMBIGUOUS),
@@ -161,4 +179,31 @@ fn answer(
         }
         _ => anyhow::bail!(ARGUMENTS),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        AMBIGUOUS, ARGUMENTS, ARGUMENTS_LOAD, ARGUMENTS_SEARCH, NOT_NOW, UNAVAILABLE, WORKSPACE,
+        refusal,
+    };
+
+    #[test]
+    fn every_refusal_names_its_cause_and_says_nothing_was_read() {
+        let fixed =
+            [UNAVAILABLE, AMBIGUOUS, ARGUMENTS_SEARCH, ARGUMENTS_LOAD, ARGUMENTS, WORKSPACE];
+        for line in fixed {
+            assert_eq!(refusal(&anyhow::anyhow!(line)), line, "each cause keeps its own line");
+        }
+        for line in fixed.into_iter().chain([NOT_NOW]) {
+            let (code, sentence) = line.split_once(": ").expect("a code comes first");
+            assert!(code.starts_with("skills.") && !code.contains(' '), "{line}");
+            assert!(sentence.contains("什么都没读"), "{line}");
+            assert!(line.len() <= 512 && !line.contains(['{', '}']), "{line}");
+            assert!(!line.ends_with(['。', '.']), "the record adds its own full stop: {line}");
+        }
+        assert!(ARGUMENTS_SEARCH.contains("query") && ARGUMENTS_SEARCH.contains("limit"));
+        assert!(ARGUMENTS_LOAD.contains("name") && ARGUMENTS_LOAD.contains("from"));
+        assert_eq!(refusal(&anyhow::anyhow!("workspace.unavailable")), NOT_NOW);
+    }
 }

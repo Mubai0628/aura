@@ -17,6 +17,7 @@ import { browserTabs } from './browser/browser-tabs';
 import { pluginPanelsApi } from './plugin-panels/bridge';
 import { usePanelPlugins, type PanelPlugin } from './plugin-panels/panel-plugins';
 import { PluginPanel } from './plugin-panels/PluginPanel';
+import { AgentTeamPanel } from './agent-team/AgentTeamPanel';
 import {
   availableTools,
   tabLabels,
@@ -41,13 +42,15 @@ interface RightWorkspaceProps {
   runtimeInstanceId?: string | undefined;
   completionKey?: string | undefined;
   sessionId?: string | undefined;
+  /** A sub-agent whose record is shown over the conversation: the browser shows its pages. */
+  browserSessionId?: string | undefined;
   inspection?: AgentPromptInspection | undefined;
   /** Every workspace and its conversations, to name whose tasks the Inspector shows. */
   workspaces?: readonly WorkspaceNavigationItem[] | undefined;
   inspectionError?: string | undefined;
   onToggleSidebar: () => void;
   promptInspector: PromptInspectorProjection | undefined;
-  /** The review page or the browser fills the main area. */
+  /** The review page, the browser or the 多 Agent page fills the main area. */
   expanded?: boolean;
   onToggleExpanded?: () => void;
   /** Says what went wrong with a file action. */
@@ -60,6 +63,7 @@ const ICONS: Record<ToolKind, IconName> = {
   process: 'activity',
   browser: 'browser',
   files: 'folder',
+  agents: 'agents',
   'prompt-inspector': 'activity',
   'plugin-panel': 'puzzle',
 };
@@ -107,6 +111,7 @@ export function RightWorkspace({
   runtimeInstanceId,
   completionKey,
   sessionId,
+  browserSessionId,
   inspection,
   inspectionError,
   workspaces,
@@ -327,15 +332,27 @@ export function RightWorkspace({
         ) : (
           <p className="right-panel-empty">选择会话后查看其工作区的改动。</p>
         )
+      ) : active.kind === 'agents' ? (
+        sessionId ? (
+          <AgentTeamPanel
+            expanded={expanded}
+            key={sessionId}
+            onToggleExpanded={onToggleExpanded}
+            sessionId={sessionId}
+            visible={visible}
+          />
+        ) : (
+          <p className="right-panel-empty">选择会话后查看它的子 Agent。</p>
+        )
       ) : active.kind === 'prompt-inspector' ? (
         <Inspector view={inspection} error={inspectionError} workspaces={workspaces} />
       ) : active.kind === 'browser' ? (
         sessionId ? (
           <BrowserPanel
             expanded={expanded}
-            key={sessionId}
+            key={browserSessionId ?? sessionId}
             onToggleExpanded={onToggleExpanded}
-            sessionId={sessionId}
+            sessionId={browserSessionId ?? sessionId}
             visible={visible}
           />
         ) : (

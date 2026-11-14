@@ -1,8 +1,11 @@
 #![forbid(unsafe_code)]
 
 mod data_backup;
+mod data_location;
+mod data_move;
 mod data_slimming;
 mod install_state;
+pub mod recovery;
 mod trial;
 mod version;
 
@@ -19,9 +22,8 @@ use std::{
 use anyhow::{Context, Result};
 use aura_domain_common::{RuntimeInstanceId, UtcTimestamp};
 use aura_runtime_contract::{ActiveInstallState, BuildComponentManifest, ReleaseDescriptor};
-use aura_windows_platform::{
-    RecoveryAction, RecoveryChoice, RootJob, choose_diagnostic_export_path, show_recovery_dialog,
-};
+use aura_windows_platform::{RootJob, choose_diagnostic_export_path};
+use recovery::RecoveryAction;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -98,7 +100,12 @@ struct Launch {
 
 /// Picks what to start. A waiting version that does not check out is recorded as a failed trial
 /// and dropped, and the active version starts instead.
-fn prepare(root: &Path, state: &ActiveInstallState, log: &Path) -> Result<Launch> {
+fn prepare(
+    root: &Path,
+    state: &ActiveInstallState,
+    data_root: &Path,
+    log: &Path,
+) -> Result<Launch> {
     if let Start::Trial(version) = choose(state) {
         let checked = resolve_version(root, &version, None).and_then(|selected| {
             if selected.manifest.bundle_namespace == state.release_descriptor.bundle_namespace {
@@ -125,7 +132,8 @@ fn prepare(root: &Path, state: &ActiveInstallState, log: &Path) -> Result<Launch
                 });
             }
             Err(error) => {
-                fail_trial(root, state, &version, TrialFailure::Invalid, None, &error, log)?;
+                let failure = TrialFailure::Invalid;
+                fail_trial(root, state, data_root, &version, failure, None, &error, log)?;
             }
         }
     }
@@ -137,9 +145,11 @@ fn prepare(root: &Path, state: &ActiveInstallState, log: &Path) -> Result<Launch
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn fail_trial(
     root: &Path,
     state: &ActiveInstallState,
+    data_root: &Path,
     version: &str,
     failure: TrialFailure,
     exit_code: Option<u32>,
@@ -148,7 +158,7 @@ fn fail_trial(
 ) -> Result<()> {
     install_state::write(root, &abandon(state))?;
     trial::record_failed(
-        &local_data_root(&state.release_descriptor.bundle_namespace)?,
+        data_root,
         &FailedTrial {
             version: version.to_owned(),
             kept_version: state.active.clone(),
@@ -265,10 +275,12 @@ fn back_up_data(
 /// opens it (`data_slimming`). The outcome is logged; a failed run never keeps Aura from starting.
 fn slim_data(data_root: &Path, version_directory: &Path, log: &Path) -> Result<()> {
     let started = std::time::Instant::now();
-    let outcome =
-        aura_windows_platform::with_progress_window("Aura", "正在整理数据", |progress| {
+    let outcome = aura_pixel_window::with_progress_window(
+        |progress| recovery::progress_page("正在整理数据", progress),
+        |progress| {
             data_slimming::run(&version_directory.join("aura-core.exe"), data_root, progress)
-        });
+        },
+    );
     let elapsed_ms = started.elapsed().as_millis() as u64;
     let event = match outcome {
         data_slimming::Outcome::Report(report) => {
@@ -284,19 +296,44 @@ fn slim_data(data_root: &Path, version_directory: &Path, log: &Path) -> Result<(
     )
 }
 
+/// What a move did, when it did anything; `when` says whether it was asked for or resumed.
+fn log_move(log: &Path, when: &str, outcome: &aura_data_move::Outcome) -> Result<()> {
+    use aura_data_move::Outcome;
+    let data = match outcome {
+        Outcome::NothingAsked => return Ok(()),
+        Outcome::Moved { to, .. } => json!({ "event": "data_moved", "to_default": to.is_none() }),
+        Outcome::Failed { reason } => json!({ "event": "data_move_failed", "reason": reason }),
+        Outcome::Cancelled => json!({ "event": "data_move_cancelled" }),
+        Outcome::Interrupted => json!({ "event": "data_move_interrupted" }),
+    };
+    append_log(
+        log,
+        json!({ "timestamp": UtcTimestamp::now(), "component": "launcher", "move": when, "data": data }),
+    )
+}
+
+/// Removes the copies a restore set aside 30 days ago or more, logging what went.
+fn remove_expired_copies(data_root: &Path, log: &Path) -> Result<()> {
+    let copies = data_backup::remove_expired_copies(data_root, UtcTimestamp::now());
+    if copies.removed.is_empty() && copies.failed.is_empty() {
+        return Ok(());
+    }
+    let event = json!({
+        "event": "replaced_copies_removed",
+        "removed": copies.removed,
+        "failed": copies.failed,
+    });
+    append_log(
+        log,
+        json!({ "timestamp": UtcTimestamp::now(), "component": "launcher", "data": event }),
+    )
+}
+
 /// No copy could be taken before `version` migrates the data: the user decides whether it starts
 /// anyway. Closing the window starts nothing, and the next start tries the copy again.
-fn start_without_backup(version: &str, (instruction, cause): (&str, String)) -> Result<bool> {
-    let details = format!(
-        "新版本 {version} 第一次启动会升级数据，启动前要先备份。{cause}\n可以先退出，处理好后再启动 Aura；也可以不备份直接启动。"
-    );
-    let action = show_recovery_dialog(&RecoveryChoice {
-        instruction,
-        details: &details,
-        actions: &[RecoveryAction::Exit, RecoveryAction::StartWithoutBackup],
-        previous_version: None,
-    })
-    .context("failed to show the backup window")?;
+fn start_without_backup(version: &str, (heading, cause): (&str, String)) -> Result<bool> {
+    let action = recovery::ask(&recovery::backup_failed(version, heading, &cause))
+        .context("failed to show the backup window")?;
     Ok(action == RecoveryAction::StartWithoutBackup)
 }
 
@@ -309,17 +346,9 @@ fn intact_previous(root: &Path, state: &ActiveInstallState) -> Option<String> {
 /// The active version does not check out: the window says why and offers the previous version.
 fn startup_failure(root: &Path, state: &ActiveInstallState, error: &anyhow::Error) -> Result<bool> {
     let previous = intact_previous(root, state);
-    let details = format!(
-        "当前版本 {} 的程序文件不完整或被改动：{error:#}\n可以回到上一版本，或重新运行 Aura 安装程序修复。",
-        state.active
-    );
-    let action = show_recovery_dialog(&RecoveryChoice {
-        instruction: "Aura 无法启动",
-        details: &details,
-        actions: &[RecoveryAction::RollBack, RecoveryAction::Exit],
-        previous_version: previous.as_deref(),
-    })
-    .context("failed to show the recovery window")?;
+    let window =
+        recovery::startup_failed(&state.active, &format!("{error:#}"), previous.as_deref());
+    let action = recovery::ask(&window).context("failed to show the recovery window")?;
     if action == RecoveryAction::RollBack
         && let Some(back) = roll_back(state)
     {
@@ -339,11 +368,17 @@ pub fn run_launcher() -> Result<()> {
 
     loop {
         let state = install_state::read(&root)?;
-        let log_directory =
-            local_data_root(&state.release_descriptor.bundle_namespace)?.join("logs");
+        let resumed = data_move::resume(&root, &state);
+        let locations = match data_location::locate(&state) {
+            Ok(locations) => locations,
+            Err(error) if data_location::not_found(&root, &state, &error)? => continue,
+            Err(_) => return Ok(()),
+        };
+        let log_directory = locations.data_root.join("logs");
         fs::create_dir_all(&log_directory).context("failed to create Aura log directory")?;
         let launcher_log = log_directory.join("launcher.jsonl");
-        let launch = match prepare(&root, &state, &launcher_log) {
+        log_move(&launcher_log, "resumed", &resumed)?;
+        let launch = match prepare(&root, &state, &locations.data_root, &launcher_log) {
             Ok(launch) => launch,
             Err(error) => {
                 append_log(
@@ -363,11 +398,19 @@ pub fn run_launcher() -> Result<()> {
             }
         };
         let selection = launch.selection;
-        let data_root = local_data_root(&selection.manifest.bundle_namespace)?;
+        let core = selection.version_directory.join("aura-core.exe");
+        let moved = data_move::requested(&root, &state, &locations, &core, launch.trial);
+        log_move(&launcher_log, "requested", &moved)?;
+        if moved != aura_data_move::Outcome::NothingAsked {
+            // Aura starts from wherever the data is now.
+            continue;
+        }
+        let data_root = locations.data_root.clone();
         let version = &selection.manifest.product_version;
         if launch.trial {
             restore_data(&data_root, &state, version, &launcher_log)?;
         }
+        remove_expired_copies(&data_root, &launcher_log)?;
         // Slimmed before the copy, so the copy kept until the next version is the slimmed store.
         // The slimming changes no structure; the version's Core migrates the store after the copy.
         if data_slimming::owed(&data_root, version, launch.trial) {
@@ -404,6 +447,7 @@ pub fn run_launcher() -> Result<()> {
         let started = SystemTime::now() - Duration::from_secs(1);
         let root_job = RootJob::create().context("failed to create Root Job")?;
         let mut arguments = vec![format!("--aura-parent-runtime-id={launcher_runtime_id}")];
+        arguments.extend(locations.desktop_arguments());
         if safe_mode {
             arguments.push("--safe-mode".to_owned());
         }
@@ -491,6 +535,7 @@ pub fn run_launcher() -> Result<()> {
             fail_trial(
                 &root,
                 &current,
+                &data_root,
                 &selection.manifest.product_version,
                 TrialFailure::Crashed,
                 Some(exit_code),
@@ -524,23 +569,9 @@ pub fn run_launcher() -> Result<()> {
         let current = install_state::read(&root)?;
         let previous = intact_previous(&root, &current);
         loop {
-            let details = format!(
-                "组件 {component} 在滚动 10 分钟窗口内重复失败。\n退出代码：{exit_code}\n当前版本：{}",
-                current.active
-            );
-            let action = show_recovery_dialog(&RecoveryChoice {
-                instruction: "Aura 已停止以避免重复崩溃",
-                details: &details,
-                actions: &[
-                    RecoveryAction::Restart,
-                    RecoveryAction::SafeMode,
-                    RecoveryAction::RollBack,
-                    RecoveryAction::ExportDiagnostics,
-                    RecoveryAction::Exit,
-                ],
-                previous_version: previous.as_deref(),
-            })
-            .context("failed to show the recovery window")?;
+            let window =
+                recovery::crash_loop(component, exit_code, &current.active, previous.as_deref());
+            let action = recovery::ask(&window).context("failed to show the recovery window")?;
             match action {
                 RecoveryAction::Restart => {
                     clear_component_crashes(&mut crash_state, component);
@@ -570,7 +601,10 @@ pub fn run_launcher() -> Result<()> {
                     }
                 }
                 // Not offered here; anything unexpected leaves the app closed.
-                RecoveryAction::Exit | RecoveryAction::StartWithoutBackup => return Ok(()),
+                RecoveryAction::Exit
+                | RecoveryAction::StartWithoutBackup
+                | RecoveryAction::Retry
+                | RecoveryAction::ChooseLocation => return Ok(()),
             }
         }
     }
@@ -605,11 +639,6 @@ pub fn export_diagnostics(
     });
     install_state::replace(output, &serde_json::to_vec_pretty(&diagnostic)?)
         .with_context(|| format!("failed to export diagnostics to {}", output.display()))
-}
-
-fn local_data_root(namespace: &aura_runtime_contract::BundleNamespace) -> Result<PathBuf> {
-    let local = env::var_os("LOCALAPPDATA").context("LOCALAPPDATA is not defined")?;
-    Ok(PathBuf::from(local).join("Aura").join("namespaces").join(namespace.object_name_hash()))
 }
 
 fn load_crash_state(path: &Path) -> CrashState {
@@ -757,6 +786,7 @@ mod tests {
                 previous: None,
                 pending: None,
                 last_known_good: Some(version.to_owned()),
+                data_location: None,
             })
             .expect("active metadata"),
         )

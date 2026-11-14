@@ -45,13 +45,18 @@ mod file_identity;
 mod file_name;
 mod git_installation;
 pub mod installer;
-mod progress_dialog;
+mod private_folder;
+mod sync_folder;
 mod system_load;
+mod system_proxy;
 pub use git_installation::machine_git_installation;
+pub use system_proxy::{InternetSettingsValues, current_user_internet_settings};
 mod handle;
 mod headless_web;
 mod host_preparation;
 mod job;
+mod local_time;
+pub use local_time::local_utc_offset_seconds;
 mod path;
 mod pipe;
 mod process;
@@ -70,7 +75,9 @@ mod system_path;
 #[cfg(test)]
 mod test_spawn;
 mod user_profile;
-pub use user_profile::user_profile_directory;
+pub use user_profile::{local_app_data_directory, user_profile_directory};
+mod volume;
+pub use volume::{DriveKind, drive_kind};
 mod watcher;
 #[cfg(feature = "restricted-user-runtime")]
 pub use account_network::{AccountNetworkPolicy, AccountNetworkSpec, manage_account_network};
@@ -106,10 +113,11 @@ pub use credential::{
     MAX_CREDENTIAL_ATTRIBUTES, MAX_CREDENTIAL_BYTES, SecretBytes, StoredCredential,
     WindowsCredentialStore,
 };
-pub use dialog::{
-    RecoveryAction, RecoveryChoice, choose_diagnostic_export_path, show_recovery_dialog,
+pub use dialog::choose_diagnostic_export_path;
+pub use directory_create::{
+    handle_bound_create_directory, handle_bound_open_child_directory,
+    handle_bound_remove_created_directory,
 };
-pub use directory_create::handle_bound_create_directory;
 pub use disk_load::DiskLoad;
 pub use disk_space::free_disk_space;
 pub use dns::{DnsAddressRecord, resolve_dns_addresses};
@@ -152,7 +160,10 @@ pub use host_preparation::{
 };
 #[cfg(feature = "restricted-user-runtime")]
 pub use job::AccountRunnerLaunch;
-pub use job::{ComponentJob, JobCompletionNotification, JobLimits, ManagedProcess, RootJob};
+pub use job::{
+    ComponentJob, GroupJob, GroupLimits, JobCompletionNotification, JobLimits, ManagedProcess,
+    RootJob,
+};
 pub use path::{
     NativeFileAccess, NativeFileIdentity, NativePathInfo, SearchSource, VerifiedFile,
     VerifiedToolOutputFile, VolumeCaseRule, directory_case_rule, directory_case_sensitivity_flag,
@@ -168,6 +179,10 @@ pub use pipe::create_execution_byte_pipe_server;
 pub use pipe::{
     create_secure_byte_pipe_server, create_user_byte_pipe_server, open_secure_byte_pipe_client,
 };
+pub use private_folder::{
+    create_private_folder, dacl_sddl, keep_out_of_index, make_folder_private,
+    private_folder_problem,
+};
 #[cfg(feature = "restricted-user-runtime")]
 pub use process::process_account_sid;
 pub use process::{
@@ -175,7 +190,6 @@ pub use process::{
     current_process_working_set, named_pipe_client_identity, named_pipe_server_identity,
     retain_process, snapshot_process, validate_named_pipe_client, validate_named_pipe_server,
 };
-pub use progress_dialog::{Progress, with_progress_window};
 pub use release_trust::{
     AuthenticatedActiveCoreIdentity, authenticate_active_core_identity,
     verify_active_release_trust, verify_release_manifest, verify_release_manifest_against_root,
@@ -193,7 +207,8 @@ pub use sandbox::{
     restore_file_dacl, revoke_file_dacl, spawn_restricted_process,
     spawn_restricted_process_with_secret_environment, spawn_standard_user_process,
 };
-pub use sandbox::{JobLaunchError, JobLaunchTiming, spawn_compat_process};
+pub use sandbox::{JobLaunchError, JobLaunchTiming, spawn_compat_process, spawn_compat_process_in};
+pub use sync_folder::sync_folder_of;
 pub use system_load::{CpuLoad, PhysicalMemory, physical_memory};
 mod git_read;
 #[cfg(feature = "git-read-test-profile")]

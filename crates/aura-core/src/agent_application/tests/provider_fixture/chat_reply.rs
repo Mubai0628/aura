@@ -59,6 +59,12 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
     if let Some(reply) = entry_reply(scenario, ordinal, body, call) {
         return reply;
     }
+    if let Scenario::Team { plan } = scenario {
+        return super::scenario::team::reply(plan, body, call);
+    }
+    if matches!(scenario, Scenario::ShellThenReadResult) {
+        return super::context_read::reply(body, call);
+    }
     if matches!(scenario, Scenario::ShellReadRest) {
         let results = body["messages"]
             .as_array()
@@ -515,20 +521,17 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
                 content.contains("search-fixture.txt"),
                 "model request after fs.search must consume the Match path: {content}"
             );
-            let parsed: Value =
-                serde_json::from_str(content).expect("fs.search tool result is JSON");
-            assert_eq!(parsed["outcome"]["type"], "succeeded");
-            let value = &parsed["outcome"]["payload"]["value"];
-            assert_eq!(value["completion"]["status"], "complete");
+            // The search's line of JSON, then each file's, each followed by its matching lines.
+            let lines: Vec<&str> = content.lines().collect();
+            let head: Value = serde_json::from_str(lines[0]).expect("the search's line is JSON");
+            assert_eq!(head["completion"]["status"], "complete", "{content}");
+            let found = lines.windows(2).any(|pair| {
+                serde_json::from_str::<Value>(pair[0])
+                    .is_ok_and(|file| file["path"] == "search-fixture.txt")
+                    && pair[1] == "1\tunique_fs_search_agent_token"
+            });
             assert!(
-                value["matches"].as_array().is_some_and(|matches| {
-                    matches.iter().any(|item| {
-                        item["excerpt"]
-                            .as_str()
-                            .is_some_and(|excerpt| excerpt.contains("unique_fs_search_agent_token"))
-                            && item["path"].as_str() == Some("search-fixture.txt")
-                    })
-                }),
+                found,
                 "fs.search Match fields missing from the following model request: {content}"
             );
         }

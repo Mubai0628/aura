@@ -1,16 +1,30 @@
 //! The unified entry: a step's `tools.call` calls rewritten into the tools they name, from
-//! the step's own frozen registry ([`aura_tool_contract::expand_entry_calls`]). Admission, Hooks,
-//! history and recovery all read a step's calls through [`expand`], so each derives exactly what
-//! admission admitted.
-use aura_domain_common::ToolId;
+//! the step's own frozen registry ([`aura_tool_contract::expand_entry_calls`]), and arguments
+//! written as a string of JSON read as their tool takes them. Admission, Hooks, history and
+//! recovery all read a step's calls through [`expand`], so each derives exactly what admission
+//! admitted.
+use aura_domain_common::{ToolCallId, ToolId};
 use aura_model_domain::ProviderRequestEvidence;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
 use aura_tool_contract::{NormalizedToolCallV1, TOOLS_CALL_NAME, ToolRegistrySnapshotV1};
 use rusqlite::Connection;
+use std::collections::BTreeMap;
+
+/// Rewrites the step's `tools.call` calls, then reads the arguments a model wrote as a string of
+/// JSON as their tool's schema takes them. Returns what the result of each call read so tells the
+/// model.
+pub fn expand(
+    db: &Connection,
+    evidence: &ProviderRequestEvidence,
+    calls: &mut [NormalizedToolCallV1],
+) -> StoreResult<BTreeMap<ToolCallId, String>> {
+    expand_entry(db, evidence, calls)?;
+    super::argument_repair::repair(db, calls)
+}
 
 /// Rewrites the step's `tools.call` calls. The registry is read only when the request sent
 /// `tools.call` and one of the calls is bound to it, so steps without one cost nothing.
-pub fn expand(
+pub(crate) fn expand_entry(
     db: &Connection,
     evidence: &ProviderRequestEvidence,
     calls: &mut [NormalizedToolCallV1],

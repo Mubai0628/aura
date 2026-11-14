@@ -98,3 +98,22 @@ test('a cancelled save says nothing; a malformed request reads nothing', async (
   ).toEqual({ completed: false, message: '无效的图片请求' });
   expect(asked.requestWithBudget).not.toHaveBeenCalled();
 });
+
+// A Core that did not answer is not a picture that is gone.
+test('a picture Core did not hand over in time says Core did not answer', async () => {
+  const silent = {
+    requestWithBudget: vi.fn(async () => {
+      throw Object.assign(new Error('Core request timed out'), {
+        envelope: { code: 'ipc.request_timeout', details: {} },
+      });
+    }),
+  };
+  expect(
+    await handleMessagePicture(silent, undefined, {
+      action: 'copy',
+      session_id,
+      artifact_id,
+      name: 'a.png',
+    }),
+  ).toEqual({ completed: false, message: 'Aura Core 暂时没有回应，图片没有复制；稍后再试。' });
+});

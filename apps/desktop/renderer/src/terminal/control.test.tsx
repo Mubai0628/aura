@@ -154,3 +154,84 @@ it('a takeover failure clears on success, and the button waits for the pending a
   removeTerminal(view.terminal_id);
   vi.unstubAllGlobals();
 });
+
+it("a terminal the user handed to the model is taken back and given back as the model's is; the user's other terminal has no such button", async () => {
+  const view = {
+    session_id: 'session',
+    terminal_id: 'user-handed',
+    shell: 'power_shell',
+    process_id: 1,
+    started_at: '2026-11-06T00:00:00Z',
+    end: null,
+    owner: 'user',
+    controller: 'agent',
+    title: '',
+    tool_call_id: null,
+    revision: '2',
+    handed_over: true,
+  };
+  const plain = {
+    ...view,
+    terminal_id: 'user-plain',
+    controller: 'user',
+    revision: '1',
+    handed_over: undefined,
+  };
+  let revision = 2;
+  const control = vi.fn(async (request: { controller: string }) => ({
+    ok: true,
+    value: { ...view, controller: request.controller, revision: String(++revision) },
+  }));
+  const output = (terminal_id: string) => ({
+    ok: true,
+    value: {
+      runtime_instance_id: 'runtime',
+      session_id: view.session_id,
+      terminal_id,
+      start_offset: 0,
+      next_offset: 0,
+      data_base64: '',
+      truncated: false,
+      end: null,
+    },
+  });
+  // One at a time: the screens share the mocked engine.
+  let listed: object[] = [view];
+  const api = {
+    list: vi.fn(async () => ({ ok: true, value: { terminals: listed, next_cursor: null } })),
+    subscribe: vi.fn(async (request: { terminal_id: string }) => output(request.terminal_id)),
+    control,
+    onState: vi.fn(),
+    onOutput: vi.fn(),
+  };
+  vi.stubGlobal('aura', { v1: { terminal: api, onCoreHealth: vi.fn(), getUiSettings } });
+  toolTabs.showTerminal('session', view.terminal_id);
+  const rendered = render(<HostHarness session="session" />);
+  const takeOver = await screen.findByRole('button', { name: '接管' });
+  expect(rendered.container.querySelector('.terminal-status')?.textContent).toContain(
+    '控制：Agent',
+  );
+  await waitFor(() => expect(engine.terminal.options.disableStdin).toBe(true));
+  fireEvent.click(takeOver);
+  await screen.findByRole('button', { name: '交还' });
+  expect(control.mock.calls[0]?.[0]).toEqual({
+    session_id: 'session',
+    terminal_id: 'user-handed',
+    controller: 'user',
+  });
+  await waitFor(() => expect(engine.terminal.options.disableStdin).toBe(false));
+  rendered.unmount();
+  removeTerminal(view.terminal_id);
+  // The user's terminal that was never handed over has nothing to take back.
+  listed = [plain];
+  toolTabs.showTerminal('session', plain.terminal_id);
+  const other = render(<HostHarness session="session" />);
+  await waitFor(() =>
+    expect(other.container.querySelector('.terminal-status')?.textContent).toContain('控制：用户'),
+  );
+  expect(screen.queryByRole('button', { name: '接管' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '交还' })).toBeNull();
+  other.unmount();
+  removeTerminal(plain.terminal_id);
+  vi.unstubAllGlobals();
+});

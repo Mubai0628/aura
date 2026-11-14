@@ -53,12 +53,13 @@ impl Fixture {
             serde_json::to_vec(&manifest).expect("R03 isolated fixture operation must succeed"),
         )
         .expect("R03 isolated fixture operation must succeed");
-        let options = CoreOptions {
+        let mut options = CoreOptions {
             pipe_name: "r03-isolated-tests".into(),
             bootstrap_stdin: true,
             parent_process_id: process::id(),
             runtime_instance_id: RuntimeInstanceId::new(),
             component_manifest_path: manifest_path,
+            data_root: root.path().join("local"),
             allow_dev_component_mismatch: false,
             safe_mode: false,
             test_mode: CoreTestMode::Normal,
@@ -67,6 +68,17 @@ impl Fixture {
         // Optional executables deliberately do not exist in this release directory.
         let release =
             load_release_identity(&options).expect("R03 isolated fixture operation must succeed");
+        // A real Sandbox Host works its data folder out from this process's profile (the runner
+        // points APPDATA and LOCALAPPDATA at a scratch folder) and refuses any other.
+        if image.is_some() {
+            options.data_root = aura_data_location::Locations::resolve(
+                &aura_data_location::Roots::from_system().expect("the isolated profile"),
+                &release.release_descriptor.bundle_namespace,
+                &aura_data_location::InstallCopy::NotInstalled,
+            )
+            .expect("the isolated profile's data folder")
+            .data_root;
+        }
         let paths = AuraPaths::from_roots(root.path().join("config"), root.path().join("local"));
         Self { root, paths, options, release, starts: std::sync::atomic::AtomicUsize::new(0) }
     }
@@ -125,6 +137,7 @@ impl Fixture {
             parent_process_id: process::id(),
             runtime_instance_id: RuntimeInstanceId::new(),
             component_manifest_path: manifest_path,
+            data_root: root.path().join("local"),
             allow_dev_component_mismatch: false,
             safe_mode: false,
             test_mode: CoreTestMode::Normal,
@@ -138,6 +151,7 @@ impl Fixture {
             previous: None,
             pending: None,
             last_known_good: None,
+            data_location: None,
         };
         fs::write(
             root.path().join("active.json"),

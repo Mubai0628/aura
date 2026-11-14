@@ -1,6 +1,7 @@
 import type { ConfigRecoveryAction } from '@aura/contracts/generated';
 import { useState } from 'react';
 import { useConfigRecovery } from './useConfigRecovery';
+import { partlyRecovered, referenceList } from './recovery-words';
 import './settings-recovery.css';
 
 const ACTIONS: Record<ConfigRecoveryAction, string> = {
@@ -52,6 +53,7 @@ const DOMAINS: Record<string, string> = {
   'settings-computer': '电脑操控',
   'settings-memory': '记忆',
   'settings-diagnostics': '诊断',
+  'settings-network': '网络代理',
   'settings-update': '更新',
 };
 const CAPABILITIES: Record<string, string> = {
@@ -105,7 +107,7 @@ export function ConfigRecoveryPanel({ coreReady }: { coreReady: boolean }) {
           <p>
             {report.outcomes.every((outcome) => outcome.applied)
               ? '设置已恢复。'
-              : '部分设置仍未恢复，请查看当前状态。'}
+              : partlyRecovered(report.outcomes, label, REASONS)}
           </p>
           {(report.unavailable_capabilities ?? []).length > 0 ? (
             <p>
@@ -165,12 +167,11 @@ export function ConfigRecoveryPanel({ coreReady }: { coreReady: boolean }) {
           <ul>
             {plan.domains.map((domain) => (
               <li key={domain.module}>
-                {label(domain.module)}：修订 {domain.current_revision ?? '未知'} →{' '}
-                {domain.next_revision}
+                {label(domain.module)}
                 {domain.references_needing_rebinding.length > 0 ? (
-                  <p>恢复后需重新关联：{domain.references_needing_rebinding.join('、')}</p>
+                  <p>恢复后需重新关联：{referenceList(domain.references_needing_rebinding)}</p>
                 ) : null}
-                {domain.loss.length > 0 ? <p>将失去：{domain.loss.join('；')}</p> : null}
+                {domain.loss.length > 0 ? <p>{domain.loss.join('；')}</p> : null}
               </li>
             ))}
           </ul>

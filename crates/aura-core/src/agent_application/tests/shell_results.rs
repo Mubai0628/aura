@@ -108,3 +108,14 @@ async fn a_wrong_id_is_answered_with_the_ids_of_the_sessions_latest_shell_calls(
         assert!(newest < older, "newest first: {view}");
     }
 }
+
+/// `context.read_tool_result` through the unified entry, as a model reaches it after a cut-off
+/// note names a call, gives back that call's whole stored result.
+#[tokio::test]
+async fn a_calls_stored_result_is_read_again_through_the_unified_entry() {
+    let results = tool_results(Scenario::ShellThenReadResult).await;
+    assert_eq!(results.len(), 2, "{results:?}");
+    let read = &results[1];
+    assert_eq!(read["outcome"]["type"], "succeeded", "{read}");
+    assert!(read.to_string().contains(super::provider_fixture::READ_RESULT_MARK), "{read}");
+}

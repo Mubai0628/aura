@@ -14,13 +14,19 @@ import { ModelProfileCard } from './ModelProfileCard';
 import { ModelSectionToolbar } from './ModelSectionToolbar';
 import { isProfileReady, profileMatches } from './model-profile-status';
 import { ModelProfileDialog } from './ModelProfileDialog';
+import { NetworkProxySection } from './network-proxy/NetworkProxySection';
 import type { ProviderCatalogItem, ProviderConfigurationView } from './model-settings-types';
 import { providerInitials } from './model-settings-types';
 import type { NotificationInput } from './notification-center-store';
 import { useModelSettingsControl } from './model-settings-store';
 import { ProviderCatalog } from './ProviderCatalog';
 import { ProviderConnectionDialog } from './ProviderConnectionDialog';
-import { MODEL_FAILURE_FALLBACK } from './provider-connection/notices';
+import {
+  CATALOG_ENTRY_MISSING,
+  CATALOG_ENTRY_UPDATED,
+  catalogUnavailableText,
+  modelFailureText,
+} from './provider-connection/model-failure-words';
 
 interface ModelSettingsProps {
   onNotify: (notification: NotificationInput) => void;
@@ -109,7 +115,13 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     setCatalogRefreshing(true);
     const failure = await modelControl.refreshCatalog();
     setCatalogRefreshing(false);
-    if (failure !== undefined) notifyFailure(onNotify, 'models.dev 目录未刷新', failure);
+    if (failure !== undefined)
+      onNotify({
+        dedupeKey: `models.dev 目录未刷新:${failure.code}`,
+        message: failure.message,
+        title: 'models.dev 目录未刷新',
+        tone: 'danger',
+      });
   };
 
   const configureProvider = (provider: ProviderCatalogItem) => {
@@ -174,9 +186,21 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     });
     setBusyAction(undefined);
     if (!result.ok) {
-      notifyFailure(onNotify, 'Provider 子 Agent 策略未更新', result.error);
+      notifyFailure(onNotify, '服务商的子 Agent 设置未更新', result.error);
       return;
     }
+    // Models without an output limit are left as they were; the user is told which.
+    const skipped = result.value.skipped_model_profile_ids ?? [];
+    if (skipped.length)
+      onNotify({
+        dedupeKey: `provider-subagent-skipped:${provider.localProvider.id}:${result.value.revision}`,
+        message: `没有设最大输出上限，未允许子 Agent 使用：${provider.models
+          .filter((profile) => skipped.includes(profile.id))
+          .map((profile) => profile.display_name)
+          .join('、')}`,
+        title: '部分模型未允许',
+        tone: 'warning',
+      });
     await modelControl.refresh();
   };
 
@@ -192,14 +216,14 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     setBusyAction(undefined);
     if (!result.ok) {
       setProfilePendingDeletion(undefined);
-      notifyFailure(onNotify, 'Model Profile 未删除', result.error);
+      notifyFailure(onNotify, '模型配置未删除', result.error);
       return;
     }
     await modelControl.refresh();
     onNotify({
       dedupeKey: `model-profile-deleted:${profile.id}:${result.value.revision}`,
       message: `${profile.display_name} 已从本地模型配置删除。`,
-      title: 'Model Profile 已删除',
+      title: '模型配置已删除',
       tone: 'success',
     });
     setProfilePendingDeletion(undefined);
@@ -225,7 +249,7 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     });
     if (!pageResult.ok) {
       setBusyAction(undefined);
-      notifyFailure(onNotify, '目录快照未读取', pageResult.error);
+      notifyFailure(onNotify, '目录信息未读取', pageResult.error, true);
       return;
     }
     const catalogModel = pageResult.value.models.find(
@@ -235,8 +259,8 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
       setBusyAction(undefined);
       onNotify({
         dedupeKey: `catalog-model-missing:${profile.id}`,
-        message: '当前目录 Revision 中没有该 Provider 原始模型 ID；Aura 不会进行模糊匹配。',
-        title: '目录模型未找到',
+        message: CATALOG_ENTRY_MISSING,
+        title: '目录里没有这个模型',
         tone: 'warning',
       });
       return;
@@ -250,14 +274,14 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     });
     setBusyAction(undefined);
     if (!result.ok) {
-      notifyFailure(onNotify, '目录快照未更新', result.error);
+      notifyFailure(onNotify, '目录信息未更新', result.error);
       return;
     }
     await modelControl.refresh();
     onNotify({
       dedupeKey: `catalog-model-updated:${profile.id}:${result.value.revision}`,
-      message: '仅 Catalog-owned Snapshot 已更新；用户修正、备注和执行字段保持不变。',
-      title: '目录快照已更新',
+      message: CATALOG_ENTRY_UPDATED,
+      title: '目录信息已更新',
       tone: 'success',
     });
   };
@@ -295,7 +319,7 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     <div className="model-settings">
       <div className="settings-content-heading">
         <div>
-          <h2 title={`配置修订 ${modelControl.settings.models_revision}`}>模型配置</h2>
+          <h2>模型配置</h2>
         </div>
         <button
           aria-busy={catalogBusy}
@@ -318,8 +342,11 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
 
       <ProviderCatalog
         catalogUnavailable={
-          catalogState === 'unavailable' ||
-          (modelControl.catalog === undefined && modelControl.catalogError !== undefined)
+          catalogState === 'unavailable'
+            ? catalogUnavailableText(modelControl.catalog?.last_error_code)
+            : modelControl.catalog === undefined
+              ? modelControl.catalogError
+              : undefined
         }
         onAddCustom={() => setAddingCustomProvider(true)}
         onConfigure={configureProvider}
@@ -433,6 +460,8 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
           </div>
         )}
       </section>
+
+      <NetworkProxySection />
 
       {dialogProvider === undefined ? null : (
         <ProviderConnectionDialog
@@ -613,10 +642,11 @@ const notifyFailure = (
   notify: (notification: NotificationInput) => void,
   title: string,
   error: { code: string; message: string },
+  read = false,
 ) => {
   notify({
     dedupeKey: `${title}:${error.code}`,
-    message: userMessage(error, MODEL_FAILURE_FALLBACK),
+    message: modelFailureText(error, read),
     title,
     tone: 'danger',
   });

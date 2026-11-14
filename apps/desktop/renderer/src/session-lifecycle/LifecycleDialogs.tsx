@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { AppIcon } from '../app-icons';
 import { ModalDialog } from '../ModalDialog';
-import { userMessage } from '../agent-session/user-message';
+import { deleteFailure } from './failure-words';
 import { deleteArchivedWorkspace } from './workspace-lifecycle';
 import './session-lifecycle.css';
 
@@ -37,7 +37,7 @@ function ConfirmDialog({
       await run();
       onClose();
     } catch (reason) {
-      setError(userMessage(reason, `${action}没有完成，请刷新后查看。`));
+      setError(deleteFailure(reason));
       setBusy(false);
     }
   };

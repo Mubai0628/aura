@@ -4,7 +4,6 @@
 //! and the model is told to delete with `fs.delete`, which recycles. A script is text, not a plan:
 //! this reads the commands a model writes to delete, and errs toward asking. A word that only looks
 //! like one (`git commit -m "fix rd"`) asks once more than needed; it never asks less.
-use aura_windows_user_contract::ManagedShell;
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -29,15 +28,72 @@ fn patterns() -> &'static [Regex; 3] {
 
 /// Whether the script deletes files, for either Shell. CMD's own commands are among PowerShell's
 /// aliases, and a CMD script can start PowerShell, so both are read the same way.
-pub(crate) fn deletes_files(_shell: ManagedShell, script: &str) -> bool {
+pub(super) fn deletes_files(script: &str) -> bool {
     patterns().iter().any(|pattern| pattern.is_match(script))
+}
+
+/// VisualBasic's `DeleteFile` and `DeleteDirectory` with `SendToRecycleBin` move to the Recycle
+/// Bin, as `fs.delete` does: not a deletion. Returns the script with each such call replaced by an
+/// empty string, and the first argument of each call that names its place in quotes.
+pub(super) fn recycling(script: &str) -> (String, Vec<String>) {
+    static CALL: OnceLock<Regex> = OnceLock::new();
+    let call = CALL.get_or_init(|| {
+        Regex::new(r"(?i)\[[\w.]+\]::delete(?:file|directory)\s*\(")
+            .expect("the call pattern is valid")
+    });
+    let mut kept = String::new();
+    let mut places = Vec::new();
+    let mut from = 0;
+    for found in call.find_iter(script) {
+        if found.start() < from {
+            continue;
+        }
+        let Some(end) = closing(script, found.end()) else { break };
+        let arguments = &script[found.end()..end];
+        if !arguments.to_ascii_lowercase().contains("sendtorecyclebin") {
+            continue;
+        }
+        if let Some(place) = quoted_first(arguments) {
+            places.push(place);
+        }
+        kept.push_str(&script[from..found.start()]);
+        kept.push_str("''");
+        from = end + 1;
+    }
+    kept.push_str(&script[from..]);
+    (kept, places)
+}
+
+/// The index of the `)` that closes the call whose arguments start at `start`, quotes skipped.
+fn closing(script: &str, start: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut quote = None;
+    for (offset, c) in script[start..].char_indices() {
+        match (quote, c) {
+            (Some(q), _) if c == q => quote = None,
+            (Some(_), _) => {}
+            (None, '\'' | '"') => quote = Some(c),
+            (None, '(') => depth += 1,
+            (None, ')') if depth == 0 => return Some(start + offset),
+            (None, ')') => depth -= 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The first argument when it is text in quotes with nothing to expand.
+fn quoted_first(arguments: &str) -> Option<String> {
+    let first = arguments.trim_start();
+    let quote = first.chars().next().filter(|c| matches!(c, '\'' | '"'))?;
+    let rest = &first[1..];
+    let text = &rest[..rest.find(quote)?];
+    (!(quote == '"' && text.contains(['$', '`']))).then(|| text.to_owned())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const SHELLS: [ManagedShell; 2] = [ManagedShell::PowerShell, ManagedShell::Cmd];
 
     #[test]
     fn deletions_quoted_wrapped_or_encoded_are_seen() {
@@ -51,9 +107,7 @@ mod tests {
             "pwsh -enc UgBlAG0A",
             "powershell.exe -NoProfile -ec UgBlAG0A",
         ] {
-            for shell in SHELLS {
-                assert!(deletes_files(shell, script), "{shell:?}: {script}");
-            }
+            assert!(deletes_files(script), "{script}");
         }
     }
 
@@ -69,9 +123,7 @@ mod tests {
             "Move-Item x $env:TEMP",
             "node --enable-source-maps build.mjs",
         ] {
-            for shell in SHELLS {
-                assert!(!deletes_files(shell, script), "{shell:?}: {script}");
-            }
+            assert!(!deletes_files(script), "{script}");
         }
     }
 
@@ -99,9 +151,7 @@ mod tests {
             "cmd /c del /q C:\\temp\\*",
             "REMOVE-ITEM x",
         ] {
-            for shell in SHELLS {
-                assert!(deletes_files(shell, script), "{script}");
-            }
+            assert!(deletes_files(script), "{script}");
         }
     }
 
@@ -122,9 +172,7 @@ mod tests {
             "Get-Content .\\rd-notes.md",
             "Set-Location C:\\Dev\\Mini-Game\\rm-tools",
         ] {
-            for shell in SHELLS {
-                assert!(!deletes_files(shell, script), "{script}");
-            }
+            assert!(!deletes_files(script), "{script}");
         }
     }
 }

@@ -7,6 +7,8 @@ mod chrome_contract;
 mod computer_contract;
 #[path = "credential_cleanup_contract.rs"]
 mod credential_cleanup_contract;
+#[path = "storage_contract.rs"]
+mod storage_contract;
 
 pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
     super::network_catalog::register(generator);
@@ -24,4 +26,5 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
     super::connections_contract::register(generator);
     credential_cleanup_contract::register(generator);
     catalog_entries_contract::register(generator);
+    storage_contract::register(generator);
 }

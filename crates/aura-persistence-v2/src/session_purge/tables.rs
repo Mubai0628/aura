@@ -77,6 +77,11 @@ pub(super) fn session(scope: &Scope) -> Vec<Spec<'_>> {
     specs.extend([
         spec("terminal_output_segments", "terminal_id", &scope.terminals),
         spec("agent_terminals", "session_id", session),
+        spec("agent_team_reports", "child_session_id", session),
+        spec("agent_team_members", "child_session_id", session),
+        spec("agent_team_members", "parent_session_id", session),
+        spec("agent_worktrees", "session_id", session),
+        spec("agent_worktrees", "parent_session_id", session),
         spec("provider_tool_call_bindings", "snapshot_id", &scope.snapshots),
         spec("transport_attempts", "snapshot_id", &scope.snapshots),
         spec("model_outputs", "snapshot_id", &scope.snapshots),

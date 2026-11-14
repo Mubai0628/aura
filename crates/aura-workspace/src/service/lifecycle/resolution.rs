@@ -1,6 +1,9 @@
 //! Explicit lifecycle decisions and editor publication facts.
 use super::*;
 
+/// The code an operation stays blocked with when saving its unsaved edits failed.
+const SAVE_FAILED: &str = "workspace.lifecycle_save_failed";
+
 impl WorkspaceRuntime {
     pub fn resolve_lifecycle(
         &self,
@@ -48,15 +51,21 @@ impl WorkspaceRuntime {
                         publications.extend(saved.publications);
                         saved.result
                     });
-                    if save_result.is_err() {
+                    if let Err(error) = save_result {
                         let current = self.buffers.current_lifecycle_states(workspace_id)?;
                         let revision = increment(entry.record.summary.lifecycle_revision)?;
                         let preflight = self.build_preflight(&entry, &current, revision)?;
+                        crate::lifecycle_log::record_failure(
+                            &entry.record.summary,
+                            WorkspaceLifecycleState::Blocked,
+                            SAVE_FAILED,
+                            Some(&error.to_string()),
+                        );
                         self.transition(
                             &mut entry,
                             WorkspaceLifecycleState::Blocked,
                             Some(preflight),
-                            Some("workspace.lifecycle_save_failed".to_owned()),
+                            Some(SAVE_FAILED.to_owned()),
                         )?;
                         let summary = entry.record.summary.clone();
                         lifecycles.insert(workspace_id, entry);

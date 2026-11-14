@@ -54,8 +54,45 @@ fn interactive_shell_policy_keeps_user_profiles_and_filters_only_agent_secrets()
     assert!(!user.iter().any(|value| value == "-NoProfile"));
     assert!(!user.iter().any(|value| value == "-MTA"), "user pwsh keeps its normal apartment");
     assert!(agent.iter().any(|value| value == "-NoProfile"));
+    assert!(
+        !agent
+            .iter()
+            .any(|value| value
+                .contains("$env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules')")),
+        "an Agent terminal finds modules as the user's PowerShell does"
+    );
     assert!(!user.iter().chain(&agent).any(|value| value == "-NonInteractive"));
     assert!(
         terminal_arguments(ManagedShell::Cmd, TerminalKind::User).iter().any(|value| value == "/d")
+    );
+}
+
+#[test]
+fn an_agent_terminal_draws_nothing_from_the_users_command_history() {
+    // PSReadLine draws a matching entry of the user's history after what is typed, and an Agent
+    // terminal's output goes to the model; the user's own terminal keeps the user's settings.
+    let off = "Set-PSReadLineOption -PredictionSource None";
+    let agent = terminal_arguments(
+        ManagedShell::PowerShell,
+        TerminalKind::Agent { requires_network: true },
+    );
+    assert!(agent.iter().any(|value| value.contains(off)), "{agent:?}");
+    let user = terminal_arguments(ManagedShell::PowerShell, TerminalKind::User);
+    assert!(!user.iter().any(|value| value.contains("PSReadLine")), "{user:?}");
+}
+
+#[test]
+fn an_agent_terminal_keeps_its_commands_out_of_the_users_command_history() {
+    // PSReadLine saves every accepted line to the user's history file, which the user's own
+    // terminals read back; saving nothing also leaves that file unread.
+    let agent = terminal_arguments(
+        ManagedShell::PowerShell,
+        TerminalKind::Agent { requires_network: false },
+    );
+    assert!(
+        agent
+            .iter()
+            .any(|value| value.contains("Set-PSReadLineOption -HistorySaveStyle SaveNothing")),
+        "{agent:?}"
     );
 }

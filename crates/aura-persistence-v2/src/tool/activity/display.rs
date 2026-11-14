@@ -8,7 +8,7 @@ use aura_tool_projection::{AgentToolDisplay, AgentToolOffer};
 use rusqlite::Connection;
 use serde_json::Value;
 
-fn clipped(text: &str, limit: usize) -> String {
+pub(super) fn clipped(text: &str, limit: usize) -> String {
     let mut chars = text.chars();
     let mut result: String = chars.by_ref().take(limit).collect();
     if chars.next().is_some() {
@@ -16,6 +16,18 @@ fn clipped(text: &str, limit: usize) -> String {
     }
     result
 }
+
+/// The short line of a call its stopped turn never started.
+const STOPPED_BEFORE_START: &str = "未执行：会话中断";
+
+/// The short line of a call whose effect Aura could not confirm, however it returned.
+const UNKNOWN_EFFECT: &str = "结果未知：没能确认是否生效，Aura 不会自动重做";
+
+/// What a call that returned without its effect being confirmed means, and what to do.
+const UNKNOWN_RETURNED: &str = "这一步返回了，但 Aura 没能确认它是否生效（例如连接中断），不会自动重做；请检查目标后再决定是否让模型重试。";
+
+/// The short line of a call its run left without a result when the run ended.
+pub(super) const INTERRUPTED_WITHOUT_RESULT: &str = "已中断：任务结束时这一步还没有结果，实际影响未确认，Aura 不会自动重做；请先检查目标，需要时在输入框发“继续”";
 
 /// The short line one terminal outcome shows.
 ///
@@ -27,6 +39,14 @@ fn clipped(text: &str, limit: usize) -> String {
 fn outcome_summary_text(outcome: &ToolResultOutcomeV1) -> String {
     match outcome {
         ToolResultOutcomeV1::Succeeded => "执行成功".into(),
+        ToolResultOutcomeV1::OperationRejected { error }
+            if matches!(
+                error.code.as_str(),
+                "agent.resource_wait_exhausted" | "fs.resource_busy"
+            ) =>
+        {
+            "未执行：文件被另一个调用占用".into()
+        }
         ToolResultOutcomeV1::OperationRejected { error } => match error.category {
             ErrorCategory::NotFound => "未执行：目标不存在".into(),
             ErrorCategory::Permission => "未执行：权限拒绝".into(),
@@ -37,8 +57,14 @@ fn outcome_summary_text(outcome: &ToolResultOutcomeV1) -> String {
             }
             _ => "未执行：操作被拒绝".into(),
         },
+        // Every failure a backend reports while running is stored under one general code in the
+        // unavailable class; only a tool that is really unavailable says so.
         ToolResultOutcomeV1::Failed { error } => match error.category {
-            ErrorCategory::Unavailable => "执行失败：当前不可用".into(),
+            ErrorCategory::Unavailable
+                if error.code != ToolRuntimeErrorCode::DispatchFailed.error_code() =>
+            {
+                "执行失败：当前不可用".into()
+            }
             _ => "执行失败".into(),
         },
         ToolResultOutcomeV1::NotExecuted { error: Some(error), .. }
@@ -46,51 +72,195 @@ fn outcome_summary_text(outcome: &ToolResultOutcomeV1) -> String {
         {
             "未执行：被 Hook 阻止".into()
         }
-        ToolResultOutcomeV1::NotExecuted { reason, .. } => match reason {
-            ToolNotExecutedReasonV1::PurposeRequired => "未执行：缺少调用说明".into(),
-            ToolNotExecutedReasonV1::SchemaValidationFailed => "未执行：参数错误".into(),
-            ToolNotExecutedReasonV1::ResourceClaimResolutionFailed => {
-                "未执行：无法确定操作目标".into()
-            }
-            ToolNotExecutedReasonV1::DependencyNotExecuted => "未执行：依赖的调用未执行".into(),
-            ToolNotExecutedReasonV1::AtomicGroupNotExecuted => "未执行：同组调用未执行".into(),
-            _ => "未执行".into(),
-        },
+        ToolResultOutcomeV1::NotExecuted { error: Some(error), .. }
+            if error.code == ToolApprovalErrorCode::Denied.error_code() =>
+        {
+            "未执行：你拒绝了".into()
+        }
+        ToolResultOutcomeV1::NotExecuted { error: Some(error), .. }
+            if error.code == ToolApprovalErrorCode::Invalidated.error_code() =>
+        {
+            "未执行：权限模式已变".into()
+        }
+        ToolResultOutcomeV1::NotExecuted { error: Some(error), .. }
+            if error.code == ToolApprovalErrorCode::Expired.error_code() =>
+        {
+            "未执行：批准已过期".into()
+        }
+        ToolResultOutcomeV1::NotExecuted { reason, .. } => not_run_text(*reason).into(),
         ToolResultOutcomeV1::Indeterminate { .. } => "结果未知".into(),
-        ToolResultOutcomeV1::Cancelled { .. } => "执行已取消".into(),
+        ToolResultOutcomeV1::Cancelled { reason } => cancelled_text(*reason).into(),
+    }
+}
+
+/// The short line of a call that was not run for `reason`.
+pub(super) fn not_run_text(reason: ToolNotExecutedReasonV1) -> &'static str {
+    use ToolNotExecutedReasonV1 as R;
+    match reason {
+        R::PurposeRequired => "未执行：缺少调用说明",
+        R::SchemaValidationFailed => "未执行：参数错误",
+        R::ResourceClaimResolutionFailed => "未执行：无法确定操作目标",
+        R::DependencyNotExecuted => "未执行：依赖的调用未执行",
+        R::AtomicGroupNotExecuted => "未执行：同组调用未执行",
+        R::CancelledBeforeDispatch => STOPPED_BEFORE_START,
+        R::ToolNotFound => "未执行：没有这个工具",
+        R::NotLoaded => "未执行：工具未加载",
+        R::Disabled => "未执行：工具已停用",
+        R::TrustRequired => "未执行：工具来源待信任",
+        R::AudienceDenied => "未执行：这个对话不能用这个工具",
+        R::VersionMismatch => "未执行：工具已更新",
+        R::PermissionDenied => "未执行：权限拒绝",
+        R::ApprovalDenied => "未执行：你拒绝了",
+        R::RuntimeUnavailable => "未执行：工具暂不可用",
+        R::LineageReconciliation => "未执行：同一回答的其余部分没能继续",
+        R::CompletionReview => "未执行：本轮正在结束",
+        R::BatchRejected => "未执行：同批调用被拒绝",
+    }
+}
+
+/// The short line of a call stopped before it finished for `reason`.
+fn cancelled_text(reason: ToolCancellationReasonV1) -> &'static str {
+    use ToolCancellationReasonV1 as R;
+    match reason {
+        R::UserRequested => "已停止",
+        R::TurnInterrupted => "已中断：任务被中断",
+        R::PermissionRevoked => "已中断：权限被收回",
+        R::ScopeClosed => "已中断：工作区或文件夹已关闭",
+        R::CoreShutdown => "已中断：Aura 关闭了",
+        R::Timeout => "已停止：超过时限",
+        R::ParentAgentCancelled => "已停止：主 Agent 停下了它",
+        R::BatchCancelled => "已停止：同批调用一起停下",
+    }
+}
+
+/// The short line of a terminal result of tool `name`: a call its stopped turn ended before
+/// anything of it was sent did not run.
+fn result_line(name: &str, result: &ToolResultV1) -> String {
+    let ended_before_start = matches!(
+        result.outcome,
+        ToolResultOutcomeV1::Cancelled { reason: ToolCancellationReasonV1::TurnInterrupted }
+    ) && matches!(
+        result.side_effect_state,
+        SideEffectStateV1::NoEffect | SideEffectStateV1::NotStarted
+    );
+    if ended_before_start {
+        STOPPED_BEFORE_START.into()
+    } else {
+        summary_line(name, &result.outcome)
     }
 }
 
 /// The short line a terminal outcome of tool `name` shows: a computer call the user ended says
 /// what the user did.
 fn summary_line(name: &str, outcome: &ToolResultOutcomeV1) -> String {
-    match name.starts_with("computer.").then(|| super::computer::refusal(outcome)).flatten() {
-        Some(line) => line,
-        None => outcome_summary_text(outcome),
+    if let Some(line) =
+        name.starts_with("computer.").then(|| super::computer::refusal(outcome)).flatten()
+    {
+        return line;
+    }
+    if let ToolResultOutcomeV1::NotExecuted { error: Some(error), .. } = outcome
+        && let Some(line) = switched_off(&error.message)
+    {
+        return line.into();
+    }
+    caused(outcome).unwrap_or_else(|| outcome_summary_text(outcome))
+}
+
+/// The short line of a call whose code names a cause Aura has words for, instead of the general
+/// line of its class. A call that was not run is read by its own code only; a refusal or a failure
+/// stored under a general code is read by the code its message begins with.
+fn caused(outcome: &ToolResultOutcomeV1) -> Option<String> {
+    use super::user_text::{cause, cause_of_code};
+    match outcome {
+        ToolResultOutcomeV1::OperationRejected { error }
+            if !matches!(
+                error.code.as_str(),
+                "agent.resource_wait_exhausted" | "fs.resource_busy"
+            ) =>
+        {
+            cause(error).map(|(cause, _)| format!("未执行：{cause}"))
+        }
+        ToolResultOutcomeV1::Failed { error } => {
+            cause(error).map(|(cause, _)| format!("执行失败：{cause}"))
+        }
+        ToolResultOutcomeV1::NotExecuted { error: Some(error), .. }
+            if !matches!(
+                error.code.as_str(),
+                "tool.hook.blocked"
+                    | "tool.approval.denied"
+                    | "tool.approval.invalidated"
+                    | "tool.approval.expired"
+            ) =>
+        {
+            cause_of_code(error).map(|cause| format!("未执行：{cause}"))
+        }
+        _ => None,
     }
 }
 
-/// The bounded diagnostic lines a reader may expand for a terminal result.
+/// What a call that returned with an unconfirmed effect means; none for one that did not return.
+fn unknown_detail(result: &ToolResultV1) -> Option<String> {
+    matches!(result.outcome, ToolResultOutcomeV1::Succeeded).then(|| UNKNOWN_RETURNED.to_owned())
+}
+
+/// Why a call stopped before it finished, what it changed, and what comes next.
+fn cancelled_detail(reason: ToolCancellationReasonV1, result: &ToolResultV1) -> String {
+    use ToolCancellationReasonV1 as R;
+    let effect = super::user_text::effect(result);
+    match reason {
+        R::Timeout => format!("超过时限被停止，{effect}；模型会收到说明并决定是否重试。"),
+        R::UserRequested => format!("你停止了这一步，{effect}。"),
+        R::TurnInterrupted => {
+            format!("任务被中断时这一步还没做完，{effect}；需要时在输入框发“继续”。")
+        }
+        R::CoreShutdown => {
+            format!("Aura 关闭时这一步还没做完，{effect}；需要时在输入框发“继续”。")
+        }
+        R::PermissionRevoked => format!("权限被收回，这一步停下了，{effect}。"),
+        R::ScopeClosed => format!("工作区或文件夹关闭了，这一步停下了，{effect}。"),
+        R::ParentAgentCancelled => format!("主 Agent 停下了这一步，{effect}。"),
+        R::BatchCancelled => format!("同批的调用一起停下了，{effect}。"),
+    }
+}
+
+/// The short line of a call refused because something the user controls is switched off, which
+/// the refusal names first.
+fn switched_off(message: &str) -> Option<&'static str> {
+    Some(match message.split(':').next()?.trim() {
+        "computer.off" => "未执行：电脑操控没有打开",
+        "browser.disabled" => "未执行：内置浏览器已关闭",
+        "browser.debugging_off" => "未执行：网页调试没有打开",
+        "http.credential_rebind_required" => "未执行：凭据需要重新绑定",
+        _ => return None,
+    })
+}
+
+/// The bounded diagnostic lines a reader may expand for a terminal result of tool `name`.
 ///
 /// The short line in `summary` is what the row shows; this is where the stored
 /// explanation goes, so a truncated template is no longer the only thing the session
-/// has. Each line is bounded and there are at most three, because a Tool error is
-/// consumed by a person reading a row, not by a log viewer.
-fn error_detail(result: &ToolResultV1) -> Vec<String> {
+/// has. The first line says in Chinese what happened, what it changed and what comes next; the
+/// code and the message written for the model follow as debugging lines, and each line is
+/// bounded, because a Tool error is consumed by a person reading a row, not by a log viewer.
+fn error_detail(name: &str, result: &ToolResultV1) -> Vec<String> {
     let error = match &result.outcome {
         ToolResultOutcomeV1::Failed { error }
         | ToolResultOutcomeV1::OperationRejected { error }
         | ToolResultOutcomeV1::Indeterminate { error, .. } => Some(error),
         ToolResultOutcomeV1::NotExecuted { error, .. } => error.as_ref(),
-        ToolResultOutcomeV1::Succeeded | ToolResultOutcomeV1::Cancelled { .. } => None,
+        ToolResultOutcomeV1::Cancelled { reason } => {
+            return vec![cancelled_detail(*reason, result)];
+        }
+        ToolResultOutcomeV1::Succeeded => None,
     };
     let Some(error) = error else {
         return vec![];
     };
-    let mut details = vec![format!("错误码：{}", error.code)];
+    let mut details: Vec<String> = super::user_text::line(name, result).into_iter().collect();
+    details.push(format!("{}{}", super::user_text::CODE_LINE, error.code));
     let message = error.message.trim();
     if !message.is_empty() {
-        details.push(clipped(message, 400));
+        details.push(format!("{}{}", super::user_text::MODEL_LINE, clipped(message, 400)));
     }
     if let Some(fields) = error.details.get("fields").and_then(Value::as_array) {
         let names = fields
@@ -125,6 +295,9 @@ fn row_offer(name: &str, result: &ToolResultV1) -> Option<AgentToolOffer> {
 /// workspace root when the model names no directory, so that is what they show. A Shell call
 /// names its command.
 fn target(name: &str, arguments: Option<&Value>) -> Option<String> {
+    if super::team::is_team(name) {
+        return super::team::target(name, arguments);
+    }
     if super::shell::NAMES.contains(&name) {
         return super::shell::target(arguments);
     }
@@ -224,16 +397,14 @@ fn project_call(
         target(name, arguments)
     };
     let mut view = AgentToolDisplay {
-        title: title(name).into(),
+        title: super::mcp::title(name).unwrap_or_else(|| title(name).into()),
         target,
         summary: String::new(),
         details: input_details(name, arguments),
         truncated: false,
         image: None,
         offer: None,
-        internal: name.starts_with("tools.")
-            || name.starts_with("task_lineage.")
-            || matches!(name, "normal.complete" | "plan.complete" | "goal.check" | "goal.complete"),
+        internal: internal(name),
     };
     let Some(result) = &call.result else {
         return Ok(view);
@@ -242,8 +413,9 @@ fn project_call(
         // Unknown is a claim about what happened, not a kind of failure. It is decided
         // before any error text is read so a row can never present an unconfirmed side
         // effect as an ordinary refusal.
-        view.summary = "操作已返回，实际影响尚未确认".into();
-        view.details.extend(error_detail(result));
+        view.summary = UNKNOWN_EFFECT.into();
+        view.details.extend(unknown_detail(result));
+        view.details.extend(error_detail(name, result));
         super::network_route::append_proxy_detail(db, call, name, &mut view);
         return Ok(view);
     }
@@ -251,8 +423,14 @@ fn project_call(
     // reader can expand. The previous projection cut the English correction at 120
     // characters, so the row showed the beginning of a template and the actual field
     // it named fell off the end.
-    view.summary = summary_line(name, &result.outcome);
-    view.details.extend(error_detail(result));
+    view.summary = result_line(name, result);
+    if name == super::team::REPORT
+        && matches!(result.outcome, ToolResultOutcomeV1::Succeeded)
+        && let Some(line) = super::team::report_line(arguments)
+    {
+        view.summary = line;
+    }
+    view.details.extend(error_detail(name, result));
     view.offer = row_offer(name, result);
     if view.internal || !matches!(result.outcome, ToolResultOutcomeV1::Succeeded) {
         super::network_route::append_proxy_detail(db, call, name, &mut view);
@@ -441,21 +619,33 @@ fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) {
         "shell.powershell" | "shell.cmd" => {
             // A command Aura stopped has a result, but it did not exit by itself.
             let stopped = match value["stop_reason"].as_str() {
-                Some("output_limit") => Some("已停止：输出超过上限"),
-                Some("timed_out") => Some("已停止：超过时限"),
-                Some("core_disconnected") => Some("已停止：Core 连接中断"),
+                Some("output_limit") => {
+                    Some("已停止：输出超过上限，之前的输出已交给模型；命令可能只做了一部分")
+                }
+                Some("timed_out") => {
+                    Some("已停止：超过时限，之前的输出已交给模型；命令可能只做了一部分")
+                }
+                Some("core_disconnected") => {
+                    Some("已停止：和 Core 的连接中断了；命令可能只做了一部分")
+                }
                 _ => None,
             };
             if let Some(stopped) = stopped {
                 view.summary = stopped.into();
             } else if let Some(code) = value.get("exit_code").and_then(Value::as_i64) {
-                view.summary = format!("进程退出，退出码 {code}");
+                view.summary = if code == 0 {
+                    "进程退出，退出码 0".into()
+                } else {
+                    format!("命令报错退出（退出码 {code}），输出已交给模型")
+                };
             }
         }
         _ => {}
     }
 }
 
+#[cfg(test)]
+mod brief_tests;
 #[cfg(test)]
 mod tests;
 
@@ -470,14 +660,36 @@ pub(crate) fn title(name: &str) -> &str {
         "fs.patch" => "修改文件",
         "fs.delete" => "删除文件",
         super::workspace_init::NAME => "初始化工作区",
+        "todo.get" => "查看待办",
+        "todo.replace" => "写待办清单",
+        "todo.update" => "更新待办",
+        "git.status" => "查看 Git 状态",
+        "git.diff" => "查看改动",
+        "git.log" => "查看提交记录",
+        "git.commit" => "提交改动",
+        "git.branch" => "新建或切换分支",
+        "git.push" => "推送分支",
+        "git.sync" => "同步远端",
         "commands.list" => "列出命令",
         "commands.describe" => "查看命令",
         "commands.save" => "保存命令",
         "commands.delete" => "删除命令",
         "shell.powershell" | "shell.cmd" => "运行命令",
+        "shell.query" => "查看命令输出",
+        "shell.stop" => "停止命令",
         name if name.starts_with("terminal.") => "终端",
         "web.search" => "搜索网页",
         "web.fetch" | "web.read" => "读取网页",
+        "http.request" => "发送 HTTP 请求",
+        "http.download" => "下载文件",
+        "media.probe" => "查看视频信息",
+        "media.frames" => "读取视频画面",
+        "context.read_events" => "读取对话原文",
+        "context.read_tool_result" => "读取工具结果",
+        "context.read_compaction" => "读取压缩摘要",
+        "agent.activity.query" => "查看运行中的任务",
+        "goal.get" => "查看目标",
+        "mode.disposition" => "处理中断的计划或目标",
         "history.list_turns" => "列出会话轮次",
         "history.search" => "搜索会话历史",
         "history.read" => "读取会话历史",
@@ -492,6 +704,16 @@ pub(crate) fn title(name: &str) -> &str {
         name if name.starts_with("browser.") => super::browser::title(name).unwrap_or(name),
         name if name.starts_with("chrome.") => super::chrome::title(name).unwrap_or(name),
         name if name.starts_with("computer.") => super::computer::title(name).unwrap_or(name),
+        name if super::team::is_team(name) => super::team::title(name).unwrap_or(name),
+        name if name.starts_with("memory.") => super::memory::title(name).unwrap_or(name),
         _ => name,
     }
+}
+
+/// Tools whose rows stay out of the conversation: finding and loading tools, task bookkeeping
+/// and the calls that end a mode.
+pub(crate) fn internal(name: &str) -> bool {
+    name.starts_with("tools.")
+        || name.starts_with("task_lineage.")
+        || matches!(name, "normal.complete" | "plan.complete" | "goal.check" | "goal.complete")
 }

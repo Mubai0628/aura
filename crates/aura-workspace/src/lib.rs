@@ -5,6 +5,7 @@ mod buffer;
 mod catalog;
 mod diagnostics;
 mod error;
+mod lifecycle_log;
 mod path;
 mod publication;
 mod resource_facts;
@@ -26,6 +27,7 @@ pub use catalog::{
     decode_text_with_encoding, encode_text,
 };
 pub use error::WorkspaceError;
+pub use lifecycle_log::{LifecycleLog, route_lifecycle_log};
 pub use path::{
     ResolvedWorkspacePath, SecurePathResolver, ValidatedParent, VerifiedWorkspaceFile,
     domain_identity,

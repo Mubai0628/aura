@@ -44,13 +44,18 @@
 }
 
 /* The models of the open provider, beside the providers and level with the menu's foot, so the
-   two lists rise from the same line and neither leaves the window. */
+   two lists rise from the same line and neither leaves the window. ModelPicker moves them to the
+   side the conversation has room on, or above the providers, and narrows them to fit. */
 .model-menu-anchor .composer-popover.model-submenu {
   top: auto;
   right: calc(100% + 6px);
   bottom: -1px;
   left: auto;
   width: 280px;
+}
+
+.model-submenu[data-side='above'] .model-menu-scroll {
+  max-height: min(360px, calc(100vh - 220px), var(--model-submenu-max, 360px));
 }
 
 /* The thinking level beside the model. */

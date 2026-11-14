@@ -26,6 +26,59 @@ pub(super) struct Request {
     /// Another of the provider's connections is still untried in this run, so a temporary
     /// failure goes there instead of being retried on this one.
     pub backup_waiting: bool,
+    /// The step asks again after the provider went silent in the middle of the answer of the
+    /// step before it, so it waits longer for the provider's next bytes.
+    pub idle_retry: bool,
+}
+
+/// The note at the end of a step's request that asks again after the provider went silent in the
+/// middle of the answer of the step before it. Nothing before it changes, so the provider's cache
+/// of the cut-off request still serves the rest.
+pub(super) const IDLE_RETRY_NOTE: &str = "The previous attempt at this step was cut off: after the answer began, the provider sent nothing for too long, and none of it was kept. This can happen while one very large tool call is sent in a single piece; splitting large content into several smaller calls may help. This attempt waits longer.";
+
+/// The note after an attempt stopped because its reasoning kept coming back to one passage before
+/// any answer began.
+const REASONING_RETRY_NOTE: &str = "The previous attempt at this step was stopped: its reasoning kept returning to the same passage without starting an answer, and none of it was kept. Decide the next step early and keep this response's reasoning short; that usually avoids it.";
+
+/// The note after an attempt cut off because its answer ran past the connection's total time.
+const TOTAL_RETRY_NOTE: &str = "The previous attempt at this step was cut off: the answer took longer than the connection allows, and none of it was kept. A shorter response may finish in time; large content can be split into several smaller calls.";
+
+/// The note that ends the request of a step asked again after the provider failed the step before
+/// it with `code`, when that failure tells the model something it can act on. It is the last
+/// message, after everything the cut-off request sent, so the provider's cache of that request
+/// still serves the rest.
+pub(super) fn retry_note(code: &str) -> Option<&'static str> {
+    match code {
+        aura_persistence_v2::model::transient_retry::STREAM_IDLE => Some(IDLE_RETRY_NOTE),
+        "model_reasoning_loop" => Some(REASONING_RETRY_NOTE),
+        "model_transport_total_timeout" => Some(TOTAL_RETRY_NOTE),
+        _ => None,
+    }
+}
+
+/// The least a step that asks again after a silent stream waits for the provider's next bytes.
+const IDLE_RETRY_MS: u64 = 600_000;
+
+/// The connection's own timeouts, except that a step asking again after a silent stream waits
+/// twice the connection's idle time for the next bytes, and ten minutes at least.
+fn timeouts(endpoint: &ModelEndpointTimeouts, idle_retry: bool) -> ModelEndpointTimeouts {
+    let mut timeouts = endpoint.clone();
+    if idle_retry {
+        timeouts.stream_idle_ms = timeouts.stream_idle_ms.saturating_mul(2).max(IDLE_RETRY_MS);
+    }
+    timeouts
+}
+
+/// The order an endpoint's queue serves a request in: a conversation's main agent first, its
+/// sub-agents after it, a memory pass last.
+fn priority(maintenance: bool, sub_agent: bool) -> ModelRequestPriority {
+    if maintenance {
+        ModelRequestPriority::Maintenance
+    } else if sub_agent {
+        ModelRequestPriority::ChildAgent
+    } else {
+        ModelRequestPriority::InteractiveParent
+    }
 }
 impl Request {
     fn endpoint(&self) -> anyhow::Result<ModelEndpointConfig> {
@@ -225,14 +278,25 @@ pub(super) async fn execute(
     let model_step = snapshot.model_step_id;
     // The step's live tool input is forgotten when this stream ends, however it ends.
     let _live = super::tool_input::Forget(model_step);
-    let maintenance = app
+    let session = request.identity.session_id;
+    let (maintenance, sub_agent) = app
         .store
         .read(StoreStep::operation("memory.model.priority"), move |db| {
-            aura_persistence_v2::model::memory_maintenance::binding(db, model_step)
-                .map(|b| b.is_some())
+            let maintenance =
+                aura_persistence_v2::model::memory_maintenance::binding(db, model_step)?.is_some();
+            let sub_agent = match session {
+                Some(session) => super::team::member_of(db, session)?.is_some(),
+                None => false,
+            };
+            Ok((maintenance, sub_agent))
         })
         .await?;
+    let timeouts = timeouts(&endpoint.timeouts, request.idle_retry);
     let stream_run = request.identity.agent_run_id;
+    // From the wait for the endpoint to the last event, the conversation's answer is under way:
+    // the sub-agents' watchdog counts that as progress, however long the answer streams.
+    let _answering =
+        request.identity.session_id.map(|session| app.execution.team.answering(session));
     let store = super::model_store::AgentModelStore {
         store: Arc::clone(&app.store),
         run: stream_run,
@@ -269,13 +333,9 @@ pub(super) async fn execute(
     };
     let execution = transport.execute(ModelTransportExecution {
         snapshot: &snapshot,
-        endpoint_timeouts: &endpoint.timeouts,
+        endpoint_timeouts: &timeouts,
         gate: &gate,
-        priority: if maintenance {
-            ModelRequestPriority::Maintenance
-        } else {
-            ModelRequestPriority::InteractiveParent
-        },
+        priority: priority(maintenance, sub_agent),
         request_factory: &factory,
         adapter: decoder,
         initial_compatibility_overrides: BTreeSet::new(),
@@ -304,6 +364,9 @@ pub(super) async fn execute(
             }
             event=receive.recv()=>{
                 let event = event.ok_or_else(|| anyhow::anyhow!("model.event_channel_closed"))?;
+                if let Some(session) = session {
+                    app.execution.team.heard(session);
+                }
                 // A tool call's growing input is only counted; nothing of it is stored.
                 if !super::tool_input::observe(&event) {
                     batch.push(event);
@@ -333,4 +396,53 @@ async fn store_stream(
         })
         .await
         .map_err(|error| anyhow::anyhow!("{error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_sub_agents_request_queues_after_its_main_agents_and_a_memory_pass_after_both() {
+        assert_eq!(priority(false, false), ModelRequestPriority::InteractiveParent);
+        assert_eq!(priority(false, true), ModelRequestPriority::ChildAgent);
+        assert_eq!(priority(true, false), ModelRequestPriority::Maintenance);
+        assert_eq!(priority(true, true), ModelRequestPriority::Maintenance);
+    }
+
+    #[test]
+    fn a_step_asking_again_after_a_silent_stream_waits_twice_as_long_and_ten_minutes_at_least() {
+        let endpoint = ModelEndpointTimeouts {
+            connect_ms: 15_000,
+            first_event_ms: 120_000,
+            stream_idle_ms: 300_000,
+            total_ms: None,
+        };
+        assert_eq!(timeouts(&endpoint, false), endpoint, "a first attempt keeps the connection's");
+        let retry = timeouts(&endpoint, true);
+        assert_eq!(retry.stream_idle_ms, 600_000);
+        assert_eq!(
+            (retry.connect_ms, retry.first_event_ms, retry.total_ms),
+            (15_000, 120_000, None)
+        );
+        let short = ModelEndpointTimeouts { stream_idle_ms: 120_000, ..endpoint.clone() };
+        assert_eq!(timeouts(&short, true).stream_idle_ms, 600_000, "ten minutes at least");
+        let long = ModelEndpointTimeouts { stream_idle_ms: 900_000, ..endpoint };
+        assert_eq!(timeouts(&long, true).stream_idle_ms, 1_800_000, "twice a longer idle time");
+    }
+
+    #[test]
+    fn each_retry_note_is_one_canonical_line() {
+        let stream_idle = aura_persistence_v2::model::transient_retry::STREAM_IDLE;
+        for code in [stream_idle, "model_reasoning_loop", "model_transport_total_timeout"] {
+            let note = retry_note(code).expect(code);
+            assert_eq!(note.lines().count(), 1, "{code}");
+            assert!(!note.chars().any(char::is_control), "{code}");
+            assert!(note.starts_with("The previous attempt at this step was "), "{code}");
+        }
+        assert!(IDLE_RETRY_NOTE.contains("cut off") && IDLE_RETRY_NOTE.contains("smaller calls"));
+        assert!(REASONING_RETRY_NOTE.contains("Decide the next step early"));
+        assert!(TOTAL_RETRY_NOTE.contains("longer than the connection allows"));
+        assert_eq!(retry_note("server_is_overloaded"), None, "an overload says nothing to act on");
+    }
 }

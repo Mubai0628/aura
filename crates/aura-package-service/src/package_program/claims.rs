@@ -34,7 +34,7 @@ pub fn working_directory_claim(
         .resource_claims
         .iter()
         .find(|claim| claim.claim_key() == &claim_key)
-        .ok_or_else(|| anyhow::anyhow!("package.directory_claim_missing"))?;
+        .ok_or_else(|| anyhow::anyhow!(crate::failures::DIRECTORY_CLAIM_MISSING))?;
     let PackageDeclaredResourceClaimV1::WorkspacePath { selector, .. } = claim else {
         anyhow::bail!("package.directory_claim_unsupported: 工作目录只能是工作区内的目录");
     };
@@ -43,9 +43,9 @@ pub fn working_directory_claim(
         PackageWorkspacePathSelectorV1::ArgumentJsonPointer { pointer, .. } => {
             let value = aura_tool_runtime::optional_pointer(arguments, pointer)
                 .and_then(Value::as_str)
-                .ok_or_else(|| anyhow::anyhow!("package.directory_argument_missing"))?;
+                .ok_or_else(|| anyhow::anyhow!(crate::failures::DIRECTORY_ARGUMENT_MISSING))?;
             WorkspacePath::parse(value)
-                .map_err(|_| anyhow::anyhow!("package.directory_outside_workspace"))?
+                .map_err(|_| anyhow::anyhow!(crate::failures::DIRECTORY_OUTSIDE_WORKSPACE))?
         }
     };
     Ok(Some((claim_key, path)))
@@ -61,9 +61,10 @@ pub fn scratch_directory_claims(
     let Some((key, relative)) = working_directory_claim(tool, arguments)? else {
         return Ok(BTreeMap::new());
     };
-    let root = scratch_workspace.ok_or_else(|| anyhow::anyhow!("package.workspace_required"))?;
+    let root =
+        scratch_workspace.ok_or_else(|| anyhow::anyhow!(crate::failures::WORKSPACE_REQUIRED))?;
     let path = if relative.is_root() { root.to_owned() } else { root.join(relative.as_str()) };
-    ensure!(path.starts_with(root), "package.directory_outside_workspace");
+    ensure!(path.starts_with(root), crate::failures::DIRECTORY_OUTSIDE_WORKSPACE);
     std::fs::create_dir_all(&path)?;
     Ok([(key, path)].into())
 }

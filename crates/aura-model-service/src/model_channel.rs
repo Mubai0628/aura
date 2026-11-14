@@ -50,9 +50,9 @@ pub async fn authorize_request<F: ModelEgressAuthorizationFacts>(
             && identity.agent_run_id.is_some()
             && identity.turn_task_id.is_some()
             && identity.workspace_id.is_some(),
-        "model.identity_invalid"
+        "model.identity_invalid: 这次模型请求缺少所属的会话或任务信息，没有发出；请在输入框发“继续”再试。"
     );
-    let session = identity.session_id.ok_or_else(|| anyhow::anyhow!("model.session_missing"))?;
+    let session = identity.session_id.ok_or_else(|| anyhow::anyhow!("model.session_missing: 这次模型请求没有指明所属的会话，没有发出；请在输入框发“继续”再试。"))?;
     ensure!(
         endpoint.id == snapshot.endpoint_id
             && endpoint.provider_id == snapshot.provider_id
@@ -67,7 +67,7 @@ pub async fn authorize_request<F: ModelEgressAuthorizationFacts>(
             && plan.method == "POST"
             && !plan.body.is_empty()
             && manifest.context_snapshot_id == snapshot.context_snapshot_id,
-        "model.endpoint_or_context_changed"
+        "model.endpoint_or_context_changed: 模型连接的设置或这一轮的上下文在请求准备好之后变了，请求没有发出；请在输入框发“继续”，会按新的设置重新准备。"
     );
     ModelEgressAuthorizer::new(facts)
         .validate(session, snapshot.model_profile_id, manifest)
@@ -82,29 +82,29 @@ pub async fn authorize_request<F: ModelEgressAuthorizationFacts>(
         plan.request_evidence.operation_context == operation_context
             && plan.request_evidence.body_sha256 == ContentHash::sha256(&plan.body)
             && plan.request_evidence.body_byte_length == plan.body.len() as u64,
-        "model.attempt_context_changed"
+        "model.attempt_context_changed: 这次模型请求的内容与准备时记录的不一致，没有发出；请在输入框发“继续”，会重新准备。"
     );
     ensure!(
         !plan.headers.iter().any(|(name, _)| matches!(
             name.to_ascii_lowercase().as_str(),
             "cookie" | "set-cookie" | "authorization" | "proxy-authorization" | "x-api-key"
         )),
-        "model.credential_header_forbidden"
+        "model.credential_header_forbidden: 这次模型请求的请求头里带着凭据，Aura 不会这样发出（Aura 内部出错），请求没有发出；请重启 Aura 后在输入框发“继续”。"
     );
     let url = url::Url::parse(&plan.request_url)?;
     ensure!(
         url.username().is_empty() && url.password().is_none() && url.fragment().is_none(),
-        "model.url_invalid"
+        "model.url_invalid: 模型请求的地址里带着用户名、密码或 # 后面的部分，请求没有发出；请到模型设置里改好这个连接的 Base URL。"
     );
     let origin = NormalizedOrigin {
         scheme: url.scheme().into(),
-        host: url.host_str().ok_or_else(|| anyhow::anyhow!("model.host"))?.into(),
-        port: url.port_or_known_default().ok_or_else(|| anyhow::anyhow!("model.port"))?,
+        host: url.host_str().ok_or_else(|| anyhow::anyhow!("model.host: 模型请求的地址里没有主机名，请求没有发出；请到模型设置里改好这个连接的 Base URL。"))?.into(),
+        port: url.port_or_known_default().ok_or_else(|| anyhow::anyhow!("model.port: 模型请求的地址没写端口，它的协议也没有默认端口，请求没有发出；请到模型设置里改好这个连接的 Base URL。"))?,
     };
     let response_limit = ConfigurationTransportPolicyV1::agent_model_response_limit_bytes(
         snapshot.request_options.effective_max_output_tokens,
     )
-    .ok_or_else(|| anyhow::anyhow!("model.response_limit"))?;
+    .ok_or_else(|| anyhow::anyhow!("model.response_limit: 这次请求允许模型输出的上限是 0，请求没有发出；请到模型设置里检查这个模型的最大输出 Token。"))?;
     let limits = NetworkByteLimits {
         max_upload_bytes: 32 * 1024 * 1024,
         max_download_bytes: response_limit,
@@ -123,12 +123,14 @@ pub async fn authorize_request<F: ModelEgressAuthorizationFacts>(
             })
         }
         (None, None, None) => None,
-        _ => anyhow::bail!("model.credential_binding_incomplete"),
+        _ => anyhow::bail!(
+            "model.credential_binding_incomplete: 这个连接的凭据记录不完整，请求没有发出；请到模型设置里重新保存这个连接的密钥。"
+        ),
     };
     ensure!(
         credential_binding.is_some()
             == (endpoint.auth_scheme != aura_model_domain::EndpointAuthScheme::None),
-        "model.credential_configuration_mismatch"
+        "model.credential_configuration_mismatch: 这个连接的认证方式与保存的凭据对不上（需要密钥却没有，或不需要却有），请求没有发出；请到模型设置里重新保存这个连接的密钥或认证方式。"
     );
     let redirect_policy = RedirectPolicy::SameOrigin { max_hops: 3 };
     let purpose = ProviderTransportAttemptGrant {

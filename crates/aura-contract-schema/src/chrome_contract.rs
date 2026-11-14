@@ -27,4 +27,7 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
     generator.subschema_for::<aura_chrome_domain::ChromeSessionRequest>();
     generator.subschema_for::<aura_chrome_domain::ChromeSessionShares>();
     generator.subschema_for::<aura_chrome_domain::ChromeExtensionFolder>();
+    generator.subschema_for::<aura_chrome_domain::ChromeTabChoices>();
+    generator.subschema_for::<aura_chrome_domain::ChromeTabHandOverRequest>();
+    generator.subschema_for::<aura_chrome_domain::ChromeHandedTab>();
 }

@@ -4,6 +4,7 @@
  * handed to the user, and stopping every share. Only states and button words; nothing explains
  * itself in prose.
  */
+import { shareable } from '../shareable.js';
 import type { ConnectionState } from '../native.js';
 import type { PanelRequest, PanelState } from '../panel-messages.js';
 import type { PairRefusal, ShareScope, ShareView } from '../protocol.js';
@@ -75,16 +76,7 @@ function button(label: string, onClick: () => void, className = 'button'): HTMLB
   return node;
 }
 
-/** Whether Aura can be given this tab: an ordinary web page. */
-export function shareable(url: string): boolean {
-  if (!/^https?:\/\//iu.test(url)) return false;
-  const host =
-    url
-      .replace(/^https?:\/\//iu, '')
-      .split(/[/?#:]/u)[0]
-      ?.toLowerCase() ?? '';
-  return host !== 'chrome.google.com' && host !== 'chromewebstore.google.com';
-}
+export { shareable };
 
 function remaining(deadline: number, now: number): string {
   const seconds = Math.max(0, Math.ceil((deadline - now) / 1000));

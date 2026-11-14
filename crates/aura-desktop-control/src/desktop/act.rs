@@ -90,7 +90,13 @@ fn run(
             Err(UiError::Timeout) => {
                 return Err(fail(HostErrorCode::Timeout, format!("{name} 没有响应"), false));
             }
-            Err(error) => return Err(fail(HostErrorCode::Internal, error.to_string(), false)),
+            Err(error) => {
+                return Err(fail(
+                    HostErrorCode::Internal,
+                    format!("第 {number} 步找元素时出错：{error}；这一步没有执行：请重新读取"),
+                    false,
+                ));
+            }
         };
         if !node.enabled {
             return Err(fail(
@@ -131,7 +137,14 @@ fn run(
             UiError::Failed(message) if message.starts_with("密码要用户自己输入") => {
                 fail(HostErrorCode::Refused, message, false)
             }
-            UiError::Failed(message) => fail(HostErrorCode::Internal, message, true),
+            UiError::Failed(message) => fail(
+                HostErrorCode::Internal,
+                format!(
+                    "第 {number} 步（{}）没有完成：{message}；这一步可能已经做了一部分：请重新读取",
+                    verb(step)
+                ),
+                true,
+            ),
         })?;
         progress.finished.store(number, Ordering::SeqCst);
         if let Some(guard) = guard {

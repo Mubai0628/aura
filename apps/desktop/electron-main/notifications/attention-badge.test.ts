@@ -4,23 +4,25 @@ import { AttentionBadge, RED_DOT_SIZE, redDotPixels } from './attention-badge.js
 
 describe('the red dot on the taskbar button', () => {
   it('shows while a notified conversation has not been in front, and goes once each has', () => {
-    const applied: number[] = [];
+    const applied: string[][] = [];
     let front: string | undefined;
     const badge = new AttentionBadge({
-      apply: (count) => applied.push(count),
+      apply: (unseen) => applied.push([...unseen]),
       inFront: (sessionId) => sessionId === front,
     });
     badge.add('ses_a');
     badge.add('ses_b');
     badge.add('ses_a');
-    expect(applied).toEqual([1, 2]);
+    expect(applied).toEqual([['ses_a'], ['ses_a', 'ses_b']]);
+    expect(badge.unseen).toEqual(['ses_a', 'ses_b']);
     badge.look();
-    expect(applied, 'nothing in front yet').toEqual([1, 2]);
+    expect(applied, 'nothing in front yet').toHaveLength(2);
     front = 'ses_a';
     badge.look();
     front = 'ses_b';
     badge.look();
-    expect(applied).toEqual([1, 2, 1, 0]);
+    // The sidebar is told each change, down to none.
+    expect(applied.slice(2)).toEqual([['ses_b'], []]);
     expect(badge.count).toBe(0);
   });
 

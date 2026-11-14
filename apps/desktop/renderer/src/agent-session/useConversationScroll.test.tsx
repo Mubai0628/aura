@@ -15,18 +15,36 @@ function Harness({ session, version }: { session: string; version: string }) {
   return <div ref={ref} data-testid="viewport" />;
 }
 
-/** A viewport 400 px high over `height` px of content, clamped like a real one. */
-function measure(element: HTMLElement, height: number) {
+/** A viewport `client` px high (400 unless said) over `height` px of content, clamped like a real one. */
+function measure(element: HTMLElement, height: number, client = 400) {
   let top = 0;
   Object.defineProperty(element, 'scrollHeight', { configurable: true, get: () => height });
-  Object.defineProperty(element, 'clientHeight', { configurable: true, get: () => 400 });
+  Object.defineProperty(element, 'clientHeight', { configurable: true, get: () => client });
   Object.defineProperty(element, 'scrollTop', {
     configurable: true,
     get: () => top,
     set: (value: number) => {
-      top = Math.max(0, Math.min(value, height - 400));
+      top = Math.max(0, Math.min(value, height - client));
     },
   });
+}
+
+/** Stands in for ResizeObserver; `grown()` tells the latest observer that something changed size. */
+function observeResizes() {
+  const observers: (() => void)[] = [];
+  class Observer {
+    constructor(callback: () => void) {
+      observers.push(callback);
+    }
+    observe(): void {
+      /* the test says when something changed size */
+    }
+    disconnect(): void {
+      /* nothing to release */
+    }
+  }
+  vi.stubGlobal('ResizeObserver', Observer);
+  return { grown: () => observers.at(-1)?.() };
 }
 
 function scrollTo(element: HTMLElement, top: number) {
@@ -75,26 +93,14 @@ test('a wheel turned up at the end stops following at once, and the end is follo
 });
 
 test('content growing while the reader scrolls up does not pull them back', () => {
-  const grown: (() => void)[] = [];
-  class Observer {
-    constructor(callback: () => void) {
-      grown.push(callback);
-    }
-    observe(): void {
-      /* the test says when content grew */
-    }
-    disconnect(): void {
-      /* nothing to release */
-    }
-  }
-  vi.stubGlobal('ResizeObserver', Observer);
+  const { grown } = observeResizes();
   try {
     const { getByTestId, rerender } = render(<Harness session="ses_a" version="a1" />);
     const viewport = getByTestId('viewport');
     measure(viewport, 5000);
     rerender(<Harness session="ses_a" version="a2" />);
     act(() => wheelUp(viewport, 4570));
-    act(() => grown.at(-1)?.());
+    act(grown);
     expect(viewport.scrollTop).toBe(4570);
   } finally {
     vi.unstubAllGlobals();
@@ -113,15 +119,66 @@ test('within a conversation, reading older messages is not interrupted by new ou
 
 function Reader({ version }: { version: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { away, hasNew, follow } = useConversationScroll(ref, 'ses_a', 'run_1', version);
+  const { away, hasNew, follow, stopFollowing } = useConversationScroll(
+    ref,
+    'ses_a',
+    'run_1',
+    version,
+  );
   return (
     <div ref={ref} data-testid="viewport" data-away={String(away)} data-new={String(hasNew)}>
       <button type="button" onClick={follow}>
         follow
       </button>
+      {/* What reading in older messages does first. */}
+      <button type="button" onClick={stopFollowing}>
+        older
+      </button>
     </div>
   );
 }
+
+// A conversation shorter than its window showed the way back to the latest message: a wheel turned
+// up, or older messages read in, stopped following although nothing was below, and the next output
+// marked the button.
+test('a conversation that fits its window never offers the way back', () => {
+  const { getByTestId, getByText, rerender } = render(<Reader version="a1" />);
+  const viewport = getByTestId('viewport');
+  measure(viewport, 300);
+  rerender(<Reader version="a2" />);
+  act(() => {
+    viewport.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+  });
+  rerender(<Reader version="a3" />);
+  expect(viewport.dataset.new).toBe('false');
+  expect(viewport.dataset.away).toBe('false');
+  // Older messages read in while it all fits; output that then outgrows the window is followed.
+  act(() => getByText('older').click());
+  measure(viewport, 900);
+  rerender(<Reader version="a4" />);
+  expect(viewport.scrollTop).toBe(500);
+  expect(viewport.dataset.new).toBe('false');
+});
+
+test('a window grown to hold the whole conversation drops the way back', () => {
+  const { grown } = observeResizes();
+  try {
+    const { getByTestId, rerender } = render(<Reader version="a1" />);
+    const viewport = getByTestId('viewport');
+    measure(viewport, 900);
+    rerender(<Reader version="a2" />);
+    act(() => scrollTo(viewport, 100));
+    rerender(<Reader version="a3" />);
+    expect(viewport.dataset.away).toBe('true');
+    expect(viewport.dataset.new).toBe('true');
+    measure(viewport, 900, 1000);
+    act(grown);
+    expect(viewport.dataset.away).toBe('false');
+    expect(viewport.dataset.new).toBe('false');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
 
 // The way back to the latest message is offered whenever some of the conversation is below the
 // window, new content or not; new content while away adds its dot.

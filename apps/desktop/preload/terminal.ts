@@ -15,7 +15,11 @@ import type { ResultEnvelope } from '../shared/aura-api.js';
 import type { IpcErrorEnvelope } from '@aura/contracts/generated';
 import { terminalOpeningBridge } from './terminal-opening.js';
 type OrderedTerminalCommand =
-  'terminal.user.write' | 'terminal.user.control' | 'terminal.user.resize' | 'terminal.user.close';
+  | 'terminal.user.write'
+  | 'terminal.user.control'
+  | 'terminal.user.resize'
+  | 'terminal.user.close'
+  | 'terminal.user.hand_over';
 export function terminalBridge(
   invoke: <C extends AgentMainCommand>(
     command: C,
@@ -54,6 +58,7 @@ export function terminalBridge(
     close: (request) => ordered('terminal.user.close', request),
     subscribe: (request) => invoke('terminal.user.subscribe', request),
     control: (request) => ordered('terminal.user.control', request),
+    handOver: (request) => ordered('terminal.user.hand_over', request),
     pendingSensitive: (request) => invoke('terminal.user.sensitive.pending', request),
     cancelSensitive: (request) => invoke('terminal.user.sensitive.cancel', request),
     submitSensitive: submitTerminalSensitive(isError, error),

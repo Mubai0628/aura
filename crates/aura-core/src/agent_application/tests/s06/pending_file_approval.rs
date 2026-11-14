@@ -40,4 +40,21 @@ async fn s06_b4_pending_file_answer_remains_usable_after_both_mode_changes() {
     let completed =
         wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
     assert!(!completed.cancellation_requested);
+    let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
+    let folder = services
+        .persistence
+        .workspace(services.persistence.workspace_of_session(session).expect("its Workspace"))
+        .expect("read the Workspace")
+        .canonical_root;
+    let approvals = crate::r03_tests::success(
+        &runtime,
+        "security.file_session_consent.list",
+        json!({"session_id":session,"include_inactive":true}),
+    )
+    .await;
+    assert_eq!(
+        approvals[0]["scope"]["workspace_root"],
+        json!(folder),
+        "the answer records the folder its Workspace was at: {approvals}"
+    );
 }

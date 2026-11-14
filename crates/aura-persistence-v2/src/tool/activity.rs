@@ -16,8 +16,24 @@ mod network_route;
 mod package;
 mod query;
 mod shell;
+mod team;
 mod unbound;
+mod user_text;
 mod workspace_init;
+
+/// What a person reads first about a call of tool `name` that did not succeed, for the screens
+/// beside the conversation's rows; none for a call that succeeded or carries no error.
+pub(crate) fn failure_sentence(
+    name: &str,
+    result: &aura_tool_contract::ToolResultV1,
+) -> Option<String> {
+    user_text::line(name, result)
+}
+
+/// The short line of a call that was not run for `reason`.
+pub(crate) fn not_run_line(reason: ToolNotExecutedReasonV1) -> &'static str {
+    display::not_run_text(reason)
+}
 
 /// The display class of one stored error category.
 ///
@@ -38,6 +54,23 @@ fn classify(category: aura_domain_common::ErrorCategory) -> ToolCallErrorClassV1
             ToolCallErrorClassV1::Other
         }
     }
+}
+
+/// The attempt a call was given, if it was given one: the lowest ordinal, the only one an
+/// admission reserves.
+pub(crate) fn attempt_of(
+    db: &Connection,
+    call: ToolCallId,
+) -> StoreResult<Option<aura_execution_contract::ExecutionAttempt>> {
+    let payload: Option<String> = db
+        .query_row(
+            "SELECT payload FROM execution_attempts WHERE operation_id=\
+             (SELECT operation_id FROM tool_calls WHERE id=?1) ORDER BY ordinal LIMIT 1",
+            [call.to_string()],
+            |r| r.get(0),
+        )
+        .optional()?;
+    payload.map(|payload| aura_persistence_core::record::decode(&payload)).transpose()
 }
 
 /// Whether the run is over: completed, cancelled or waiting for recovery.
@@ -161,6 +194,19 @@ pub fn page(
                 status = ToolCallStatusV1::Running;
             }
         }
+        // A call that waits for the user's answer to its approval waits for the user, not in a
+        // queue: its row says so instead of spinning as if Aura were working on it.
+        if stored.result.is_none()
+            && status == ToolCallStatusV1::Queued
+            && let Some(operation) = authority.as_ref().and_then(|a| a.operations.get(&id))
+            && crate::agent::approval::awaits_answer(
+                db,
+                batch.batch.invocation_identity.agent_run_id,
+                operation.operation_id,
+            )?
+        {
+            status = ToolCallStatusV1::WaitingApproval;
+        }
         if shell && matches!(stored.call.input, NormalizedToolCallInputStateV1::Ready { .. }) {
             let view = crate::execution::shell::query(
                 db,
@@ -200,6 +246,13 @@ pub fn page(
         {
             status = ToolCallStatusV1::RecoveryRequired;
         }
+        // A call reserved but never marked started cannot start once its run has ended: its
+        // turn was stopped before it started.
+        let never_started = status == ToolCallStatusV1::RecoveryRequired
+            && attempt_of(db, id)?.is_some_and(|attempt| attempt.dispatched_at.is_none());
+        if never_started {
+            status = ToolCallStatusV1::Finalized;
+        }
         let mut outcome = stored.result.as_ref().map(|r| match r.outcome {
             ToolResultOutcomeV1::Succeeded => ToolResultOutcomeSummaryView::Succeeded,
             ToolResultOutcomeV1::OperationRejected { .. } => {
@@ -216,6 +269,11 @@ pub fn page(
                 ToolResultOutcomeSummaryView::Indeterminate { reason }
             }
         });
+        if never_started {
+            outcome = Some(ToolResultOutcomeSummaryView::NotExecuted {
+                reason: ToolNotExecutedReasonV1::CancelledBeforeDispatch,
+            });
+        }
         // A question still waiting for the user is not finished in the
         // conversation either. Its record says so and is read again until the question ends; it
         // stayed "等待你的回答" after the answer when the call's own result counted as its end.
@@ -241,24 +299,29 @@ pub fn page(
             error.map_or(ToolCallErrorClassV1::InvalidRequest, |error| classify(error.category))
         });
         let error_code = error.flatten().map(|error| error.code.clone());
-        calls.push(AgentToolActivityEntry {
-            model_step_id: batch.batch.invocation_identity.model_step_id,
-            display: mcp::decorate(
+        let mut display = mcp::decorate(
+            db,
+            package::decorate(
                 db,
-                package::decorate(
-                    db,
-                    memory::decorate(
-                        git::decorate(
-                            display::project(db, &stored, &batch, entry.canonical_name.as_str())?,
-                            entry.canonical_name.as_str(),
-                            entry.source,
-                        ),
-                        authority.as_ref().and_then(|a| a.operations.get(&id)),
+                memory::decorate(
+                    git::decorate(
+                        display::project(db, &stored, &batch, entry.canonical_name.as_str())?,
+                        entry.canonical_name.as_str(),
+                        entry.source,
+                        stored.result.as_ref(),
                     ),
                     authority.as_ref().and_then(|a| a.operations.get(&id)),
-                )?,
+                ),
                 authority.as_ref().and_then(|a| a.operations.get(&id)),
             )?,
+            authority.as_ref().and_then(|a| a.operations.get(&id)),
+        )?;
+        if status == ToolCallStatusV1::RecoveryRequired {
+            display.summary = display::INTERRUPTED_WITHOUT_RESULT.into();
+        }
+        calls.push(AgentToolActivityEntry {
+            model_step_id: batch.batch.invocation_identity.model_step_id,
+            display,
             summary: ToolCallActivitySummaryView {
                 tool_call_id: id,
                 tool_batch_id: batch_id,
@@ -273,7 +336,7 @@ pub fn page(
                 side_effect_state: stored.result.as_ref().map(|r| r.side_effect_state),
                 started_at,
                 completed_at: stored.result.as_ref().map(|r| r.completed_at),
-                can_cancel: stored.result.is_none(),
+                can_cancel: stored.result.is_none() && !never_started,
             },
             shell_query_available: shell
                 && matches!(stored.call.input, NormalizedToolCallInputStateV1::Ready { .. }),

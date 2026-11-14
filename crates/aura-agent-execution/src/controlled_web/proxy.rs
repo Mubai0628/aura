@@ -83,35 +83,52 @@ impl ControlledWeb {
     }
 }
 
-/// Model-facing text. A proved pre-HTTP proxy failure names the proxy and says the direct
-/// attempt is what happened next. A later failure does not claim the request was unsent.
+/// Model-facing text: the code, then Core's own sentence. A proved pre-HTTP proxy failure names
+/// the proxy and says the direct attempt is what happened next. A later failure does not claim
+/// the request was unsent.
 pub(super) fn explain_transport(error: NetworkControlError) -> anyhow::Error {
+    use aura_network_control::ordinary_tools::{safe_transport_code, safe_transport_line};
     let request_not_started =
         matches!(&error, NetworkControlError::RoutedTransport { request_not_started: true, .. });
     let text = match &error {
-        NetworkControlError::RoutedTransport { error, routing, request_not_started } => {
+        NetworkControlError::RoutedTransport { error: inner, routing, request_not_started } => {
             match routing.iter().find_map(|hop| hop.proxy_failure.as_ref()) {
                 Some(failure) if *request_not_started => format!(
-                    "{}: 无法连接工具设置中的代理 {}:{}，尚未向目标发出 HTTP 请求。已改走直连，直连失败：{}。请确认代理软件已运行，或在工具设置中关闭代理。",
+                    "{}: 无法连接代理 {}:{}，尚未向目标发出 HTTP 请求。已改走直连，直连失败：{}。请确认代理软件已运行，或在 设置 → 模型 → 网络代理 里换一个代理。",
                     failure.kind.code(),
                     failure.host,
                     failure.port,
-                    aura_network_control::ordinary_tools::safe_transport_code(error)
+                    safe_transport_code(inner)
                 ),
                 Some(failure) => format!(
-                    "{}: 本机代理 {}:{} 的转发失败（{}）。不能确认目标请求是否已经发出，没有自动重放。",
-                    aura_network_control::ordinary_tools::safe_transport_code(error),
+                    "{}: 本机代理 {}:{} 的转发失败（{}）。不能确认目标请求是否已经发出，没有自动重放。可以稍后重试；写操作请先确认它有没有生效。",
+                    safe_transport_code(inner),
                     failure.host,
                     failure.port,
                     failure.reason
                 ),
-                None => aura_network_control::ordinary_tools::safe_transport_code(error).to_owned(),
+                None => safe_transport_line(&error),
             }
         }
-        NetworkControlError::UserProxyFailure(failure) => failure.to_string(),
-        other => aura_network_control::ordinary_tools::safe_transport_code(other).to_owned(),
+        other => safe_transport_line(other),
     };
     anyhow::Error::new(TransportFailure { message: text, request_not_started })
+}
+
+/// A grant Core could not issue for a request: nothing was sent, and the sentence says so.
+pub(super) fn explain_grant(error: NetworkControlError) -> anyhow::Error {
+    use aura_network_control::ordinary_tools::{safe_transport_code, safe_transport_line};
+    let message = match &error {
+        NetworkControlError::CoreGrantBindingMismatch
+        | NetworkControlError::CoreGrantAlreadyConsumed
+        | NetworkControlError::GrantExpired
+        | NetworkControlError::GrantNotApplicable => format!(
+            "{}: 这次调用的联网授权和请求对不上（例如等待期间权限、设置或批准变了），请求没有发出。可以重新调用。",
+            safe_transport_code(&error)
+        ),
+        other => safe_transport_line(other),
+    };
+    anyhow::Error::new(TransportFailure { message, request_not_started: true })
 }
 
 /// The same text for a request to `url`. A target that could not be reached directly is named
@@ -129,22 +146,41 @@ pub(super) fn explain_transport_to(error: NetworkControlError, url: &url::Url) -
     if let Some(NetworkControlError::Transport(reason)) = direct
         && let Some(message) = unreachable_target(reason, url)
     {
-        let request_not_started = matches!(
+        return worded(&error, message);
+    }
+    if matches!(direct, Some(NetworkControlError::Timeout))
+        && let Some(target) = target_of(url)
+    {
+        let message = if matches!(
             &error,
             NetworkControlError::RoutedTransport { request_not_started: true, .. }
-        );
-        return anyhow::Error::new(TransportFailure { message, request_not_started });
+        ) {
+            format!(
+                "network.timeout: 连接 {target} 超时，请求没有发出。请确认目标服务可用、网络正常后再重试。"
+            )
+        } else {
+            format!(
+                "network.timeout: {target} 没有在时限内完成（请求超时），不能确认请求是否已经送达。可以稍后重试；写操作先确认它有没有生效。"
+            )
+        };
+        return worded(&error, message);
     }
     explain_transport(error)
+}
+
+/// `host:port` of `url`, never its path.
+pub(super) fn target_of(url: &url::Url) -> Option<String> {
+    let host = url.host_str()?;
+    Some(match url.port_or_known_default() {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    })
 }
 
 fn unreachable_target(reason: &str, url: &url::Url) -> Option<String> {
     use aura_network_control::connect_failure as kind;
     let host = url.host_str()?;
-    let target = match url.port_or_known_default() {
-        Some(port) => format!("{host}:{port}"),
-        None => host.to_owned(),
-    };
+    let target = target_of(url)?;
     let code = kind::code(reason);
     Some(match reason {
         kind::REFUSED => format!(
@@ -166,6 +202,26 @@ fn unreachable_target(reason: &str, url: &url::Url) -> Option<String> {
     })
 }
 
+/// Whether `error` is the gateway's own time limit on a route whose proxy did not fail first.
+pub(super) fn is_timeout(error: &NetworkControlError) -> bool {
+    match error {
+        NetworkControlError::Timeout => true,
+        NetworkControlError::RoutedTransport { error, routing, .. } => {
+            routing.iter().all(|hop| hop.proxy_failure.is_none())
+                && matches!(error.as_ref(), NetworkControlError::Timeout)
+        }
+        _ => false,
+    }
+}
+
+/// `message` for a failure Core words itself; whether the request was sent stays the gateway's
+/// own proof.
+pub(super) fn worded(error: &NetworkControlError, message: String) -> anyhow::Error {
+    let request_not_started =
+        matches!(error, NetworkControlError::RoutedTransport { request_not_started: true, .. });
+    anyhow::Error::new(TransportFailure { message, request_not_started })
+}
+
 /// Preserve the gateway's typed proof while keeping unsafe transport diagnostics private.
 #[derive(Debug)]
 pub(super) struct TransportFailure {
@@ -181,4 +237,26 @@ impl std::error::Error for TransportFailure {}
 
 pub(super) fn request_not_started(error: &anyhow::Error) -> bool {
     error.downcast_ref::<TransportFailure>().is_some_and(|failure| failure.request_not_started)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A grant Core could not issue says in a sentence that nothing was sent, not only its code.
+    #[test]
+    fn a_grant_that_could_not_be_issued_says_nothing_was_sent() {
+        for error in
+            [NetworkControlError::CoreGrantBindingMismatch, NetworkControlError::GrantExpired]
+        {
+            let text = explain_grant(error).to_string();
+            assert!(
+                text.starts_with("http.authority_changed: ") && text.contains("请求没有发出"),
+                "{text}"
+            );
+        }
+        let invalid = explain_grant(NetworkControlError::InvalidUrl).to_string();
+        assert!(invalid.starts_with("http.invalid_url_or_method: "), "{invalid}");
+        assert!(invalid.contains("尚未向目标发出"), "{invalid}");
+    }
 }

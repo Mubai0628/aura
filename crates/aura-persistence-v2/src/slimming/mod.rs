@@ -27,13 +27,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema_migration::Pending;
 
-mod command;
 mod compact;
 mod delete;
 mod snapshots;
 mod streams;
-
-pub use command::command;
 
 /// Beside the store while a run is owed; see the module documentation.
 pub const MARKER: &str = "store-slimming.json";

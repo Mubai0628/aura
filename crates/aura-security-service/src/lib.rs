@@ -9,6 +9,7 @@ pub mod host_preparation;
 pub mod native_session_grants;
 pub mod p04;
 pub mod p04_broker;
+pub mod workspace_follow_up;
 pub mod workspace_policy;
 
 // p04.rs names the settlement codes `crate::command_settlement` and external_grants.rs the journal

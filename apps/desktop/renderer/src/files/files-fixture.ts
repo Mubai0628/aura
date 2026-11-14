@@ -78,7 +78,7 @@ export function filesApi() {
       value: {
         path: request.target.path,
         byte_length: request.target.path === 'logo.png' ? 70_000 : 2048,
-        media_type: request.target.path === 'logo.png' ? 'image/png' : 'application/octet-stream',
+        media_type: request.target.path === 'logo.png' ? 'image/png' : 'application/x-elf',
         magic_description: request.target.path === 'logo.png' ? 'PNG image' : 'ELF executable',
         is_text: false,
       },

@@ -8,7 +8,7 @@ async fn call(runtime: &crate::RuntimeState, method: &str, params: Value) -> Val
 }
 
 /// The repository's test MCP server, offering resources, saved and trusted through the routes.
-async fn notes_server(host: &crate::r03_tests::Fixture, runtime: &crate::RuntimeState) {
+pub(super) async fn notes_server(host: &crate::r03_tests::Fixture, runtime: &crate::RuntimeState) {
     let debug = std::env::current_exe()
         .expect("test image")
         .parent()
@@ -84,17 +84,13 @@ async fn an_mcp_resource_is_read_when_the_message_is_sent_and_kept_for_the_model
     let first = requests[0].to_string();
     assert!(first.contains("v2-message-captures"), "{first}");
     assert!(first.contains("readme.txt"), "{first}");
-    // What the read gave the model: the text inside each tool result.
+    // What the read gave the model: the file's own lines, after their numbers.
     let read: String = requests.last().expect("the answer's request")["messages"]
         .as_array()
         .expect("messages")
         .iter()
         .filter(|m| m["role"] == "tool")
         .filter_map(|m| m["content"].as_str())
-        .filter_map(|content| serde_json::from_str::<Value>(content).ok())
-        .filter_map(|result| {
-            result["outcome"]["payload"]["value"]["text"].as_str().map(str::to_owned)
-        })
         .collect();
     assert!(
         read.contains("MCP resource \"readme\" (fixture://notes/readme) of server \"笔记\""),

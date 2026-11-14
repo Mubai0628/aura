@@ -1,4 +1,5 @@
 import { userMessage } from '../agent-session/user-message';
+import { MemoryRequestFailed, failureOf, type MemoryFailure } from './memory-words';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   MemoryDesktopSnapshot,
@@ -26,7 +27,7 @@ export function useMemory(coreReady: boolean, workspaceId?: WorkspaceId) {
       if (!coreReady || !window.aura?.v1.memory)
         throw new Error('Core 尚未就绪，请等待连接后重试。');
       const result = await window.aura.v1.memory.invoke(command, params);
-      if (!result.ok) throw new Error(result.error.message);
+      if (!result.ok) throw new MemoryRequestFailed(result.error);
       return result.value;
     },
     [coreReady],
@@ -48,7 +49,7 @@ export function useMemory(coreReady: boolean, workspaceId?: WorkspaceId) {
       setSettings(configuration);
     } catch (cause) {
       if (current === generation.current.value)
-        setError(userMessage(cause, '记忆状态读取失败，请刷新。'));
+        setError(userMessage(failureOf(cause), '记忆状态读取失败，请刷新。'));
     }
   }, [call, workspaceId]);
   useEffect(() => {
@@ -62,7 +63,12 @@ export function useMemory(coreReady: boolean, workspaceId?: WorkspaceId) {
       owner.value++;
     };
   }, [reload]);
-  const act = async <T>(work: () => Promise<T>, success?: string): Promise<T | undefined> => {
+  const act = async <T>(
+    work: () => Promise<T>,
+    success?: string,
+    failed: MemoryFailure = (cause) =>
+      userMessage(failureOf(cause), '记忆操作未完成，请刷新查看。'),
+  ): Promise<T | undefined> => {
     if (locked.current) return undefined;
     locked.current = true;
     setBusy(true);
@@ -75,8 +81,7 @@ export function useMemory(coreReady: boolean, workspaceId?: WorkspaceId) {
       if (success) setMessage(success);
       return result;
     } catch (cause) {
-      if (current === generation.current.value)
-        setError(userMessage(cause, '记忆操作未完成，请刷新查看。'));
+      if (current === generation.current.value) setError(failed(cause));
       return undefined;
     } finally {
       if (current === generation.current.value) {

@@ -36,7 +36,9 @@ async fn external_video_is_attached_by_location_and_its_single_file_read_grant_r
     assert!(!grant.recursive_scope);
     let text = request_text(&provider);
     assert!(text.contains(selected.file_name().unwrap().to_str().unwrap()), "{text}");
-    assert!(text.contains(&grant.id.to_string()), "{text}");
+    // The grant applies by itself when the file is read at its path; the line does not name it.
+    assert!(!text.contains(&grant.id.to_string()), "{text}");
+    assert!(text.contains("read it with fs.read at this full path"), "{text}");
     let history = crate::r03_tests::success(
         &runtime,
         "agent.history",

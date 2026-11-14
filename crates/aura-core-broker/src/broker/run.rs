@@ -163,13 +163,16 @@ where
         loop {
             let now = UtcTimestamp::now();
             let operation_id = operation.operation_id;
-            let plan = backend
+            let plan = match backend
                 .prepare(PrepareRequest {
                     operation: operation.clone(),
                     requirement: requirement.clone(),
                 })
                 .await
-                .map_err(|e| anyhow::anyhow!("{e:?}"))?;
+            {
+                Ok(plan) => plan,
+                Err(error) => return Ok(Err(refusal_envelope(correlation, &error))),
+            };
             let authority = AuthorizationDecision {
                 basis: AuthorizationBasis::AuthenticatedMain {
                     principal_id: operation.content.identity.principal_id,
@@ -299,7 +302,7 @@ where
                 matches!(&error, BackendError::DispatchRejected { reason } if reason == FACTS_CHANGED)
             });
             let Some(refused) = refused else {
-                return Err(anyhow::anyhow!("{error:?}"));
+                return Ok(Err(refusal_envelope(correlation, &error)));
             };
             let content = refused.operation.content.clone();
             settle_refused(&boundary, &subject, journal, refused).await;
@@ -366,6 +369,34 @@ async fn settle_refused(
 
 /// The answer once the facts kept changing through every retry. Nothing ran, so trying again is
 /// safe.
+/// A refusal before the handler ran, in the refusing step's own words. A reason that starts with a
+/// dotted code (`git.not_repository: …`) answers with that code, so a window can tell the kinds of
+/// refusal apart; any other reason keeps the ordinary dispatch code.
+fn refusal_envelope(correlation: CorrelationId, error: &BackendError) -> IpcErrorEnvelope {
+    let reason = match error {
+        BackendError::Unavailable { reason }
+        | BackendError::PreparationRejected { reason }
+        | BackendError::DispatchRejected { reason } => reason.as_str(),
+        BackendError::DispatchUnknown { .. } => return error_envelope(correlation, error),
+    };
+    if reason == FACTS_CHANGED {
+        return error_envelope(
+            correlation,
+            "相关内容在准备期间被其他操作修改了，这次请求没有执行；请刷新后再试。",
+        );
+    }
+    let mut envelope = error_envelope(correlation, reason);
+    if let Some(code) = reason
+        .split_once(": ")
+        .map(|(code, _)| code)
+        .filter(|code| code.contains('.'))
+        .and_then(|code| ErrorCode::new(code).ok())
+    {
+        envelope.code = code;
+    }
+    envelope
+}
+
 fn facts_changed_envelope(correlation: CorrelationId) -> IpcErrorEnvelope {
     let mut envelope =
         error_envelope(correlation, "相关内容正在被其他操作修改，这次请求没有执行，请稍后再试。");

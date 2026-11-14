@@ -118,6 +118,9 @@ pub struct EndpointCreatedWithCredentialResult {
 pub struct ProviderBulkAvailabilityResult {
     pub provider_id: ProviderId,
     pub changed_model_profile_ids: Vec<ModelProfileId>,
+    /// Models left as they were: allowing sub-agents needs an output limit they do not have.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skipped_model_profile_ids: Vec<ModelProfileId>,
     pub revision: Revision,
 }
 

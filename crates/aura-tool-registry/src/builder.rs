@@ -24,9 +24,9 @@ pub(crate) mod tests_support;
 mod types;
 pub use types::*;
 mod child;
-pub use child::derive_child_registry_snapshot_v1;
 #[cfg(test)]
 use child::is_child_hard_denied;
+pub use child::{derive_child_registry_snapshot_v1, subagent_keeps};
 mod entries;
 use entries::*;
 mod eligibility;

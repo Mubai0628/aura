@@ -1,5 +1,5 @@
-import { userMessage } from '../agent-session/user-message';
 import { toolTabs, type ToolTab } from '../right-workspace/tool-tabs';
+import { closeFailure } from './failure-words';
 import { removeTerminal, terminalApi, terminalSnapshot } from './store';
 import { disposeTerminalEngine } from './xterm-runtime';
 
@@ -18,7 +18,7 @@ export async function closeTerminalTab(session: string, tab: ToolTab): Promise<s
         session_id: record.view.session_id,
         terminal_id: record.view.terminal_id,
       });
-      if (!result.ok) return userMessage(result.error, '终端没有关闭，请重试。');
+      if (!result.ok) return closeFailure(result.error);
     }
     disposeTerminalEngine(record.view.terminal_id);
     removeTerminal(record.view.terminal_id);

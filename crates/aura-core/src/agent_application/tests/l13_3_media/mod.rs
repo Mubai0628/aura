@@ -5,6 +5,7 @@ use super::*;
 use aura_agent_domain::*;
 use aura_ipc::WireFrame;
 use base64::Engine as _;
+mod header;
 mod sequence;
 mod sources;
 mod wire;
@@ -45,6 +46,14 @@ fn frame() -> MediaImageV1 {
 fn play_host(
     runtime: &crate::RuntimeState,
 ) -> (Arc<Mutex<Vec<MediaHostCommandV1>>>, tokio::task::JoinHandle<()>) {
+    play(runtime, SOURCE)
+}
+
+/// A stand-in host that checks it reads `source` through the bridge.
+fn play(
+    runtime: &crate::RuntimeState,
+    source: &'static [u8],
+) -> (Arc<Mutex<Vec<MediaHostCommandV1>>>, tokio::task::JoinHandle<()>) {
     let bridge = services(runtime).agent_required().media();
     let queue = crate::AsyncPriorityQueue::new();
     bridge.pin_publisher(queue.clone());
@@ -70,7 +79,7 @@ fn play_host(
                 .unwrap();
             assert_eq!(
                 base64::engine::general_purpose::STANDARD.decode(read.data_base64).unwrap(),
-                SOURCE
+                source
             );
             let result = match &command.action {
                 MediaHostActionV1::Probe => MediaHostCompletedV1::Probe(MediaProbeResult {
@@ -82,6 +91,7 @@ fn play_host(
                     container: Some("webm".into()),
                     codec: None,
                     byte_length: command.file_size,
+                    note: None,
                 }),
                 MediaHostActionV1::Frames { times, count, sheet, .. } => {
                     let times = times.clone().unwrap_or_else(|| {

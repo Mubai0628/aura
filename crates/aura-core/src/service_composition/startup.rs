@@ -16,8 +16,11 @@ pub(crate) async fn initialize_services_at(
     paths.ensure_layout().context("failed to create Aura data layout")?;
     append_startup_stage("paths_layout_ready");
     let broker = Arc::new(
-        broker::BrokerJournal::open(&paths.data_dir.join("v2-execution"))
-            .context("failed to open isolated V2 Broker execution store")?,
+        broker::BrokerJournal::open_at(
+            &paths.data_dir.join("v2-execution"),
+            paths.locations.global_memory.as_deref(),
+        )
+        .context("failed to open isolated V2 Broker execution store")?,
     );
     append_startup_stage("broker_journal_opened");
     // One registry for the whole process, created **before** the config
@@ -494,7 +497,7 @@ pub(crate) async fn initialize_services_at(
     let chrome = Arc::new(chrome_control::ChromeControl::new(
         chrome_control::ChromeControlOptions::for_installation(
             release.release_descriptor.bundle_namespace.as_str(),
-            &paths.local_root,
+            &paths.locations.chrome_root,
         ),
         Arc::clone(&settings),
         chrome_secrets(&release.release_descriptor.bundle_namespace),

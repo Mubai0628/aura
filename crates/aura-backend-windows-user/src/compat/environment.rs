@@ -184,7 +184,7 @@ pub fn build_declared(
             replace(&mut entries, name, proxy);
         }
         for name in ["NO_PROXY", "NPM_CONFIG_NOPROXY"] {
-            replace(&mut entries, name, "");
+            replace(&mut entries, name, OFFLINE_NO_PROXY);
         }
         if !entries.iter().any(|entry| entry.name.eq_ignore_ascii_case("NODE_USE_ENV_PROXY")) {
             replace(&mut entries, "NODE_USE_ENV_PROXY", "1");
@@ -193,7 +193,11 @@ pub fn build_declared(
     Ok(entries)
 }
 
-fn replace(entries: &mut Vec<NativeEnvironmentEntry>, name: &str, value: &str) {
+/// What goes past the reject proxy in soft-offline mode: this computer only, so a program still
+/// reaches the local servers and ports it starts or is tested against.
+pub(crate) const OFFLINE_NO_PROXY: &str = "localhost,127.0.0.1,::1";
+
+pub(super) fn replace(entries: &mut Vec<NativeEnvironmentEntry>, name: &str, value: &str) {
     if let Some(entry) = entries.iter_mut().find(|entry| entry.name.eq_ignore_ascii_case(name)) {
         entry.value_utf16 = value.encode_utf16().collect();
         return;

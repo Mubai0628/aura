@@ -53,7 +53,7 @@ impl PackageConformanceOwner {
         self.recovered
     }
     pub fn import_staged(&self, staged: &StagedToolPackageV1) -> Result<PackageVersionBindingV1> {
-        ensure!(!self.stopping.load(Ordering::Acquire), "package.owner_stopping");
+        ensure!(!self.stopping.load(Ordering::Acquire), crate::failures::OWNER_STOPPING);
         let descriptor = aura_tool_package::package_content_descriptor_v1(staged)?;
         let bytes = descriptor
             .manifest
@@ -82,15 +82,18 @@ impl PackageConformanceOwner {
         Ok(packages::conformance::conformance(locked(&self.store)?.database.connection(), version)?)
     }
     pub fn start(&self, prepared: PreparedPackageConformance) -> Result<PackageConformanceHandle> {
-        ensure!(Arc::ptr_eq(&self.lease, &prepared.lease), "package.preparation_owner_mismatch");
-        ensure!(!self.stopping.load(Ordering::Acquire), "package.owner_stopping");
+        ensure!(
+            Arc::ptr_eq(&self.lease, &prepared.lease),
+            crate::failures::PREPARATION_OWNER_MISMATCH
+        );
+        ensure!(!self.stopping.load(Ordering::Acquire), crate::failures::OWNER_STOPPING);
         prepared.staged.verify_integrity()?;
         let PreparedPackageConformance { version, options, staged, scratch, .. } = prepared;
         let mut runs =
-            self.runs.lock().map_err(|_| anyhow::anyhow!("package.owner_unavailable"))?;
-        ensure!(!self.stopping.load(Ordering::Acquire), "package.owner_stopping");
+            self.runs.lock().map_err(|_| anyhow::anyhow!(crate::failures::OWNER_UNAVAILABLE))?;
+        ensure!(!self.stopping.load(Ordering::Acquire), crate::failures::OWNER_STOPPING);
         runs.retain(|_, state| state.status.lock().map_or(true, |status| status.running));
-        ensure!(runs.len() < 32, "package.conformance_capacity");
+        ensure!(runs.len() < 32, crate::failures::CONFORMANCE_CAPACITY);
         let run_id = ToolConformanceRunId::new();
         let state = Arc::new(RunState {
             cancelled: AtomicBool::new(false),
@@ -127,11 +130,11 @@ impl PackageConformanceOwner {
         version: &PackageVersionBindingV1,
         options: PackageRunOptions,
     ) -> Result<PreparedPackageConformance> {
-        ensure!(!self.stopping.load(Ordering::Acquire), "package.owner_stopping");
+        ensure!(!self.stopping.load(Ordering::Acquire), crate::failures::OWNER_STOPPING);
         ensure!(
             options.timeout > std::time::Duration::ZERO
                 && (1..=64 * 1024 * 1024).contains(&options.max_output_bytes),
-            "package.invalid_process_limits"
+            crate::failures::INVALID_PROCESS_LIMITS
         );
         let content = packages::load_content(locked(&self.store)?.database.connection(), version)?;
         ensure!(
@@ -139,7 +142,7 @@ impl PackageConformanceOwner {
                 &content.descriptor.manifest,
                 &options.settings
             )? == options.settings,
-            "package.settings_not_canonical"
+            crate::failures::SETTINGS_NOT_CANONICAL
         );
         let previous_state = self
             .report(version)?
@@ -170,7 +173,7 @@ impl PackageConformanceOwner {
         Ok(self
             .runs
             .lock()
-            .map_err(|_| anyhow::anyhow!("package.owner_unavailable"))?
+            .map_err(|_| anyhow::anyhow!(crate::failures::OWNER_UNAVAILABLE))?
             .values()
             .filter(|state| state.status.lock().map_or(true, |status| status.running))
             .count())
@@ -198,5 +201,5 @@ impl Drop for PackageConformanceOwner {
 }
 
 pub(super) fn locked(store: &Mutex<V2Store>) -> Result<MutexGuard<'_, V2Store>> {
-    store.lock().map_err(|_| anyhow::anyhow!("package.store_unavailable"))
+    store.lock().map_err(|_| anyhow::anyhow!(crate::failures::STORE_UNAVAILABLE))
 }

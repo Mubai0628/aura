@@ -15,3 +15,10 @@ CREATE TABLE agent_visible_repair_turn(id INTEGER PRIMARY KEY CHECK(id=1), owner
 CREATE TABLE turn_poll_capture(id TEXT PRIMARY KEY, revision INTEGER NOT NULL, state TEXT NOT NULL, total_len INTEGER NOT NULL, copied INTEGER NOT NULL, payload BLOB NOT NULL) STRICT;
 CREATE INDEX turn_tasks_session ON turn_tasks(session_id);
 CREATE INDEX agent_runs_turn ON agent_runs(turn_task_id);
+CREATE TABLE agent_team_members(child_session_id TEXT PRIMARY KEY, parent_session_id TEXT NOT NULL, handle TEXT NOT NULL, spawn_call TEXT NOT NULL UNIQUE, state TEXT NOT NULL CHECK(state IN ('running','reported','stopped')), revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(parent_session_id, handle)) STRICT;
+CREATE INDEX agent_team_members_parent ON agent_team_members(parent_session_id);
+CREATE TABLE agent_team_reports(child_session_id TEXT NOT NULL, sequence INTEGER NOT NULL CHECK(sequence>0), source TEXT NOT NULL UNIQUE, turn_task_id TEXT NOT NULL, status TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload)), created_at TEXT NOT NULL, PRIMARY KEY(child_session_id, sequence)) STRICT;
+CREATE TABLE agent_worktrees(workspace_id TEXT PRIMARY KEY, session_id TEXT NOT NULL UNIQUE, parent_session_id TEXT, parent_workspace_id TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('active','merged','discarded')), revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload)), created_at TEXT NOT NULL, updated_at TEXT NOT NULL) STRICT;
+CREATE INDEX agent_worktrees_parent ON agent_worktrees(parent_session_id);
+CREATE TABLE agent_worktree_settings(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload)), updated_at TEXT NOT NULL) STRICT;
+CREATE TABLE agent_team_settings(id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL CHECK(revision>0), payload TEXT NOT NULL CHECK(json_valid(payload)), updated_at TEXT NOT NULL) STRICT;

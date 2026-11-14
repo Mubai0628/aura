@@ -170,18 +170,40 @@ test('branch, upstream, operation and conflicts show, and a file note stays with
   expect(within(card('src/app.ts')).getByText('未运行外部程序，按原始内容比较')).toBeTruthy();
 });
 
-test('a folder outside Git says why, and the page can be read again', async () => {
+// A plain folder read 「无法读取仓库：无法读取仓库。 请核对工作区位置和 Git 配置后重试。」, as if it were broken.
+test('a folder outside Git says it has nothing to compare, and the page can be read again', async () => {
   const user = userEvent.setup();
   git.read.mockResolvedValue({
     ok: false,
-    error: { code: 'git.not_repository', message: '所选目录不是 Git 仓库' },
+    error: { code: 'git.not_repository', message: 'git.not_repository: 此工作区不是 Git 仓库。' },
   } as never);
   render(panel());
-  expect((await screen.findByRole('alert')).textContent).toContain('核对工作区位置和 Git 配置');
+  expect(
+    await screen.findByText(
+      '这个工作区不是 Git 仓库，审查页没有可比较的改动。需要时在终端运行 git init，然后点刷新。',
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
   git.read.mockImplementation(async (request: GitWorkspaceReadRequestV1) => answer(request));
   await user.click(screen.getByRole('button', { name: '更多审查选项' }));
   await user.click(screen.getByRole('menuitem', { name: '刷新' }));
   expect(await screen.findByText('5 个文件 · +17 −11')).toBeTruthy();
+});
+
+test('a read that failed says why once, with what to do, and keeps what was shown', async () => {
+  const user = userEvent.setup();
+  render(panel());
+  expect(await screen.findByText('5 个文件 · +17 −11')).toBeTruthy();
+  git.read.mockResolvedValue({
+    ok: false,
+    error: { code: 'git.index_locked', message: 'git.index_locked: Git 索引被锁定。' },
+  } as never);
+  await user.click(screen.getByRole('button', { name: '更多审查选项' }));
+  await user.click(screen.getByRole('menuitem', { name: '刷新' }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    '刷新失败，仍显示上次的内容：Git 索引正被另一个 Git 操作锁定，等它结束后点刷新。',
+  );
+  expect(screen.getByText('5 个文件 · +17 −11')).toBeTruthy();
 });
 
 test('a long diff shows a part, and the rest on request', async () => {

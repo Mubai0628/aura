@@ -128,7 +128,9 @@ impl McpContext {
                 let request: McpDescribeRequest = serde_json::from_value(params)?;
                 serde_json::to_value(self.detail(&self.server(&request.id)?))?
             }
-            other => anyhow::bail!("mcp.unknown_route: {other}"),
+            other => anyhow::bail!(
+                "mcp.unknown_route: MCP 设置不认识这个操作（{other}），没有执行；请更新 Aura 后重试。"
+            ),
         })
     }
 
@@ -137,7 +139,7 @@ impl McpContext {
         let registry = self.runtime.settings().mcp_registry();
         anyhow::ensure!(
             registry.issue.is_none(),
-            "mcp.registry_unavailable: {}",
+            "mcp.registry_unavailable: MCP 设置暂时读不出来，没有改动：{}",
             registry.issue.clone().unwrap_or_default()
         );
         Ok(registry)
@@ -211,7 +213,11 @@ impl McpContext {
 
     fn save(&self, request: McpSaveRequest) -> anyhow::Result<McpRegistryView> {
         let problems = aura_mcp::validate_server(&request.server);
-        anyhow::ensure!(problems.is_empty(), "mcp.invalid_server: {}", problems.join("；"));
+        anyhow::ensure!(
+            problems.is_empty(),
+            "mcp.invalid_server: 服务器配置不符合要求：{}",
+            problems.join("；")
+        );
         let plugin = self.runtime.plugin_of(&request.server.id);
         // A plugin's server may also name the secrets its plugin keeps for it.
         let own: Vec<_> = plugin
@@ -298,7 +304,7 @@ impl McpContext {
         let checked = super::launch::check(server, &self.runtime.hashes);
         anyhow::ensure!(
             checked.problems.is_empty(),
-            "mcp.invalid_server: {}",
+            "mcp.invalid_server: 服务器配置不符合要求：{}",
             checked.problems.join("；")
         );
         anyhow::ensure!(
@@ -322,10 +328,9 @@ impl McpContext {
         request: &McpTrustRequest,
     ) -> anyhow::Result<McpRegistryView> {
         let server = self.server(&request.id)?;
-        let fingerprint = self
-            .runtime
-            .current_fingerprint(&server)
-            .map_err(|reason| anyhow::anyhow!("mcp.invalid_server: {reason}"))?;
+        let fingerprint = self.runtime.current_fingerprint(&server).map_err(|reason| {
+            anyhow::anyhow!("mcp.invalid_server: 读不到服务器当前的配置或程序：{reason}")
+        })?;
         anyhow::ensure!(
             fingerprint == request.expected_fingerprint,
             "mcp.config_changed: 服务器的配置或程序在你查看之后变了，请重新查看再信任"
@@ -345,19 +350,19 @@ impl McpContext {
     /// Starts an OAuth sign-in for a trusted, enabled and unchanged server; the tools are
     /// listed again once the browser's return completed it.
     fn sign_in(&self, server: &McpServerConfig) -> anyhow::Result<McpSignInBegun> {
-        let fingerprint = self
-            .runtime
-            .ready_for_sign_in(server)
-            .map_err(|reason| anyhow::anyhow!("mcp.not_ready: {reason}"))?;
+        let fingerprint = self.runtime.ready_for_sign_in(server).map_err(|reason| {
+            anyhow::anyhow!("mcp.not_ready: 现在还不能登录这个服务器：{reason}")
+        })?;
         let (runtime, later) = (Arc::clone(&self.runtime), server.clone());
         let begun = self
             .runtime
             .oauth()
             .begin(server, &fingerprint, move || runtime.discover_later(later))
-            .map_err(|reason| anyhow::anyhow!("mcp.sign_in_failed: {reason}"))?;
+            .map_err(|reason| anyhow::anyhow!("mcp.sign_in_failed: 没有开始登录：{reason}"))?;
         Ok(McpSignInBegun {
             authorization_url: begun.authorization_url,
             authorization_server: begun.authorization_server,
+            browser_opened: None,
         })
     }
 

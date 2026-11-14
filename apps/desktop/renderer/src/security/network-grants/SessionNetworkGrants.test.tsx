@@ -154,3 +154,29 @@ test('a package answer names its package version, not all destinations', async (
   expect(packages).toHaveBeenCalledWith('packages.list', {});
   expect(screen.queryByText(/工具包批准 · 全部目标/u)).toBeNull();
 });
+
+test('an approval with an end time shows it as a local time', async () => {
+  const end = new Date();
+  end.setHours(16, 0, 0, 0);
+  Object.assign(window, {
+    aura: {
+      v1: {
+        listNetworkSessionConsents: vi.fn().mockResolvedValue({
+          ok: true,
+          value: [
+            {
+              grant_id: 'network-grant',
+              grant_revision: '3',
+              availability: 'in_force',
+              expires_at: end.toISOString(),
+              scope: { caller: 'ordinary_tools' },
+            },
+          ],
+        }),
+      },
+    },
+  });
+  render(<SessionNetworkGrants sessionId="session-a" open />);
+  expect(await screen.findByText(/到期：16:00/u)).toBeTruthy();
+  expect(screen.queryByText(/T\d\d:\d\d/u)).toBeNull();
+});

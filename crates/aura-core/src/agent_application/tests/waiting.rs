@@ -28,6 +28,10 @@ mod l10_19_compaction;
 // Tool results and provider failures.
 #[path = "l10_19_tools.rs"]
 mod l10_19_tools;
+// A step the provider went silent in is asked again with a note and a longer wait; a turn the
+// provider stopped says why in words.
+#[path = "stream_idle_retry.rs"]
+mod stream_idle_retry;
 // The unified entry and a tool list that changes only at a turn start.
 #[path = "l10_21_entry.rs"]
 mod l10_21_entry;
@@ -71,6 +75,35 @@ mod l16_captures;
 // An MCP resource referred to with "@".
 #[path = "l16_mcp_resources.rs"]
 mod l16_mcp_resources;
+// MCP tools a version derives differently than the one before it, after an update.
+#[path = "l19_mcp_update.rs"]
+mod l19_mcp_update;
+// Sub-agents started, waited for, answered, stopped and refused other conversations.
+#[path = "l19_team.rs"]
+mod l19_team;
+// A writing sub-agent in a worktree of its own, merged back once the user approves.
+#[path = "l19_worktrees.rs"]
+mod l19_worktrees;
+// The main agent opening a file of its sub-agent's worktree in the browser.
+#[path = "l19_worktree_browser.rs"]
+mod l19_worktree_browser;
+// A sub-agent's copy and temporary folder as its own, and the main agent working in that copy.
+#[path = "l19_allowance.rs"]
+mod l19_allowance;
+#[path = "l19_own_places.rs"]
+mod l19_own_places;
+// A sub-agent's question its main agent answers first, and a download the settings answer.
+#[path = "l19_modes.rs"]
+mod l19_modes;
+#[path = "l19_review.rs"]
+mod l19_review;
+// A sub-agent finding, loading and reading the user's Skills, also in a worktree.
+#[path = "l19_skills.rs"]
+mod l19_skills;
+// A sub-agent refused for its rate, stopped past its budget, and reported after Core restarts;
+// the limits read and saved.
+#[path = "l19_4_limits.rs"]
+mod l19_4_limits;
 // A plugin's panel reading and acting in its conversation.
 #[path = "l17_plugin_session.rs"]
 mod l17_plugin_session;
@@ -417,12 +450,14 @@ async fn compaction_of_a_span_with_a_tool_call_continues_the_turn() {
     let provider = Provider::scenario(Scenario::CompactAfterTool).await;
     let (runtime, session, model) = prepare(&host, &provider).await;
     // Larger than the 30% retention budget of the fixture's 256000-token window, so the
-    // reading call cannot be kept and is the part compaction replaces.
+    // reading call cannot be kept and is the part compaction replaces; the request carrying it
+    // (the file's lines after their numbers) stays some 7 KB under the window's input budget, so
+    // the turn's own instructions and tool descriptions have room to grow.
     std::fs::write(
         host.root.path().join("waiting-workspace").join(provider_fixture::COMPACTION_SOURCE_FILE),
         "a line of the compacted source file
 "
-        .repeat(3_400),
+        .repeat(2_900),
     )
     .expect("Agent test setup and persisted assertion");
     let start = start(&runtime, session, model, AgentTaskMode::Normal).await;

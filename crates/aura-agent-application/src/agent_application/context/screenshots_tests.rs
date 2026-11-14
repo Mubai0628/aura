@@ -102,3 +102,18 @@ fn the_latest_video_frames_keep_their_place_among_many_screenshots() {
     let expected = [&shots[3..4], &frames[..], &shots[4..]].concat();
     assert_eq!(carried(&history), expected);
 }
+
+/// A picture of a message the request carries that could not be read is named, so the model is
+/// told it was not sent; one of a message the request no longer carries is not.
+#[test]
+fn unread_pictures_of_the_carried_messages_are_named() {
+    let mut input = aura_context_fixtures::p06_performance_preparation_input(128_000, 20)
+        .expect("a preparation input");
+    let message = *current_messages(&input.trigger).first().expect("the step's own message");
+    let pictures = Screenshots {
+        shots: Vec::new(),
+        unread: vec![(message, "plan.png".to_owned()), (EventId::new(), "gone.png".to_owned())],
+    };
+    assert_eq!(pictures.attach(&mut input), ["plan.png"]);
+    assert!(input.attachments.is_empty(), "nothing unread is attached");
+}

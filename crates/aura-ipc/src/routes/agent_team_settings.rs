@@ -1,0 +1,66 @@
+use super::*;
+pub(super) const ROUTES: &[RouteDescriptor] = &[
+    // The sub-agents' limits the user chose, the defaults, and their revision.
+    route!(
+        "agent.team.settings",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "EmptyToolInput",
+        "AgentTeamSettingsView",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "agent.team.settings",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "EmptyToolInput",
+        "AgentTeamSettingsView",
+        ReadOnly,
+        None
+    ),
+    // The user saves new limits, or the defaults again, over the revision they read.
+    route!(
+        "agent.team.settings.set",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "AgentTeamSettingsSetRequest",
+        "AgentTeamSettingsView",
+        CommandInvocation,
+        DomainOperation
+    ),
+    route!(
+        "agent.team.settings.set",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "AgentTeamSettingsSetRequest",
+        "AgentTeamSettingsView",
+        CommandInvocation,
+        DomainOperation
+    ),
+    // The user takes back one thing a sub-agent's commands could do without asking.
+    route!(
+        "agent.team.allowance.revoke",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "AgentTeamAllowanceRevokeRequest",
+        "AgentTeamView",
+        CommandInvocation,
+        DomainOperation
+    ),
+    route!(
+        "agent.team.allowance.revoke",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "AgentTeamAllowanceRevokeRequest",
+        "AgentTeamView",
+        CommandInvocation,
+        DomainOperation
+    ),
+];

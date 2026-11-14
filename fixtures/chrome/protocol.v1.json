@@ -39,7 +39,8 @@
     { "op": "console", "tab_id": 7, "level": "error", "max_entries": 50 },
     { "op": "close", "tab_id": 41 },
     { "op": "assist", "tab_id": 7, "reason": "请在页面上登录", "timeout_seconds": 300 },
-    { "op": "release", "tab_ids": [7, 41] }
+    { "op": "release", "tab_ids": [7, 41] },
+    { "op": "tabs" }
   ],
   "core": [
     { "type": "pairing_required" },
@@ -145,6 +146,9 @@
     },
     "console": { "url": "https://shop.example/cart", "entries": [], "truncated": false },
     "assist": { "outcome": "timed_out", "page": null },
-    "close": { "closed": true }
+    "close": { "closed": true },
+    "tabs": {
+      "tabs": [{ "tab_id": 7, "window_id": 1, "url": "https://shop.example/cart", "title": "Cart" }]
+    }
   }
 }

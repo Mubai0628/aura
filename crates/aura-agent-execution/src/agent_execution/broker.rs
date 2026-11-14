@@ -11,9 +11,14 @@ pub fn descriptor(runtime: RuntimeInstanceId) -> BackendDescriptor {
     descriptor.id = BackendId("agent-core-broker-v1".into());
     descriptor.protocol_fingerprint =
         canonical_sha256(&"aura.agent-core-broker.v1").expect("literal");
-    descriptor
-        .capabilities
-        .extend([ResolvedCapability::AgentTaskRead, ResolvedCapability::AgentTaskWrite]);
+    // Merging and discarding a worktree write Git through the native writer. A `git.*` call is
+    // routed to the Git backends by name and never reaches this one.
+    descriptor.capabilities.extend([
+        ResolvedCapability::AgentTaskRead,
+        ResolvedCapability::AgentTaskWrite,
+        ResolvedCapability::GitWrite,
+        ResolvedCapability::GitDestructive,
+    ]);
     descriptor
 }
 pub struct Port {
@@ -249,7 +254,8 @@ impl BrokerPort for Port {
         let call = self.call.clone();
         let request = request.clone();
         let commands = self.commands.clone();
-        Box::pin(async move {
+        let ended = (Arc::clone(&service), call.clone(), request.clone());
+        let domain: BackendFuture<'_, ()> = Box::pin(async move {
             // **The resource wait happens outside the blocking worker and outside the
             // long session authority.**
             //
@@ -333,6 +339,17 @@ impl BrokerPort for Port {
                     .retain_worker(call.validated.call.tool_call_id)
                     .map_err(rejected)?;
                 let result = super::computer::invoke(service, call, request, start_lease)
+                    .await
+                    .map_err(rejected);
+                drop(lifetime);
+                return result;
+            }
+            if super::team::is_team_tool(&request.operation.content.action_kind) {
+                let lifetime = service
+                    .active_calls
+                    .retain_worker(call.validated.call.tool_call_id)
+                    .map_err(rejected)?;
+                let result = super::team::invoke(service, call, request, start_lease)
                     .await
                     .map_err(rejected);
                 drop(lifetime);
@@ -486,6 +503,9 @@ impl BrokerPort for Port {
             let admission_budget = service.fs.mutation_wait_budget();
             let admission_deadline = std::time::Instant::now() + admission_budget;
             let mut interval = std::time::Duration::from_millis(1);
+            // From the first refusal until the call gets its file or gives up, its row says it
+            // waits for another call; the attempt that gets the file may still read so a moment.
+            let mut waiting = None;
             loop {
                 let attempt_service = Arc::clone(&service);
                 let attempt_call = call.clone();
@@ -513,6 +533,12 @@ impl BrokerPort for Port {
                     FsInvocation::Done => return Ok(()),
                     FsInvocation::AdmissionWaiting => {}
                 }
+                waiting.get_or_insert_with(|| {
+                    service.active_calls.wait(
+                        call.validated.call.tool_call_id,
+                        super::active_calls::WAITING_FOR_FILE,
+                    )
+                });
                 let now = std::time::Instant::now();
                 if now >= admission_deadline {
                     return Err(rejected(
@@ -543,7 +569,9 @@ impl BrokerPort for Port {
                 .await
                 .map_err(|_| rejected("agent.resource_wait_exhausted"))?;
             }
-        })
+        });
+        let (service, call, request) = ended;
+        Box::pin(super::ended_before_start::settle(service, call, request, domain))
     }
     fn cancel(&self, handle: ExecutionHandle) -> BackendFuture<'_, CancelReceipt> {
         let service = Arc::clone(&self.service);

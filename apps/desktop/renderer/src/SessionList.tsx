@@ -3,6 +3,7 @@ import { prefetchAgentSession } from './agent-session/useAgentSession';
 import { SidebarItemMenu } from './SidebarItemMenu';
 import type { AppScreen, WorkspaceNavigationItem } from './app-shell-types';
 import type { SessionActivity } from './session-activity';
+import type { UnseenSessions } from './unseen-sessions';
 import { ListSentinel } from './ui/SkeletonRows';
 import { useIncrementalList } from './ui/useIncrementalList';
 
@@ -18,6 +19,8 @@ const leave = () => window.clearTimeout(resting);
 /** What a screen reader hears for a conversation with a turn under way. */
 const ACTIVITY_WORDS = { running: '正在运行', waiting: '等待你处理' } as const;
 
+const NONE: UnseenSessions = new Set();
+
 /**
  * A workspace's conversations in the navigation. The first page is drawn at once and the next as the end of the list comes into view; the
  * open conversation is always drawn, after the pages shown when it is beyond them.
@@ -27,12 +30,15 @@ export function SessionList({
   activity,
   onSelectSession,
   selectedSessionId,
+  unseen = NONE,
   workspace,
 }: {
   activeScreen: AppScreen;
   activity: SessionActivity;
   onSelectSession: (workspaceId: string, sessionId: string) => void;
   selectedSessionId: string;
+  /** Conversations with a notification the user has not looked at: their dot is red. */
+  unseen?: UnseenSessions;
   workspace: WorkspaceNavigationItem;
 }) {
   const open = workspace.sessions.findIndex((session) => session.id === selectedSessionId);
@@ -57,7 +63,7 @@ export function SessionList({
         <span
           className={`session-state state-${session.state}${
             activity.has(session.id) ? ` is-${activity.get(session.id)}` : ''
-          }`}
+          }${unseen.has(session.id) ? ' has-notice' : ''}`}
           aria-hidden="true"
         />
         <AppIcon name="chat" size={15} />
@@ -65,6 +71,7 @@ export function SessionList({
         {activity.has(session.id) ? (
           <span className="sr-only">{ACTIVITY_WORDS[activity.get(session.id)!]}</span>
         ) : null}
+        {unseen.has(session.id) ? <span className="sr-only">有新通知</span> : null}
       </button>
       <SidebarItemMenu workspace={workspace} session={session} />
     </li>

@@ -553,9 +553,8 @@ where
     if !catalog.needs_refresh(UtcTimestamp::now()) {
         return Ok(false);
     }
-    let Some(ownership) = catalog
-        .begin_refresh()
-        .context("failed to enter scheduled provider-catalog refresh state")?
+    let Some(ownership) =
+        catalog.begin_refresh().context(super::failures::CATALOG_REFRESH_UNAVAILABLE)?
     else {
         // Another owner already holds the refresh slot; the current status stays authoritative.
         return Ok(false);
@@ -572,25 +571,23 @@ where
                     let loading_catalog = project_catalog(
                         &announce_catalog
                             .status()
-                            .context("failed to read scheduled provider-catalog loading state")?,
+                            .context(super::failures::CATALOG_REFRESH_STATUS_UNREADABLE)?,
                         &announce_config
                             .snapshot()
-                            .context("failed to read model config for scheduled catalog refresh")?,
+                            .context(super::failures::CATALOG_REFRESH_CONFIG_UNREADABLE)?,
                         &announce_persistence,
                     )
-                    .context("failed to build scheduled provider-catalog loading projection")?;
+                    .context(super::failures::CATALOG_REFRESH_VIEW_UNAVAILABLE)?;
                     let changes = announce_persistence
                         .commit_model_projection_snapshots(vec![
                             aura_persistence::ModelProjectionDraft::ProviderCatalog(
                                 loading_catalog,
                             ),
                         ])
-                        .context(
-                            "failed to commit scheduled provider-catalog loading projection",
-                        )?;
-                    announce_persistence.publish_model_projection_changes(&changes).context(
-                        "failed to publish scheduled provider-catalog loading projection",
-                    )?;
+                        .context(super::failures::CATALOG_REFRESH_VIEW_UNSAVED)?;
+                    announce_persistence
+                        .publish_model_projection_changes(&changes)
+                        .context(super::failures::CATALOG_REFRESH_VIEW_UNPUBLISHED)?;
                     Ok(())
                 })();
                 // The occupancy travels with the announcement's real result: it is released by
@@ -637,8 +634,7 @@ where
             // partial effect, its own unwinding released the occupancy, and it must not be
             // reported as a started refresh.
             anyhow::bail!(
-                "the scheduled provider-catalog announcement section panicked after {waited_ms} ms; \
-                 it may have committed a loading projection and the result has no owner"
+                "model.catalog_refresh_interrupted: 定时刷新服务商目录时意外中断（{waited_ms} 毫秒后），设置页可能一直显示正在刷新；请重启 Aura。"
             )
         }
     }

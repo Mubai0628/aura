@@ -44,7 +44,7 @@ pub(super) fn stage(runtime: &PluginRuntime, source: &Path) -> anyhow::Result<St
 /// Copies the checked files, and only those, then checks the copy is the same content.
 fn from_folder(runtime: &PluginRuntime, source: &Path, staging: &Path) -> anyhow::Result<Staged> {
     let package = scan_plugin(source, &runtime.hashes)
-        .map_err(|error| anyhow::anyhow!("plugins.invalid: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("plugins.invalid: 这个插件不符合要求：{error}"))?;
     let folder = staging.join(&package.manifest.name);
     std::fs::create_dir_all(&folder)?;
     for file in &package.files {
@@ -56,7 +56,7 @@ fn from_folder(runtime: &PluginRuntime, source: &Path, staging: &Path) -> anyhow
         std::fs::copy(source.join(&relative), destination)?;
     }
     let copied = scan_plugin(&folder, &FileHashCache::default())
-        .map_err(|error| anyhow::anyhow!("plugins.invalid: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("plugins.invalid: 这个插件不符合要求：{error}"))?;
     anyhow::ensure!(
         copied.fingerprint == package.fingerprint,
         "plugins.import_changed: 复制时文件夹内容在变，请稍后再试"
@@ -75,13 +75,14 @@ fn from_archive(source: &Path, staging: &Path) -> anyhow::Result<Staged> {
     );
     let unpacked = staging.join(".unpacked");
     std::fs::create_dir_all(&unpacked)?;
-    let root = unpack_plugin_archive(file.into_file(), &unpacked)
-        .map_err(|error| anyhow::anyhow!("plugins.invalid_archive: {error}"))?;
+    let root = unpack_plugin_archive(file.into_file(), &unpacked).map_err(|error| {
+        anyhow::anyhow!("plugins.invalid_archive: 这个文件不是可用的插件压缩包：{error}")
+    })?;
     let package = scan_plugin(&root, &FileHashCache::default())
-        .map_err(|error| anyhow::anyhow!("plugins.invalid: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("plugins.invalid: 这个插件不符合要求：{error}"))?;
     let folder = staging.join(&package.manifest.name);
     std::fs::rename(&root, &folder)?;
     let package = scan_plugin(&folder, &FileHashCache::default())
-        .map_err(|error| anyhow::anyhow!("plugins.invalid: {error}"))?;
+        .map_err(|error| anyhow::anyhow!("plugins.invalid: 这个插件不符合要求：{error}"))?;
     Ok(Staged { staging: staging.to_path_buf(), folder, package })
 }

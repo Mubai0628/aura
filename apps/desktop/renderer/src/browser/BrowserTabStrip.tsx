@@ -27,7 +27,8 @@ function PageTab({
   selected: boolean;
 }) {
   const state = useBrowserPage(sessionId, pageId);
-  const model = pageId === MODEL_PAGE_ID;
+  const handed = pageId !== MODEL_PAGE_ID && state?.handedAs !== undefined;
+  const model = pageId === MODEL_PAGE_ID || handed;
   const title = pageTitle(state);
   return (
     <div
@@ -35,7 +36,7 @@ function PageTab({
       data-agent={state?.agentActive ? 'active' : undefined}
     >
       <button
-        aria-label={model ? `模型的页面：${title}` : title}
+        aria-label={handed ? `交给模型的页面：${title}` : model ? `模型的页面：${title}` : title}
         aria-selected={selected}
         className="browser-tab-main"
         onClick={() => browserTabs.show(sessionId, pageId)}

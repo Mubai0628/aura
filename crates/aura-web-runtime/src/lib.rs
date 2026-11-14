@@ -19,27 +19,69 @@ pub struct ScriptResource {
 pub const SEARCH_SURFACE: &str = "bing-cn-html-v1";
 pub const DOCUMENT_MEDIA_TYPE: &str = "application/vnd.aura.web-document+json";
 
+/// Every first line is the model's to read: the code, what happened, what was not read or saved,
+/// and what to try next.
 #[derive(Debug, thiserror::Error)]
 pub enum WebError {
-    #[error("web.invalid_input")]
-    InvalidInput,
-    #[error("web.response_too_large")]
+    /// The rule the input broke.
+    #[error("web.invalid_input: {0}")]
+    InvalidInput(String),
+    #[error(
+        "web.response_too_large: the page is larger than 8 MiB, the most Aura reads of one page. \
+         Nothing was saved. Fetch a more specific address, or save the file with http.download."
+    )]
     ResponseTooLarge,
-    #[error("web.authentication_required")]
+    #[error(
+        "web.authentication_required: the site answered HTTP 401 or 407: the page needs a \
+         sign-in. Nothing was read. Try another source, or ask the user to open the page in \
+         their browser."
+    )]
     AuthenticationRequired,
-    #[error("web.access_denied")]
+    #[error(
+        "web.access_denied: the site answered HTTP 403: it refuses to serve this page to Aura. \
+         Nothing was read. Try another source, or ask the user to open the page in their browser."
+    )]
     AccessDenied,
-    #[error("web.bot_challenge")]
+    #[error(
+        "web.bot_challenge: the site answered with a bot check instead of the page. Nothing was \
+         read. Try another source, or ask the user to open the page in their browser."
+    )]
     BotChallenge,
-    /// The first line is the model's to read: the status the server answered and what it means.
+    /// The status the server answered and what it means.
     #[error("web.http_failed: the server answered HTTP {0}; {reason}", reason = http_reason(*.0))]
     Http(u16),
-    #[error("web.rendering_unavailable")]
+    #[error(
+        "web.rendering_unavailable: the page needs its scripts run to show its text, and Aura \
+         could not render it here (rendering failed, timed out, gave too little text, or the page \
+         loads too many scripts). Nothing was saved. Try mode http_only to read the HTML as it \
+         is, or another address with the same content."
+    )]
     RenderingUnavailable,
-    #[error("web.unsupported_media_type")]
-    UnsupportedMediaType,
-    #[error("web.search_surface_changed")]
+    /// The content type the address answered with.
+    #[error(
+        "web.unsupported_media_type: the address answered with content type {0}, which web.fetch \
+         does not read as text (it reads web pages and text such as JSON, CSS, CSV or XML). \
+         Nothing was saved. Save the file with http.download instead."
+    )]
+    UnsupportedMediaType(String),
+    #[error(
+        "web.search_surface_changed: the search page came back in a layout Aura cannot read, so \
+         no results were taken from it. Try the search again later, or use web.fetch on an \
+         address you already know."
+    )]
     SearchSurfaceChanged,
+}
+
+impl WebError {
+    fn invalid(rule: impl Into<String>) -> Self {
+        Self::InvalidInput(rule.into())
+    }
+
+    /// The server's own content type, bounded and on one line.
+    fn unsupported(media: &str) -> Self {
+        let media: String = media.chars().filter(|c| !c.is_control()).take(100).collect();
+        Self::UnsupportedMediaType(if media.is_empty() { "(none)".into() } else { media })
+    }
 }
 
 /// What a failed HTTP status tells the one who asked for the page.
@@ -53,14 +95,33 @@ fn http_reason(status: u16) -> &'static str {
 }
 
 pub fn normalize_url(value: &str) -> Result<Url, WebError> {
-    let mut url = Url::parse(value).map_err(|_| WebError::InvalidInput)?;
-    if value.len() > 32768
-        || !matches!(url.scheme(), "http" | "https")
-        || url.host().is_none()
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return Err(WebError::InvalidInput);
+    let mut url = Url::parse(value).map_err(|_| {
+        WebError::invalid(
+            "the address is not a valid URL; write a full http:// or https:// address. Nothing \
+             was fetched.",
+        )
+    })?;
+    if value.len() > 32768 {
+        return Err(WebError::invalid(
+            "the address is longer than 32768 characters. Nothing was fetched.",
+        ));
+    }
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(WebError::invalid(
+            "only http:// and https:// addresses can be fetched. Nothing was fetched.",
+        ));
+    }
+    if url.host().is_none() {
+        return Err(WebError::invalid(
+            "the address has no host name; write a full http:// or https:// address. Nothing was \
+             fetched.",
+        ));
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(WebError::invalid(
+            "the address carries a user name or password, which Aura never sends; remove them \
+             from the address. Nothing was fetched.",
+        ));
     }
     url.set_fragment(None);
     Ok(url)
@@ -111,7 +172,7 @@ fn response_text(
     if !matches!(media.as_str(), "text/html" | "application/xhtml+xml") && !raw_text(&media) {
         // Binary documents/downloads belong to a separate Artifact path. Never
         // interpret an executable response as page text or execute its content.
-        return Err(WebError::UnsupportedMediaType);
+        return Err(WebError::unsupported(&media));
     }
     let label = content_type.split(';').find_map(|part| {
         part.trim()
@@ -183,7 +244,7 @@ pub fn rewrite_script_sources(html: &str, replacements: &[(String, String)]) -> 
 pub fn html_source(status: u16, content_type: &str, body: &[u8]) -> Result<String, WebError> {
     let (media, text) = response_text(status, content_type, body)?;
     if !matches!(media.as_str(), "text/html" | "application/xhtml+xml") {
-        return Err(WebError::UnsupportedMediaType);
+        return Err(WebError::unsupported(&media));
     }
     Ok(text)
 }
@@ -220,7 +281,7 @@ pub fn extract_search(
     max_results: u32,
 ) -> Result<Vec<WebSearchHit>, WebError> {
     if !(1..=20).contains(&max_results) {
-        return Err(WebError::InvalidInput);
+        return Err(WebError::invalid(search::MAX_RESULTS_RULE));
     }
     let (media, text) = response_text(status, content_type, body)?;
     if media != "text/html" {
@@ -231,13 +292,19 @@ pub fn extract_search(
 
 pub fn excerpt(text: &str, offset: u32, max_chars: u32) -> Result<(String, Option<u32>), WebError> {
     if !(1..=65536).contains(&max_chars) {
-        return Err(WebError::InvalidInput);
+        return Err(WebError::invalid("max_chars must be between 1 and 65536. Nothing was read."));
     }
     let count = text.chars().count();
+    let past_end = || {
+        WebError::invalid(format!(
+            "offset_chars {offset} is past the end of the document, which has {count} \
+             characters; use a smaller offset. Nothing was read."
+        ))
+    };
     if offset as usize > count {
-        return Err(WebError::InvalidInput);
+        return Err(past_end());
     }
     let value: String = text.chars().skip(offset as usize).take(max_chars as usize).collect();
-    let next = offset.checked_add(value.chars().count() as u32).ok_or(WebError::InvalidInput)?;
+    let next = offset.checked_add(value.chars().count() as u32).ok_or_else(past_end)?;
     Ok((value, ((next as usize) < count).then_some(next)))
 }

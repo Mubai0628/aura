@@ -317,15 +317,17 @@ pub fn decide(
     }
     let turn = turns::load(tx, turn_id)?;
     if turn.state.terminal() {
-        return Err(Error::Conflict);
+        return Err(Error::Invalid("agent.mode_disposition_turn_ended"));
     }
+    // No special-mode decision is waiting in this turn: it was made already, the mode ended, or
+    // the episode belongs to another turn.
     let previous =
-        load(tx, turn.session_id)?.ok_or(Error::Invalid("task_lineage.disposition_not_allowed"))?;
+        load(tx, turn.session_id)?.ok_or(Error::Invalid("agent.mode_disposition_not_waiting"))?;
     if !previous.disposition_required
         || !previous.is_active_special()
         || previous.started_turn_task_id != Some(turn_id)
     {
-        return Err(Error::Invalid("task_lineage.disposition_not_allowed"));
+        return Err(Error::Invalid("agent.mode_disposition_not_waiting"));
     }
     let judgment = ModeJudgmentRecord {
         episode_created_at: previous.created_at,

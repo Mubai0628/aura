@@ -200,7 +200,11 @@ test('a page that crashes or fails to load is stopped and its tab is told why', 
   expect(states).toEqual([]);
   crashing.webContents.emit('render-process-gone', {}, { reason: 'crashed' });
   expect(states).toEqual([
-    { sessionId: S1, plugin: 'usage-panel', stopped: '面板停止运行了（crashed）' },
+    {
+      sessionId: S1,
+      plugin: 'usage-panel',
+      stopped: '插件面板意外停止了，面板已关闭；点“重新打开”，反复出现请停用这个插件或联系作者。',
+    },
   ]);
   expect(crashing.webContents.closed).toBe(true);
   expect(problems).toContain('面板停止运行了（crashed）');
@@ -227,9 +231,19 @@ test('a page that crashes or fails to load is stopped and its tab is told why', 
     true,
   );
   expect(states.at(-1)?.stopped).toBe(
+    '插件面板的页面文件找不到，面板没有打开；请检查插件的 panel 文件夹或重新安装插件后点“重新打开”。',
+  );
+  // The plugin's log keeps Chromium's words for its author.
+  expect(problems).toContain(
     '面板没有打开：ERR_FILE_NOT_FOUND（aura-plugin://usage-panel/index.html）',
   );
   expect(failing.webContents.closed).toBe(true);
+
+  panels.open(S1, site());
+  created[2]!.webContents.emit('render-process-gone', {}, { reason: 'oom' });
+  expect(states.at(-1)?.stopped).toBe(
+    '插件面板意外停止了（内存不足），面板已关闭；点“重新打开”，反复出现请停用这个插件或联系作者。',
+  );
 });
 
 test('a page stays on its own origin and opens no windows; what it tried goes to the log', () => {

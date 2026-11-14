@@ -19,6 +19,10 @@ pub fn scratch_root(service: &super::AgentExecution) -> anyhow::Result<std::path
     let data = database
         .parent()
         .and_then(std::path::Path::parent)
-        .ok_or_else(|| anyhow::anyhow!("package.data_root_unavailable"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "package.data_root_unavailable: Aura 找不到放工具包程序数据的文件夹，程序没有运行。可以重启 Aura 后再调用。"
+            )
+        })?;
     Ok(data.join("v2-packages"))
 }

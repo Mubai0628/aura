@@ -57,7 +57,7 @@ pub fn close(
 
 #[expect(
     clippy::too_many_arguments,
-    reason = "One transaction binds the approval, the exact Operation, the backend the user answered for, the live session permission revision and the Core runtime instance that would own any reusable consent"
+    reason = "One transaction binds the approval, the exact Operation, the backend the user answered for, the live session permission revision, the Core runtime instance that would own any reusable consent and the folder its Workspace is at"
 )]
 pub fn resolve(
     tx: &Transaction<'_>,
@@ -68,6 +68,7 @@ pub fn resolve(
     backend_class: aura_security_contract::BackendClass,
     session_permission_revision: u64,
     core_runtime_instance_id: RuntimeInstanceId,
+    workspace_root: Option<&str>,
     now: UtcTimestamp,
 ) -> StoreResult<Option<AuthorizationGrant>> {
     let mut approval = load(tx, id)?;
@@ -203,6 +204,7 @@ pub fn resolve(
                 approved_operation_fingerprint: operation.fingerprint.clone(),
                 grant_revision: Revision::INITIAL,
                 revoked_grant_revision: None,
+                workspace_root: workspace_root.map(str::to_owned),
             })
         }),
         _ => None,
@@ -349,7 +351,7 @@ pub fn resolve(
         });
     }
     let grant_id = consent.as_ref().map_or_else(PermissionGrantId::new, |value| value.grant_id);
-    crate::network_consents::attach(&mut scope, operation, id, grant_id)?;
+    crate::network_consents::attach(&mut scope, operation, id, grant_id, workspace_root)?;
     let expires_at = if scope.file_consent.is_some()
         || scope.network_consent.is_some()
         || scope.memory_consent.is_some()

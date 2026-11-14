@@ -17,6 +17,7 @@ use aura_activity_domain::{
     ACTIVITY_QUERY_CONTRACT_VERSION, ActivityQueryRequestV1, ActivityQueryResponseV1,
 };
 use aura_activity_runtime::{ActivityResourceKey, ActivityVisibility};
+use aura_core_base::route_failures as failure;
 use aura_domain_common::SessionId;
 
 pub(crate) async fn dispatch(
@@ -56,7 +57,7 @@ pub(crate) async fn dispatch(
         // coverage contract exists to preserve.
         aura_core_base::blocking_pool::BlockingAdmission::Refused { .. }
         | aura_core_base::blocking_pool::BlockingAdmission::Unknown { .. } => {
-            anyhow::bail!("activity.query_unavailable")
+            anyhow::bail!(failure::ACTIVITY_QUERY_UNAVAILABLE)
         }
     };
     // The caller's real workspace, from the runtime's own projection. A session that the
@@ -67,7 +68,7 @@ pub(crate) async fn dispatch(
         .iter()
         .find(|entry| entry.session_id == session)
         .map(|entry| entry.workspace_id)
-        .context("agent.session_unknown")?;
+        .context(failure::SESSION_UNKNOWN)?;
 
     let mut visibility = ActivityVisibility::for_session(
         services.activity_runtime_instance_id,
@@ -84,10 +85,10 @@ pub(crate) async fn dispatch(
     // as a key.
     anyhow::ensure!(
         input.relevant_targets.len() <= aura_activity_domain::MAX_ACTIVITY_RELEVANT_HINTS,
-        "activity.request_hints_over_limit"
+        failure::ACTIVITY_HINTS_OVER_LIMIT
     );
     for target in &input.relevant_targets {
-        anyhow::ensure!(target.is_within_request_bounds(), "activity.request_hint_over_limit");
+        anyhow::ensure!(target.is_within_request_bounds(), failure::ACTIVITY_HINT_OVER_LIMIT);
     }
     visibility.relevant_resources = input.relevant_targets.clone();
     visibility.relevant_targets =

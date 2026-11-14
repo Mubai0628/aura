@@ -18,12 +18,25 @@ impl AgentApplication {
         &self,
         input: aura_tool_projection::AgentToolActivityRequest,
     ) -> anyhow::Result<aura_tool_projection::AgentToolActivityPage> {
-        Ok(self
+        let mut page = self
             .store
             .read(StoreStep::operation("agent.tool_activity"), move |db| {
                 aura_persistence_v2::tool::activity::page(db, &input)
             })
-            .await?)
+            .await?;
+        let waiting = self
+            .execution
+            .active_calls
+            .waiting(page.calls.iter().map(|entry| entry.summary.tool_call_id));
+        let holds = self
+            .execution
+            .active_calls
+            .held(page.session_id)
+            .into_iter()
+            .map(|hold| (hold.family, hold.words))
+            .collect::<Vec<_>>();
+        mark_waiting(&mut page, &waiting, &holds);
+        Ok(page)
     }
 
     pub async fn request_compaction(
@@ -246,5 +259,38 @@ impl AgentApplication {
                 aura_persistence_v2::agent::desktop_messages::text(db, &input)
             })
             .await?)
+    }
+}
+
+/// A call that waits for another call to finish with what it needs says so on its row, instead
+/// of 运行中 or 已排队, until it gets it: one waiting for its file, and one queued behind a call of
+/// its family whose processes were not yet seen to stop.
+fn mark_waiting(
+    page: &mut aura_tool_projection::AgentToolActivityPage,
+    waiting: &std::collections::BTreeMap<ToolCallId, &'static str>,
+    holds: &[(&'static str, &'static str)],
+) {
+    use aura_tool_contract::ToolCallStatusV1 as S;
+    for entry in &mut page.calls {
+        if entry.summary.outcome.is_some() {
+            continue;
+        }
+        let what = match entry.summary.status {
+            S::Running | S::Queued => waiting.get(&entry.summary.tool_call_id).copied(),
+            _ => None,
+        }
+        .or_else(|| {
+            if entry.summary.status != S::Queued {
+                return None;
+            }
+            holds
+                .iter()
+                .find(|(family, _)| entry.summary.display_name.starts_with(family))
+                .map(|(_, words)| *words)
+        });
+        if let Some(what) = what {
+            entry.summary.status = S::WaitingResource;
+            entry.display.summary = what.to_owned();
+        }
     }
 }

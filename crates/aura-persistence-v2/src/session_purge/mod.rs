@@ -70,6 +70,36 @@ pub fn purge_now(
     Err(aura_persistence_core::PersistenceCoreError::Conflict)
 }
 
+/// The conversations of the sub-agents a Session started: they are deleted with it.
+pub fn subagent_sessions(
+    db: &rusqlite::Connection,
+    parent: SessionId,
+) -> StoreResult<Vec<SessionId>> {
+    scope::column(
+        db,
+        "SELECT child_session_id FROM agent_team_members WHERE parent_session_id=?1",
+        &parent.to_string(),
+    )?
+    .into_iter()
+    .map(|id| {
+        id.parse().map_err(|_| aura_persistence_core::PersistenceCoreError::Invalid("session ID"))
+    })
+    .collect()
+}
+
+/// Whether a Session, or a sub-agent it started, has a turn under way: a sub-agent's turn is the
+/// Session's task too.
+pub fn busy(db: &rusqlite::Connection, session: SessionId) -> StoreResult<bool> {
+    let mut sessions = subagent_sessions(db, session)?;
+    sessions.push(session);
+    for id in sessions {
+        if crate::agent::session::load(db, id)?.active_turn.is_some() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// The Sessions the execution store still has for a Workspace.
 pub fn workspace_sessions(
     db: &rusqlite::Connection,

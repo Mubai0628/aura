@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { AppUpdateCommand, AppUpdateState } from '../../shared/app-updates.js';
 import { UNAVAILABLE_UPDATE_STATE } from '../../shared/app-updates.js';
 import { downloadPackage, type FetchFunction } from './download.js';
-import { newestRelease, type FeedRelease } from './feed.js';
+import { compareVersions, newestRelease, type FeedRelease } from './feed.js';
 import {
   copiedBefore,
   dismissNotice,
@@ -16,6 +16,16 @@ import {
   type Installation,
   type RunProgram,
 } from './installation.js';
+import {
+  applyFailure,
+  checkFailure,
+  checkRefused,
+  downloadFailure,
+  PACKAGE_KEPT,
+  reasonOf,
+  rollBackFailure,
+  SETTINGS_NOT_WRITTEN,
+} from './update-words.js';
 
 const FIRST_CHECK_MS = 10_000;
 const CHECK_EVERY_MS = 4 * 60 * 60_000;
@@ -24,6 +34,8 @@ const PROGRESS_EVERY_MS = 200;
 // version started without the launcher), so the record is read again for two minutes at most.
 const TRIAL_REREAD_MS = 1_000;
 const TRIAL_REREADS = 120;
+/** An update package as `packageName` names it, or the part of one a download left. */
+const INSTALLABLE = /^Aura-Update-(\d+\.\d+\.\d+)-x64\.aura-update(?:\.part)?$/u;
 
 export interface AppUpdateDependencies {
   installation: Installation | null;
@@ -44,28 +56,6 @@ export interface AppUpdateDependencies {
 interface Settings {
   auto_check: boolean;
   checked_at: string | null;
-}
-
-const reasonOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-const HAS_CHINESE = /[㐀-鿿]/u;
-
-/** Why a check failed, in words the page can show (an English network error is not shown). */
-const checkFailure = (error: unknown): string =>
-  HAS_CHINESE.test(reasonOf(error))
-    ? reasonOf(error)
-    : '检查更新失败，可能是网络或代理暂时不通。请稍后点“检查更新”重试。';
-
-/** Why a download stopped part way and how it goes on: what arrived is kept for the next one. */
-function downloadFailure(error: unknown): string {
-  const code = typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined;
-  if (typeof code === 'string' && /^E[A-Z]+$/u.test(code)) {
-    return `更新包没能写入磁盘（${code}）。已下载的部分会保留，腾出磁盘空间后点“继续下载”接着下载。`;
-  }
-  const reason = reasonOf(error);
-  return HAS_CHINESE.test(reason)
-    ? `${reason}。已下载的部分会保留，点“继续下载”从中断处接着下载。`
-    : '下载中断，可能是网络或代理暂时不通。已下载的部分会保留，网络恢复后点“继续下载”从中断处接着下载。';
 }
 
 /** Checking, downloading and applying Aura's own updates, and going back a version. */
@@ -154,6 +144,7 @@ export class AppUpdates {
       this.dependencies.publish(this.#state);
       return;
     }
+    await this.#clearInstalled();
     const settings = await this.#settings();
     this.#set({ auto_check: settings.auto_check, checked_at: settings.checked_at });
     await this.refresh();
@@ -208,7 +199,7 @@ export class AppUpdates {
           'X-GitHub-Api-Version': '2022-11-28',
         },
       });
-      if (!response.ok) throw new Error(`检查更新失败（HTTP ${response.status}）`);
+      if (!response.ok) throw new Error(checkRefused(response.status));
       this.#latest = newestRelease(
         await response.json(),
         this.#state.current,
@@ -238,7 +229,11 @@ export class AppUpdates {
         latest,
         checked_at: checked,
       });
-      await this.#saveSettings();
+      // What was found stands; only when it was checked is not written down.
+      await this.#saveSettings().catch((error: unknown) => {
+        this.dependencies.log?.('app_update.settings_not_written', { reason: reasonOf(error) });
+        this.#set({ error: SETTINGS_NOT_WRITTEN });
+      });
       if (fetching) return await this.download();
     } catch (error) {
       this.#set({ phase: 'error', error: checkFailure(error) });
@@ -276,7 +271,10 @@ export class AppUpdates {
       this.#download = null;
       this.#set({ phase: 'applying' });
       const waiting = await runSetup(installation, ['--apply-update', file], this.dependencies.run);
-      await this.#clearPackages();
+      // The update is installed: a package that cannot be removed now goes at the next start.
+      await this.#clearPackages().catch((error: unknown) =>
+        this.dependencies.log?.('app_update.cleanup_failed', { reason: reasonOf(error) }),
+      );
       return this.#set({ phase: 'ready', waiting, progress: null });
     } catch (error) {
       const paused = this.#download?.signal.aborted === true;
@@ -300,12 +298,28 @@ export class AppUpdates {
       }
       // Otherwise the package may be damaged: the next try downloads it again instead of
       // offering the same file.
-      await this.#clearPackages();
-      return this.#set({
-        phase: 'error',
-        error:
-          '更新没能安装，已删除这次下载的更新包。点“下载更新”会重新下载；仍然失败时请重新运行安装程序修复。',
-      });
+      const cleared = await this.#clearPackages().then(
+        () => true,
+        (cleanup: unknown) => {
+          this.dependencies.log?.('app_update.cleanup_failed', { reason: reasonOf(cleanup) });
+          return false;
+        },
+      );
+      return this.#set({ phase: 'error', error: cleared ? applyFailure(error) : PACKAGE_KEPT });
+    }
+  }
+
+  /**
+   * The packages of this version and older, whole or part downloaded: installed already, or older
+   * than what is. A newer one stays: an install the setup program refused keeps its package for
+   * the next try, and a download that stopped goes on from its part.
+   */
+  async #clearInstalled(): Promise<void> {
+    for (const name of await readdir(this.#folder()).catch(() => [] as string[])) {
+      const version = INSTALLABLE.exec(name)?.[1];
+      if (version !== undefined && compareVersions(version, this.dependencies.current) <= 0) {
+        await rm(join(this.#folder(), name), { force: true }).catch(() => undefined);
+      }
     }
   }
 
@@ -352,11 +366,12 @@ export class AppUpdates {
       );
       const reason = reasonOf(error);
       this.dependencies.log?.('app_update.setup_refused', { action: 'roll_back', reason });
+      const words = rollBackFailure(error);
       return this.#set({
         phase: 'error',
         error: withdrawn
-          ? reason
-          : `${reason}；恢复数据的请求未能撤回，下次切换版本时可能恢复更新前的数据`,
+          ? words
+          : `${words.replace(/。$/u, '')}；恢复数据的请求未能撤回，下次切换版本时可能恢复更新前的数据。`,
       });
     }
     await dismissNotice(installation.dataRoot).catch(() => undefined);

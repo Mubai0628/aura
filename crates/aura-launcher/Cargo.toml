@@ -9,6 +9,9 @@ name = "AuraLauncher"
 path = "src/main.rs"
 
 [dependencies]
+aura-data-location = { path = "../aura-data-location" }
+aura-data-move = { path = "../aura-data-move" }
+aura-pixel-window = { path = "../aura-pixel-window" }
 aura-runtime-contract = { path = "../aura-runtime-contract" }
 anyhow.workspace = true
 aura-domain-common = { path = "../aura-domain-common" }

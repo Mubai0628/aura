@@ -14,7 +14,7 @@ describe('browser pages', () => {
       url: 'about:blank',
       closed: false,
     });
-    expect(pages.navigate(S, 'tab-1', 'example.com')).toBe('内置浏览器已在设置中关闭');
+    expect(pages.navigate(S, 'tab-1', 'example.com')).toBe('浏览器设置还没从 Aura Core 读到');
     expect(view(0).webContents.loads).toEqual(['about:blank']);
   });
 

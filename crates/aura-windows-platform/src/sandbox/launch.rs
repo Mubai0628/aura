@@ -63,6 +63,32 @@ pub fn spawn_compat_process(
     )
 }
 
+/// As [`spawn_compat_process`], with `job` nested in `groups` (outermost first) at creation, so
+/// the groups' limits apply to its processes together with every other Job nested in them.
+pub fn spawn_compat_process_in(
+    groups: &[&crate::GroupJob],
+    job: &crate::RootJob,
+    executable: &Path,
+    arguments: &[Vec<u16>],
+    directory: &Path,
+    environment: &[NativeEnvironmentEntry],
+    cmd_script: Option<&Path>,
+) -> Result<(NativeSandboxProcess, JobLaunchTiming), JobLaunchError> {
+    let groups = groups.iter().map(|group| group.duplicate_for_launch()).collect();
+    let groups = match groups {
+        Ok(groups) => groups,
+        Err(source) => return Err(JobLaunchError { source, timing: Box::default() }),
+    };
+    spawn_owned_job(
+        job,
+        executable,
+        arguments,
+        directory,
+        environment,
+        LaunchOverrides { cmd_script, groups, ..LaunchOverrides::default() },
+    )
+}
+
 #[cfg(any(test, feature = "compat-adoption"))]
 pub fn spawn_compat_process_with_fault(
     job: &crate::RootJob,
@@ -107,6 +133,7 @@ pub(crate) fn spawn_owned_job(
                 desktop: overrides.desktop,
                 cmd_script: overrides.cmd_script,
                 job: Some(job),
+                groups: overrides.groups,
                 job_at_creation: true,
                 trace: Some((&mut timing, started)),
                 #[cfg(any(test, feature = "compat-adoption"))]
@@ -126,6 +153,8 @@ pub(crate) struct LaunchOverrides<'a> {
     pub(crate) desktop: Option<&'a [u16]>,
     pub(crate) cmd_script: Option<&'a Path>,
     pub(crate) job: Option<OwnedHandle>,
+    /// Group Jobs the creation Job is nested in, outermost first.
+    pub(crate) groups: Vec<OwnedHandle>,
     pub(crate) job_at_creation: bool,
     pub(crate) trace: Option<(&'a mut JobLaunchTiming, Instant)>,
     #[cfg(any(test, feature = "compat-adoption"))]
@@ -206,10 +235,10 @@ pub(super) fn spawn_restricted_process_inner(
 
     let inherited_handles = vec![stdin_read.as_raw(), stdout_write.as_raw(), stderr_write.as_raw()];
     let mut attributes = if overrides.job_at_creation {
-        ProcessAttributeList::with_job(
+        ProcessAttributeList::with_jobs(
             profile.map(|profile| profile.sid),
             inherited_handles,
-            job.as_raw(),
+            overrides.groups.iter().map(OwnedHandle::as_raw).chain([job.as_raw()]).collect(),
         )?
     } else {
         ProcessAttributeList::new(profile.map(|profile| profile.sid), inherited_handles)?

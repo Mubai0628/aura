@@ -38,6 +38,18 @@ impl Continuation {
 }
 
 impl AgentApplication {
+    /// Starts [`Self::continue_after_restart`] on its own task, once per process: Core calls it
+    /// after its own startup when Main passed the restart's cause.
+    pub fn continue_after_restart_once(self: &Arc<Self>, cause: CoreRestartCause) {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        let app = Arc::clone(self);
+        ONCE.call_once(|| {
+            drop(tokio::spawn(async move {
+                app.continue_after_restart(cause).await;
+            }));
+        });
+    }
+
     /// Continues the turns this process's start cut off, once, after Main said Core restarted
     /// while Aura stayed open (`cause`). A task already continued twice in the last half hour, or
     /// cut off again within two minutes of being continued, is left for the user's 继续.

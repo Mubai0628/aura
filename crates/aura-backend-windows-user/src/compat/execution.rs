@@ -1,3 +1,7 @@
+use super::refusal::{
+    PREPARATION_FAILED, REVALIDATION_FAILED, RUNTIME_UNAVAILABLE, SCOPE_CHANGED, UNSUPPORTED,
+    reason,
+};
 use super::service::CompatExecutionBackend;
 use crate::{
     controller::{Active, PortSection, WindowsUserCorePortSection},
@@ -16,15 +20,16 @@ impl ExecutionBackend for CompatExecutionBackend {
     }
     fn prepare(&self, request: PrepareRequest) -> BackendFuture<'_, ExecutionPlan> {
         Box::pin(async move {
-            let engine = self.check.wait().await.map_err(|_| {
-                BackendError::PreparationRejected { reason: "compat.runtime_unavailable".into() }
-            })?;
+            let engine =
+                self.check.wait().await.map_err(|error| BackendError::PreparationRejected {
+                    reason: reason(RUNTIME_UNAVAILABLE, Some(&error)),
+                })?;
             let descriptor = self.descriptor();
             if request.operation.validate().is_err()
                 || !descriptor.supports_operation(&request.requirement, &request.operation)
             {
                 return Err(BackendError::PreparationRejected {
-                    reason: "compat.unsupported".into(),
+                    reason: reason(UNSUPPORTED, None),
                 });
             }
             let reader = self.port.clone();
@@ -36,8 +41,8 @@ impl ExecutionBackend for CompatExecutionBackend {
                     Box::new(move || reader.scope(&operation)),
                 )
                 .await
-                .map_err(|_| BackendError::PreparationRejected {
-                    reason: "compat.scope_changed".into(),
+                .map_err(|error| BackendError::PreparationRejected {
+                    reason: reason(SCOPE_CHANGED, Some(&error)),
                 })?;
             let valid_until =
                 UtcTimestamp::from_value(UtcTimestamp::now().value() + time::Duration::minutes(10));
@@ -50,22 +55,22 @@ impl ExecutionBackend for CompatExecutionBackend {
                         preparation: serde_json::to_value(preparation)?,
                     })?)
                 });
-            preparation.map_err(|_| BackendError::PreparationRejected {
-                reason: "compat.preparation_failed".into(),
+            preparation.map_err(|error| BackendError::PreparationRejected {
+                reason: reason(PREPARATION_FAILED, Some(&error)),
             })
         })
     }
     fn execute(&self, dispatch: AuthorizedDispatch) -> BackendFuture<'_, ExecutionHandle> {
         Box::pin(async move {
             let request = dispatch.request().clone();
-            let engine = self.check.wait().await.map_err(|_| rejected())?;
+            let engine = self.check.wait().await.map_err(|error| rejected(Some(&error)))?;
             let facts = managed_operations::prepared_scope(
                 self.port.clone(),
                 &request,
                 "compat.scope_before_start",
             )
             .await
-            .map_err(|_| rejected())?;
+            .map_err(|error| rejected(Some(&error)))?;
             let ready = || -> Result<WindowsUserPreparation> {
                 request.plan.validate()?;
                 let prepared: WindowsUserPreparation =
@@ -82,12 +87,14 @@ impl ExecutionBackend for CompatExecutionBackend {
                 );
                 Ok(prepared)
             };
-            let prepared = ready().map_err(|_| rejected())?;
+            let prepared = ready().map_err(|error| rejected(Some(&error)))?;
             let handle = ExecutionHandle {
                 attempt: request.binding.attempt.clone(),
-                dispatch_fingerprint: canonical_sha256(&request.binding).map_err(|_| rejected())?,
+                dispatch_fingerprint: canonical_sha256(&request.binding)
+                    .map_err(|_| rejected(None))?,
             };
-            let session = request.operation.content.identity.session_id.ok_or_else(rejected)?;
+            let session =
+                request.operation.content.identity.session_id.ok_or_else(|| rejected(None))?;
             let (cancel, cancelled) = watch::channel(false);
             let (complete, done) = watch::channel(None);
             let active = self.active.clone();
@@ -127,7 +134,7 @@ impl ExecutionBackend for CompatExecutionBackend {
                     }),
                 )
                 .await
-                .map_err(|_| rejected())?;
+                .map_err(|error| rejected(Some(&error)))?;
             let port = self.port.clone();
             let active = self.active.clone();
             let proxy = self.proxy.clone();
@@ -153,6 +160,7 @@ impl ExecutionBackend for CompatExecutionBackend {
         Box::pin(self.reconcile_attempt(attempt))
     }
 }
-fn rejected() -> BackendError {
-    BackendError::DispatchRejected { reason: "compat.dispatch_revalidation_failed".into() }
+/// A dispatch refused at its last check before launch, naming the cause found in `error`.
+fn rejected(error: Option<&anyhow::Error>) -> BackendError {
+    BackendError::DispatchRejected { reason: reason(REVALIDATION_FAILED, error) }
 }

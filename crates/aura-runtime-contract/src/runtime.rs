@@ -465,4 +465,10 @@ pub struct ActiveInstallState {
     pub previous: Option<String>,
     pub pending: Option<String>,
     pub last_known_good: Option<String>,
+    /// The installation's copy of where its data was moved to; it must name the same folder as
+    /// the location record. Left out while the data is in its default place, so the file stays
+    /// the same as before; a version that does not know it refuses the file instead of starting
+    /// without the moved data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_location: Option<String>,
 }

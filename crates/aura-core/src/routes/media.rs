@@ -16,6 +16,6 @@ pub(super) async fn dispatch(
                 accepted: agent.media().complete(result),
             })?)
         }
-        _ => anyhow::bail!("media.unknown_host_method"),
+        _ => anyhow::bail!(aura_core_base::route_failures::MEDIA_UNKNOWN_METHOD),
     }
 }

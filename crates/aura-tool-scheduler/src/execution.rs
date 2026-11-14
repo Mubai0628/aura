@@ -6,7 +6,7 @@ use std::{
 
 use aura_domain_common::ToolInstanceId;
 use aura_domain_common::jcs::CanonicalHashV1;
-use aura_tool_contract::{ResolvedResourceAccessV1, ToolExecutionPlanCallV1, ToolVersion};
+use aura_tool_contract::{ToolExecutionPlanCallV1, ToolVersion};
 use thiserror::Error;
 use tokio::sync::{
     OwnedRwLockReadGuard, OwnedRwLockWriteGuard, OwnedSemaphorePermit, RwLock, Semaphore, watch,
@@ -249,16 +249,12 @@ fn validate_request(request: &ToolScheduleRequestV1<'_>) -> Result<(), ToolSched
     Ok(())
 }
 
-fn exclusive_resource_access(access: ResolvedResourceAccessV1) -> bool {
-    !matches!(access, ResolvedResourceAccessV1::Read | ResolvedResourceAccessV1::Observe)
-}
-
 fn resource_lock_intents(
     request: &ToolScheduleRequestV1<'_>,
 ) -> Result<BTreeMap<String, bool>, ToolScheduleErrorV1> {
     let mut intents = BTreeMap::new();
     for claim in &request.plan_call.resolved_resource_claims {
-        let exclusive = exclusive_resource_access(claim.access);
+        let exclusive = claim.access.is_exclusive();
         intents
             .entry(claim.canonical_lock_key.clone())
             .and_modify(|current| *current = *current || exclusive)

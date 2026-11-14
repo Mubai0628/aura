@@ -60,7 +60,7 @@ function SentPicture({
         </button>
       ) : url === null ? (
         <span className="attachment-picture-missing" role="status">
-          图片不可用
+          图片读不出来（服务没有回应，或记录里已没有这张图片）。消息本身不受影响；重新打开这个会话会再读一次。
         </span>
       ) : null}
       {previewing && url ? <PicturePreview name={name} onClose={close} src={url} /> : null}

@@ -224,7 +224,7 @@ impl AgentApplication {
     /// has to survive.
     pub fn tool_configuration(&self) -> anyhow::Result<(ToolSettingsSnapshotV1, Vec<ToolId>)> {
         let document = self.settings.snapshot(ConfigModule::Tools)?;
-        let settings = aura_config::tool_settings_snapshot_from_document(&document.document)?;
+        let settings = self.settings.tool_settings_from(&document.document)?;
         if let Some(ids) = aura_config::fixed_tool_ids_from_document(&document.document)? {
             let seen = aura_config::fixed_tool_recommendations_from_document(&document.document)?;
             return Ok((settings, Self::with_later_recommendations(ids, seen)?));
@@ -254,8 +254,7 @@ impl AgentApplication {
             })
             .collect();
         let snapshot = self.settings.snapshot(ConfigModule::Tools)?;
-        let (network_proxy, network_proxy_diagnostic, network_proxy_draft) =
-            proxy_view(&snapshot.document);
+        let proxy = proxy_view(&self.settings, &snapshot.document);
         // The web service choice, and the DeepSeek connections with a key it can use.
         let web_service = aura_config::web_service_from_document(&snapshot.document)?;
         let web_service_connections = self
@@ -276,10 +275,12 @@ impl AgentApplication {
             max_retries: settings.max_retries,
             fixed_tool_ids,
             tools,
-            network_proxy,
-            network_proxy_diagnostic,
-            network_proxy_draft,
+            network_proxy: proxy.own,
+            network_proxy_diagnostic: proxy.diagnostic,
+            network_proxy_draft: proxy.draft,
             network_proxy_recovery: proxy_recovery(&self.settings)?,
+            network_proxy_follows_system: false,
+            system_network_proxy: Some(proxy.system),
             web_service,
             web_service_connections,
         })
@@ -369,12 +370,15 @@ impl AgentApplication {
                 )
                 .await?;
         }
+        // An older client's `network_proxy_follows_system` stays in the record and changes
+        // nothing: tools and model requests follow the system while no proxy is switched on.
+        let proxy_edit = input.network_proxy.clone();
         let desired = current.fixed_tool_ids == input.fixed_tool_ids
             && current.max_dynamic_tool_schemas == input.max_dynamic_tool_schemas
             && current.max_concurrent_tool_calls == input.max_concurrent_tool_calls
             && current.default_timeout_ms == input.default_timeout_ms
             && current.max_retries == input.max_retries
-            && proxy_unchanged(&self.settings, &input.network_proxy)?
+            && proxy_unchanged(&self.settings, &proxy_edit)?
             && input.web_service.as_ref().is_none_or(|web| *web == current.web_service);
         let result = if desired
             && (current.revision == input.expected_revision
@@ -429,7 +433,7 @@ impl AgentApplication {
                             );
                         }
                     }
-                    match &input.network_proxy {
+                    match &proxy_edit {
                         None => {}
                         Some(None) => {
                             values.remove(aura_config::NETWORK_PROXY_FIELD);
@@ -506,6 +510,9 @@ impl AgentApplication {
         // conversation the user shared a tab with.
         let chrome = self.execution.chrome.get();
         let chrome_connected = chrome.is_some_and(|chrome| chrome.connected());
+        // While Chrome control is on, its tools stay discoverable when the extension is not
+        // connected: a call then says so and what the user does to connect it.
+        let chrome_offered = chrome_connected || chrome.is_some_and(|chrome| chrome.enabled());
         if chrome_connected && chrome.is_some_and(|chrome| chrome.has_shares(turn.session_id)) {
             fixed.extend(
                 release
@@ -513,6 +520,21 @@ impl AgentApplication {
                     .entries
                     .iter()
                     .filter(|entry| entry.handler.name().starts_with("chrome."))
+                    .map(|entry| entry.definition.tool_id),
+            );
+            fixed.sort();
+            fixed.dedup();
+        }
+        // A conversation that had a terminal before this turn began, its own or one the user handed
+        // it, has the terminal tools in its list; one opened during the turn is reached through the
+        // entry until the next, so the list stays the same for the turn.
+        if aura_persistence_v2::terminal::started_before(db, turn.session_id, turn.created_at)? {
+            fixed.extend(
+                release
+                    .manifest()
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.handler.name().starts_with("terminal."))
                     .map(|entry| entry.definition.tool_id),
             );
             fixed.sort();
@@ -552,9 +574,27 @@ impl AgentApplication {
         }
         let git_available = git::runtime::available();
         git::runtime::constrain_candidates(&mut candidates, git_available);
+        let member = super::team::member_of(db, turn.session_id)?;
+        let offered =
+            member.is_none() && purpose == AgentTaskPurpose::Conversation && self.team_offered();
+        // The main agent answers its sub-agents' questions first only where the settings say so.
+        let approves = offered && aura_agent_team::limits::settings(db)?.1.main_agent_approves;
+        if offered {
+            fixed.extend(
+                release
+                    .manifest()
+                    .entries
+                    .iter()
+                    .filter(|entry| entry.handler.name().starts_with("agents."))
+                    .filter(|entry| approves || entry.handler.name() != aura_agent_team::APPROVE)
+                    .map(|entry| entry.definition.tool_id),
+            );
+            fixed.sort();
+            fixed.dedup();
+        }
         for candidate in &mut candidates {
             let name = candidate.definition.canonical_name.as_str();
-            if (!chrome_connected && name.starts_with("chrome."))
+            if (!chrome_offered && name.starts_with("chrome."))
                 || (!computer && computer_tool(name))
             {
                 candidate.instance.runtime_health =
@@ -574,6 +614,11 @@ impl AgentApplication {
             .get()
             .map_or_else(Vec::new, |runtime| mcp_tools::usable_tools(runtime, db));
         candidates.extend(mcp_tools.iter().map(mcp_tools::McpTool::candidate));
+        // A sub-agent's table is the main conversation's without the main agent's own tools, or
+        // the list it was narrowed to; a conversation of the user's starts sub-agents while a
+        // model is allowed for them.
+        let member_tools =
+            super::team::restrict_candidates(member.as_ref(), offered, approves, &mut candidates);
         let mcp_state = mcp_tools
             .iter()
             .map(|tool| tool.definition.definition_fingerprint.clone())
@@ -628,6 +673,7 @@ impl AgentApplication {
             git_available,
             &package_state,
             &mcp_state,
+            &member_tools,
         ))?;
         let mut cache =
             self.registry_cache.lock().map_err(|_| anyhow::anyhow!("tools.cache_unavailable"))?;
@@ -643,16 +689,22 @@ impl AgentApplication {
             scope,
             settings: settings.clone(),
             mode_permission_context_hash: mode_hash,
-            core_exposed_tool_ids: release
-                .manifest()
-                .entries
-                .iter()
-                .filter(|e| {
-                    super::context::core_tool(e.handler.name(), turn.mode, purpose)
-                        || (!required(e.handler.name()) && fixed.contains(&e.definition.tool_id))
-                })
-                .map(|e| e.definition.tool_id)
-                .collect::<BTreeSet<_>>(),
+            core_exposed_tool_ids: match &member_tools {
+                Some(tools) => tools.iter().copied().collect::<BTreeSet<_>>(),
+                None => release
+                    .manifest()
+                    .entries
+                    .iter()
+                    .filter(|e| {
+                        super::context::core_tool(e.handler.name(), turn.mode, purpose)
+                            || (!required(e.handler.name())
+                                && fixed.contains(&e.definition.tool_id))
+                            || (member.is_some()
+                                && e.handler.name() == aura_agent_team::policy::REPORT_TOOL)
+                    })
+                    .map(|e| e.definition.tool_id)
+                    .collect::<BTreeSet<_>>(),
+            },
             candidates,
             workspace_pins: vec![],
             session_pins: vec![],

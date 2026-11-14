@@ -42,7 +42,7 @@ pub use lifecycle::{
 mod storage;
 pub use storage::{
     SessionCreateRequest, SessionDeleteResult, SessionLifecycleRequest, SessionRenameRequest,
-    SessionSummary, WorkspaceSessionProjection,
+    SessionSummary, WorkspaceSessionProjection, WorkspaceWorktreeLink,
 };
 mod fs;
 pub use fs::{
@@ -54,8 +54,9 @@ pub use fs::{
     FsHashResult, FsInspectRequest, FsInspectResult, FsListEntry, FsListRequest, FsListResult,
     FsMoveRequest, FsMutationDisposition, FsMutationResult, FsNodeKind, FsReadBinaryRangeRequest,
     FsReadBinaryRangeResult, FsReadTextRequest, FsReadTextResult, FsSearchCompletion,
-    FsSearchIncompleteReason, FsSearchPattern, FsSearchTextMatch, FsSearchTextRequest,
-    FsSearchTextResult, FsStatRequest, FsStatResult, FsWriteFileRequest,
+    FsSearchContext, FsSearchContextLine, FsSearchIncompleteReason, FsSearchPattern,
+    FsSearchTextMatch, FsSearchTextRequest, FsSearchTextResult, FsStatRequest, FsStatResult,
+    FsWriteFileRequest,
 };
 mod file;
 pub use file::{

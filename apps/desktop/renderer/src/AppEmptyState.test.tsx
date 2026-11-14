@@ -118,3 +118,19 @@ test('while Core starts the page is the sea and one line saying so', () => {
   expect(screen.queryByRole('heading')).toBeNull();
   expect(screen.queryByRole('button')).toBeNull();
 });
+
+// The list that could not be read is said once, in words, wherever both lines would say it.
+test('a list error that the notice already says is not repeated under the title', () => {
+  const said =
+    '工作区和会话列表还没从 Aura Core 读到（Core 可能还在启动或正忙），列表暂时为空；Aura 会自动再读，长时间仍为空请重启 Aura。';
+  const { container } = render(
+    <AppEmptyState
+      loading={false}
+      error={said}
+      runtimeNotice={{ title: '工作区列表暂不可用', message: said, tone: 'danger' }}
+      onCreated={() => {}}
+    />,
+  );
+  expect(container.textContent?.split(said)).toHaveLength(2);
+  expect(container.querySelector('.app-empty-lead')).toBeNull();
+});
