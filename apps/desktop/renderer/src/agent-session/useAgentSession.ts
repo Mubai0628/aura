@@ -295,7 +295,13 @@ function withLiveTurnFields(
     )
       return turn;
     changed = true;
-    return { ...turn, diagnostic, assistant_messages: messages };
+    const updated = { ...turn, assistant_messages: messages };
+    if (diagnostic === undefined) {
+      delete updated.diagnostic;
+    } else {
+      updated.diagnostic = diagnostic;
+    }
+    return updated;
   });
   return changed ? { ...previous, turns } : previous;
 }
