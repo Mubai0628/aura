@@ -37,6 +37,7 @@ pub fn main_agent_only(tool: &str) -> bool {
             "mode.disposition",
             "plan.complete",
             "workspace_init.complete",
+            "session.reply",
             "query.user_question",
             "terminal.request_sensitive_input",
             "browser.request_user",

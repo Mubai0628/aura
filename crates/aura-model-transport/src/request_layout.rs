@@ -1,10 +1,7 @@
 //! Stable wire prefixes without changing immutable instruction/source facts.
 use aura_domain_common::ContentHash;
-use aura_model_domain::{
-    LogicalInstructionKind, LogicalModelRequest, ModelExecutionSnapshot, ProviderToolNameBinding,
-};
+use aura_model_domain::{LogicalInstructionKind, LogicalModelRequest, ModelExecutionSnapshot};
 use aura_provider_profile::{RequestRules, RoutingKey};
-use aura_tool_contract::ToolSchemaSnapshotV1;
 
 /// What the profile of the request's host asks of the request beyond the protocol.
 fn profile_rules(snapshot: &ModelExecutionSnapshot) -> RequestRules {
@@ -79,9 +76,16 @@ pub struct InstructionLayout {
 
 #[must_use]
 pub fn instruction_layout(request: &LogicalModelRequest) -> InstructionLayout {
+    instruction_envelope_layout(&request.instruction_envelope)
+}
+
+#[must_use]
+pub fn instruction_envelope_layout(
+    envelope: &aura_model_domain::CompiledInstructionEnvelope,
+) -> InstructionLayout {
     let mut stable = Vec::new();
     let mut current = Vec::new();
-    for block in &request.instruction_envelope.ordered_blocks {
+    for block in &envelope.ordered_blocks {
         if block.kind == LogicalInstructionKind::TaskState {
             current.push(block.content.as_str());
         } else {
@@ -89,14 +93,4 @@ pub fn instruction_layout(request: &LogicalModelRequest) -> InstructionLayout {
         }
     }
     InstructionLayout { stable: stable.join("\n"), current: current.join("\n") }
-}
-
-#[must_use]
-pub fn ordered_tool_bindings<'a>(
-    request: &'a LogicalModelRequest,
-    bindings: &'a [ProviderToolNameBinding],
-) -> Vec<(&'a ToolSchemaSnapshotV1, &'a ProviderToolNameBinding)> {
-    let mut pairs = request.tool_schema_set.tools.iter().zip(bindings).collect::<Vec<_>>();
-    pairs.sort_by_key(|(tool, _)| (!request.fixed_tool_ids.contains(&tool.tool_id), tool.tool_id));
-    pairs
 }

@@ -36,7 +36,10 @@ use crate::{
 };
 
 mod budget_items;
-use budget_items::{PendingBudgetItem, build_pending_budget_items, estimator_inputs};
+use budget_items::{
+    ContextAccounting, RequestBudgetParts, build_accounting, build_pending_budget_items,
+    estimator_inputs,
+};
 
 #[derive(Clone, Debug)]
 pub struct ContextToolInput {
@@ -366,20 +369,45 @@ pub enum ContextPreparationError {
     SnapshotInvalid,
     #[error("context.preparation.canonical_serialization_failed")]
     CanonicalSerialization,
+    #[error(transparent)]
+    ProviderPrompt(#[from] aura_model_transport::ModelAdapterError),
     #[error("context.preparation.arithmetic_overflow")]
     ArithmeticOverflow,
     #[error("context.preparation.coverage_budget_exhausted")]
     CoverageBudgetExhausted,
 }
 
+type ReplayTaskStates<'a> = dyn Fn(
+        &aura_model_domain::CompiledInstructionEnvelope,
+        &[LogicalConversationItem],
+        &[ModelAttachmentSnapshot],
+    ) -> Result<Vec<String>, ContextPreparationError>
+    + 'a;
+
 pub struct ContextPreparationCompiler<'a> {
     estimators: &'a ContextEstimatorRegistry,
+    provider: Option<&'a ModelExecutionSnapshot>,
+    closing_question: Option<&'a str>,
+    replay_task_states: Option<&'a ReplayTaskStates<'a>>,
 }
 
 impl<'a> ContextPreparationCompiler<'a> {
     #[must_use]
     pub const fn new(estimators: &'a ContextEstimatorRegistry) -> Self {
-        Self { estimators }
+        Self { estimators, provider: None, closing_question: None, replay_task_states: None }
+    }
+
+    #[must_use]
+    pub fn for_request(
+        mut self,
+        provider: &'a ModelExecutionSnapshot,
+        closing_question: Option<&'a str>,
+        replay_task_states: Option<&'a ReplayTaskStates<'a>>,
+    ) -> Self {
+        self.provider = Some(provider);
+        self.closing_question = closing_question;
+        self.replay_task_states = replay_task_states;
+        self
     }
 
     pub fn compile(
@@ -510,12 +538,34 @@ impl<'a> ContextPreparationCompiler<'a> {
             build_model_egress_manifest(context_snapshot_id, egress_sources)
                 .map_err(map_egress_error)?;
 
+        // Validate source identities first, then use the same printable conversation for the
+        // budget, the compaction prefix, and the request that will actually be sent.
+        for item in &mut conversation_items {
+            crate::section::printable_conversation_item(item);
+        }
+        let replayed_task_states = self
+            .replay_task_states
+            .map(|preview| {
+                preview(&assembly.instruction_envelope, &conversation_items, &input.attachments)
+            })
+            .transpose()?
+            .unwrap_or_default();
         let pending_budget = build_pending_budget_items(
             &assembly,
             &input.tool_schema_set,
             &input.tools,
-            &conversation_items[..history_budget_len],
             &input.attachments,
+            RequestBudgetParts {
+                recent_history: &conversation_items[..history_budget_len],
+                new_users: &conversation_items[history_budget_len..],
+                split_user_sections: matches!(
+                    input.trigger,
+                    ContextPreparationTriggerV1::UserSubmission { .. }
+                ),
+                provider: self.provider,
+                closing_question: self.closing_question,
+                replayed_task_states,
+            },
         )?;
         let (text_items, native_attachments) = estimator_inputs(&pending_budget)?;
         let budget = self
@@ -616,17 +666,6 @@ impl<'a> ContextPreparationCompiler<'a> {
         }
         self.compile(input).map_err(ContextWindowRebuildError::from)
     }
-}
-
-#[derive(Clone, Debug)]
-struct ContextAccounting {
-    usage: ContextUsageSummaryView,
-    section_tokens: BTreeMap<ContextSectionKind, u64>,
-    tool_tokens: Vec<u64>,
-    attachment_tokens: Vec<u64>,
-    non_compressible_tokens: u64,
-    compressible_tokens: u64,
-    user_reducible_tokens: u64,
 }
 
 fn validate_prompt_bundle(
@@ -903,99 +942,6 @@ fn tool_egress_sources(
             })
         })
         .collect()
-}
-
-fn build_accounting(
-    pending: &[PendingBudgetItem],
-    budget: &ContextBudgetSnapshot,
-) -> Result<ContextAccounting, ContextPreparationError> {
-    let estimates = budget
-        .item_estimates
-        .iter()
-        .map(|estimate| (estimate.ordinal, estimate))
-        .collect::<BTreeMap<_, _>>();
-    let mut usage_tokens = BTreeMap::<ContextUsageKind, u64>::new();
-    let mut section_tokens = BTreeMap::<ContextSectionKind, u64>::new();
-    let tool_count = pending
-        .iter()
-        .filter_map(|item| item.assignment.tool_index)
-        .max()
-        .map_or(0, |index| index + 1);
-    let attachment_count = pending
-        .iter()
-        .filter_map(|item| item.assignment.attachment_index)
-        .max()
-        .map_or(0, |index| index + 1);
-    let mut tool_tokens = vec![0_u64; tool_count];
-    let mut attachment_tokens = vec![0_u64; attachment_count];
-    let mut non_compressible_tokens = 0_u64;
-    let mut compressible_tokens = 0_u64;
-    let mut user_reducible_tokens = 0_u64;
-    for item in pending {
-        let tokens = estimates
-            .get(&item.ordinal)
-            .ok_or(ContextPreparationError::BudgetInvalid)?
-            .estimated_tokens;
-        checked_add_map(&mut usage_tokens, item.assignment.usage, tokens)?;
-        checked_add_map(&mut section_tokens, item.assignment.section, tokens)?;
-        if let Some(index) = item.assignment.tool_index {
-            tool_tokens[index] = tool_tokens[index]
-                .checked_add(tokens)
-                .ok_or(ContextPreparationError::ArithmeticOverflow)?;
-        }
-        if let Some(index) = item.assignment.attachment_index {
-            attachment_tokens[index] = attachment_tokens[index]
-                .checked_add(tokens)
-                .ok_or(ContextPreparationError::ArithmeticOverflow)?;
-        }
-        match item.assignment.compressibility {
-            ContextCompressibility::NeverCompress => {
-                non_compressible_tokens = non_compressible_tokens
-                    .checked_add(tokens)
-                    .ok_or(ContextPreparationError::ArithmeticOverflow)?;
-            }
-            ContextCompressibility::CompressibleHistory
-            | ContextCompressibility::CompressibleSealedActiveSegment => {
-                compressible_tokens = compressible_tokens
-                    .checked_add(tokens)
-                    .ok_or(ContextPreparationError::ArithmeticOverflow)?;
-            }
-            ContextCompressibility::UserReducibleOnly => {
-                user_reducible_tokens = user_reducible_tokens
-                    .checked_add(tokens)
-                    .ok_or(ContextPreparationError::ArithmeticOverflow)?;
-            }
-        }
-    }
-    let estimated = budget.item_estimates.iter().any(|estimate| {
-        estimate.estimator.exactness != aura_context_domain::TokenEstimateExactness::Exact
-    });
-    let segments = ContextUsageKind::ORDER
-        .into_iter()
-        .map(|kind| ContextUsageSegmentView {
-            kind,
-            label: usage_label(kind).to_owned(),
-            estimated_tokens: usage_tokens.get(&kind).copied().unwrap_or_default(),
-        })
-        .collect();
-    let usage = ContextUsageSummaryView {
-        runtime_effective_window_tokens: budget.runtime_effective_window_tokens,
-        used_input_tokens: budget.estimated_input_tokens,
-        estimated,
-        segments,
-    };
-    if !usage.is_consistent() {
-        return Err(ContextPreparationError::BudgetInvalid);
-    }
-    Ok(ContextAccounting {
-        usage,
-        section_tokens,
-        tool_tokens,
-        attachment_tokens,
-        non_compressible_tokens,
-        compressible_tokens,
-        user_reducible_tokens,
-    })
 }
 
 // Keep every immutable compilation product explicit at the final sealing boundary.
@@ -1300,74 +1246,6 @@ fn remediation_plan(overflow: ContextOverflowDiagnosticView) -> ContextRemediati
     ContextRemediationPlan { actions: overflow.remediation.clone(), overflow }
 }
 
-fn checked_add_map<K: Ord>(
-    values: &mut BTreeMap<K, u64>,
-    key: K,
-    value: u64,
-) -> Result<(), ContextPreparationError> {
-    let entry = values.entry(key).or_default();
-    *entry = entry.checked_add(value).ok_or(ContextPreparationError::ArithmeticOverflow)?;
-    Ok(())
-}
-
-fn budget_compressibility(
-    assembly: &ContextSectionAssembly,
-    kind: ContextSectionKind,
-) -> Result<ContextCompressibility, ContextPreparationError> {
-    assembly
-        .sections
-        .iter()
-        .find(|section| section.kind == kind)
-        .map(|section| {
-            if section.is_empty_marker {
-                ContextCompressibility::NeverCompress
-            } else {
-                section.compressibility
-            }
-        })
-        .ok_or(ContextPreparationError::SectionsInvalid)
-}
-
-const fn instruction_section(
-    kind: aura_model_domain::LogicalInstructionKind,
-) -> ContextSectionKind {
-    match kind {
-        aura_model_domain::LogicalInstructionKind::Core => ContextSectionKind::CoreSystemPrompt,
-        aura_model_domain::LogicalInstructionKind::Permission => {
-            ContextSectionKind::PermissionAndSecurity
-        }
-        aura_model_domain::LogicalInstructionKind::ToolSummary => {
-            ContextSectionKind::LoadedToolSchemas
-        }
-        aura_model_domain::LogicalInstructionKind::WorkspaceAgents => {
-            ContextSectionKind::WorkspaceAgentsInstructions
-        }
-        aura_model_domain::LogicalInstructionKind::HistoricalSnapshot => {
-            ContextSectionKind::HistoricalSnapshotSummary
-        }
-        aura_model_domain::LogicalInstructionKind::AgentMode => ContextSectionKind::AgentModePrompt,
-        aura_model_domain::LogicalInstructionKind::Hook => ContextSectionKind::HookInjections,
-        aura_model_domain::LogicalInstructionKind::TaskState => {
-            ContextSectionKind::CurrentTaskState
-        }
-    }
-}
-
-const fn instruction_usage(kind: aura_model_domain::LogicalInstructionKind) -> ContextUsageKind {
-    match kind {
-        aura_model_domain::LogicalInstructionKind::Core
-        | aura_model_domain::LogicalInstructionKind::Permission
-        | aura_model_domain::LogicalInstructionKind::WorkspaceAgents
-        | aura_model_domain::LogicalInstructionKind::AgentMode
-        | aura_model_domain::LogicalInstructionKind::Hook => ContextUsageKind::SystemAndRules,
-        aura_model_domain::LogicalInstructionKind::ToolSummary => ContextUsageKind::ToolsAndResults,
-        aura_model_domain::LogicalInstructionKind::HistoricalSnapshot => {
-            ContextUsageKind::BackgroundAndCompaction
-        }
-        aura_model_domain::LogicalInstructionKind::TaskState => ContextUsageKind::Conversation,
-    }
-}
-
 const fn section_placement(kind: ContextSectionKind) -> PromptInspectorSectionPlacement {
     match kind {
         ContextSectionKind::CoreSystemPrompt
@@ -1523,6 +1401,8 @@ fn map_snapshot_error(_error: ContextSnapshotError) -> ContextPreparationError {
 
 #[cfg(test)]
 mod tests {
+    mod printable_text;
+
     use aura_context_domain::{
         ContextCompressibility, ContextPrivacyClass, ModelEgressAuthorizationBasis,
         ModelEgressSourceKind, PromptActivationCondition, PromptModuleSnapshot, PromptSectionClass,
@@ -1884,7 +1764,8 @@ mod tests {
     fn non_compressible_overflow_requires_remediation_without_creating_a_snapshot() {
         let estimators = ContextEstimatorRegistry::default();
         let compiler = ContextPreparationCompiler::new(&estimators);
-        let outcome = compiler.compile(input("x".repeat(120_000))).expect("compile");
+        let rules = "Verify the result for record 924 at location 北京.\n".repeat(6_000);
+        let outcome = compiler.compile(input(rules)).expect("compile");
         let ContextPreparationCompilationOutcome::AwaitingRemediation { plan, .. } = outcome else {
             panic!("non-compressible overflow must not request compaction");
         };

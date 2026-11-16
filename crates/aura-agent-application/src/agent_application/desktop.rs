@@ -206,7 +206,7 @@ impl AgentApplication {
         let runtime = self.execution.runtime;
         // What running steps are writing into tool calls right now.
         let live = super::tool_input::snapshot();
-        Ok(self
+        let mut projection = self
             .store
             .read(StoreStep::operation("agent.history"), move |db| {
                 // The newest page is the one the desktop polls and compares; an earlier page is
@@ -233,7 +233,9 @@ impl AgentApplication {
                 aura_persistence_v2::agent::desktop::with_tool_input(db, &mut projection, &live)?;
                 Ok(projection)
             })
-            .await?)
+            .await?;
+        self.project_pending_failure(&mut projection);
+        Ok(projection)
     }
 
     pub async fn result(

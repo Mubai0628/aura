@@ -87,7 +87,7 @@ function twoProviders(): ModelSettingsProjection {
 async function openModels(projection: ModelSettingsProjection = threeModels()) {
   vi.mocked(window.aura.v1.getModelSettings).mockResolvedValue({ ok: true, value: projection });
   const user = userEvent.setup();
-  render(<App />);
+  const view = render(<App />);
   await user.click(screen.getByRole('button', { name: '设置' }));
   const section = await screen.findByRole('region', { name: 'OpenAI 模型' });
   await within(section).findAllByText('gpt-image-2');
@@ -95,7 +95,7 @@ async function openModels(projection: ModelSettingsProjection = threeModels()) {
     within(section)
       .queryAllByRole('article')
       .map((card) => card.querySelector('.model-card-title strong')?.textContent);
-  return { section, shown, user };
+  return { section, shown, user, unmount: view.unmount };
 }
 
 describe('the models of a provider, filtered', () => {
@@ -140,5 +140,27 @@ describe('the models of a provider, filtered', () => {
     const openai = await screen.findByRole('region', { name: 'OpenAI 模型' });
     expect(onlyReady().getAttribute('aria-checked')).toBe('true');
     expect(cards(openai)).toEqual(['gpt-5.6-sol', 'Luna']);
+  });
+
+  test('remembers the provider and its filter through settings navigation and a fresh mount', async () => {
+    const { user, unmount } = await openModels(twoProviders());
+    const configured = () => screen.getByRole('switch', { name: '只看已配置' });
+    await user.click(screen.getByRole('button', { name: /^Anthropic/u }));
+    await user.click(configured());
+    await user.click(screen.getByRole('button', { name: /^环境$/u }));
+    await user.click(screen.getByRole('button', { name: /^模型$/u }));
+    expect(screen.getByRole('region', { name: 'Anthropic 模型' })).toBeTruthy();
+    expect(configured().getAttribute('aria-checked')).toBe('true');
+    unmount();
+    const next = render(<App />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
+    await screen.findByRole('region', { name: 'Anthropic 模型' });
+    expect(configured().getAttribute('aria-checked')).toBe('true');
+    await user.click(configured());
+    next.unmount();
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
+    await screen.findByRole('region', { name: 'Anthropic 模型' });
+    expect(configured().getAttribute('aria-checked')).toBe('false');
   });
 });

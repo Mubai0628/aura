@@ -78,6 +78,7 @@ impl AgentApplication {
             .get(&profile)
             .ok_or_else(|| anyhow::anyhow!("model.profile_missing"))?
             .clone();
+        anyhow::ensure!(model_profile.enabled, "model.profile_disabled");
         // The provider's default connection, or the
         // next backup when the connections before it failed in this run's current streak.
         let order = aura_model_config::connection_order(&config.registry, &model_profile);
@@ -480,6 +481,7 @@ impl AgentApplication {
             })
             .map(|entry| entry.tool_id)
             .collect::<Vec<_>>();
+        let closing_question = asked_again_after.as_deref().and_then(super::provider::retry_note);
         let Some((prepared, compiled_state)) = self
             .compile_context(compilation::CompilationInput {
                 run_id,
@@ -488,6 +490,7 @@ impl AgentApplication {
                 state,
                 input,
                 snapshot: &snapshot,
+                closing_question,
                 endpoint: &endpoint,
                 window_trial: &window_trial,
                 force_rebuild,
@@ -536,10 +539,7 @@ impl AgentApplication {
             provider_continuation: context.provider_continuation,
             output_request: context.output_request,
             // After everything the step sends, so the cut-off request's cache still serves it.
-            closing_question: asked_again_after
-                .as_deref()
-                .and_then(super::provider::retry_note)
-                .map(str::to_owned),
+            closing_question: closing_question.map(str::to_owned),
             closing_exchange: Vec::new(),
         };
         // Boundary: the final commit. It is one indivisible transaction - the goal-budget
@@ -696,11 +696,12 @@ fn measured(
     counted: aura_persistence_v2::agent::counted_request::CountedRequest,
     now: &ModelExecutionSnapshot,
 ) -> Option<MeasuredRequest> {
-    if counted.provider_id != now.provider_id || counted.model_name != now.model_name {
+    if counted.provider_id != now.provider_id
+        || counted.model_name != now.model_name
+        || counted.endpoint_id != now.endpoint_id
+        || counted.endpoint_fingerprint != now.endpoint_fingerprint
+    {
         return None;
     }
-    MeasuredRequest::new(
-        counted.input_tokens,
-        counted.parts.into_iter().map(|part| (part.content_hash, part.byte_length)),
-    )
+    MeasuredRequest::from_report(counted.input_tokens, counted.cached_input_tokens, &counted.parts)
 }

@@ -1,139 +1,131 @@
-//! Counting a request close to what its provider will count.
-//!
-//! Without a tokenizer for the model there is only a rule of thumb per character class
-//! ([`crate::character_class_tokens`]), which can be low. A conversation repeats almost all of its
-//! previous request, and the provider said how many tokens that request really was. A part sent
-//! again is counted at that rate. A part the model has not seen is counted by what it is
-//! ([`crate::BudgetTextKind`]): the provider's own record of an answer at the same rate, text by
-//! character class or at the rate where that is higher, and text that carries such records
-//! serialized at half again the rate, never below half a token a byte. The first request, with no
-//! count yet, is counted by the rule. Only the same model's previous request is used, and only a
-//! plausible count: another model's tokenizer, or a count too small to be the whole request (a
-//! proxy that reports only uncached tokens), leaves every part to the rule.
-use std::collections::BTreeSet;
+//! Calibrates recurring parts against comparable, provider-reported requests.
+use std::collections::BTreeMap;
 
+use aura_context_domain::{
+    ContextItemEstimate, PROVIDER_MEASURED_ESTIMATOR_ID, TokenEstimateExactness,
+};
 use aura_domain_common::ContentHash;
 
-/// Fewer than one token per ten bytes is not a count of a whole request.
-const PLAUSIBLE_BYTES_PER_TOKEN: u64 = 10;
-/// Text that carries a provider's records serialized gets half again the provider's rate.
-const SERIALIZED_PERCENT: u64 = 150;
+use crate::estimator::{NATIVE_REASONING_ESTIMATOR_ID, REFERENCE_BPE_ESTIMATOR_ID};
 
-/// The previous request of the same model: what its provider counted and its text parts.
+/// Usage and part estimates from one previous request to the same model and endpoint.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MeasuredRequest {
-    /// The provider's count, never above the request's bytes.
-    tokens: u64,
-    bytes: u64,
-    /// The parts' hashes, as text: a hash orders only by its spelling.
-    parts: BTreeSet<String>,
+    reported_text_tokens: u64,
+    estimated_text_tokens: u64,
+    text_parts: BTreeMap<String, (u64, u64)>,
 }
 
 impl MeasuredRequest {
-    /// The measurement, when the provider's count is plausible for parts of these sizes.
     #[must_use]
-    pub fn new(
+    pub fn from_report(
         input_tokens: u64,
-        parts: impl IntoIterator<Item = (ContentHash, u64)>,
+        cached_tokens: u64,
+        parts: &[ContextItemEstimate],
     ) -> Option<Self> {
-        let mut bytes = 0_u64;
-        let mut hashes = BTreeSet::new();
-        for (hash, length) in parts {
-            bytes = bytes.checked_add(length)?;
-            hashes.insert(hash.to_string());
-        }
-        if bytes == 0 || input_tokens.checked_mul(PLAUSIBLE_BYTES_PER_TOKEN)? < bytes {
+        if input_tokens == 0 || input_tokens < cached_tokens {
             return None;
         }
-        Some(Self { tokens: input_tokens.min(bytes), bytes, parts: hashes })
+        let mut fixed_tokens = 0_u64;
+        let mut estimated_text_tokens = 0_u64;
+        let mut text_parts = BTreeMap::new();
+        for part in parts {
+            let identity = &part.estimator;
+            match (identity.estimator_id.as_str(), identity.estimator_version) {
+                (REFERENCE_BPE_ESTIMATOR_ID, 1) | (PROVIDER_MEASURED_ESTIMATOR_ID, 2) => {
+                    estimated_text_tokens =
+                        estimated_text_tokens.checked_add(part.estimated_tokens)?;
+                    text_parts.insert(
+                        part.content_hash.to_string(),
+                        (part.byte_length, part.estimated_tokens),
+                    );
+                }
+                (NATIVE_REASONING_ESTIMATOR_ID, 1) => {
+                    fixed_tokens = fixed_tokens.checked_add(part.estimated_tokens)?;
+                }
+                _ if matches!(
+                    identity.exactness,
+                    TokenEstimateExactness::Exact | TokenEstimateExactness::UpperBound
+                ) =>
+                {
+                    fixed_tokens = fixed_tokens.checked_add(part.estimated_tokens)?;
+                }
+                // Snapshots produced by a different estimate may describe different bytes.
+                _ => return None,
+            }
+        }
+        let reported_text_tokens = input_tokens.checked_sub(fixed_tokens)?;
+        // Some gateways report just the uncached portion or omit entire request components.
+        // Compare token estimates on equivalent material. The wire size of opaque data says
+        // nothing about completeness.
+        if estimated_text_tokens == 0
+            || reported_text_tokens.abs_diff(estimated_text_tokens) > estimated_text_tokens / 2
+        {
+            return None;
+        }
+        Some(Self { reported_text_tokens, estimated_text_tokens, text_parts })
     }
 
-    /// The tokens of a part the model was sent before, or `None` for one it has not seen.
+    /// Corrects the estimate of a recurring part from its previous estimate. Starting from
+    /// that estimate makes another correction converge instead of scaling the reference count
+    /// afresh and undoing the previous adjustment. New parts use the local reference count.
     #[must_use]
     pub fn sent_again(&self, hash: &ContentHash, byte_length: u64) -> Option<u64> {
-        self.parts.contains(&hash.to_string()).then(|| self.at_rate(byte_length))
-    }
-
-    /// The tokens of these bytes at the provider's rate: a part sent again, or the provider's own
-    /// record of an answer, which it counts natively rather than as its bytes - encrypted
-    /// reasoning is most of a reasoning model's request and counts far below a token a byte.
-    #[must_use]
-    pub fn at_rate(&self, byte_length: u64) -> u64 {
-        let scaled = u128::from(byte_length) * u128::from(self.tokens);
-        u64::try_from(scaled.div_ceil(u128::from(self.bytes))).unwrap_or(u64::MAX)
-    }
-
-    /// The tokens of text the model has not seen: by character class, or at the provider's rate
-    /// when that is higher, as a tokenizer denser than the rule shows it.
-    #[must_use]
-    pub fn new_text(&self, text: &str) -> u64 {
-        let bytes = u64::try_from(text.len()).unwrap_or(u64::MAX);
-        crate::character_class_tokens(text).max(self.at_rate(bytes)).min(bytes)
-    }
-
-    /// The tokens of text that carries a provider's records serialized, as a summary request's
-    /// sources do: read as text, an encoding counts densely and not at the provider's rate for
-    /// the record. Half again the provider's rate, never below half a token a byte and never
-    /// above the bytes.
-    #[must_use]
-    pub fn serialized(&self, byte_length: u64) -> u64 {
-        let scaled =
-            u128::from(byte_length) * u128::from(self.tokens) * u128::from(SERIALIZED_PERCENT);
-        let rated =
-            u64::try_from(scaled.div_ceil(u128::from(self.bytes) * 100)).unwrap_or(u64::MAX);
-        rated.max(byte_length.div_ceil(2)).min(byte_length)
+        let &(prior_bytes, prior_tokens) = self.text_parts.get(&hash.to_string())?;
+        if byte_length != prior_bytes {
+            return None;
+        }
+        let scaled = u128::from(prior_tokens) * u128::from(self.reported_text_tokens);
+        u64::try_from(scaled.div_ceil(u128::from(self.estimated_text_tokens))).ok()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use aura_context_domain::TokenEstimatorIdentity;
+
     use super::*;
 
-    fn hash(text: &str) -> ContentHash {
-        ContentHash::sha256(text.as_bytes())
+    fn part(text: &str, bytes: u64, tokens: u64, id: &str, version: u32) -> ContextItemEstimate {
+        ContextItemEstimate {
+            ordinal: 1,
+            content_hash: ContentHash::sha256(text.as_bytes()),
+            byte_length: bytes,
+            estimated_tokens: tokens,
+            estimator: TokenEstimatorIdentity {
+                estimator_id: id.to_owned(),
+                estimator_version: version,
+                exactness: TokenEstimateExactness::Approximate,
+            },
+        }
     }
 
     #[test]
-    fn a_part_sent_again_is_counted_at_the_providers_rate() {
-        let measured = MeasuredRequest::new(3_000, [(hash("a"), 8_000), (hash("b"), 2_000)])
-            .expect("a plausible count");
-        // 3,000 tokens for 10,000 bytes: 0.3 tokens a byte.
-        assert_eq!(measured.sent_again(&hash("a"), 8_000), Some(2_400));
-        assert_eq!(measured.sent_again(&hash("c"), 8_000), None, "a new part keeps its bytes");
-        assert_eq!(measured.at_rate(5_000), 1_500, "a provider's record at the same rate");
-    }
+    fn corrects_recurring_text_without_scaling_opaque_records() {
+        let mut text = part("recurring", 500_000, 290_000, REFERENCE_BPE_ESTIMATOR_ID, 1);
+        let reasoning = part("opaque", 3_924_258, 145_797, NATIVE_REASONING_ESTIMATOR_ID, 1);
+        let usage = 442_347;
+        let measurement =
+            MeasuredRequest::from_report(usage, 441_216, &[text.clone(), reasoning.clone()])
+                .expect("valid usage for a large native continuation");
+        assert_eq!(measurement.sent_again(&text.content_hash, text.byte_length), Some(296_550));
+        assert_eq!(measurement.sent_again(&reasoning.content_hash, reasoning.byte_length), None);
+        assert_eq!(measurement.sent_again(&text.content_hash, 10), None);
 
-    /// New text by character class, at the provider's rate where that is higher.
-    #[test]
-    fn new_text_is_counted_by_character_class_or_the_denser_providers_rate() {
-        let text = "fn main() {}".repeat(100);
-        // 1,200 bytes of code: 400 tokens by character class.
-        let sparse = MeasuredRequest::new(1_000, [(hash("a"), 10_000)]).expect("plausible");
-        assert_eq!(sparse.new_text(&text), 400, "0.1 a byte is below the rule");
-        let dense = MeasuredRequest::new(5_000, [(hash("a"), 10_000)]).expect("plausible");
-        assert_eq!(dense.new_text(&text), 600, "0.5 a byte is above it");
-        assert_eq!(dense.new_text("上下文"), 5, "nine bytes: three by the rule, five at the rate");
-    }
-
-    /// Serialized records at half again the provider's rate, at least half a token a byte and
-    /// at most the bytes.
-    #[test]
-    fn serialized_records_are_counted_at_half_again_the_providers_rate() {
-        // 2,500 tokens for 10,000 bytes: 0.25 a byte; half again is under 0.5.
-        let sparse = MeasuredRequest::new(2_500, [(hash("a"), 10_000)]).expect("plausible");
-        assert_eq!(sparse.serialized(8_000), 4_000, "half a token a byte");
-        // 5,000 tokens for 10,000 bytes: half again is 0.75.
-        let dense = MeasuredRequest::new(5_000, [(hash("a"), 10_000)]).expect("plausible");
-        assert_eq!(dense.serialized(8_000), 6_000);
-        let densest = MeasuredRequest::new(9_000, [(hash("a"), 10_000)]).expect("plausible");
-        assert_eq!(densest.serialized(8_000), 8_000, "never above the bytes");
+        text.estimated_tokens = 296_550;
+        text.estimator.estimator_id = PROVIDER_MEASURED_ESTIMATOR_ID.to_owned();
+        text.estimator.estimator_version = 2;
+        let next = MeasuredRequest::from_report(usage, 441_216, &[text.clone(), reasoning])
+            .expect("comparable prior calibration");
+        assert_eq!(next.sent_again(&text.content_hash, text.byte_length), Some(296_550));
     }
 
     #[test]
-    fn a_count_above_the_bytes_or_too_small_to_be_the_request_is_not_used() {
-        let dense = MeasuredRequest::new(50_000, [(hash("a"), 10_000)]).expect("plausible");
-        assert_eq!(dense.sent_again(&hash("a"), 10_000), Some(10_000), "never above the bytes");
-        assert_eq!(MeasuredRequest::new(20, [(hash("a"), 50_000)]), None);
-        assert_eq!(MeasuredRequest::new(0, []), None);
+    fn an_incomplete_report_or_legacy_byte_estimate_cannot_calibrate_text() {
+        let text = part("recurring", 10_000, 3_200, REFERENCE_BPE_ESTIMATOR_ID, 1);
+        assert!(MeasuredRequest::from_report(900, 2_500, std::slice::from_ref(&text)).is_none());
+        assert!(MeasuredRequest::from_report(400, 0, &[text]).is_none());
+        let legacy = part("recurring", 10_000, 3_200, PROVIDER_MEASURED_ESTIMATOR_ID, 1);
+        assert!(MeasuredRequest::from_report(3_200, 0, &[legacy]).is_none());
     }
 }

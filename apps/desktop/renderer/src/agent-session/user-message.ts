@@ -41,7 +41,7 @@ const messages: Record<string, string> = {
   'agent.execution_interrupted':
     '这一步执行时出了意外的错误，任务已暂停，错误代码记在 Core 日志里。过程输出仍可阅读；在输入框发“继续”即可接着做。',
   'provider_failed: context_length_exceeded':
-    '这次请求超过了模型的上下文上限。任务已暂停；在输入框发“继续”，Aura 会先压缩较早的内容再接着做。',
+    '模型服务商拒绝了这次请求，因为输入超出了它的上下文窗口。任务已暂停；请检查模型窗口设置，或换用窗口更大的模型后，在输入框发“继续”。',
   'provider_failed: rate_limit_exceeded':
     '模型服务限流（请求太频繁或额度不足），已重试仍未成功。任务已暂停；稍后在输入框发“继续”即可接着做。',
   // Such a step is asked again
@@ -119,7 +119,7 @@ const messages: Record<string, string> = {
   '(UnsupportedParameter, ':
     '这个模型不接受请求里的某个参数，这一步没有完成。任务已暂停；请换一个思考档位或模型，或在连接设置里调整兼容选项后在输入框发“继续”。',
   '(ContextWindowExceeded, ':
-    '这次请求超过了模型的上下文上限。任务已暂停；在输入框发“继续”，Aura 会先压缩较早的内容再接着做。',
+    '模型服务商拒绝了这次请求，因为输入超出了它的上下文窗口。任务已暂停；请检查模型窗口设置，或换用窗口更大的模型后，在输入框发“继续”。',
   '(EmptyOutput, ':
     '模型服务结束了回答，却没有给出任何内容，这一步没有完成。任务已暂停；在输入框发“继续”再试，仍然如此请换一个模型。',
   '(Refusal, ':

@@ -330,6 +330,34 @@ fn error_frames(code: &str, message: &str) -> [Value; 3] {
 }
 
 #[test]
+fn a_window_refusal_is_recognized_inside_each_protocols_stream() {
+    for ((name, format, adapter), frame) in adapters()
+        .into_iter()
+        .zip(error_frames("context_length_exceeded", "Maximum context length exceeded"))
+    {
+        let error = stream_error(adapter, format, &frame);
+        assert_eq!(error.category, ModelFailureCategory::ContextWindowExceeded, "{name}");
+    }
+    let error = stream_error(
+        &AnthropicMessagesAdapter,
+        ModelApiFormat::AnthropicMessages,
+        &json!({"type":"error","error":{
+            "type":"invalid_request_error","message":"prompt is too long: 200001 tokens > 200000"
+        }}),
+    );
+    assert_eq!(error.category, ModelFailureCategory::ContextWindowExceeded);
+}
+
+#[test]
+fn all_decoders_distinguish_a_missing_terminal_event_from_a_bad_frame() {
+    for (name, format, adapter) in adapters() {
+        let mut decoder = adapter.create_stream_decoder(&snapshot(format));
+        let error = decoder.finish().expect_err("no terminal event");
+        assert_eq!(error.category, ModelFailureCategory::StreamInterrupted, "{name}");
+    }
+}
+
+#[test]
 fn an_account_setting_reported_inside_a_stream_is_not_asked_again() {
     // `server_error` alone would have the step asked again; the words say it cannot pass.
     for ((name, format, adapter), frame) in

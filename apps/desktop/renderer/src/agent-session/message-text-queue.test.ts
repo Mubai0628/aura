@@ -109,6 +109,39 @@ test('a failed page is not retried until retry is called', async () => {
   expect(attempts).toBe(2);
 });
 
+test('registering a callback or viewport change does not reread the same byte offset', async () => {
+  const { ask, release, started, waitFor } = harness();
+  ask('body', 'first', 2046);
+  await waitFor(1);
+  ask('body', 'while reading', 2046);
+  queue.setVisible('body', true);
+  release('first');
+  await tick();
+  ask('body', 'after reading', 2046);
+  queue.setVisible('body', false);
+  await tick();
+  expect(started).toEqual(['first']);
+
+  ask('body', 'next', 13_509);
+  await waitFor(2);
+  expect(started).toEqual(['first', 'next']);
+  release();
+});
+
+test('a new offset registered during a read runs even when it reuses the callback', async () => {
+  const offsets: number[] = [];
+  const done = Promise.withResolvers<void>();
+  const read = async (_signal: AbortSignal, offset: number) => {
+    offsets.push(offset);
+    if (offset === 0) await done.promise;
+  };
+  queue.read('body', 0, read);
+  queue.read('body', 2046, read);
+  done.resolve();
+  await tick();
+  expect(offsets).toEqual([0, 2046]);
+});
+
 test('concurrency never exceeds its bound', async () => {
   queue = new MessageTextQueue(2);
   const { ask, release, started, waitFor } = harness();

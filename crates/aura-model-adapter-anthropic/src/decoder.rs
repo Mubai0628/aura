@@ -115,7 +115,7 @@ impl ModelStreamDecoder for AnthropicDecoder {
 
     fn finish(&mut self) -> Result<NormalizedModelOutput, ModelAdapterError> {
         if !self.message_stopped {
-            return Err(ModelAdapterError::protocol(
+            return Err(ModelAdapterError::stream_interrupted(
                 "anthropic_terminal_missing",
                 "Anthropic Messages stream ended without message_stop",
             ));

@@ -14,7 +14,8 @@ pub use readiness::*;
 
 pub use agent_display::{
     AgentAssistantView, AgentContextClearedView, AgentContextCompactedView,
-    AgentContextCompactingView, AgentSessionProjection, AgentToolInputView, AgentTurnView,
+    AgentContextCompactingView, AgentInterimReplyView, AgentSessionProjection, AgentToolInputView,
+    AgentTurnView,
 };
 pub use change::{ProjectionChange, ProjectionChangeValidationError};
 pub use routing::{ProjectionKey, ProjectionKind, ProjectionRouteError, ProjectionScope};

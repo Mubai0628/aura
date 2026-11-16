@@ -82,8 +82,17 @@ test('a request the provider refused as too long says so, though it was counted 
     return Promise.resolve({ ok: true, value: answer });
   });
   render(<ContextRemediation {...props} />);
-  await screen.findByText('模型服务商拒绝了这次请求：超出它的上下文窗口，压缩后也没能缩小。');
+  await screen.findByText('模型服务商拒绝了这次请求，因为输入超出了它的上下文窗口。');
   screen.getByText(/预计输入 9,000/);
+});
+
+test('an existing plan with zero user-reducible content gives an actionable recovery', async () => {
+  const answer = value('s', 'r');
+  answer.remediation.plan.overflow.user_reducible_tokens = 0;
+  read.mockResolvedValue({ ok: true, value: answer });
+  render(<ContextRemediation {...props} />);
+  await screen.findByText('在模型设置中核对上下文窗口，或切换到上下文窗口更大的模型。');
+  expect(screen.queryByText(/减少附件|减少可由你修改的内容/)).toBeNull();
 });
 
 test('a request counted past the budget does not claim a provider refusal', async () => {

@@ -135,6 +135,19 @@ impl CompactionAttemptFactory for Execution {
                         byte_length: self.instructions.canonical_text.len() as u64,
                     }],
                 )?;
+                if let Some((estimated_input_tokens, safety_reserve_tokens)) =
+                    self.isolated_estimate
+                {
+                    append_core_log(
+                        "context.compaction.isolated_budget",
+                        serde_json::json!({
+                            "compaction": self.record.id,
+                            "attempt_ordinal": ordinal,
+                            "estimated_input_tokens": estimated_input_tokens,
+                            "safety_reserve_tokens": safety_reserve_tokens,
+                        }),
+                    );
+                }
                 Ok(PreparedCompactionModelAttempt {
                     attempt_ordinal: ordinal,
                     logical_request: logical,

@@ -28,7 +28,7 @@ pub(super) fn compile_anthropic_history(
     resolved: &[aura_model_domain::ResolvedModelAttachment],
 ) -> Result<Vec<Value>, ModelAdapterError> {
     let bindings = historical_tool_call_wire_bindings(snapshot);
-    let images = aura_model_transport::tool_result_images(request, resolved)?;
+    let images = aura_model_transport::tool_result_images(&request.conversation_items, resolved)?;
     let mut messages = Vec::with_capacity(items.len());
     let mut pending_tool_results = Vec::new();
     for item in items {
@@ -85,8 +85,11 @@ pub(super) fn compile_anthropic_history(
                 }
                 let mut blocks =
                     Vec::with_capacity(usize::from(content.is_some()) + tool_calls.len());
+                let replay = provider_history.as_ref().and_then(|history| {
+                    aura_model_transport::provider_history_replay(history, snapshot)
+                });
                 if let Some(aura_model_domain::ProviderHistoryData::Anthropic { thinking_blocks }) =
-                    provider_history.as_ref().and_then(|h| h.for_snapshot(snapshot))
+                    replay.as_deref()
                 {
                     blocks.extend(thinking_blocks.clone());
                 }
@@ -94,31 +97,11 @@ pub(super) fn compile_anthropic_history(
                     blocks.push(json!({"type": "text", "text": content}));
                 }
                 for call in tool_calls {
-                    let binding = bindings.get(&call.tool_call_id).ok_or_else(|| {
-                        ModelAdapterError::invalid_request(
-                            "model_request.tool_call_mapping_not_resolved",
-                            "historical Anthropic tool call has no frozen wire binding",
-                        )
-                    })?;
-                    let arguments: Value =
-                        serde_json::from_str(&call.arguments_json).map_err(|_| {
-                            ModelAdapterError::invalid_request(
-                                "model_request.tool_arguments_invalid",
-                                "historical Anthropic tool arguments are not valid JSON",
-                            )
-                        })?;
-                    if !arguments.is_object() {
-                        return Err(ModelAdapterError::compatibility(
-                            "model_request.anthropic_tool_input_not_object",
-                            "Anthropic tool_use input requires a JSON object",
-                        ));
-                    }
-                    blocks.push(json!({
-                        "type": "tool_use",
-                        "id": binding.wire_identity.wire_id(),
-                        "name": binding.provider_wire_tool_name,
-                        "input": arguments,
-                    }));
+                    blocks.push(aura_model_transport::provider_tool_call(
+                        snapshot.api_format,
+                        call,
+                        &bindings,
+                    )?);
                 }
                 messages.push(json!({"role": "assistant", "content": blocks}));
             }

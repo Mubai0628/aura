@@ -225,20 +225,25 @@ pub fn resolve(
             at,
         )?;
     }
-    let mut t = turn.clone();
-    t.transition(turn.revision, TurnTaskState::Running, at).map_err(|_| Error::Conflict)?;
-    turns::save(tx, &turn, &t)?;
-    let mut r = run.clone();
-    r.state = AgentRunState::ToolsRunning { tool_batch_id: batch };
-    r.revision = Revision::new(run.revision.value() + 1);
-    r.updated_at = at;
-    turns::save_run(tx, &run, &r)?;
+    resume_tool_batch(tx, &turn, &run, batch, at)?;
     facts::append(tx, EventId::new(), &command.to_string(), "agent.approval_command", input, at)?;
     Ok(id)
 }
+
+/// File approvals name objects that dispatch revalidates independently of the current mode.
+pub fn is_mode_independent(operation: &SecuredOperation) -> bool {
+    let content = &operation.content;
+    file_capabilities_are_consentable(&content.capabilities)
+        && content.resources.iter().any(|resource| file_consent_target_of(resource).is_some())
+}
+
+/// Ends approvals whose prepared authority has changed. The caller holds the session
+/// authority barrier, so the mode and revision describe the current session at commit.
 pub fn invalidate_mode(
     tx: &Transaction<'_>,
     session: SessionId,
+    mode: PermissionMode,
+    permission_revision: u64,
     at: UtcTimestamp,
 ) -> StoreResult<Option<AgentRunId>> {
     let Some(turn_id) = super::session::load(tx, session)?.active_turn else {
@@ -249,31 +254,45 @@ pub fn invalidate_mode(
     let AgentRunState::AwaitingApproval { tool_batch_id } = run.state else {
         return Ok(None);
     };
+    if turn.state != TurnTaskState::AwaitingApproval
+        || application::cancellation_requested(tx, run.agent_run_id)?
+    {
+        return Ok(None);
+    }
+    let admitted = crate::tool::admission::load(tx, tool_batch_id)?.ok_or(Error::Conflict)?;
+    let snapshot = &admitted.permission_snapshot;
+    if (snapshot.mode, snapshot.session_permission_revision) == (mode, permission_revision) {
+        return Ok(None);
+    }
+    let mut closed = false;
+    let mut kept = false;
     for id in pending(tx, run.agent_run_id)? {
-        crate::security_approval::close(tx, id, ApprovalState::Invalidated, at)?;
-    }
-    let batch = crate::tool::execution::batch(tx, tool_batch_id)?;
-    for call in &batch.batch.calls {
-        let stored = crate::tool::execution::call(tx, call.tool_call_id)?;
-        if stored.attempt_id.is_none() && stored.result.is_none() {
-            crate::tool::result::not_executed_with_notice(
-                tx,
-                tool_batch_id,
-                call.tool_call_id,
-                aura_tool_contract::ToolNotExecutedReasonV1::PermissionDenied,
-                Some(APPROVAL_INVALIDATED),
-                at,
-            )?;
+        let view = view(tx, &ExecutionApprovalRequest { session_id: session, approval_id: id })?;
+        if is_mode_independent(&view.operation) {
+            kept = true;
+            continue;
         }
+        let call = *admitted
+            .operations
+            .iter()
+            .find(|(_, operation)| **operation == view.operation)
+            .ok_or(Error::Conflict)?
+            .0;
+        crate::security_approval::close(tx, id, ApprovalState::Invalidated, at)?;
+        crate::tool::result::not_executed_with_notice(
+            tx,
+            tool_batch_id,
+            call,
+            aura_tool_contract::ToolNotExecutedReasonV1::PermissionDenied,
+            Some(APPROVAL_INVALIDATED),
+            at,
+        )?;
+        closed = true;
     }
-    let mut t = turn.clone();
-    t.transition(turn.revision, TurnTaskState::Running, at).map_err(|_| Error::Conflict)?;
-    turns::save(tx, &turn, &t)?;
-    let mut r = run.clone();
-    r.state = AgentRunState::ToolsRunning { tool_batch_id };
-    r.revision = Revision::new(run.revision.value() + 1);
-    r.updated_at = at;
-    turns::save_run(tx, &run, &r)?;
+    if !closed || kept {
+        return Ok(None);
+    }
+    resume_tool_batch(tx, &turn, &run, tool_batch_id, at)?;
     Ok(Some(run.agent_run_id))
 }
 pub fn deadline(db: &Connection, run: AgentRunId) -> StoreResult<Option<UtcTimestamp>> {
@@ -289,7 +308,7 @@ const APPROVAL_DENIED: &str = "approval.denied: 用户在批准时拒绝了这�
 
 /// What the model and the user read for a call whose approval the session's permission mode
 /// replaced while it waited.
-const APPROVAL_INVALIDATED: &str = "approval.invalidated: 等待批准时会话的权限模式变了，这个调用没有执行，什么都没改。还需要的话重新调用，会按新的模式处理。";
+const APPROVAL_INVALIDATED: &str = "approval.invalidated: 等待批准时会话的权限模式变了，这个调用没有执行，什么都没改。按当前权限继续能做的部分。如果仍需这项操作，请先核对用户对它的授权。";
 
 /// What the model reads for a call whose approval expired before the user answered. The stored
 /// reason stays `permission_denied`, the one older Cores read; this line says what happened.
@@ -332,13 +351,23 @@ pub fn expire(tx: &Transaction<'_>, id: AgentRunId, at: UtcTimestamp) -> StoreRe
     if !closed || !pending(tx, id)?.is_empty() {
         return Ok(false);
     }
+    resume_tool_batch(tx, &turn, &run, batch, at)?;
+    Ok(true)
+}
+
+fn resume_tool_batch(
+    tx: &Transaction<'_>,
+    turn: &TurnTask,
+    run: &AgentRun,
+    batch: ToolBatchId,
+    at: UtcTimestamp,
+) -> StoreResult<()> {
     let mut t = turn.clone();
     t.transition(turn.revision, TurnTaskState::Running, at).map_err(|_| Error::Conflict)?;
-    turns::save(tx, &turn, &t)?;
+    turns::save(tx, turn, &t)?;
     let mut r = run.clone();
     r.state = AgentRunState::ToolsRunning { tool_batch_id: batch };
     r.revision = Revision::new(run.revision.value().checked_add(1).ok_or(Error::Conflict)?);
     r.updated_at = at;
-    turns::save_run(tx, &run, &r)?;
-    Ok(true)
+    turns::save_run(tx, run, &r)
 }

@@ -50,6 +50,7 @@ function Harness() {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
   configure.mockReset().mockImplementation(async (input) => ({
     ok: true,
     value: { ...view, ...input, revision: String(Number(view.revision) + 1) },
@@ -65,6 +66,19 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+
+test('a tool category stays selected after returning to the settings page', async () => {
+  const page = render(<Harness />);
+  const fileFamily = () => screen.getByRole('button', { name: /^文件/u });
+  await screen.findByRole('switch', { name: 'fs.list 默认加载' });
+  fireEvent.click(fileFamily());
+  expect(screen.queryByRole('switch', { name: 'tools.load 默认加载' })).toBeNull();
+  page.unmount();
+  render(<Harness />);
+  await screen.findByRole('switch', { name: 'fs.list 默认加载' });
+  expect(fileFamily().getAttribute('aria-pressed')).toBe('true');
+  expect(screen.queryByRole('switch', { name: 'tools.load 默认加载' })).toBeNull();
+});
 
 test('saves a sorted fixed selection and carries the untouched execution strategy through', async () => {
   render(<Harness />);

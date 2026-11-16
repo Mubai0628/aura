@@ -10,7 +10,7 @@ pub(super) fn compile_chat_history(
     resolved: &[aura_model_domain::ResolvedModelAttachment],
 ) -> Result<Vec<Value>, ModelAdapterError> {
     let bindings = historical_tool_call_wire_bindings(snapshot);
-    let images = aura_model_transport::tool_result_images(request, resolved)?;
+    let images = aura_model_transport::tool_result_images(&request.conversation_items, resolved)?;
     let mut messages = Vec::with_capacity(items.len());
     let mut pending_images = Vec::new();
     for item in items {
@@ -48,7 +48,10 @@ pub(super) fn compile_chat_history(
                     "content".to_owned(),
                     content.as_ref().map_or(Value::Null, |text| Value::String(text.clone())),
                 );
-                let history = provider_history.as_ref().and_then(|h| h.for_snapshot(snapshot));
+                let replay = provider_history.as_ref().and_then(|history| {
+                    aura_model_transport::provider_history_replay(history, snapshot)
+                });
+                let history = replay.as_deref();
                 if let Some(aura_model_domain::ProviderHistoryData::Chat {
                     reasoning_content: Some(reasoning),
                     ..
@@ -60,26 +63,17 @@ pub(super) fn compile_chat_history(
                     let calls = tool_calls
                         .iter()
                         .map(|call| {
-                            let binding = bindings.get(&call.tool_call_id).ok_or_else(|| {
-                                ModelAdapterError::invalid_request(
-                                    "model_request.tool_call_mapping_not_resolved",
-                                    "historical Chat tool call has no frozen wire binding",
-                                )
-                            })?;
-                            let mut value = json!({
-                                "id": binding.wire_identity.wire_id(),
-                                "type": "function",
-                                "function": {
-                                    "name": binding.provider_wire_tool_name,
-                                    "arguments": call.arguments_json,
-                                },
-                            });
+                            let mut value = aura_model_transport::provider_tool_call(
+                                snapshot.api_format,
+                                call,
+                                &bindings,
+                            )?;
                             if let Some(aura_model_domain::ProviderHistoryData::Chat {
                                 thought_signatures,
                                 ..
                             }) = history
                                 && let Some(signature) =
-                                    thought_signatures.get(binding.wire_identity.wire_id())
+                                    value["id"].as_str().and_then(|id| thought_signatures.get(id))
                             {
                                 value["extra_content"] =
                                     json!({"google":{"thought_signature":signature}});

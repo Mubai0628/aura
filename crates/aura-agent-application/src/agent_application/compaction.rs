@@ -39,6 +39,7 @@ struct Execution {
     prefix: Option<prefix::PrefixAttempt>,
     /// The isolated request fits its window.
     isolated: bool,
+    isolated_estimate: Option<(u64, u64)>,
     /// The user asked for the compaction.
     manual: bool,
     /// What failed attempts asked for next ([`ladder`]).
@@ -237,10 +238,10 @@ Write the summary as one paragraph of plain prose of at most {output_character_l
             (ask, instructions) = assemble(&sources)?;
             prefix = on_prefix(&ask, &sources);
         }
-        // Counted as the step's own request is, at the rate the provider reported for this model;
-        // an oversized request is never sent in the hope that the provider accepts it.
         let estimators = super::estimators::for_model(snapshot.model_profile_id);
-        let fits = selection::isolated_budget(&estimators, &instructions, input, snapshot, reserve);
+        let fits = selection::isolated_budget(&estimators, &instructions, snapshot, reserve);
+        let isolated_estimate =
+            fits.as_ref().ok().map(|b| (b.estimated_input_tokens, b.safety_reserve_tokens));
         // The oldest history left is too large for any summary request this window can
         // hold; Core's own compaction stops and the user decides. A compaction of the whole
         // history on the step's request is not asked the isolated way at all.
@@ -313,6 +314,7 @@ Write the summary as one paragraph of plain prose of at most {output_character_l
             max_output,
             prefix,
             isolated,
+            isolated_estimate,
             manual: request.manual.is_some(),
             attempts: std::sync::Mutex::default(),
         };
@@ -334,8 +336,7 @@ Write the summary as one paragraph of plain prose of at most {output_character_l
                 match self.compaction_sources(input, &request, room).await? {
                     Some(part) => {
                         let (_, part) = assemble(&part)?;
-                        selection::isolated_budget(&estimators, &part, input, snapshot, reserve)
-                            .is_ok()
+                        selection::isolated_budget(&estimators, &part, snapshot, reserve).is_ok()
                     }
                     None => false,
                 }

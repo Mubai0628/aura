@@ -19,18 +19,12 @@ pub(super) struct Scope {
 const SOURCE_WRAPPING_BYTES: u64 = 32;
 /// The user's or a Hook's focus, added to the sources after they are chosen.
 const FOCUS_ALLOWANCE_BYTES: u64 = 8_192;
-/// The share of the window's input budget a summary request plans to fill: the provider's rate
-/// is measured on the step's own request, and history read back may count a little denser.
+/// Keep headroom for the source envelope and the previous summary.
 const PLANNED_PERCENT: u64 = 75;
-/// A part the model has not seen is counted in proportion to its bytes; this many bytes give the
-/// proportion.
-const PROBE_BYTES: u64 = 1_000_000;
 
 /// How many bytes of history one summary request can carry: its window's input budget less its
-/// instructions and the focus that may join them, in bytes as the request counts its serialized
-/// sources ([`isolated_budget`]; byte for byte without a report). A history larger than that is
-/// compacted oldest first over several passes of one compaction instead of in a request the
-/// window cannot hold.
+/// instructions and the focus that may join them. Select source spans with a conservative byte
+/// bound, then budget the actual text in the isolated request.
 pub(super) fn source_room(
     core: &str,
     input: &ContextPreparationInput,
@@ -45,43 +39,39 @@ pub(super) fn source_room(
         max_output,
     )
     .map_err(|_| anyhow::anyhow!("context.compaction_output_budget"))?;
-    let tokens = |bytes: u64| {
-        input.previous_measurement.as_ref().map_or(bytes, |measured| measured.serialized(bytes))
-    };
-    let room = (budget.saturating_mul(PLANNED_PERCENT) / 100)
-        .saturating_sub(tokens(fixed.saturating_add(FOCUS_ALLOWANCE_BYTES)));
-    Ok(room.saturating_mul(PROBE_BYTES) / tokens(PROBE_BYTES).max(1))
+    Ok((budget.saturating_mul(PLANNED_PERCENT) / 100)
+        .saturating_sub(fixed.saturating_add(FOCUS_ALLOWANCE_BYTES)))
 }
 
-/// The isolated summary request's budget. Its sources carry the history serialized, the
-/// providers' records of answers in it too, which read as text count densely, not at the rate the
-/// provider reported for them: with a report the request is counted at least half a token a byte
-/// ([`BudgetTextKind::Serialized`]), by character class without one. The history in it is sized
-/// byte for byte without a report ([`source_room`]), so it fits whatever the tokenizer.
+/// The isolated request sends its sources and any opaque records as literal instruction text.
+/// Count the instruction layout rendered by the transport independently of past input usage.
 pub(super) fn isolated_budget(
     estimators: &ContextEstimatorRegistry,
     instructions: &CompiledInstructionEnvelope,
-    input: &ContextPreparationInput,
     snapshot: &ModelExecutionSnapshot,
     max_output: u64,
 ) -> Result<ContextBudgetSnapshot, ContextBudgetError> {
-    let budget = estimators.estimate_budget_measured(
-        &input.model_estimator_key,
+    let layout = aura_model_transport::instruction_envelope_layout(instructions);
+    let parts = [layout.stable, layout.current]
+        .into_iter()
+        .zip(1..)
+        .map(|(text, ordinal)| CanonicalTextBudgetItem {
+            ordinal,
+            content_hash: ContentHash::sha256(text.as_bytes()),
+            canonical_text: text,
+            kind: BudgetTextKind::Serialized,
+        })
+        .collect::<Vec<_>>();
+    estimators.build_budget(
+        &aura_context_runtime::ModelEstimatorKey {
+            provider_id: snapshot.provider_id,
+            provider_model_name: snapshot.model_name.clone(),
+        },
         snapshot.runtime_effective_window_tokens,
         max_output,
-        &[CanonicalTextBudgetItem {
-            ordinal: 1,
-            content_hash: instructions.instruction_hash.clone(),
-            canonical_text: instructions.canonical_text.clone(),
-            kind: BudgetTextKind::Serialized,
-        }],
+        &parts,
         &[],
-        input.previous_measurement.as_ref(),
-    )?;
-    if budget.estimated_input_tokens > budget.request_input_budget_tokens {
-        return Err(ContextBudgetError::RequestBudgetExceeded);
-    }
-    Ok(budget)
+    )
 }
 
 /// The rate the request's own estimate counts its bytes at: one token a byte, or the provider's

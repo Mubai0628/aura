@@ -3,7 +3,7 @@ use aura_context_runtime::ContextEstimatorRegistry;
 use aura_domain_common::ModelProfileId;
 
 /// Models whose requests no provider has counted go byte for byte, as fixtures sized in bytes
-/// expect; every other model is counted by character class.
+/// expect; other models use the local reference estimator and comparable usage reports.
 #[cfg(any(test, feature = "test-hooks"))]
 pub static UNMEASURED_BY_BYTES: std::sync::Mutex<std::collections::BTreeSet<ModelProfileId>> =
     std::sync::Mutex::new(std::collections::BTreeSet::new());

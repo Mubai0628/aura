@@ -2,8 +2,10 @@
 //! fit the window. What "the next output" means is refined: not the model's whole output limit, which
 //! most steps never come near, but at least [`OUTPUT_RESERVE_FLOOR_TOKENS`]; a request that fits is
 //! then sent with all the room the window has left for its output, up to the limit.
+use crate::estimator::NATIVE_REASONING_ESTIMATOR_ID;
 use aura_context_domain::{
-    ContextBudgetError, ContextBudgetSnapshot, TokenEstimateExactness, request_input_budget_v1,
+    CHARACTER_CLASS_ESTIMATOR_ID, ContextBudgetError, ContextBudgetSnapshot,
+    TokenEstimateExactness, request_input_budget_v1,
 };
 
 /// The output every request keeps room for. A model whose limit is lower keeps its own limit.
@@ -30,9 +32,8 @@ pub fn with_room_for_output(
     if output < budget.output_reserve_tokens {
         return Err(ContextBudgetError::RequestBudgetExceeded);
     }
-    // Parts counted by the rule of thumb can be longer than counted, and a provider refuses a
-    // request whose input and output limit together pass the window: the output asks for no more
-    // than would fit were those parts twice as long, never for less than the reserve it fits with.
+    // Keep extra output slack for coarse counts. The local tokenizer and calibrated text already
+    // have the request's general safety reserve.
     let output = output
         .min(room.saturating_sub(approximate_slack(&budget)))
         .max(budget.output_reserve_tokens);
@@ -53,7 +54,13 @@ fn approximate_slack(budget: &ContextBudgetSnapshot) -> u64 {
     budget
         .item_estimates
         .iter()
-        .filter(|item| item.estimator.exactness == TokenEstimateExactness::Approximate)
+        .filter(|item| {
+            item.estimator.exactness == TokenEstimateExactness::Approximate
+                && matches!(
+                    item.estimator.estimator_id.as_str(),
+                    CHARACTER_CLASS_ESTIMATOR_ID | NATIVE_REASONING_ESTIMATOR_ID
+                )
+        })
         .map(|item| {
             item.estimated_tokens.min(item.byte_length.saturating_sub(item.estimated_tokens))
         })
@@ -64,8 +71,7 @@ fn approximate_slack(budget: &ContextBudgetSnapshot) -> u64 {
 mod tests {
     use super::*;
     use aura_context_domain::{
-        CHARACTER_CLASS_ESTIMATOR_ID, CONTEXT_BUDGET_POLICY_V1, ContextItemEstimate,
-        TokenEstimatorIdentity,
+        CONTEXT_BUDGET_POLICY_V1, ContextItemEstimate, TokenEstimatorIdentity,
     };
     use aura_domain_common::ContentHash;
 

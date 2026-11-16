@@ -51,6 +51,21 @@ fn a_request_about_part_of_the_conversation_changes_nothing_kept() {
 }
 
 #[test]
+fn budgeting_previews_the_sent_state_chain_without_recording_discarded_states() {
+    let session = SessionId::new();
+    let history = items(6, "preview");
+    let _ = place_state(session, "rules", &history[..2], "first");
+    let _ = place_state(session, "rules", &history[..4], "second");
+    assert_eq!(
+        preview_state(session, "rules", &history, "discarded"),
+        placed("first", &[(4, "second"), (6, "discarded")])
+    );
+    let expected = preview_state(session, "rules", &history, "final");
+    assert_eq!(expected, placed("first", &[(4, "second"), (6, "final")]));
+    assert_eq!(place_state(session, "rules", &history, "final"), expected);
+}
+
+#[test]
 fn conversations_of_other_sessions_and_other_instructions_are_kept_apart() {
     let (one, other) = (SessionId::new(), SessionId::new());
     let all = items(4, "d");

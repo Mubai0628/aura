@@ -11,20 +11,16 @@
  *  - `auto` means "this body received a page and has more text to read". It is
  *    a continuation and only jumps ahead of work no one has asked for.
  *
- *  A signal is spent by the page it starts. A signal that arrives while a page
- *  is already in flight is kept for the next page instead of being dropped. A
- *  page that failed is never retried behind the user's back: the loader stops
- *  asking until the user presses retry. Only two pages ever run at once. */
+ *  A signal is spent by the page it starts. A signal that arrives during a read
+ *  can prioritize the next offset, once the loader registers it. A failed
+ *  offset can be read again when the user presses retry. */
 interface Task {
   /** Fetch the next page, continuing from `offset` bytes already rendered. */
   run: (signal: AbortSignal, offset: number) => Promise<void>;
   /** The byte the next page must continue from. */
   offset: number;
-  /** The callback of the page that is in flight, when it differs from the one
-   *  the loader has registered since. */
-  next: ((signal: AbortSignal, offset: number) => Promise<void>) | undefined;
-  /** False once the owning component unmounted. */
-  attached: boolean;
+  /** The offset already dispatched for this body, including while it settles. */
+  startedOffset: number | undefined;
   /** True while a page of this task is in flight. */
   running: boolean;
   /** True while the id sits in the waiting queue. */
@@ -90,33 +86,25 @@ export class MessageTextQueue {
   read(id: string, offset: number, run: Task['run'], visible = false): void {
     const existing = this.tasks.get(id);
     if (existing) {
-      existing.attached = true;
-      existing.offset = offset;
-      if (existing.run === run) {
-        // The loader registered the same page again — after a page settled, this
-        // is what asks for the continuation, so it re-enters the queue at the
-        // signals this body currently holds.
-        this.reorder(id);
-        return;
-      }
       existing.run = run;
-      if (existing.running) existing.next = run;
+      if (existing.offset === offset) return;
+      existing.offset = offset;
+      existing.auto = true;
       this.reorder(id);
       return;
     }
     this.tasks.set(id, {
       abort: undefined,
-      attached: true,
       auto: true,
       enqueuedAt: this.served,
       failed: false,
-      next: undefined,
       offset,
       order: (this.order += 1),
       promoted: visible,
       promotions: visible ? 1 : 0,
       run,
       running: false,
+      startedOffset: undefined,
       visible,
       waiting: false,
     });
@@ -127,7 +115,6 @@ export class MessageTextQueue {
   remove(id: string): void {
     const task = this.tasks.get(id);
     if (!task) return;
-    task.attached = false;
     task.abort?.abort();
     this.tasks.delete(id);
     this.dequeue(id);
@@ -139,21 +126,19 @@ export class MessageTextQueue {
    *  outranking the body the user is looking at and starve it. */
   setVisible(id: string, visible: boolean): void {
     const task = this.tasks.get(id);
-    if (!task) return;
-    const entering = visible && !task.visible;
+    if (!task || task.visible === visible) return;
     task.visible = visible;
-    if (visible) {
-      task.promoted = true;
-      if (entering) task.promotions += 1;
-    } else task.promoted = false;
+    task.promoted = visible;
+    if (visible) task.promotions += 1;
     this.reorder(id);
   }
 
   /** Try the failed page again, as a fresh request from the viewport. */
   retry(id: string): void {
     const task = this.tasks.get(id);
-    if (!task) return;
+    if (!task?.failed) return;
     task.failed = false;
+    task.startedOffset = undefined;
     task.promoted = true;
     task.promotions += 1;
     this.reorder(id);
@@ -193,7 +178,7 @@ export class MessageTextQueue {
    *  priority cannot turn into indefinite starvation of everything else. */
   private enqueue(id: string): void {
     const task = this.tasks.get(id);
-    if (!task || task.waiting || task.failed) return;
+    if (!task || task.waiting || task.failed || task.offset === task.startedOffset) return;
     const rank = (candidate: string): number => {
       const other = this.tasks.get(candidate);
       if (!other) return 3;
@@ -250,7 +235,7 @@ export class MessageTextQueue {
     this.active += 1;
     const page = task.run;
     const offset = task.offset;
-    task.next = undefined;
+    task.startedOffset = offset;
     // Settling on a microtask keeps the slot counted for the whole synchronous
     // part of the next task, so the bound holds even when a page resolves at
     // once.
@@ -282,13 +267,8 @@ export class MessageTextQueue {
         if (task.promotions === promotions) task.promoted = false;
         task.auto = false;
       }
-      if (!task.attached) {
-        this.tasks.delete(id);
-        this.dequeue(id);
-      } else if (!failed && task.next !== undefined) {
-        // The loader registered a page while this one was in flight, so there
-        // really is more text to read.
-        task.next = undefined;
+      if (!failed && task.offset !== task.startedOffset) {
+        // The loader registered a different offset while this one was in flight.
         task.auto = true;
         this.enqueue(id);
       }

@@ -20,7 +20,10 @@ const OTHER_CONVERSATIONS: usize = 4;
 #[derive(Clone, Debug)]
 pub struct CountedRequest {
     pub input_tokens: u64,
+    pub cached_input_tokens: u64,
     pub provider_id: ProviderId,
+    pub endpoint_id: EndpointId,
+    pub endpoint_fingerprint: ContentHash,
     pub model_name: String,
     pub parts: Vec<ContextItemEstimate>,
 }
@@ -33,7 +36,10 @@ pub fn latest(db: &Connection, session: SessionId) -> StoreResult<Option<Counted
     let sent = crate::model::step_snapshot(db, counted.step)?;
     Ok(Some(CountedRequest {
         input_tokens: counted.input_tokens,
+        cached_input_tokens: counted.cached_input_tokens,
         provider_id: sent.provider_id,
+        endpoint_id: sent.endpoint_id,
+        endpoint_fingerprint: sent.endpoint_fingerprint,
         model_name: sent.model_name,
         parts: serde_json::from_str(&counted.parts)?,
     }))
@@ -49,6 +55,7 @@ struct Counted {
     context: String,
     step: ModelStepId,
     input_tokens: u64,
+    cached_input_tokens: u64,
     parts: String,
 }
 
@@ -115,7 +122,17 @@ fn newest_counted(db: &Connection, session: SessionId) -> StoreResult<Option<Cou
             .optional()?
             .flatten();
         let Some(parts) = parts else { continue };
-        return Ok(Some(Counted { context, step, input_tokens: output.usage.input_tokens, parts }));
+        return Ok(Some(Counted {
+            context,
+            step,
+            input_tokens: output.usage.input_tokens,
+            cached_input_tokens: output
+                .usage
+                .cached_input_tokens
+                .unwrap_or_default()
+                .saturating_add(output.usage.cache_write_tokens.unwrap_or_default()),
+            parts,
+        }));
     }
     Ok(None)
 }

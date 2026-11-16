@@ -1,5 +1,6 @@
 import type { AgentTurnView } from '@aura/contracts/generated';
 import { useEffect, useState } from 'react';
+import { isFailureSettlementPending } from './turn-failure';
 
 /** Below this many quiet seconds the turn is still visibly writing; nothing needs saying. */
 const QUIET_SECONDS = 2;
@@ -52,7 +53,12 @@ function useQuietSeconds(key: string | undefined, since?: number): number {
  */
 export function StepActivity({ item }: { item: AgentTurnView }) {
   const latest = item.assistant_messages.at(-1);
-  const live = item.turn.state.state === 'running' && latest?.partial ? latest : undefined;
+  const live =
+    item.turn.state.state === 'running' &&
+    latest?.partial &&
+    !isFailureSettlementPending(item.diagnostic)
+      ? latest
+      : undefined;
   const inputs = live?.tool_input ?? [];
   const writing = inputs.findLast((input) => !input.complete);
   const arrived =

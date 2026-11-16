@@ -4,13 +4,13 @@ use super::*;
 
 /// `items` are the request's conversation, or what followed its closing question.
 pub(super) fn compile_responses_history(
-    request: &aura_model_domain::LogicalModelRequest,
+    conversation: &[LogicalConversationItem],
     items: &[LogicalConversationItem],
     snapshot: &ModelExecutionSnapshot,
     resolved: &[aura_model_domain::ResolvedModelAttachment],
 ) -> Result<Vec<Value>, ModelAdapterError> {
     let bindings = historical_tool_call_wire_bindings(snapshot);
-    let images = aura_model_transport::tool_result_images(request, resolved)?;
+    let images = aura_model_transport::tool_result_images(conversation, resolved)?;
     let mut input = Vec::with_capacity(items.len());
     let mut pending_images = Vec::new();
     for item in items {
@@ -37,14 +37,13 @@ pub(super) fn compile_responses_history(
                         "assistant history item has neither visible content nor a tool call",
                     ));
                 }
+                let replay = provider_history.as_ref().and_then(|history| {
+                    aura_model_transport::provider_history_replay(history, snapshot)
+                });
                 if let Some(aura_model_domain::ProviderHistoryData::Responses { reasoning_items }) =
-                    provider_history.as_ref().and_then(|h| h.for_snapshot(snapshot))
+                    replay.as_deref()
                 {
-                    if aura_model_transport::store_off(snapshot) {
-                        input.extend(reasoning_items.iter().filter_map(unstored_reasoning));
-                    } else {
-                        input.extend(reasoning_items.clone());
-                    }
+                    input.extend(reasoning_items.iter().cloned());
                 }
                 if let Some(content) = content {
                     input.push(json!({
@@ -53,18 +52,11 @@ pub(super) fn compile_responses_history(
                     }));
                 }
                 for call in tool_calls {
-                    let binding = bindings.get(&call.tool_call_id).ok_or_else(|| {
-                        ModelAdapterError::invalid_request(
-                            "model_request.tool_call_mapping_not_resolved",
-                            "historical Responses function call has no frozen wire binding",
-                        )
-                    })?;
-                    input.push(json!({
-                        "type": "function_call",
-                        "call_id": binding.wire_identity.wire_id(),
-                        "name": binding.provider_wire_tool_name,
-                        "arguments": call.arguments_json,
-                    }));
+                    input.push(aura_model_transport::provider_tool_call(
+                        snapshot.api_format,
+                        call,
+                        &bindings,
+                    )?);
                 }
             }
             LogicalConversationItem::ToolResult {
@@ -101,16 +93,4 @@ pub(super) fn compile_responses_history(
         input.push(json!({"role": "user", "content": pending_images}));
     }
     Ok(input)
-}
-
-/// A reasoning item as a Provider that keeps nothing takes it back: only with the reasoning it
-/// returned encrypted, and without the id it would look the item up by, which it never kept.
-fn unstored_reasoning(item: &Value) -> Option<Value> {
-    let encrypted = item.get("encrypted_content").and_then(Value::as_str);
-    if encrypted.is_none_or(str::is_empty) {
-        return None;
-    }
-    let mut item = item.clone();
-    item.as_object_mut()?.remove("id");
-    Some(item)
 }

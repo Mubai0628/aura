@@ -129,6 +129,7 @@ fn request(snapshot: &ModelExecutionSnapshot, reasoning_items: Vec<Value>) -> Lo
         content_hash: Some(ContentHash::sha256(b"Hello.")),
         tool_calls: Vec::new(),
         provider_history: Some(LogicalProviderHistory {
+            reasoning_tokens: None,
             reuse_domain: ProviderToolCallReuseDomain {
                 endpoint_id: snapshot.endpoint_id,
                 endpoint_security_fingerprint: snapshot.endpoint_fingerprint.clone(),

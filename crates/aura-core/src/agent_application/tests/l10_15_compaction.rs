@@ -41,6 +41,10 @@ pub(super) async fn start(
 
 /// What the first request of the conversation was estimated at, as the window shows it.
 pub(super) async fn first_request_tokens(runtime: &crate::RuntimeState, session: SessionId) -> u64 {
+    request_tokens(runtime, session, 0).await
+}
+
+async fn request_tokens(runtime: &crate::RuntimeState, session: SessionId, turn: usize) -> u64 {
     let page: AgentSessionProjection = serde_json::from_value(
         call(
             runtime,
@@ -55,7 +59,7 @@ pub(super) async fn first_request_tokens(runtime: &crate::RuntimeState, session:
         .await,
     )
     .expect("history page");
-    page.turns[0].assistant_messages[0]
+    page.turns[turn].assistant_messages[0]
         .context_usage
         .as_ref()
         .expect("the step's context meter")
@@ -105,14 +109,14 @@ async fn a_request_that_fits_is_sent_without_compaction_however_full_the_window(
     let provider = Provider::scenario(Scenario::Plain).await;
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
-    let first = start(&runtime, session, model, "AURA-L1015-FIRST: answer briefly").await;
+    let seed = "AURA-L1015-FIRST: answer briefly. ".repeat(600);
+    let first = start(&runtime, session, model, &seed).await;
     waiting::wait(&runtime, &first, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
-    // The next request is about the first one plus the first exchange. A window where it is 85%
-    // of the window still holds it and the output it may write; a fixed 80% line once
-    // compacted it, found nothing to compact, and ended the turn.
-    let next = first_request_tokens(&runtime, session).await + 600;
-    shrink(&runtime, model, next * 100 / 85).await;
+    // Leave room for the output, the 4,096-token safety reserve, and the next exchange.
+    // The longer seed keeps the next request above the old 80% compaction threshold.
+    let window = first_request_tokens(&runtime, session).await + 4_096 + 1_024 + 1_200;
+    shrink(&runtime, model, window).await;
 
     let second = start(&runtime, session, model, "AURA-L1015-SECOND: answer again").await;
     let done = waiting::wait(&runtime, &second, |v| {
@@ -120,50 +124,33 @@ async fn a_request_that_fits_is_sent_without_compaction_however_full_the_window(
     })
     .await;
     assert!(matches!(done.turn.state, TurnTaskState::Completed { .. }));
+    assert!(request_tokens(&runtime, session, 1).await * 100 > window * 80);
     assert_eq!(compactions(&runtime, session), 0, "it fits, so nothing is compacted");
 }
 
-/// The Provider counts each request at a quarter of its bytes. A window the byte count alone
-/// would overflow — even its instructions and tools — holds the second request: the parts sent
-/// again are counted at the Provider's rate.
+/// A comparable usage report reduces the estimate for repeated instructions and tools.
+/// The next window fits that calibrated request.
 #[tokio::test]
 async fn a_conversation_is_counted_at_its_providers_rate() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::PlainMeasured).await;
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
-    // The first request, which no count covers, goes byte for byte: the window is set against it.
-    count_by_bytes(model);
     let first = start(&runtime, session, model, "AURA-L1015-FIRST: answer briefly").await;
     waiting::wait(&runtime, &first, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
-    let bytes = first_request_tokens(&runtime, session).await;
-    shrink(&runtime, model, bytes * 6 / 10).await;
+    let uncalibrated = first_request_tokens(&runtime, session).await;
+    // After the reserves, this window would reject the uncalibrated request.
+    shrink(&runtime, model, uncalibrated + 1_024).await;
 
     let second = start(&runtime, session, model, "AURA-L1015-SECOND: answer again").await;
     waiting::wait(&runtime, &second, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
     assert_eq!(compactions(&runtime, session), 0);
-    let page: AgentSessionProjection = serde_json::from_value(
-        call(
-            &runtime,
-            "agent.history",
-            json!(AgentHistoryRequest {
-                session_id: session,
-                before_turn_task_id: None,
-                within_turn: None,
-                limit: 10,
-            }),
-        )
-        .await,
-    )
-    .expect("history page");
-    let meter = page.turns[1].assistant_messages[0].context_usage.clone().expect("the meter");
-    assert!(meter.estimated);
+    let calibrated = request_tokens(&runtime, session, 1).await;
     assert!(
-        meter.used_input_tokens < bytes / 2,
-        "counted near the Provider's rate: {} of {bytes} bytes",
-        meter.used_input_tokens
+        calibrated < uncalibrated - 4_096,
+        "the recurring text used provider usage: {calibrated}, versus {uncalibrated}"
     );
 }
 
@@ -195,21 +182,21 @@ async fn a_request_that_cannot_fit_waits_for_the_user_instead_of_failing() {
 }
 
 /// A step the provider refused has no count; the next request is still counted at the rate of the
-/// conversation's newest counted request instead of falling back to its bytes.
+/// conversation's newest counted request instead of falling back to the reference estimator.
 #[tokio::test]
 async fn a_refused_step_does_not_lose_the_providers_rate() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::PlainMeasuredRefusingSecond).await;
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::WorkspaceReadWrite).await;
-    count_by_bytes(model);
     let first = start(&runtime, session, model, "AURA-L1015-FIRST: answer briefly").await;
     waiting::wait(&runtime, &first, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
-    let bytes = first_request_tokens(&runtime, session).await;
+    let uncalibrated = first_request_tokens(&runtime, session).await;
     let refused = start(&runtime, session, model, "AURA-L1015-REFUSED: answer again").await;
     waiting::wait(&runtime, &refused, |v| v.turn.state.terminal()).await;
-    shrink(&runtime, model, bytes * 6 / 10).await;
+    // After the reserves, this window would reject the uncalibrated request.
+    shrink(&runtime, model, uncalibrated + 1_024).await;
 
     let third = start(&runtime, session, model, "AURA-L1015-THIRD: and once more").await;
     waiting::wait(&runtime, &third, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))

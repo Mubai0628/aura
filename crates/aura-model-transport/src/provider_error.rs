@@ -73,19 +73,31 @@ pub fn provider_http_failure(
     }
 }
 
-/// An error a Provider reports inside its stream, read from the object holding it. A refusal
-/// by a setting of the user's account is told apart, as it cannot pass when asked again; any
-/// other stays a protocol failure under the Provider's own code, which decides that.
+/// Account and context-window refusals carry the same meaning inside a stream as in an HTTP
+/// error. Other categories keep the stream's own protocol code for retry classification.
 #[must_use]
 pub fn provider_stream_failure(holder: &Value, fields: ProviderErrorFields) -> ModelAdapterError {
     let reply = ErrorReply::read(holder, fields);
     let message = reply.message.unwrap_or(fields.fallback_message);
-    match account_setting(&reply.codes, message) {
+    let class = classify_provider_error(&ProviderErrorReply {
+        status: 0, // An SSE error has no HTTP failure status.
+        codes: &reply.codes,
+        message,
+        names_parameter: reply.names_parameter,
+    });
+    match class.account_setting {
         Some(setting) => ModelAdapterError {
             category: ModelFailureCategory::Authorization,
             code: setting.code().to_owned(),
             message: message.to_owned(),
         },
+        None if class.category == ModelFailureCategory::ContextWindowExceeded => {
+            ModelAdapterError {
+                category: class.category,
+                code: reply.code.unwrap_or(fields.fallback_code).to_owned(),
+                message: message.to_owned(),
+            }
+        }
         None => ModelAdapterError::protocol(reply.code.unwrap_or(fields.fallback_code), message),
     }
 }

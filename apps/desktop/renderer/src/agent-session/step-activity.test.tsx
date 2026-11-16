@@ -161,3 +161,15 @@ test('a view that saw the step before its compaction starts the count again afte
   view.rerender(<StepActivity item={turn('running', [prepared])} />);
   expect(screen.getByRole('status').textContent).toBe('正在思考下一步 · 10 秒');
 });
+
+test('an unsettled stop shows no live activity even if the stored step is still running', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+  const pending = {
+    ...turn('running', [{ partial: true, at: '2026-10-21T11:58:30Z' }]),
+    diagnostic: 'agent.failure_settlement_pending',
+  };
+  render(<StepActivity item={pending} />);
+  expect(turnStatus(pending, new Map(), false)).toBe('等待确认任务状态');
+  expect(screen.queryByRole('status')).toBeNull();
+});

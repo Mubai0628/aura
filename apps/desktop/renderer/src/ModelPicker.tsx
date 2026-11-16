@@ -53,7 +53,9 @@ interface ProviderGroup {
   choices: ModelChoice[];
 }
 
-/** The providers in the order their models come, each with its models. */
+const modelNameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+/** Keep provider order and sort each submenu by readiness, then by model name. */
 function providerGroups(choices: ModelChoice[]): ProviderGroup[] {
   const groups: ProviderGroup[] = [];
   for (const choice of choices) {
@@ -61,6 +63,12 @@ function providerGroups(choices: ModelChoice[]): ProviderGroup[] {
     if (group) group.choices.push(choice);
     else groups.push({ name: choice.provider, choices: [choice] });
   }
+  for (const group of groups)
+    group.choices.sort(
+      (a, b) =>
+        Number(Boolean(a.disabledReason)) - Number(Boolean(b.disabledReason)) ||
+        modelNameOrder.compare(a.label, b.label),
+    );
   return groups;
 }
 

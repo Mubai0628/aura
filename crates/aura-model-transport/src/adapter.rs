@@ -173,6 +173,15 @@ pub struct ModelAdapterError {
 
 impl ModelAdapterError {
     #[must_use]
+    pub fn stream_interrupted(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            category: ModelFailureCategory::StreamInterrupted,
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+
+    #[must_use]
     pub fn protocol(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             category: ModelFailureCategory::Protocol,

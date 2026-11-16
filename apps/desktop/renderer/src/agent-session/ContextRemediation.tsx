@@ -13,7 +13,7 @@ const DIAGNOSIS_NEXT = '任务仍暂停着；请稍后重新打开这个会话�
 
 const uncertain = new Set<string>();
 const actions: Record<string, string> = {
-  reduce_user_managed_context: '减少附件、自定义指令等可调整内容，或切换到上下文窗口更大的模型',
+  reduce_user_managed_context: '减少附件、自定义指令等可调整内容',
   compact_sealed_history: '压缩可处理的历史内容',
 };
 
@@ -125,14 +125,18 @@ export function ContextRemediation({
         onStop={onStop}
       />
     );
+  const reducible = (record?.plan.overflow.user_reducible_tokens ?? 0) > 0;
+  const suggestions = record?.plan.actions.filter(
+    (action) => actions[action] && (reducible || action !== 'reduce_user_managed_context'),
+  );
   return (
     <section className="agent-context-remediation" aria-label="上下文需要处理">
       <strong>上下文需要处理</strong>
-      <p>任务已暂停模型调用。调整配置或减少可由你修改的内容后，再重新检查。</p>
+      <p>任务已暂停模型调用。完成下列调整后，再重新检查。</p>
       {record ? (
         <>
           {record.plan.overflow.error_code === 'context.provider_rebuild_no_progress' ? (
-            <p>模型服务商拒绝了这次请求：超出它的上下文窗口，压缩后也没能缩小。</p>
+            <p>模型服务商拒绝了这次请求，因为输入超出了它的上下文窗口。</p>
           ) : null}
           <p>
             预计输入 {record.budget.estimated_input_tokens.toLocaleString('zh-CN')} Token / 可用{' '}
@@ -144,11 +148,10 @@ export function ContextRemediation({
             Token
           </p>
           <ul>
-            {record.plan.actions
-              .filter((action) => actions[action])
-              .map((action) => (
-                <li key={action}>{actions[action]}</li>
-              ))}
+            {suggestions?.map((action) => (
+              <li key={action}>{actions[action]}</li>
+            ))}
+            <li>在模型设置中核对上下文窗口，或切换到上下文窗口更大的模型。</li>
           </ul>
         </>
       ) : (

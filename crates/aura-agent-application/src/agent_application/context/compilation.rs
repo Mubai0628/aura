@@ -13,6 +13,7 @@ pub(super) struct CompilationInput<'a> {
     pub state: serde_json::Value,
     pub input: ContextPreparationInput,
     pub snapshot: &'a ModelExecutionSnapshot,
+    pub closing_question: Option<&'a str>,
     pub endpoint: &'a ModelEndpointConfig,
     pub window_trial: &'a Option<model::context_window::WindowCorrection>,
     pub force_rebuild: bool,
@@ -36,6 +37,7 @@ impl AgentApplication {
             mut state,
             mut input,
             snapshot,
+            closing_question,
             endpoint,
             window_trial,
             force_rebuild,
@@ -61,6 +63,27 @@ impl AgentApplication {
         // What this preparation gave back, for the line the conversation shows -
         // the request's estimate when it first did not fit, results cleared, history compacted.
         let mut reduction: Option<PromptInspectorReductionView> = None;
+        let replay_task_states =
+            |envelope: &aura_model_domain::CompiledInstructionEnvelope,
+             conversation: &[LogicalConversationItem],
+             attachments: &[aura_model_domain::ModelAttachmentSnapshot]| {
+                if snapshot.api_format != aura_model_domain::ModelApiFormat::OpenAiResponses
+                    || !aura_model_transport::state_before_conversation(snapshot)
+                {
+                    return Ok(Vec::new());
+                }
+                let resolved = screenshots.resolved(attachments).map_err(|_| {
+                    aura_context_runtime::ContextPreparationError::AttachmentSourceInvalid
+                })?;
+                aura_model_adapter_openai_responses::replayed_task_states(
+                    turn.session_id,
+                    snapshot,
+                    envelope,
+                    conversation,
+                    &resolved,
+                )
+                .map_err(aura_context_runtime::ContextPreparationError::from)
+            };
         let mut prepared = loop {
             // Only the screenshots whose results this pass still carries as they were.
             let unread_pictures = screenshots.attach(&mut input);
@@ -85,71 +108,73 @@ impl AgentApplication {
             };
             // `over` is the request that does not fit, with its reasons; `None` when it fits.
             // `prefix` is what that request is made of, for a compaction asked on it.
-            let (budget, non_history_tokens, over, prefix) =
-                match ContextPreparationCompiler::new(&estimators).compile(input.clone())? {
-                    ContextPreparationCompilationOutcome::Prepared(prepared) => {
-                        if manual.is_none() && !deep && (!force_rebuild || passes > 0) {
-                            if let Some(plan) = window_rebuild::no_progress(
-                                window_trial.as_ref(),
-                                &prepared.context.snapshot,
-                            ) {
-                                // Boundary: recording the no-progress remediation is one
-                                // bounded write.
-                                let journal = Arc::clone(&self.execution.journal);
-                                let budget = prepared.context.snapshot.budget.clone();
-                                let model_step_id = step.model_step_id;
-                                self.store
-                                    .run_critical(
-                                        StoreStep::run(run_id, "agent.context.no_progress"),
-                                        StoreAccess::Write,
-                                        move || {
-                                            Ok(journal.lock()?.database.unit_of_work(|tx| {
-                                                context::remediation::require(
-                                                    tx,
-                                                    model_step_id,
-                                                    plan,
-                                                    budget,
-                                                    UtcTimestamp::now(),
-                                                )
-                                            })?)
-                                        },
-                                    )
-                                    .await?;
-                                return Ok(None);
-                            }
-                            break prepared;
-                        }
-                        let frozen = &prepared.context.snapshot;
-                        let non_history = frozen
-                            .sections
-                            .iter()
-                            .filter(|s| {
-                                matches!(
-                                    s.compressibility,
-                                    ContextCompressibility::NeverCompress
-                                        | ContextCompressibility::UserReducibleOnly
+            let compiled = ContextPreparationCompiler::new(&estimators)
+                .for_request(snapshot, closing_question, Some(&replay_task_states))
+                .compile(input.clone())?;
+            let (budget, non_history_tokens, over, prefix) = match compiled {
+                ContextPreparationCompilationOutcome::Prepared(prepared) => {
+                    if manual.is_none() && !deep && (!force_rebuild || passes > 0) {
+                        if let Some(plan) = window_rebuild::no_progress(
+                            window_trial.as_ref(),
+                            &prepared.context.snapshot,
+                        ) {
+                            // Boundary: recording the no-progress remediation is one
+                            // bounded write.
+                            let journal = Arc::clone(&self.execution.journal);
+                            let budget = prepared.context.snapshot.budget.clone();
+                            let model_step_id = step.model_step_id;
+                            self.store
+                                .run_critical(
+                                    StoreStep::run(run_id, "agent.context.no_progress"),
+                                    StoreAccess::Write,
+                                    move || {
+                                        Ok(journal.lock()?.database.unit_of_work(|tx| {
+                                            context::remediation::require(
+                                                tx,
+                                                model_step_id,
+                                                plan,
+                                                budget,
+                                                UtcTimestamp::now(),
+                                            )
+                                        })?)
+                                    },
                                 )
-                            })
-                            .try_fold(0u64, |total, s| total.checked_add(s.estimated_tokens))
-                            .ok_or_else(|| anyhow::anyhow!("context.budget_overflow"))?;
-                        let prefix = Box::new(RequestPrefix::of_prepared(&prepared.context));
-                        (frozen.budget.clone(), non_history, None, prefix)
+                                .await?;
+                            return Ok(None);
+                        }
+                        break prepared;
                     }
-                    ContextPreparationCompilationOutcome::CompactionRequired {
-                        plan,
-                        budget,
-                        prefix,
-                    } => (
-                        budget.clone(),
-                        plan.overflow.non_compressible_tokens,
-                        Some((plan, budget)),
-                        prefix,
-                    ),
-                    ContextPreparationCompilationOutcome::AwaitingRemediation { plan, budget } => {
-                        self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
-                        return Ok(None);
-                    }
-                };
+                    let frozen = &prepared.context.snapshot;
+                    let non_history = frozen
+                        .sections
+                        .iter()
+                        .filter(|s| {
+                            matches!(
+                                s.compressibility,
+                                ContextCompressibility::NeverCompress
+                                    | ContextCompressibility::UserReducibleOnly
+                            )
+                        })
+                        .try_fold(0u64, |total, s| total.checked_add(s.estimated_tokens))
+                        .ok_or_else(|| anyhow::anyhow!("context.budget_overflow"))?;
+                    let prefix = Box::new(RequestPrefix::of_prepared(&prepared.context));
+                    (frozen.budget.clone(), non_history, None, prefix)
+                }
+                ContextPreparationCompilationOutcome::CompactionRequired {
+                    plan,
+                    budget,
+                    prefix,
+                } => (
+                    budget.clone(),
+                    plan.overflow.non_compressible_tokens,
+                    Some((plan, budget)),
+                    prefix,
+                ),
+                ContextPreparationCompilationOutcome::AwaitingRemediation { plan, budget } => {
+                    self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
+                    return Ok(None);
+                }
+            };
             reduction.get_or_insert(PromptInspectorReductionView {
                 input_tokens_before: budget.estimated_input_tokens,
                 cleared_tool_results: 0,

@@ -1,6 +1,8 @@
 //! The only accepted call mapping comes from persisted P05 request evidence.
 //! This application never manufactures Provider identities or a Registry entry.
 use super::*;
+
+mod correction;
 use aura_domain_common::jcs::canonical_sha256;
 use aura_execution_orchestrator::rejection_results;
 use aura_persistence_core::PersistenceCoreError as StoreError;
@@ -357,6 +359,12 @@ impl AgentExecution {
                 tool::definitions::put(tx, &tool.definition, &tool.instance)?;
             }
             tool::execution::admit(tx, &value, &registry, &preflight)?;
+            correction::record_invalid_arguments(
+                tx,
+                &batch,
+                &planned.not_executed,
+                value.admitted_at,
+            )?;
             tool::admission::record(
                 tx,
                 &batch,

@@ -6,12 +6,15 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         input: ModelRequestCompilationInput<'_>,
     ) -> Result<ProviderRequestPlan, ModelAdapterError> {
         validate_model_compilation_input(input, ModelApiFormat::OpenAiResponses)?;
-        let tool_name_bindings = provider_tool_name_bindings(input.request)?;
+        let tools = aura_model_transport::ProviderTools::compile(
+            &input.request.tool_schema_set,
+            ModelApiFormat::OpenAiResponses,
+        )?;
         let layout = aura_model_transport::instruction_layout(input.request);
         let message = |role: &str, text: &str| json!({"role":role,"content":[{"type":"input_text","text":text}]});
         let compile = |items: &[LogicalConversationItem]| {
             history::compile_responses_history(
-                input.request,
+                &input.request.conversation_items,
                 items,
                 input.snapshot,
                 input.resolved_attachments,
@@ -103,48 +106,11 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
             body.insert("reasoning".to_owned(), json!({"effort": level.openai_name()}));
         }
         body.extend(aura_model_transport::speed_mode_fields(input.snapshot));
-        if !input.request.tool_schema_set.tools.is_empty() {
-            let provider_tools =
-                aura_model_transport::ordered_tool_bindings(input.request, &tool_name_bindings)
-                    .into_iter()
-                    .map(|(tool, binding)| -> Result<Value, ModelAdapterError> {
-                        let mut wire = Map::new();
-                        wire.insert("type".to_owned(), Value::String("function".to_owned()));
-                        wire.insert(
-                            "name".to_owned(),
-                            Value::String(binding.provider_wire_name.clone()),
-                        );
-                        wire.insert(
-                            "description".to_owned(),
-                            Value::String(tool.description.clone()),
-                        );
-                        let (wrapped_schema, wrapped_hash) =
-                            aura_model_domain::provider_arguments_envelope_schema_v3(
-                                &tool.input_schema,
-                            )
-                            .map_err(|error| {
-                                ModelAdapterError::invalid_request(
-                                    "model_request.tool_schema_envelope_invalid",
-                                    error.to_string(),
-                                )
-                            })?;
-                        debug_assert_eq!(wrapped_hash, binding.provider_wrapped_schema_hash);
-                        // `strict` only for a schema inside the Providers' strict subset.
-                        let strict = tool.strict
-                            && aura_model_transport::strict_schema_compatible(&wrapped_schema);
-                        wire.insert("parameters".to_owned(), wrapped_schema);
-                        if strict {
-                            wire.insert("strict".to_owned(), Value::Bool(true));
-                        }
-                        Ok(Value::Object(wire))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-            // The tools of a question asked after the step's request are there for the cache, and
-            // no tool choice is named for it: DeepSeek leaves the tools out of the prompt it reads
-            // when none may be called, so the request was cached only as far as the instructions,
-            // and thinking models refuse the forced forms. The question itself asks that no tool
-            // be called.
-            body.insert("tools".to_owned(), Value::Array(provider_tools));
+        // The tools stay on a question after the step's request so its prefix still caches.
+        // The closing question itself asks for a text answer, with no forced tool choice.
+        let (definitions, tool_name_bindings) = tools.into_wire(&input.request.fixed_tool_ids);
+        if !definitions.is_empty() {
+            body.insert("tools".to_owned(), Value::Array(definitions));
         }
         let body = serde_json::to_vec(&Value::Object(body)).map_err(|_| {
             ModelAdapterError::invalid_request(
@@ -169,6 +135,26 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         }
         build_provider_request_plan(input, body, headers, tool_name_bindings)
     }
+}
+
+/// Earlier task states the ordinary request will carry in addition to its current state.
+pub fn replayed_task_states(
+    session: aura_domain_common::SessionId,
+    snapshot: &ModelExecutionSnapshot,
+    envelope: &aura_model_domain::CompiledInstructionEnvelope,
+    conversation: &[LogicalConversationItem],
+    resolved: &[aura_model_domain::ResolvedModelAttachment],
+) -> Result<Vec<String>, ModelAdapterError> {
+    let layout = aura_model_transport::instruction_envelope_layout(envelope);
+    let wire = history::compile_responses_history(conversation, conversation, snapshot, resolved)?;
+    let mut placement =
+        aura_model_transport::preview_state(session, &layout.stable, &wire, &layout.current);
+    if placement.changes.pop().is_none() {
+        return Ok(vec![]);
+    }
+    Ok(std::iter::once(placement.leading)
+        .chain(placement.changes.into_iter().map(|(_, state)| state))
+        .collect())
 }
 
 pub(super) fn responses_output_format(format: &ModelOutputFormat) -> Value {

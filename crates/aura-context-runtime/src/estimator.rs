@@ -1,10 +1,12 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, OnceLock},
+};
 
 use aura_context_domain::{
-    CHARACTER_CLASS_ESTIMATOR_ID, CONTEXT_BUDGET_POLICY_V1, ContextBudgetError,
-    ContextBudgetSnapshot, ContextItemEstimate, PROVIDER_MEASURED_ESTIMATOR_ID,
-    TokenEstimateExactness, TokenEstimatorIdentity, UTF8_BYTE_UPPER_BOUND_ESTIMATOR_ID,
-    request_input_budget_v1, utf8_byte_upper_bound,
+    CONTEXT_BUDGET_POLICY_V1, ContextBudgetError, ContextBudgetSnapshot, ContextItemEstimate,
+    PROVIDER_MEASURED_ESTIMATOR_ID, TokenEstimateExactness, TokenEstimatorIdentity,
+    UTF8_BYTE_UPPER_BOUND_ESTIMATOR_ID, request_input_budget_v1, utf8_byte_upper_bound,
 };
 
 use crate::MeasuredRequest;
@@ -16,6 +18,19 @@ use aura_model_domain::ModelAttachmentSnapshot;
 /// a 1280x800 screenshot).
 pub const IMAGE_UPPER_BOUND_TOKENS: u64 = 1_600;
 pub const IMAGE_UPPER_BOUND_ESTIMATOR_ID: &str = "image_upper_bound_v1";
+pub(crate) const REFERENCE_BPE_ESTIMATOR_ID: &str = "reference_bpe_v1";
+pub(crate) const NATIVE_REASONING_ESTIMATOR_ID: &str = "native_reasoning_v1";
+
+/// A local estimate for literal text with a multilingual reference vocabulary. No API protocol
+/// or model name is used to select the vocabulary. Special-token spellings are ordinary text.
+#[must_use]
+pub fn reference_text_tokens(text: &str) -> u64 {
+    static REFERENCE: OnceLock<Option<tiktoken_rs::CoreBPE>> = OnceLock::new();
+    REFERENCE.get_or_init(|| tiktoken_rs::o200k_base().ok()).as_ref().map_or_else(
+        || crate::character_class_tokens(text),
+        |encoding| encoding.count_ordinary(text) as u64,
+    )
+}
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ModelEstimatorKey {
@@ -50,18 +65,32 @@ pub struct CanonicalTextBudgetItem {
     pub kind: BudgetTextKind,
 }
 
-/// What a text part is, which decides how it is counted when the provider's count of the previous
-/// request ([`MeasuredRequest`]) does not include it.
+/// Whether bytes are read as literal text or replayed as provider-owned model state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BudgetTextKind {
-    /// Text the model reads ([`MeasuredRequest::new_text`]).
+    /// Text eligible for calibration when the same part was sent in a previous request.
     Text,
-    /// A provider's own record of an answer, such as encrypted reasoning or thinking and its
-    /// signature ([`MeasuredRequest::at_rate`]).
-    ProviderHistory,
-    /// Text that carries such records serialized, as a summary request's sources do
-    /// ([`MeasuredRequest::serialized`]).
+    /// A provider-owned record of the model's answer, with a separate estimate of the state.
+    ProviderHistory { tokens: u64 },
+    /// Serialized sources read as literal text in a separate request.
     Serialized,
+}
+
+/// An opaque continuation is not tokenized as ciphertext. When usage is unavailable, allow
+/// roughly one token per eight bytes of opaque state, in addition to any exposed reasoning text.
+pub(crate) fn estimate_native_reasoning(
+    reported: Option<u64>,
+    reasoning_text: &[&str],
+    opaque_bytes: u64,
+) -> BudgetTextKind {
+    let tokens = reported.unwrap_or_else(|| {
+        reasoning_text
+            .iter()
+            .map(|text| reference_text_tokens(text))
+            .sum::<u64>()
+            .saturating_add(opaque_bytes.div_ceil(8))
+    });
+    BudgetTextKind::ProviderHistory { tokens }
 }
 
 #[derive(Clone, Debug)]
@@ -80,7 +109,7 @@ pub struct ContextEstimatorRegistry {
 
 impl ContextEstimatorRegistry {
     /// Counts the parts no provider has counted byte for byte, a bound no tokenizer exceeds,
-    /// instead of by character class ([`crate::character_class_tokens`]).
+    /// instead of with the local reference vocabulary.
     #[must_use]
     pub fn counting_unmeasured_by_bytes(mut self) -> Self {
         self.unmeasured_by_bytes = true;
@@ -171,39 +200,41 @@ impl ContextEstimatorRegistry {
                 return Err(ContextBudgetError::ContentHashMismatch);
             }
             let byte_length = utf8_byte_upper_bound(&item.canonical_text);
-            // With the provider's count of the previous request, a part sent again is counted at
-            // its rate and a part not sent before by what it is.
-            let counted = measured.map(|m| {
-                m.sent_again(&item.content_hash, byte_length).unwrap_or_else(|| match item.kind {
-                    BudgetTextKind::Text => m.new_text(&item.canonical_text),
-                    BudgetTextKind::ProviderHistory => m.at_rate(byte_length),
-                    BudgetTextKind::Serialized => m.serialized(byte_length),
-                })
-            });
-            let (estimated_tokens, estimator) = match (exact, counted) {
-                (Some(estimator), _) => {
+            let counted = (item.kind == BudgetTextKind::Text)
+                .then(|| measured?.sent_again(&item.content_hash, byte_length))
+                .flatten();
+            let (estimated_tokens, estimator) = match (item.kind, exact, counted) {
+                (BudgetTextKind::ProviderHistory { tokens }, _, _) => (
+                    tokens,
+                    TokenEstimatorIdentity {
+                        estimator_id: NATIVE_REASONING_ESTIMATOR_ID.to_owned(),
+                        estimator_version: 1,
+                        exactness: TokenEstimateExactness::Approximate,
+                    },
+                ),
+                (_, Some(estimator), _) => {
                     (estimator.estimate_canonical_text(&item.canonical_text)?, estimator.identity())
                 }
-                (None, Some(tokens)) => (
+                (_, None, Some(tokens)) => (
                     tokens,
                     TokenEstimatorIdentity {
                         estimator_id: PROVIDER_MEASURED_ESTIMATOR_ID.to_owned(),
-                        estimator_version: 1,
+                        estimator_version: 2,
                         exactness: TokenEstimateExactness::Calibrated,
                     },
                 ),
-                (None, None) if self.unmeasured_by_bytes => (
-                    utf8_byte_upper_bound(&item.canonical_text),
+                (_, None, None) if self.unmeasured_by_bytes => (
+                    byte_length,
                     TokenEstimatorIdentity {
                         estimator_id: UTF8_BYTE_UPPER_BOUND_ESTIMATOR_ID.to_owned(),
                         estimator_version: 1,
                         exactness: TokenEstimateExactness::UpperBound,
                     },
                 ),
-                (None, None) => (
-                    crate::character_class_tokens(&item.canonical_text),
+                (_, None, None) => (
+                    reference_text_tokens(&item.canonical_text),
                     TokenEstimatorIdentity {
-                        estimator_id: CHARACTER_CLASS_ESTIMATOR_ID.to_owned(),
+                        estimator_id: REFERENCE_BPE_ESTIMATOR_ID.to_owned(),
                         estimator_version: 1,
                         exactness: TokenEstimateExactness::Approximate,
                     },
@@ -294,6 +325,10 @@ fn canonical_media_type(value: &str) -> String {
 }
 
 #[cfg(test)]
+#[path = "estimator_regressions.rs"]
+mod regressions;
+
+#[cfg(test)]
 mod tests {
     use aura_domain_common::{ArtifactId, EventId};
     use aura_model_domain::ModelAttachmentSnapshot;
@@ -366,17 +401,15 @@ mod tests {
         }
     }
 
-    /// Before any provider count, a part is counted by character class; byte for byte only
-    /// when asked.
     #[test]
-    fn counts_by_character_class_without_a_count_and_keeps_v1_reserve() {
+    fn reference_count_keeps_v1_reserve_and_the_explicit_byte_bound() {
         let budget = ContextEstimatorRegistry::default()
             .build_budget(&key(), 32_768, 1_024, &[text(1, "你好, world")], &[])
             .expect("budget");
-        assert_eq!(budget.estimated_input_tokens, 2 + 3, "two characters, seven ASCII");
+        assert_eq!(budget.estimated_input_tokens, reference_text_tokens("你好, world"));
         assert_eq!(budget.safety_reserve_tokens, 4_096);
         let estimator = &budget.item_estimates[0].estimator;
-        assert_eq!(estimator.estimator_id, CHARACTER_CLASS_ESTIMATOR_ID);
+        assert_eq!(estimator.estimator_id, REFERENCE_BPE_ESTIMATOR_ID);
         assert_eq!(estimator.exactness, TokenEstimateExactness::Approximate);
         let bytes = ContextEstimatorRegistry::default()
             .counting_unmeasured_by_bytes()
@@ -386,82 +419,33 @@ mod tests {
         assert_eq!(bytes.item_estimates[0].estimator.exactness, TokenEstimateExactness::UpperBound);
     }
 
-    /// A first request whose bytes pass the budget goes when its text does not: a paste of
-    /// records or code is about a third of its bytes.
     #[test]
-    fn a_first_request_past_the_budget_in_bytes_fits_by_character_class() {
-        let paste = "Record 2-00042: sensor 42 at station 67 read 554 units.\n".repeat(4_000);
-        let budget = ContextEstimatorRegistry::default()
-            .build_budget(&key(), 256_000, 32_000, &[text(1, &paste)], &[])
-            .expect("fits by character class");
-        assert!(paste.len() as u64 > budget.request_input_budget_tokens, "past it in bytes");
-        assert_eq!(budget.estimated_input_tokens, (paste.len() as u64).div_ceil(3));
-    }
+    fn calibration_carries_recurring_text_and_leaves_serialized_sources_literal() {
+        let model = key();
+        let estimators = ContextEstimatorRegistry::default();
+        let repeated = "Choose the best answer and explain it.\n".repeat(1_000);
+        let previous = estimators
+            .build_budget(&model, 256_000, 4_096, &[text(1, &repeated)], &[])
+            .expect("first request");
+        let reported = previous.estimated_input_tokens + 800;
+        let measured = MeasuredRequest::from_report(reported, 0, &previous.item_estimates)
+            .expect("comparable prior request");
 
-    /// With the provider's count of the previous request, a part sent again is counted at
-    /// its rate, new text by character class and serialized records at least half a token a byte.
-    #[test]
-    fn a_measured_request_counts_new_parts_by_what_they_are() {
-        let (old, new) = ("a".repeat(8_000), "b".repeat(4_000));
-        let measured = MeasuredRequest::new(2_000, [(ContentHash::sha256(old.as_bytes()), 8_000)])
-            .expect("plausible");
-        let records = "c".repeat(6_000);
         let serialized =
-            CanonicalTextBudgetItem { kind: BudgetTextKind::Serialized, ..text(3, &records) };
-        let budget = ContextEstimatorRegistry::default()
+            CanonicalTextBudgetItem { kind: BudgetTextKind::Serialized, ..text(2, &repeated) };
+        let current = estimators
             .estimate_budget_measured(
-                &key(),
+                &model,
                 256_000,
                 4_096,
-                &[text(1, &old), text(2, &new), serialized],
+                &[text(1, &repeated), serialized, text(3, "新请求")],
                 &[],
                 Some(&measured),
             )
             .expect("budget");
-        // 2,000 tokens for 8,000 bytes; the new 4,000 bytes of text three characters a token; the
-        // 6,000 serialized bytes half a token a byte.
-        assert_eq!(budget.estimated_input_tokens, 2_000 + 1_334 + 3_000);
-    }
-
-    /// A provider's own record of an answer, such as the model's encrypted reasoning.
-    fn history(ordinal: u32, value: &str) -> CanonicalTextBudgetItem {
-        CanonicalTextBudgetItem { kind: BudgetTextKind::ProviderHistory, ..text(ordinal, value) }
-    }
-
-    /// Two steps of a Responses conversation as their provider counted them: 120,623 tokens for
-    /// the first request's 1,018,614 bytes, most of them the model's encrypted reasoning, which the
-    /// provider counts far below its bytes; 122,219 for the next, which sent 1,012,876 of those
-    /// bytes again and added the step's encrypted reasoning (19,634 bytes) and its call, result and
-    /// task state (7,355 bytes). Counted within a twentieth of that, a compaction is not begun
-    /// early and a summary asked on the step's request keeps its room.
-    #[test]
-    fn a_step_is_counted_within_a_twentieth_of_its_providers_count() {
-        let (kept, replaced) = ("k".repeat(1_012_876), "s".repeat(5_738));
-        let measured = MeasuredRequest::new(
-            120_623,
-            [
-                (ContentHash::sha256(kept.as_bytes()), 1_012_876),
-                (ContentHash::sha256(replaced.as_bytes()), 5_738),
-            ],
-        )
-        .expect("plausible");
-        let (reasoning, added) = ("r".repeat(19_634), "a".repeat(7_355));
-        let budget = ContextEstimatorRegistry::default()
-            .estimate_budget_measured(
-                &key(),
-                512_000,
-                64_000,
-                &[text(1, &kept), history(2, &reasoning), text(3, &added)],
-                &[],
-                Some(&measured),
-            )
-            .expect("budget");
-        let counted = 122_219_u64;
-        assert!(
-            budget.estimated_input_tokens.abs_diff(counted) <= counted / 20,
-            "{} for a request its provider counted at {counted}",
-            budget.estimated_input_tokens
-        );
+        assert_eq!(current.item_estimates[0].estimated_tokens, reported);
+        assert_eq!(current.item_estimates[1].estimated_tokens, previous.estimated_input_tokens);
+        assert_eq!(current.item_estimates[2].estimated_tokens, reference_text_tokens("新请求"));
     }
 
     #[test]

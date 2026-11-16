@@ -19,6 +19,7 @@ pub(in crate::agent_application) fn core_tool(
                 | "task_lineage.review_completion"
                 | "task_lineage.read_sources"
                 | "normal.complete"
+                | aura_agent_domain::SESSION_REPLY
                 | "query.user_question"
                 | "mode.disposition"
         )
@@ -126,6 +127,13 @@ pub(in crate::agent_application) fn frozen_prompt(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn important_mid_turn_messages_need_no_tool_discovery() {
+        for mode in [AgentTaskMode::Normal, AgentTaskMode::Plan, AgentTaskMode::Goal] {
+            assert!(core_tool("session.reply", mode, AgentTaskPurpose::Conversation));
+        }
+    }
+
     #[test]
     fn every_mode_exposes_lineage_resolution_before_ordinary_tools() {
         let ordinary = AgentTaskPurpose::Conversation;

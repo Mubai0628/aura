@@ -597,7 +597,7 @@ Connection: close
                     scenario,
                     Scenario::PlainMeasured | Scenario::PlainMeasuredRefusingSecond
                 ) {
-                    let counted = serde_json::to_vec(&body).map_or(0, |bytes| bytes.len() / 4);
+                    let counted = serde_json::to_vec(&body).map_or(0, |bytes| bytes.len() / 6);
                     send_counted(&mut stream, ordinal, delta, None, counted as u64).await;
                     continue;
                 }

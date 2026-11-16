@@ -169,7 +169,7 @@ impl ModelStreamDecoder for ChatDecoder {
     fn finish(&mut self) -> Result<NormalizedModelOutput, ModelAdapterError> {
         // `[DONE]` is not required: some services close the stream after the finish reason.
         if self.finish_reason.is_none() {
-            return Err(ModelAdapterError::protocol(
+            return Err(ModelAdapterError::stream_interrupted(
                 "openai_chat_terminal_missing",
                 "OpenAI Chat Completions stream ended without finish_reason",
             ));

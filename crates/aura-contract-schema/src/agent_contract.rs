@@ -187,6 +187,8 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
         GoalCheckInput,
         GoalCompleteInput,
         QueryUserQuestionInput,
+        SessionReplyInput,
+        SessionReplyReceipt,
         UserQuery,
         QueryAnswer,
         EmptyToolInput,

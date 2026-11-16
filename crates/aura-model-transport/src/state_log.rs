@@ -28,12 +28,14 @@ pub struct StatePlacement {
 }
 
 /// A later state as it was sent: after how many items, and the hash of the items before it.
+#[derive(Clone)]
 struct Change {
     at: usize,
     state: String,
     before: String,
 }
 
+#[derive(Clone)]
 struct Sent {
     leading: String,
     changes: Vec<Change>,
@@ -69,6 +71,27 @@ pub fn place_state(
     items: &[Value],
     current: &str,
 ) -> StatePlacement {
+    place_state_inner(session, stable, items, current, true)
+}
+
+/// The same placement without changing what the transport remembers as sent.
+#[must_use]
+pub fn preview_state(
+    session: SessionId,
+    stable: &str,
+    items: &[Value],
+    current: &str,
+) -> StatePlacement {
+    place_state_inner(session, stable, items, current, false)
+}
+
+fn place_state_inner(
+    session: SessionId,
+    stable: &str,
+    items: &[Value],
+    current: &str,
+    record: bool,
+) -> StatePlacement {
     let hashes = items
         .iter()
         .map(|item| ContentHash::sha256(&serde_json::to_vec(item).unwrap_or_default()).hex)
@@ -80,13 +103,30 @@ pub fn place_state(
     }
     let key = (session, ContentHash::sha256(&basis).hex);
     let mut log = log().lock().unwrap_or_else(PoisonError::into_inner);
+    if record {
+        return update_placement(&mut log, key, &hashes, current);
+    }
+    let mut preview = Log::default();
+    if let Some(sent) = log.conversations.get(&key) {
+        preview.conversations.insert(key.clone(), sent.clone());
+    }
+    drop(log);
+    update_placement(&mut preview, key, &hashes, current)
+}
+
+fn update_placement(
+    log: &mut Log,
+    key: (SessionId, String),
+    hashes: &[String],
+    current: &str,
+) -> StatePlacement {
     log.clock += 1;
     let clock = log.clock;
     let fresh = || Sent { leading: current.to_owned(), changes: Vec::new(), used: clock };
     let kept = log.conversations.get(&key).is_some_and(|sent| {
         sent.changes
             .iter()
-            .all(|change| change.at > items.len() || prefix(&hashes, change.at) == change.before)
+            .all(|change| change.at > hashes.len() || prefix(hashes, change.at) == change.before)
     });
     if !kept {
         if log.conversations.len() >= CONVERSATIONS && !log.conversations.contains_key(&key) {
@@ -105,7 +145,7 @@ pub fn place_state(
         return StatePlacement { leading: current.to_owned(), changes: Vec::new() };
     };
     sent.used = clock;
-    let applies = sent.changes.iter().filter(|change| change.at <= items.len()).count();
+    let applies = sent.changes.iter().filter(|change| change.at <= hashes.len()).count();
     let mut placement = StatePlacement {
         leading: sent.leading.clone(),
         changes: sent.changes[..applies]
@@ -118,14 +158,14 @@ pub fn place_state(
         return placement;
     }
     if applies < sent.changes.len() {
-        placement.changes.push((items.len(), current.to_owned()));
+        placement.changes.push((hashes.len(), current.to_owned()));
     } else if sent.changes.len() < CHANGES {
         sent.changes.push(Change {
-            at: items.len(),
+            at: hashes.len(),
             state: current.to_owned(),
-            before: prefix(&hashes, items.len()),
+            before: prefix(hashes, hashes.len()),
         });
-        placement.changes.push((items.len(), current.to_owned()));
+        placement.changes.push((hashes.len(), current.to_owned()));
     } else {
         *sent = fresh();
         placement = StatePlacement { leading: current.to_owned(), changes: Vec::new() };

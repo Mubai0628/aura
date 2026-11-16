@@ -106,9 +106,8 @@ export function useAgentSession(sessionId: string) {
           if (BigInt(previous.revision) > BigInt(next.revision)) return;
           if (previous.revision === next.revision) {
             setError(undefined);
-            // What a running step writes into a tool call is not stored and does not move the
-            // revision: it is taken from every poll.
-            const live = withToolInput(previous, next);
+            // Live tool input and a failure that could not be settled do not move the revision.
+            const live = withLiveTurnFields(previous, next);
             if (live !== previous) {
               current.current = live;
               remember(live);
@@ -269,9 +268,8 @@ export function useAgentSession(sessionId: string) {
   };
 }
 
-/** `previous` with the tool input `next` reports for its running steps; `previous` itself when
- *  nothing changed. */
-function withToolInput(
+/** Merge the live fields of the reported turns even while their stored revision is unchanged. */
+function withLiveTurnFields(
   previous: AgentSessionProjection,
   next: AgentSessionProjection,
 ): AgentSessionProjection {
@@ -280,18 +278,24 @@ function withToolInput(
       turn.assistant_messages.map((message) => [message.model_step_id, message.tool_input ?? []]),
     ),
   );
+  const reportedTurns = new Map(next.turns.map((turn) => [turn.turn.turn_task_id, turn]));
   let changed = false;
   const turns = previous.turns.map((turn) => {
+    const latest = reportedTurns.get(turn.turn.turn_task_id);
+    const diagnostic = latest ? latest.diagnostic : turn.diagnostic;
     const messages = turn.assistant_messages.map((message) => {
       const input = reported.get(message.model_step_id);
       if (input === undefined || JSON.stringify(input) === JSON.stringify(message.tool_input ?? []))
         return message;
-      changed = true;
       return { ...message, tool_input: input };
     });
-    return messages.some((message, index) => message !== turn.assistant_messages[index])
-      ? { ...turn, assistant_messages: messages }
-      : turn;
+    if (
+      diagnostic === turn.diagnostic &&
+      messages.every((message, index) => message === turn.assistant_messages[index])
+    )
+      return turn;
+    changed = true;
+    return { ...turn, diagnostic, assistant_messages: messages };
   });
   return changed ? { ...previous, turns } : previous;
 }

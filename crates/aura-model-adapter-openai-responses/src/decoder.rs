@@ -162,7 +162,7 @@ impl ModelStreamDecoder for ResponsesDecoder {
 
     fn finish(&mut self) -> Result<NormalizedModelOutput, ModelAdapterError> {
         if !self.terminal_seen {
-            return Err(ModelAdapterError::protocol(
+            return Err(ModelAdapterError::stream_interrupted(
                 "openai_responses_terminal_missing",
                 "OpenAI Responses stream ended without response.completed or response.incomplete",
             ));

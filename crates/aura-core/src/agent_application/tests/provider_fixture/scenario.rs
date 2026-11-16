@@ -228,8 +228,8 @@ pub enum Scenario {
     /// A plain answer to every request and a valid summary to every compaction request,
     /// so a test can shape the context with the window alone.
     Plain,
-    /// `Plain`, with the Provider counting each request at a quarter of its bytes — about
-    /// what a real tokenizer makes of prose and code — instead of a fixed count.
+    /// `Plain`, with the Provider counting each request at a sixth of its bytes. This gives
+    /// comparable usage below the reference estimate in the window fixtures.
     PlainMeasured,
     /// `PlainMeasured`, except that the second request is refused outright, so that
     /// step ends with no count.

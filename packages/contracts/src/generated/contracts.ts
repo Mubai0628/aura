@@ -18074,6 +18074,10 @@ export interface AgentAssistantView {
    * and does not load the full inspector.
    */
   context_usage?: ContextUsageSummaryView | null;
+  /**
+   * User-visible messages delivered by this step's tool calls.
+   */
+  interim_replies?: AgentInterimReplyView[];
   model_profile_id?: ModelProfileId | null;
   model_step_id: ModelStepId;
   partial: boolean;
@@ -18152,6 +18156,15 @@ export interface AgentContextCompactingView {
    * When the part running now started.
    */
   since: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentInterimReplyView".
+ */
+export interface AgentInterimReplyView {
+  at: UtcTimestamp;
+  text: string;
+  tool_call_id: ToolCallId;
 }
 /**
  * A tool call a running step is writing: the tool's name as the conversation shows it, the file
@@ -26791,6 +26804,22 @@ export interface SessionRenameRequest {
   expected_title: string;
   session_id: SessionId;
   title: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "SessionReplyInput".
+ */
+export interface SessionReplyInput {
+  text: string;
+}
+/**
+ * The ID of the message stored in the active conversation.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "SessionReplyReceipt".
+ */
+export interface SessionReplyReceipt {
+  event_id: EventId;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema

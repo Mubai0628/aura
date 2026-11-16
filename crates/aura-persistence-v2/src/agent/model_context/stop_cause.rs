@@ -58,6 +58,7 @@ pub enum StopCause {
     GoalBudget,
     ToolOutcomeUnknown,
     ModelUnavailable,
+    ModelDisabled,
     ConnectionChanged,
     BranchCopying,
     CompactionFailed,
@@ -93,13 +94,7 @@ pub fn stop_cause(
         },
         "agent.protocol_not_completed" => StopCause::NoFinishingCall,
         "agent.deterministic_correction_exhausted" => StopCause::RepeatedMistake,
-        "agent.execution_interrupted" => match last_provider_failure(db, run)? {
-            Some(failure) => StopCause::Provider {
-                failure,
-                asked_again: transient_retry::asked_again_before_last(db, run)?,
-            },
-            None => own_failure(db, run)?,
-        },
+        "agent.execution_interrupted" => execution_stop(db, run)?,
         other => StopCause::Other(other.to_owned()),
     })
 }
@@ -163,6 +158,10 @@ impl StopCause {
                 "no model is chosen for this conversation any more, so its next step was not sent"
                     .into()
             }
+            Self::ModelDisabled => {
+                "the model chosen for this conversation was disabled, so its next step was not sent"
+                    .into()
+            }
             Self::ConnectionChanged => {
                 "the model's connection settings changed while it was running, so its next step was not sent"
                     .into()
@@ -217,6 +216,7 @@ impl StopCause {
                 "Check that call's effect before doing it again; context.read_tool_result reads what is known."
             }
             Self::ModelUnavailable => "The user needs to choose a model for this conversation.",
+            Self::ModelDisabled => "The user needs to re-enable that model or choose another one.",
             Self::CompactionFailed | Self::CompactionNoProgress => {
                 "The history above is as it was."
             }
@@ -258,6 +258,7 @@ impl StopCause {
             Self::GoalBudget => "目标的 token 预算用完了，没有再发下一步".into(),
             Self::ToolOutcomeUnknown => "Aura 无法确定它的一个工具调用是否生效".into(),
             Self::ModelUnavailable => "这个会话不再有选中的模型，下一步没有发出".into(),
+            Self::ModelDisabled => "这个会话选中的模型已停用，下一步没有发出".into(),
             Self::ConnectionChanged => "模型的连接设置在运行中变了，下一步没有发出".into(),
             Self::BranchCopying => "分支的历史还没复制完，第一步没有发出".into(),
             Self::CompactionFailed => "压缩历史用的总结没能生成，历史没有压缩".into(),
@@ -286,20 +287,44 @@ fn last_provider_failure(
     })
 }
 
-/// The run's own failure, from the record written with its stop: its code names the cause.
-fn own_failure(db: &Connection, run: AgentRunId) -> StoreResult<StopCause> {
+/// Attribute the stop to the stage recorded with it, including a refusal after an earlier
+/// failed provider attempt. Older records wrote the stage only in structured diagnostics.
+fn execution_stop(db: &Connection, run: AgentRunId) -> StoreResult<StopCause> {
     let recorded = crate::agent::facts::latest::<serde_json::Value>(
         db,
         &run.to_string(),
         "agent.application_error",
     )?;
     let text = recorded.as_ref().and_then(|value| value["error"].as_str()).unwrap_or_default();
+    let provider_stopped_run = recorded.as_ref().is_none_or(|value| {
+        value["stage"].as_str().or_else(|| value["diagnostic"]["stage"].as_str()).map_or_else(
+            || {
+                text.starts_with("agent.provider_failed:")
+                    || text.starts_with("provider_tool_call_binding_invalid")
+            },
+            |stage| stage == "provider",
+        )
+    });
+    if provider_stopped_run && let Some(failure) = last_provider_failure(db, run)? {
+        return Ok(StopCause::Provider {
+            failure,
+            asked_again: transient_retry::asked_again_before_last(db, run)?,
+        });
+    }
+    own_failure(db, run, text)
+}
+
+fn own_failure(db: &Connection, run: AgentRunId, text: &str) -> StoreResult<StopCause> {
+    if text.starts_with("model profile is disabled:") {
+        return Ok(StopCause::ModelDisabled);
+    }
     let code = text.split([':', ' ']).next().unwrap_or_default();
     Ok(match code {
         "agent.cancelled" => stopped(db, run)?,
         "agent.goal_budget_exhausted" => StopCause::GoalBudget,
         "agent.tool_outcome_unknown" => StopCause::ToolOutcomeUnknown,
         "agent.model_binding_required" | "model.profile_missing" => StopCause::ModelUnavailable,
+        "model.profile_disabled" => StopCause::ModelDisabled,
         "model.credential_changed" | "model.endpoint_snapshot_mismatch" => {
             StopCause::ConnectionChanged
         }

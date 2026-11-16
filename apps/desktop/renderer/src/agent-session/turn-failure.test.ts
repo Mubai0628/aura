@@ -15,6 +15,13 @@ test('a turn Aura ended for its own reason says why and what to do next', () => 
   );
 });
 
+test('applicable model and settlement failures explain how to recover', () => {
+  expect(turnFailureMessage('model.profile_disabled')).toContain('已停用');
+  expect(turnFailureMessage('model profile is disabled: mdl_example')).toContain('已停用');
+  expect(turnFailureMessage('agent.model_binding_required')).toContain('在输入框发“继续”');
+  expect(turnFailureMessage('agent.failure_settlement_pending')).toContain('停止当前任务');
+});
+
 // Every kind of model failure without a sentence of its own fell back to the generic line.
 test('a model failure is told by its kind when its code has no sentence of its own', () => {
   const said = (code: string, kind: string, status = 'Some(400)') =>

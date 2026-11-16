@@ -30,8 +30,8 @@ const PASSING: &[&str] = &[
 /// Whether the provider failed the step for a reason that passes on its own.
 pub(super) fn passing(failure: &NormalizedModelFailure) -> bool {
     match failure.category {
-        // The stream broke after it began; nothing of it was committed.
-        ModelFailureCategory::StreamInterrupted => true,
+        // Only an incomplete stream without durable partial output may be asked for again.
+        ModelFailureCategory::StreamInterrupted => failure.partial_output_ref.is_none(),
         ModelFailureCategory::Protocol => {
             PASSING.contains(&failure.code.as_str())
                 || failure.provider_status.is_some_and(|status| status == 408 || status >= 500)

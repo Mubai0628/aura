@@ -1198,6 +1198,13 @@
           ],
           "description": "Frozen context meter copied from the prompt inspection. The ring uses this\nand does not load the full inspector."
         },
+        "interim_replies": {
+          "description": "User-visible messages delivered by this step's tool calls.",
+          "items": {
+            "$ref": "#/$defs/AgentInterimReplyView"
+          },
+          "type": "array"
+        },
         "model_profile_id": {
           "anyOf": [
             {
@@ -2677,6 +2684,26 @@
       "required": [
         "session_id",
         "model_step_id"
+      ],
+      "type": "object"
+    },
+    "AgentInterimReplyView": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tool_call_id": {
+          "$ref": "#/$defs/ToolCallId"
+        }
+      },
+      "required": [
+        "tool_call_id",
+        "text",
+        "at"
       ],
       "type": "object"
     },
@@ -56238,6 +56265,33 @@
         "session_id",
         "expected_title",
         "title"
+      ],
+      "type": "object"
+    },
+    "SessionReplyInput": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "SessionReplyReceipt": {
+      "additionalProperties": false,
+      "description": "The ID of the message stored in the active conversation.",
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/EventId"
+        }
+      },
+      "required": [
+        "event_id"
       ],
       "type": "object"
     },

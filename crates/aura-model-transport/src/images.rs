@@ -5,9 +5,7 @@
 //! with that message, after its text.
 use crate::ModelAdapterError;
 use aura_domain_common::EventId;
-use aura_model_domain::{
-    LogicalConversationItem, LogicalModelRequest, ResolvedModelAttachment, is_model_image,
-};
+use aura_model_domain::{LogicalConversationItem, ResolvedModelAttachment, is_model_image};
 use base64::Engine as _;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -36,11 +34,10 @@ impl ToolResultImage {
 /// The request's images by the event of the tool result or user message each belongs to, in
 /// request order.
 pub fn tool_result_images(
-    request: &LogicalModelRequest,
+    conversation: &[LogicalConversationItem],
     resolved: &[ResolvedModelAttachment],
 ) -> Result<BTreeMap<EventId, Vec<ToolResultImage>>, ModelAdapterError> {
-    let results = request
-        .conversation_items
+    let results = conversation
         .iter()
         .filter_map(|item| match item {
             LogicalConversationItem::ToolResult { source_event_id, .. }

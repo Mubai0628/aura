@@ -1,5 +1,13 @@
 import { userMessage } from './user-message';
 
+const FAILURE_SETTLEMENT_PENDING = 'agent.failure_settlement_pending';
+const DISABLED_MODEL =
+  '这个会话用的模型已停用，这一步没有发出。重新启用它或选择其他模型后，在输入框发“继续”。';
+
+export function isFailureSettlementPending(diagnostic?: string | null): boolean {
+  return diagnostic === FAILURE_SETTLEMENT_PENDING;
+}
+
 /**
  * Why a turn ended, for Aura's own reasons, in sentences about the task. They speak of the task,
  * so they are read for a turn only, never for a command refused with the same code.
@@ -8,6 +16,11 @@ const turnMessages: Record<string, string> = {
   'agent.cancelled': '这一轮已停止，过程输出仍可阅读；需要时在输入框说明下一步。',
   'agent.goal_budget_exhausted':
     'Goal 的预算已经用完，任务已停下，过程输出仍可阅读。可以在近期活动里调高预算后继续，或在输入框说明下一步。',
+  'agent.model_binding_required':
+    '这个会话尚未选择模型，这一步没有发出。选择模型后，在输入框发“继续”。',
+  'model.profile_disabled': DISABLED_MODEL,
+  [FAILURE_SETTLEMENT_PENDING]:
+    '任务执行已暂停。Aura 暂时无法确认停止状态是否已保存，已完成的操作仍可查看。可以重新打开会话核对状态，或点击“停止当前任务”。',
   'agent.tool_outcome_unknown':
     '有工具调用已经发出，但没有拿到结果，无法确认是否已经执行，所以没有自动重做。任务已暂停；请先检查相关文件或进程的实际状态，再在输入框说明下一步。',
   'agent.run_panicked':
@@ -46,6 +59,7 @@ export const TURN_FALLBACK =
 export function turnFailureMessage(text: string): string {
   // Core quotes filenames with 「」. They are user content, even when a name resembles a code.
   const diagnostics = text.replace(/「[^」]*」/gu, '');
+  if (diagnostics.startsWith('model profile is disabled:')) return DISABLED_MODEL;
   if (!diagnostics.includes('agent.provider_failed')) {
     const known = Object.entries(turnMessages).find(([code]) => diagnostics.includes(code));
     if (known) return known[1];

@@ -558,4 +558,11 @@ pub const PUBLISHED_LATER: &[PublishedRevision] = &[
         instance: "tin_01M2DG020980080021AN94SF01",
         fingerprint: "e7ced7d6265e617dc0952f777a79a36203a2168bdbbc30222318999d88528eb1",
     },
+    PublishedRevision {
+        name: "session.reply",
+        revision: 1,
+        tool: "tol_01M2DG020980080021AN942050",
+        instance: "tin_01M2DG020980080021AN94SW4K",
+        fingerprint: "3f9a39831dca0709d73777e157b2a9e4c4f24dc4eef1fba65029a7bb17996e8d",
+    },
 ];

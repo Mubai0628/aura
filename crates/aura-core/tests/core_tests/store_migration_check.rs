@@ -30,6 +30,11 @@ fn a_current_execution_store_is_copied_before_replacing_a_version_that_refuses_i
             .unwrap(),
     );
 
+    assert_eq!(
+        answer(data_root.path(), Some("0.3.0"))[EXECUTION],
+        true,
+        "0.3.0 cannot read the interim replies in a carried turn"
+    );
     assert_eq!(answer(data_root.path(), Some("0.1.7"))[EXECUTION], true);
     assert_eq!(answer(data_root.path(), Some("0.1.6"))[EXECUTION], true);
     assert_eq!(

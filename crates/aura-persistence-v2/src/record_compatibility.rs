@@ -8,9 +8,9 @@ use aura_persistence_core::StoreResult;
 /// The oldest version that reads every record this build writes. 0.2.0 and earlier refuse a
 /// session file approval naming its Workspace's folder; 0.1.12 and earlier also refuse an
 /// authorization scope naming a desktop program's consent, request options with a speed mode,
-/// and queued messages with references or a desktop choice. Raised to a new version whenever it
-/// starts storing a field or an enum value its predecessor refuses.
-pub const RECORDS_READABLE_SINCE: &str = "0.3.0";
+/// and queued messages with references or a desktop choice. 0.3.0 refuses a carried turn whose
+/// stored assistant messages contain interim replies.
+pub const RECORDS_READABLE_SINCE: &str = "0.3.1";
 
 /// Whether the execution store at `path` needs a copy before this build first starts in place of
 /// `replacing` (unknown: any older version): this build migrates it, or `replacing` would refuse
@@ -37,7 +37,8 @@ mod tests {
         assert!(refuses_records(None));
         assert!(refuses_records(Some("0.1.12")), "0.1.12 refuses what 0.2.0 stores");
         assert!(refuses_records(Some("0.2.0")), "0.2.0 refuses what 0.3.0 stores");
-        assert!(!refuses_records(Some("0.3.0")));
+        assert!(refuses_records(Some("0.3.0")), "0.3.0 cannot read carried interim replies");
+        assert!(!refuses_records(Some("0.3.1")));
         assert!(!refuses_records(Some("0.10.0")));
         assert!(!refuses_records(Some("1.0.0")));
     }

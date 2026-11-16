@@ -54,6 +54,15 @@ pub(super) fn entries(
         entry::<EmptyToolInput, GoalState>(16, GoalGet, "Read goal state", "Read the owner's explicit Goal budget and consumed resources. A missing budget is not zero; budget exhaustion is not successful completion.", &[Capability::AgentTaskRead], false, at),
         entry::<GoalCheckInput, GoalState>(17, GoalCheck, "Check goal progress", "Record current evidence and remaining work without completing the Goal. This review is voluntary and is never a prerequisite for goal.complete.", &[Capability::AgentTaskWrite], true, at),
         entry::<GoalCompleteInput, GoalState>(18, GoalComplete, "Complete an achieved goal", "Parent Goal mode only. Submit your decision to finish and final report at the exact current revision. Core validates identity and persistence, not completion quality. Budget exhaustion or stopping is not achievement. This call must be alone in its batch.", &[Capability::AgentTaskWrite], true, at),
+        entry::<SessionReplyInput, SessionReplyReceipt>(
+            160,
+            SessionReply,
+            "Send a message while working",
+            "Show a short assistant message in the current conversation before this turn finishes. Use it when an acknowledgment, progress update, or explanation helps the user while work continues. You can use it at any useful point, with or without a new user message or a TODO list. Supply the visible text (up to 2000 characters). The receipt confirms delivery to the conversation; continue the current turn. Use query.user_question when you need an answer. For the final answer, follow the current mode's completion instructions.",
+            &[Capability::AgentTaskWrite],
+            true,
+            at,
+        ),
         entry::<QueryUserQuestionInput, UserQuery>(19, QueryUser, "Ask a necessary user question", "Ask only for missing input needed by the current task. Support text, single/multiple choices, confirmation and file/directory references; put the reply you recommend first. Every question also takes the user's own words, and the user may decline or not respond: the reply's query_reply outcome (answered, declined, no_response) says which. Never decide for the user; after no_response, continue the work the question does not affect and list it in your final report. Do not request credentials or raw secrets. One pending query per task; authenticated user answers become original User Events and update task lineage revision.", &[Capability::AgentTaskWrite], true, at),
         entry::<EmptyToolInput, TaskLineageListOpenResult>(20, LineageListOpen, "List unfinished task lineages", "Parent only. Inspect interrupted, topic-switched, or current lineages as readable background. They do not block ordinary tools. Do not infer that background records are the current task or that they can become Active again.", &[Capability::AgentTaskRead], false, at),
         entry::<TaskLineageReconcileToolInput, TaskLineage>(21, LineageReconcile, "Reconcile current user intent", "Parent only. Express whether the current user message continues, changes, cancels, expires, or only references a prior record. Core binds session identity, the current user event, and live lineage revision; do not copy those fields. Interrupted and topic-switched lineages cannot become Active. expire_prior forbids relations and completion_policy_update. reference_prior forbids completion_policy_update, and keeps its link to the prior record as derived_from_lineage_id: a relation to the prior record's messages is not repeated in relations. cancel_existing requires a cancels_task later excerpt. Ordinary tools and completion are available without first closing background records.", &[Capability::AgentTaskWrite], true, at),
@@ -115,6 +124,7 @@ pub(super) fn entry<I: schemars::JsonSchema, O: schemars::JsonSchema>(
             | AgentBuiltinHandler::GoalCheck
             | AgentBuiltinHandler::GoalComplete
             | AgentBuiltinHandler::QueryUser
+            | AgentBuiltinHandler::SessionReply
             | AgentBuiltinHandler::TerminalSensitiveInput
             | AgentBuiltinHandler::LineageListOpen
             | AgentBuiltinHandler::LineageReconcile

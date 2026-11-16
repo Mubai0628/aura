@@ -660,6 +660,7 @@ pub(crate) fn title(name: &str) -> &str {
         "fs.patch" => "修改文件",
         "fs.delete" => "删除文件",
         super::workspace_init::NAME => "初始化工作区",
+        aura_agent_domain::SESSION_REPLY => "发送中途消息",
         "todo.get" => "查看待办",
         "todo.replace" => "写待办清单",
         "todo.update" => "更新待办",

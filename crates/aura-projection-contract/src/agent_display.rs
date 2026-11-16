@@ -72,12 +72,23 @@ pub struct AgentAssistantView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backup_connection: Option<String>,
     pub tool_call_ids: Vec<ToolCallId>,
+    /// User-visible messages delivered by this step's tool calls.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub interim_replies: Vec<AgentInterimReplyView>,
     /// While the step runs, what it is writing into tool calls. Core keeps
     /// it in memory only; it is empty once the step ends and is never stored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_input: Vec<AgentToolInputView>,
     pub at: UtcTimestamp,
 }
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentInterimReplyView {
+    pub tool_call_id: ToolCallId,
+    pub text: String,
+    pub at: UtcTimestamp,
+}
+
 fn is_false(value: &bool) -> bool {
     !*value
 }

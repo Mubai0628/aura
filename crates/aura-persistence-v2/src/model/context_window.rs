@@ -160,8 +160,28 @@ pub fn reject(
     {
         return Err(Error::Conflict);
     }
-    let error = failure.failure.provider_error_ref.ok_or(Error::Conflict)?;
-    artifact::read(tx, error, &step.model_step_id.to_string())?;
+    let artifact_owner = step.model_step_id.to_string();
+    let error = if let Some(error) = failure.failure.provider_error_ref {
+        artifact::read(tx, error, &artifact_owner)?;
+        error
+    } else {
+        // Stream errors have a durable normalized failure but no raw HTTP error response.
+        let error = ArtifactId::new();
+        let evidence = serde_json::json!({
+            "failure_id": failure.id,
+            "category": failure.failure.category,
+            "code": failure.failure.code,
+        });
+        artifact::put(
+            tx,
+            error,
+            &artifact_owner,
+            "application/json",
+            &serde_json::to_vec(&evidence)?,
+            at,
+        )?;
+        error
+    };
     let context =
         crate::context::snapshot(tx, snapshot.context_snapshot_id)?.ok_or(Error::Conflict)?;
     let tokens = context.budget.estimated_input_tokens;

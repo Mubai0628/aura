@@ -12,6 +12,10 @@ pub struct LogicalProviderHistory {
     pub reuse_domain: ProviderToolCallReuseDomain,
     pub model_name: String,
     pub data: ProviderHistoryData,
+    /// Usage from the answer that produced this record. It is local budget evidence.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub reasoning_tokens: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

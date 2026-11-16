@@ -51,6 +51,7 @@ pub fn parse_paragraph_output(
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>()
         .join(" ");
+    let paragraph = crate::section::printable_context_text(&paragraph);
     if paragraph.is_empty() {
         return Err(CompactionValidationError::OutputEmpty);
     }
@@ -60,7 +61,7 @@ pub fn parse_paragraph_output(
         return Err(CompactionValidationError::OutputTooLarge);
     }
     Ok(ParsedCompactionOutput {
-        historical_snapshot: paragraph,
+        historical_snapshot: paragraph.into_owned(),
         active_turn_summary: String::new(),
         structured_compaction: String::new(),
         referenced_anchors: Vec::new(),
@@ -71,6 +72,13 @@ pub fn parse_paragraph_output(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_accepted_summary_has_printable_text_for_the_next_context() {
+        let raw = "<summary>kept\u{1b}[32m \0 details</summary>";
+        let parsed = parse_paragraph_output(raw, 100).expect("usable summary");
+        assert_eq!(parsed.historical_snapshot, r"kept\u001b[32m \u0000 details");
+    }
 
     #[test]
     fn an_answer_becomes_one_paragraph_and_only_an_empty_or_far_too_long_one_is_refused() {

@@ -473,6 +473,7 @@ fn retains_bound_protocol_history_and_keeps_changing_state_out_of_prefix() {
         content_hash: Some(ContentHash::sha256(b"visible answer")),
         tool_calls: vec![],
         provider_history: Some(LogicalProviderHistory {
+            reasoning_tokens: None,
             reuse_domain: ProviderToolCallReuseDomain {
                 endpoint_id: snapshot.endpoint_id,
                 endpoint_security_fingerprint: snapshot.endpoint_fingerprint.clone(),
@@ -602,6 +603,7 @@ fn an_addition_stays_a_separate_user_message_after_the_tool_result() {
             arguments_json: "{}".to_owned(),
         }],
         provider_history: Some(LogicalProviderHistory {
+            reasoning_tokens: None,
             reuse_domain: ProviderToolCallReuseDomain {
                 endpoint_id: snapshot.endpoint_id,
                 endpoint_security_fingerprint: snapshot.endpoint_fingerprint.clone(),

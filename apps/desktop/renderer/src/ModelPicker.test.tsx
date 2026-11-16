@@ -89,6 +89,43 @@ test('a single provider lists its models at once', async () => {
   expect(within(menu).getByRole('menuitem', { name: /管理模型/u })).toBeTruthy();
 });
 
+test('each provider lists configured models first, with both groups ordered by name', async () => {
+  const user = userEvent.setup();
+  render(
+    <ModelPicker
+      onManageSettings={vi.fn()}
+      onSelect={vi.fn(async () => {})}
+      state={{
+        choices: [
+          { id: 'image', label: 'GPT Image', provider: 'Codex', disabledReason: '需配置' },
+          { id: 'sol', label: 'GPT 6.1 Sol', provider: 'Codex' },
+          {
+            id: 'flash-image',
+            label: 'gemini Flash Image',
+            provider: 'Codex',
+            disabledReason: '需配置',
+          },
+          { id: 'astra', label: 'gpt 6 Astra', provider: 'Codex' },
+          { id: 'sonnet', label: 'Claude Sonnet', provider: 'Anthropic' },
+        ],
+        selectedId: 'sol',
+        loading: false,
+      }}
+    />,
+  );
+  await user.click(screen.getByRole('button', { name: 'GPT 6.1 Sol' }));
+  const menu = screen.getByRole('menu', { name: 'Codex 的模型' });
+  expect(
+    within(menu)
+      .getAllByRole('menuitemradio')
+      .map((item) => item.textContent),
+  ).toEqual(['gpt 6 Astra', 'GPT 6.1 Sol', 'gemini Flash Image', 'GPT Image']);
+  expect(within(menu).getByRole('menuitemradio', { name: 'gemini Flash Image' })).toHaveProperty(
+    'disabled',
+    true,
+  );
+});
+
 // A model that did not switch says why, that the conversation keeps its model, and what to do.
 test('a switch that failed says why and that the conversation keeps its model', async () => {
   const user = userEvent.setup();

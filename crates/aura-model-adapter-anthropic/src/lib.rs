@@ -19,8 +19,7 @@ use aura_model_transport::{
     ProviderContinuationArtifactKind, ProviderErrorFields, ProviderErrorResponse,
     ProviderRequestPlan, ProviderStreamFrame, build_generation_probe_request_plan,
     build_provider_request_plan, historical_tool_call_wire_bindings, provider_http_failure,
-    provider_stream_failure, provider_tool_name_bindings, validate_generation_probe_input,
-    validate_model_compilation_input,
+    provider_stream_failure, validate_generation_probe_input, validate_model_compilation_input,
 };
 use serde_json::{Map, Value, json};
 
@@ -32,7 +31,10 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
         input: ModelRequestCompilationInput<'_>,
     ) -> Result<ProviderRequestPlan, ModelAdapterError> {
         validate_model_compilation_input(input, ModelApiFormat::AnthropicMessages)?;
-        let tool_name_bindings = provider_tool_name_bindings(input.request)?;
+        let tools = aura_model_transport::ProviderTools::compile(
+            &input.request.tool_schema_set,
+            ModelApiFormat::AnthropicMessages,
+        )?;
         let layout = aura_model_transport::instruction_layout(input.request);
         let compile = |items: &[LogicalConversationItem]| {
             history::compile_anthropic_history(
@@ -130,42 +132,9 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
             }
         }
         body.extend(aura_model_transport::speed_mode_fields(input.snapshot));
-        if !input.request.tool_schema_set.tools.is_empty() {
-            let provider_tools =
-                aura_model_transport::ordered_tool_bindings(input.request, &tool_name_bindings)
-                    .into_iter()
-                    .map(|(tool, binding)| -> Result<Value, ModelAdapterError> {
-                        let mut wire = Map::new();
-                        wire.insert(
-                            "name".to_owned(),
-                            Value::String(binding.provider_wire_name.clone()),
-                        );
-                        wire.insert(
-                            "description".to_owned(),
-                            Value::String(tool.description.clone()),
-                        );
-                        let (wrapped_schema, wrapped_hash) =
-                            aura_model_domain::provider_arguments_envelope_schema_v3(
-                                &tool.input_schema,
-                            )
-                            .map_err(|error| {
-                                ModelAdapterError::invalid_request(
-                                    "model_request.tool_schema_envelope_invalid",
-                                    error.to_string(),
-                                )
-                            })?;
-                        debug_assert_eq!(wrapped_hash, binding.provider_wrapped_schema_hash);
-                        // `strict` only for a schema inside the Providers' strict subset.
-                        let strict = tool.strict
-                            && aura_model_transport::strict_schema_compatible(&wrapped_schema);
-                        wire.insert("input_schema".to_owned(), wrapped_schema);
-                        if strict {
-                            wire.insert("strict".to_owned(), Value::Bool(true));
-                        }
-                        Ok(Value::Object(wire))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-            body.insert("tools".to_owned(), Value::Array(provider_tools));
+        let (definitions, tool_name_bindings) = tools.into_wire(&input.request.fixed_tool_ids);
+        if !definitions.is_empty() {
+            body.insert("tools".to_owned(), Value::Array(definitions));
         }
         let body = serde_json::to_vec(&Value::Object(body)).map_err(|_| {
             ModelAdapterError::invalid_request(

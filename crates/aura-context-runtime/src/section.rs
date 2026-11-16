@@ -1,11 +1,13 @@
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap, fmt::Write as _};
 
 use aura_context_domain::{
     ContextCompressibility, ContextPrivacyClass, ContextSectionKind, ContextSourceRef,
     ModelEgressAuthorizationBasis, ModelEgressSourceKind,
 };
 use aura_domain_common::{ContentHash, EventId};
-use aura_model_domain::{CompiledInstructionEnvelope, LogicalInstructionKind};
+use aura_model_domain::{
+    CompiledInstructionEnvelope, LogicalConversationItem, LogicalInstructionKind,
+};
 use aura_prompt_runtime::{
     CanonicalInstructionSource, PromptCompilerFault, compile_instruction_envelope,
 };
@@ -87,7 +89,7 @@ pub fn assemble_context_sections(
             fragments
                 .iter()
                 .map(|fragment| CanonicalInstructionSource {
-                    content: fragment.content.clone(),
+                    content: printable_context_text(&fragment.content).into_owned(),
                     source_event_ids: source_event_ids(&fragment.source_ref),
                 })
                 .collect(),
@@ -160,7 +162,7 @@ fn serialize_non_instruction_section(
             .enumerate()
             .map(|(index, fragment)| -> Result<String, ContextSectionError> {
                 let source_kind = enum_wire_name(fragment.source_kind)?;
-                let content = escape_text(&normalize_runtime_text(&fragment.content)?);
+                let content = escape_text(&printable_context_text(&fragment.content));
                 let content = indent(&content, 4);
                 Ok(format!(
                     "  <Source ordinal=\"{}\" kind=\"{}\">\n{}\n  </Source>",
@@ -175,17 +177,53 @@ fn serialize_non_instruction_section(
     Ok(format!("<{tag}>\n{body}\n</{tag}>"))
 }
 
-fn normalize_runtime_text(value: &str) -> Result<String, ContextSectionError> {
-    if value.starts_with('\u{feff}') {
-        return Err(ContextSectionError::Serializer);
+/// The printable form used by both the context envelope and the model request.
+/// The source itself stays untouched for display, verification and egress authorization.
+pub(crate) fn printable_context_text(value: &str) -> Cow<'_, str> {
+    let value = value.trim_start_matches('\u{feff}');
+    let needs_escape = |character: char| {
+        (character.is_control() || character == '\u{feff}') && !matches!(character, '\n' | '\t')
+    };
+    if !value.chars().any(needs_escape) {
+        return Cow::Borrowed(value);
     }
-    let value = value.replace("\r\n", "\n").replace('\r', "\n");
-    if value.chars().any(|character| {
-        (character <= '\u{001f}' && !matches!(character, '\n' | '\t')) || character == '\u{007f}'
-    }) {
-        return Err(ContextSectionError::Serializer);
+    let mut text = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(character) = chars.next() {
+        if character == '\r' {
+            chars.next_if_eq(&'\n');
+            text.push('\n');
+        } else if needs_escape(character) {
+            write!(&mut text, "\\u{:04x}", u32::from(character)).expect("writing to String");
+        } else {
+            text.push(character);
+        }
     }
-    Ok(value)
+    Cow::Owned(text)
+}
+
+pub(crate) fn printable_conversation_item(item: &mut LogicalConversationItem) {
+    let printable = |content: &mut String| {
+        let text = printable_context_text(content);
+        if text == *content {
+            return None;
+        }
+        *content = text.into_owned();
+        Some(ContentHash::sha256(content.as_bytes()))
+    };
+    match item {
+        LogicalConversationItem::User { content, content_hash, .. }
+        | LogicalConversationItem::ToolResult { content, content_hash, .. } => {
+            if let Some(hash) = printable(content) {
+                *content_hash = hash;
+            }
+        }
+        LogicalConversationItem::Assistant { content, content_hash, .. } => {
+            if let Some(hash) = content.as_mut().and_then(printable) {
+                *content_hash = Some(hash);
+            }
+        }
+    }
 }
 
 fn escape_text(value: &str) -> String {
@@ -360,7 +398,7 @@ mod tests {
     }
 
     #[test]
-    fn non_model_visible_and_control_character_sources_fail_closed() {
+    fn private_sources_fail_closed_and_visible_control_characters_are_printable() {
         let fragment = ContextFragment {
             source_ref: ContextSourceRef::Event { event_id: EventId::new() },
             source_kind: ModelEgressSourceKind::UserEvent,
@@ -377,14 +415,14 @@ mod tests {
             }]),
             Err(ContextSectionError::NonModelVisibleSource)
         ));
-        assert!(matches!(
-            assemble_context_sections(vec![ContextSectionInput {
-                kind: ContextSectionKind::CurrentTurnWorkingSet,
-                fragments: vec![ContextFragment { content: "bad\0source".to_owned(), ..fragment }],
-                compressibility: ContextCompressibility::NeverCompress,
-                privacy_class: ContextPrivacyClass::ModelVisible,
-            }]),
-            Err(ContextSectionError::Serializer)
-        ));
+        let visible = assemble_context_sections(vec![ContextSectionInput {
+            kind: ContextSectionKind::CurrentTurnWorkingSet,
+            fragments: vec![ContextFragment { content: "bad\0source".to_owned(), ..fragment }],
+            compressibility: ContextCompressibility::NeverCompress,
+            privacy_class: ContextPrivacyClass::ModelVisible,
+        }])
+        .expect("a visible source with an escaped NUL");
+        assert!(visible.sections[10].canonical_content.contains(r"bad\u0000source"));
+        assert_eq!(visible.egress_fragments[0].content, "bad\0source");
     }
 }

@@ -539,6 +539,33 @@ mod tests {
     /// carry the superseded completion mandate, and each mode must state the route
     /// that really ends its turns.
     #[test]
+    fn the_normal_prompt_offers_interim_messages_without_a_completion_ritual() {
+        let bundle = ValidatedPromptBundle::embedded().expect("embedded prompt bundle");
+        let sources = activate_prompt_sources(
+            &bundle,
+            &PromptSettingsSnapshot { revision: 1, custom_system_addendum: None },
+            &PromptActivationInput {
+                agent_mode: PromptAgentMode::Normal,
+                loaded_capabilities: BTreeSet::new(),
+                child_agent: false,
+                recovery_kinds: BTreeSet::new(),
+                compaction: false,
+                maintenance_kind: None,
+            },
+        )
+        .expect("active normal prompts");
+        let text = sources
+            .sources
+            .iter()
+            .map(|source| source.content.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_eq!(text.matches("session.reply").count(), 1, "one active instruction for the tool");
+        assert!(text.contains("before the work is finished"));
+        assert!(text.contains("never required"), "Normal keeps an optional completion tool");
+    }
+
+    #[test]
     fn activated_prompts_state_one_completion_route_per_effective_mode() {
         let bundle = ValidatedPromptBundle::embedded().expect("embedded prompt bundle");
         let settings = PromptSettingsSnapshot { revision: 1, custom_system_addendum: None };

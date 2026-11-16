@@ -195,6 +195,7 @@ fn exchange(snapshot: &mut ModelExecutionSnapshot) -> Vec<LogicalConversationIte
                 arguments_hash: ContentHash::sha256(ARGUMENTS.as_bytes()),
             }],
             provider_history: Some(LogicalProviderHistory {
+                reasoning_tokens: None,
                 reuse_domain,
                 model_name: snapshot.model_name.clone(),
                 data: ProviderHistoryData::Chat {

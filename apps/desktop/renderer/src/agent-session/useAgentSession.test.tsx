@@ -180,6 +180,33 @@ test('a running step’s tool input is taken from a poll of the same revision', 
   expect(shown()).toEqual([{ title: '写入文件', received_bytes: 18_637, complete: false }]);
 });
 
+test('a poll can show an unsettled failure without changing the stored revision', async () => {
+  const running = (diagnostic: string | null) => {
+    const response = page('settlement-poll', '7', [1]);
+    response.value.active = { agent_run_id: 'run' } as never;
+    return {
+      ...response,
+      value: {
+        ...response.value,
+        turns: response.value.turns.map((turn) => ({ ...turn, diagnostic })),
+      },
+    };
+  };
+  read.mockResolvedValueOnce(running(null));
+  const { result } = renderHook(() => useAgentSession('settlement-poll'));
+  await act(async () => undefined);
+  expect(result.current.projection?.turns[0]?.diagnostic).toBeNull();
+
+  read.mockResolvedValueOnce(running('agent.failure_settlement_pending'));
+  await act(() => vi.advanceTimersByTimeAsync(250));
+  expect(result.current.projection?.turns[0]?.diagnostic).toBe('agent.failure_settlement_pending');
+  expect(result.current.projection?.revision).toBe('7');
+
+  read.mockResolvedValueOnce(running(null));
+  await act(() => vi.advanceTimersByTimeAsync(250));
+  expect(result.current.projection?.turns[0]?.diagnostic).toBeNull();
+});
+
 // Coming back to a
 // conversation the window has already read shows it at once; the read refreshes it quietly.
 test('coming back to a conversation already read shows it at once, not "loading"', async () => {

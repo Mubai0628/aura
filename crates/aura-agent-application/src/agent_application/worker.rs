@@ -11,7 +11,7 @@ use crate::agent_supervision::{CatchUnwind, RunStage, RunStageCell, TaskEnd};
 use aura_agent_execution::agent_execution;
 use aura_core_base::append_core_log;
 use aura_core_broker::agent_store::StoreStep;
-use aura_persistence_v2::agent::{approval, continuation, work};
+use aura_persistence_v2::agent::{continuation, work};
 
 /// One failed model step, kept typed instead of flattened into a message.
 ///
@@ -63,6 +63,8 @@ impl AgentApplication {
         let Some(admission) = self.supervisor.admit(run) else {
             return Ok(());
         };
+        // A new worker after a durable wait owns its own live diagnostics.
+        self.store.diagnostics().clear(run);
         let generation = admission.generation;
         let model = admission.signals().model.clone();
         let receive = admission.tool_receiver();
@@ -342,7 +344,6 @@ impl AgentApplication {
                             if failure.failure.category
                                 == ModelFailureCategory::ContextWindowExceeded
                                 && failure.failure.partial_output_ref.is_none()
-                                && failure.failure.provider_error_ref.is_some()
                             {
                                 self.reject_context_window(
                                     run_id,
@@ -525,26 +526,17 @@ impl AgentApplication {
                             proposal,
                             backend,
                         } => {
-                            let at = UtcTimestamp::now();
-                            let expires =
-                                UtcTimestamp::from_value(at.value() + time::Duration::minutes(10));
-                            self.store
-                                .write(
-                                    StoreStep::run(run_id, "agent.drive.approval_pause"),
-                                    move |journal| {
-                                        journal.database.unit_of_work(|tx| {
-                                            approval::pause(
-                                                tx, run_id, batch_id, call_id, *proposal, *backend,
-                                                at, expires,
-                                            )
-                                        })
-                                    },
-                                )
-                                .await?;
-                            // A sub-agent's question the settings answer is answered once the
-                            // run has stopped for it.
-                            self.answer_paused(run_id);
-                            return Ok(());
+                            let request = AgentRunRequest {
+                                session_id: turn.session_id,
+                                agent_run_id: run_id,
+                            };
+                            if self
+                                .pause_for_approval(request, batch_id, call_id, *proposal, *backend)
+                                .await?
+                            {
+                                self.answer_paused(run_id);
+                                return Ok(());
+                            }
                         }
                     }
                 }

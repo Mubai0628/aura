@@ -1,5 +1,6 @@
-import { useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import type { AgentToolSettingsView } from '@aura/contracts/generated';
+import { useSettingsDisplayPreferences } from '../settings-display-preferences';
 import { BuiltinHttpCredentials } from '../tool-credentials/BuiltinHttpCredentials';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
 
@@ -51,13 +52,13 @@ export function AgentToolGroups({
   pending: boolean;
   onToggle: (tool: Tool, checked: boolean) => void;
 }) {
-  const [family, setFamily] = useState('all');
+  const [{ toolFamily }, saveDisplay] = useSettingsDisplayPreferences();
   const families = new Map<string, Tool[]>();
   for (const tool of tools) {
     const key = familyOf(tool);
     families.set(key, [...(families.get(key) ?? []), tool]);
   }
-  const chosen = family !== 'all' && families.has(family) ? family : 'all';
+  const chosen = toolFamily !== 'all' && families.has(toolFamily) ? toolFamily : 'all';
   const shown = chosen === 'all' ? [...families] : [[chosen, families.get(chosen)!] as const];
   const loaded = (tool: Tool) => tool.required || fixed.includes(tool.tool_id);
   return (
@@ -70,7 +71,7 @@ export function AgentToolGroups({
               type="button"
               className="agent-tool-family"
               aria-pressed={chosen === key}
-              onClick={() => setFamily(key)}
+              onClick={() => saveDisplay({ toolFamily: key })}
             >
               {key === 'all' ? '全部' : familyLabel(key)}
               <span>{items.length}</span>

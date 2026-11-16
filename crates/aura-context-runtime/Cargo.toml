@@ -10,12 +10,14 @@ aura-config = { path = "../aura-config" }
 aura-context-domain = { path = "../aura-context-domain" }
 aura-domain-common = { path = "../aura-domain-common" }
 aura-model-domain = { path = "../aura-model-domain" }
+aura-model-transport = { path = "../aura-model-transport" }
 aura-prompt-runtime = { path = "../aura-prompt-runtime" }
 aura-tool-contract = { path = "../aura-tool-contract" }
 aura-workspace = { path = "../aura-workspace" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tiktoken-rs.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

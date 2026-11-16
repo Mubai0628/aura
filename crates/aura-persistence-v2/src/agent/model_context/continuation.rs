@@ -89,5 +89,9 @@ pub(super) fn read(
         },
         model_name: snapshot.model_name.clone(),
         data,
+        reasoning_tokens: (output.usage.source == UsageSource::ProviderReported)
+            .then_some(output.usage.reasoning_tokens)
+            .flatten()
+            .filter(|tokens| *tokens > 0 && *tokens <= output.usage.output_tokens),
     }))
 }

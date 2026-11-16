@@ -11,6 +11,7 @@ mod gate;
 mod images;
 mod network;
 mod output;
+mod prompt_parts;
 mod provider_error;
 mod provider_routing;
 mod reasoning_loop;
@@ -46,17 +47,20 @@ pub use network::{
     ModelRequestAuthorizer, TransportHttpBody, TransportHttpResponse,
 };
 pub use output::NormalizedOutputBuilder;
+pub use prompt_parts::{
+    ProviderTools, provider_history_replay, provider_reasoning_content, provider_tool_call,
+};
 pub use provider_error::{
     ProviderErrorFields, provider_http_failure, provider_reply_account_setting,
     provider_stream_failure,
 };
 pub use reasoning_loop::REASONING_LOOP_REPEATS;
 pub use request_layout::{
-    RoutingKeyField, cache_breakpoints, encrypted_reasoning, instruction_layout,
-    ordered_tool_bindings, routing_key_field, state_before_conversation, store_off,
+    RoutingKeyField, cache_breakpoints, encrypted_reasoning, instruction_envelope_layout,
+    instruction_layout, routing_key_field, state_before_conversation, store_off,
 };
 pub use retry::{MAX_TRANSPORT_ATTEMPTS, RetryDecision, TransportRetryPolicy};
 pub use speed_mode::speed_mode_fields;
 pub use sse::{ProviderStreamFrame, SseDecoder, SseLimits};
-pub use state_log::{StatePlacement, place_state};
+pub use state_log::{StatePlacement, place_state, preview_state};
 pub use strict_schema::strict_schema_compatible;

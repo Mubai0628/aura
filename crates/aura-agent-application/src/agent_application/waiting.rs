@@ -233,12 +233,7 @@ impl AgentApplication {
             let resolution = input.clone();
             let permission_snapshot_id = v.operation.content.identity.permission_snapshot_id;
             let workspace_id = v.operation.content.identity.workspace_id;
-            let file_answer =
-                aura_security_contract::file_capabilities_are_consentable(
-                    &v.operation.content.capabilities,
-                ) && v.operation.content.resources.iter().any(|resource| {
-                    aura_security_contract::file_consent_target_of(resource).is_some()
-                });
+            let file_answer = approval::is_mode_independent(&v.operation);
             self.store
                 .run_critical(
                     StoreStep::run(run, "agent.approval.resolve"),

@@ -3,6 +3,7 @@ import { sectionChoice, useTurnChoice, withSectionChoice } from './turn-choices'
 import type { AgentToolActivityEntry, AgentTurnView } from '@aura/contracts/generated';
 import { StoppingRunContext } from './stopping';
 import { MessageText } from './MessageText';
+import { MarkdownBlocks } from '../markdown-body';
 import { ProcessSection } from './ProcessSection';
 import { UserCopy } from './ReplyActions';
 import { StepActivity } from './StepActivity';
@@ -42,9 +43,7 @@ export function TurnProcess({
   const [shown, setShown] = useTurnChoice<boolean | undefined>(`${turnId}:shown`, undefined);
   const terminal = terminalTurn(item.turn.state.state);
   const blocks = turnTimeline(item, calls, finalStepId);
-  // The user's own messages from the turn are not its process: they stay in view.
-  const collapsible =
-    item.turn.state.state === 'completed' && blocks.some((block) => block.kind !== 'user');
+  const collapsible = item.turn.state.state === 'completed' && blocks.some(foldsWithProcess);
   const open = !collapsible || (shown ?? false);
   const processId = `process-${item.turn.turn_task_id}`;
   // A call the debugging switch
@@ -80,6 +79,11 @@ export function TurnProcess({
       const { context_compacted: compacted, context_cleared: cleared } = block.message;
       if (compacted) return <ContextCompacted key={block.key} compacted={compacted} />;
       return cleared ? <ContextCleared key={block.key} cleared={cleared} /> : null;
+    }
+    if (block.kind === 'interim_reply') {
+      return (
+        <MarkdownBlocks key={block.key} className="agent-interim-reply" text={block.message.text} />
+      );
     }
     if (block.kind === 'reply') {
       const message = block.message;
@@ -139,10 +143,14 @@ export function TurnProcess({
       {debuggingOffer ? <EnableDebuggingOffer /> : null}
       <div id={processId} className="agent-process-body">
         {blocks.map((block, index) =>
-          open || block.kind === 'user' ? render(block, index) : null,
+          open || !foldsWithProcess(block) ? render(block, index) : null,
         )}
       </div>
       <StepActivity item={item} />
     </div>
   );
+}
+
+function foldsWithProcess(block: TimelineBlock): boolean {
+  return block.kind !== 'user' && block.kind !== 'interim_reply';
 }

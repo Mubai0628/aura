@@ -13,6 +13,17 @@ pub(crate) fn current_user_content(
     assembly: &ContextSectionAssembly,
     user_event_id: EventId,
 ) -> Result<String, ContextPreparationError> {
+    match current_user_sections(assembly)? {
+        Some(sections) => {
+            Ok(sections.into_iter().map(|(_, content)| content).collect::<Vec<_>>().join("\n"))
+        }
+        None => input_batch_content(assembly, user_event_id),
+    }
+}
+
+pub(crate) fn current_user_sections(
+    assembly: &ContextSectionAssembly,
+) -> Result<Option<[(ContextSectionKind, &str); 3]>, ContextPreparationError> {
     let extras = [
         ContextSectionKind::FileReferencesAndPendingAttachments,
         ContextSectionKind::SteeredUserAdditions,
@@ -23,30 +34,23 @@ pub(crate) fn current_user_content(
         .filter(|section| extras.contains(&section.kind))
         .all(|section| section.is_empty_marker)
     {
-        return input_batch_content(assembly, user_event_id);
+        return Ok(None);
     }
     let kinds = [
         ContextSectionKind::FileReferencesAndPendingAttachments,
         ContextSectionKind::CurrentTurnWorkingSet,
         ContextSectionKind::SteeredUserAdditions,
     ];
-    kinds
-        .iter()
-        .map(|kind| {
-            assembly
-                .sections
-                .iter()
-                .find(|section| section.kind == *kind)
-                .map(|section| section.canonical_content.as_str())
-                .ok_or(ContextPreparationError::SectionsInvalid)
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map(|sections| {
-            sections.join(
-                "
-",
-            )
-        })
+    let parts = kinds.map(|kind| {
+        assembly
+            .sections
+            .iter()
+            .find(|section| section.kind == kind)
+            .map(|section| (kind, section.canonical_content.as_str()))
+            .ok_or(ContextPreparationError::SectionsInvalid)
+    });
+    let [files, working, additions] = parts;
+    Ok(Some([files?, working?, additions?]))
 }
 
 /// One user event's own text, as the conversation shows it.

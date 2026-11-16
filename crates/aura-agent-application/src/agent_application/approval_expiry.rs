@@ -40,7 +40,6 @@ impl ExpiryTimers {
         }
     }
 
-    #[allow(dead_code)] // the timers owner is inspected by the regression tests
     pub(super) fn cancel(&self, run: AgentRunId) {
         if let Ok(mut timers) = self.inner.lock()
             && let Some(task) = timers.remove(&run)
@@ -64,6 +63,12 @@ impl AgentApplication {
             .read(StoreStep::operation("agent.expiry.restore"), recovery::active_runs)
             .await?;
         for run in runs {
+            let turn = self.turn(run).await?;
+            if turn.state == TurnTaskState::AwaitingApproval
+                && self.resume_stale_approval(turn.session_id, Self::stop_deadline()).await?
+            {
+                continue;
+            }
             // A question left waiting by the previous process is shown again: its countdown
             // starts over instead of ending as soon as Core is back.
             self.store

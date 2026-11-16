@@ -21,6 +21,7 @@ import type { NotificationInput } from './notification-center-store';
 import { useModelSettingsControl } from './model-settings-store';
 import { ProviderCatalog } from './ProviderCatalog';
 import { ProviderConnectionDialog } from './ProviderConnectionDialog';
+import { useSettingsDisplayPreferences } from './settings-display-preferences';
 import {
   CATALOG_ENTRY_MISSING,
   CATALOG_ENTRY_UPDATED,
@@ -36,7 +37,7 @@ interface ModelSettingsProps {
 
 export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps) {
   const modelControl = useModelSettingsControl();
-  const [selectedProviderId, setSelectedProviderId] = useState<string>();
+  const [display, saveDisplay] = useSettingsDisplayPreferences();
   const [dialogProviderId, setDialogProviderId] = useState<string>();
   const [addingCustomProvider, setAddingCustomProvider] = useState(false);
   const [catalogDialog, setCatalogDialog] = useState<{
@@ -47,9 +48,6 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     endpointId: string;
     profileId?: string;
   }>();
-  const [targetEndpointByProvider, setTargetEndpointByProvider] = useState<Record<string, string>>(
-    {},
-  );
   const [busyAction, setBusyAction] = useState<string>();
   const [profilePendingDeletion, setProfilePendingDeletion] = useState<ModelProfileConfig>();
   const profileDeletionTriggerRef = useRef<HTMLElement>(null);
@@ -59,13 +57,17 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
     [modelControl.catalog, modelControl.settings],
   );
   const selectedProvider =
-    providers.find((provider) => provider.id === selectedProviderId) ?? providers[0];
+    providers.find((provider) => provider.id === display.modelProviderId) ?? providers[0];
   const dialogProvider = providers.find((provider) => provider.id === dialogProviderId);
-  const selectedTargetEndpointId =
-    selectedProvider === undefined ? undefined : targetEndpointByProvider[selectedProvider.id];
-  const targetEndpoint =
-    selectedProvider?.endpoints.find((endpoint) => endpoint.id === selectedTargetEndpointId) ??
-    selectedProvider?.endpoints[0];
+  const connectionFor = (provider: ProviderConfigurationView | undefined) => {
+    if (provider === undefined) return undefined;
+    const savedConnection = display.modelConnectionByProvider[provider.id];
+    return (
+      provider.endpoints.find((endpoint) => endpoint.id === savedConnection) ??
+      provider.endpoints[0]
+    );
+  };
+  const targetEndpoint = connectionFor(selectedProvider);
   const targetModels =
     targetEndpoint === undefined || modelControl.settings === undefined
       ? []
@@ -75,15 +77,13 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
         });
   const writesUnavailable = modelControl.writeUnavailableReason !== undefined;
   // Each provider keeps its own choice; its connections share it.
-  const [onlyReadyByProvider, setOnlyReadyByProvider] = useState<Readonly<Record<string, boolean>>>(
-    {},
-  );
   const onlyReady =
-    selectedProvider !== undefined && onlyReadyByProvider[selectedProvider.id] === true;
+    selectedProvider !== undefined && display.configuredOnlyProviders.includes(selectedProvider.id);
   const setOnlyReady = (on: boolean) => {
     if (selectedProvider === undefined) return;
     const provider = selectedProvider.id;
-    setOnlyReadyByProvider((current) => ({ ...current, [provider]: on }));
+    const otherProviders = display.configuredOnlyProviders.filter((id) => id !== provider);
+    saveDisplay({ configuredOnlyProviders: on ? [...otherProviders, provider] : otherProviders });
   };
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
   const [modelQuery, setModelQuery] = useState('');
@@ -107,7 +107,7 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
   }, [modelControl.error, onNotify, onWithdrawNotice]);
 
   const selectProvider = (provider: ProviderCatalogItem) => {
-    setSelectedProviderId(provider.id);
+    saveDisplay({ modelProviderId: provider.id });
   };
 
   const refreshCatalog = async () => {
@@ -125,7 +125,7 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
   };
 
   const configureProvider = (provider: ProviderCatalogItem) => {
-    setSelectedProviderId(provider.id);
+    selectProvider(provider);
     setDialogProviderId(provider.id);
   };
 
@@ -396,10 +396,12 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
             }}
             onEndpoint={(id) => {
               if (selectedProvider)
-                setTargetEndpointByProvider((current) => ({
-                  ...current,
-                  [selectedProvider.id]: id,
-                }));
+                saveDisplay({
+                  modelConnectionByProvider: {
+                    ...display.modelConnectionByProvider,
+                    [selectedProvider.id]: id,
+                  },
+                });
             }}
             subagents={
               selectedProvider?.localProvider === undefined || selectedProvider.models.length === 0
@@ -472,10 +474,7 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
             // (the button did nothing before).
             setCatalogDialog({
               catalogProviderId: dialogProvider.catalogProviderId,
-              endpointId:
-                targetEndpointByProvider[dialogProvider.id] ??
-                dialogProvider.endpoints[0]?.id ??
-                '',
+              endpointId: connectionFor(dialogProvider)?.id ?? '',
             });
           }}
           onNotify={onNotify}

@@ -56,6 +56,20 @@ const KNOWN: &[(&str, &str, ErrorCategory, bool, &str)] = &[
          Nothing was changed.",
     ),
     (
+        "session.reply.invalid_text",
+        "tool.schema.arguments_invalid",
+        Validation,
+        false,
+        "没有发送中途消息。text 需包含正文，长度最多 2000 个字符。",
+    ),
+    (
+        "session.reply.parent_only",
+        "tool.registry.audience_denied",
+        ErrorCategory::Permission,
+        false,
+        "没有发送中途消息。此工具由主 Agent 在用户会话中调用，子 Agent 可将进度写进自己的报告。",
+    ),
+    (
         "query.user_question.pending",
         "tool.batch.control_state_mismatch",
         Conflict,

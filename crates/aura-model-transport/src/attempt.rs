@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use aura_domain_common::{ArtifactId, NetworkRequestId, TransportAttemptId, UtcTimestamp};
 use aura_model_domain::{
-    ModelExecutionSnapshot, ModelStreamEvent, ModelStreamEventEnvelope, TransportAttemptRecord,
-    TransportAttemptState, derive_provider_tool_call_protocol_bindings,
+    ModelExecutionSnapshot, ModelFailureCategory, ModelStreamEvent, ModelStreamEventEnvelope,
+    TransportAttemptRecord, TransportAttemptState, derive_provider_tool_call_protocol_bindings,
 };
 use tokio::time::Instant;
 
@@ -451,8 +451,14 @@ where
                     next_sequence: sequence,
                 })
             }
-            Err(error) => {
+            Err(mut error) => {
                 abort_writer(raw_writer.take())?;
+                // An empty response never began. A streamed answer cut off before its terminal
+                // event can be requested again by the Agent without committing any tool calls.
+                if !emitted_valid_event && error.category == ModelFailureCategory::StreamInterrupted
+                {
+                    error.category = ModelFailureCategory::Protocol;
+                }
                 Ok(AttemptTerminal::Failed {
                     failure: adapter_failure(error, attempt_id, None),
                     emitted_valid_event,

@@ -394,6 +394,11 @@ fn assistant(
         context_compacted,
         context_cleared,
         backup_connection: crate::model::connections::backup_of(db, step.model_step_id)?,
+        interim_replies: if tool_call_ids.is_empty() {
+            Vec::new()
+        } else {
+            super::interim_reply::for_step(db, step.model_step_id)?
+        },
         tool_call_ids,
         tool_input: vec![],
         at: step.created_at,

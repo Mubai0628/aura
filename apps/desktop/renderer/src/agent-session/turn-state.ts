@@ -1,4 +1,5 @@
 import type { AgentTurnView, AgentToolActivityEntry } from '@aura/contracts/generated';
+import { isFailureSettlementPending } from './turn-failure';
 
 export const terminalTurn = (state: string) =>
   ['completed', 'cancelled', 'failed', 'recovery_required'].includes(state);
@@ -15,6 +16,7 @@ export function turnStatus(
   if (state === 'completed') return '已完成';
   if (state === 'cancelled') return '已停止';
   if (state === 'failed' || state === 'recovery_required') return '任务中断';
+  if (isFailureSettlementPending(item.diagnostic)) return '等待确认任务状态';
   if (state === 'awaiting_approval') return '等待授权';
   if (state === 'awaiting_query') return '等待回答';
   if (state === 'pending') return '准备开始';

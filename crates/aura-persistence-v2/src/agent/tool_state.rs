@@ -105,13 +105,14 @@ pub fn execute_with(
         clear_satisfied_lineage(tx, turn.turn_task_id, arguments, at)?;
     }
     let operation_rejection = operation_rejection.map(|(error, _)| error);
+    let delivered_reply = tool == SESSION_REPLY && output.is_ok();
     let evidence = BrokerEvidence {
         action_kind: request.operation.content.action_kind.clone(),
         request_fingerprint: request.operation.fingerprint.0.clone(),
-        side_effect: if before == after {
-            SideEffectStateV1::NoEffect
-        } else {
+        side_effect: if delivered_reply || before != after {
             SideEffectStateV1::FullyApplied
+        } else {
+            SideEffectStateV1::NoEffect
         },
         before,
         after,
@@ -237,6 +238,7 @@ fn dispatch(
             )?;
             value(state)
         }
+        SESSION_REPLY => value(super::interim_reply::send(tx, id, call_id, input(arguments)?, at)?),
         "query.user_question" => {
             let i: QueryUserQuestionInput = input(arguments)?;
             let old = work::query(tx, id.turn_task_id)?;

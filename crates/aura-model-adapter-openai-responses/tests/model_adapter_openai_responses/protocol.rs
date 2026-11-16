@@ -617,7 +617,7 @@ fn retains_bound_protocol_history_and_keeps_changing_state_out_of_prefix() {
     request.conversation_items.push(LogicalConversationItem::Assistant {
         source_event_id:EventId::new(), content:Some("visible answer".into()),
         content_hash:Some(ContentHash::sha256(b"visible answer")),tool_calls:vec![],
-        provider_history:Some(LogicalProviderHistory { reuse_domain:ProviderToolCallReuseDomain {
+        provider_history:Some(LogicalProviderHistory { reasoning_tokens: None, reuse_domain:ProviderToolCallReuseDomain {
             endpoint_id:snapshot.endpoint_id,endpoint_security_fingerprint:snapshot.endpoint_fingerprint.clone(),api_format:snapshot.api_format,
         },model_name:snapshot.model_name.clone(),data:ProviderHistoryData::Responses { reasoning_items: vec![json!({"type":"reasoning","id":"rs_retained","summary":[],"encrypted_content":"opaque_ExactCase"})] } }),
     });
@@ -734,6 +734,7 @@ fn an_addition_stays_a_separate_user_message_after_function_output() {
             arguments_json: "{}".to_owned(),
         }],
         provider_history: Some(LogicalProviderHistory {
+            reasoning_tokens: None,
             reuse_domain: ProviderToolCallReuseDomain {
                 endpoint_id: snapshot.endpoint_id,
                 endpoint_security_fingerprint: snapshot.endpoint_fingerprint.clone(),

@@ -162,110 +162,65 @@ function useProgressiveBody({
   bodyId: string | null;
   sealedRevision: string | null;
 }) {
-  const id = useMemo(() => queueId(sessionId, source), [sessionId, source]);
-  // A new projection identity also owns a new queue task. Late pages of the
-  // previous revision are aborted before they can append to the new preview.
-  const readId = JSON.stringify([
+  const id = queueId(sessionId, source);
+  // A sealed size is part of the identity. A live size can grow between reads.
+  const projectionIdentity = [
     id,
     partial,
     bodyId,
     sealedRevision,
     preview,
     partial ? null : totalBytes,
-  ]);
+  ];
+  const projectionId = JSON.stringify(projectionIdentity);
   const sealedKey =
     !partial && sealedRevision ? pageCacheKey(id, sealedRevision, totalBytes) : undefined;
-  const [loaded, setLoaded] = useState<{
-    /** The body the pages on screen were read from. */
-    bodyId: string | null;
-    sealedRevision: string | null;
-    error: string | undefined;
-    /** The announced size the projection reported when this identity began. */
-    expectedBytes: number;
-    id: string;
-    /** The body the projection reported when this identity began. It decides
-     *  when the projection has moved to another body, which is a different
-     *  question from which body these pages came from: a reader can be ahead of
-     *  the projection and holding a body the projection has not reported yet. */
-    observed: string | null;
-    partial: boolean;
-    preview: string;
-    text: string;
-    /** The live size of the body after the last page, for a running step. */
-    liveBytes: number;
-    /** True once a sealed body proved it was read to its announced length. */
-    exhausted: boolean;
-    /** The projection still describes a body this reader cannot page: reading
-     *  stops until the projection reports the body that really exists. */
-    blocked: boolean;
-  }>(() => ({
-    bodyId,
-    sealedRevision,
-    blocked: false,
-    error: undefined,
-    exhausted: false,
-    expectedBytes: totalBytes,
-    id,
-    liveBytes: 0,
-    observed: bodyId,
-    partial,
-    preview,
-    text:
-      sealedKey === undefined
-        ? preview
-        : (cachedBody(readPageCache(sealedKey), preview, totalBytes) ?? preview),
-  }));
-  // The identity of a body is its immutable source, the preview the projection
-  // currently reports, whether it is still running, and the body the projection
-  // names. A preview of the same length but different text is a different body,
-  // so pages already read must not be kept. Sealing does not keep a live suffix
-  // just because it starts with the new preview.
-  const staleIdentity =
-    loaded.id !== id ||
-    loaded.preview !== preview ||
-    loaded.partial !== partial ||
-    loaded.observed !== bodyId ||
-    loaded.sealedRevision !== sealedRevision ||
-    // A sealed body's announced size is part of its identity; a running step's
-    // size only grows, and that is not a new body.
-    (!partial && loaded.expectedBytes !== totalBytes);
-  if (staleIdentity) {
-    const remembered = sealedKey === undefined ? undefined : readPageCache(sealedKey);
-    setLoaded({
+  const initialBody = (): LoadedBody => {
+    const cached = sealedKey === undefined ? undefined : readPageCache(sealedKey);
+    const text = cachedBody(cached, preview, totalBytes) ?? preview;
+    return {
       bodyId,
-      sealedRevision,
       blocked: false,
+      bytes: pageBytes(text),
       error: undefined,
-      exhausted: false,
-      expectedBytes: totalBytes,
-      id,
       liveBytes: 0,
-      observed: bodyId,
-      partial,
-      preview,
-      text: cachedBody(remembered, preview, totalBytes) ?? preview,
-    });
-  }
-  const state = staleIdentity ? undefined : loaded;
-  const content = state?.text ?? preview;
-  const bytes = pageBytes(content);
-  // How long the body is known to be. A sealed body announced one size and that
-  // promise is what "complete" means. A running step is measured by the pages
-  // that were actually read, and — while those pages describe the body the
-  // projection names — by the projection's own size, which is what tells this
-  // component that the body has grown again since the last page.
+      projectionId,
+      text,
+    };
+  };
+  const [loaded, setLoaded] = useState(initialBody);
+  const state = loaded.projectionId === projectionId ? loaded : initialBody();
+  if (state !== loaded) setLoaded(state);
+  const { bodyId: currentBody, bytes, text } = state;
+  // A page can report a replacement live body before the projection does.
+  // That body gets its own cursor, even if the old read also started at zero.
+  const readId =
+    currentBody === bodyId ? projectionId : JSON.stringify([...projectionIdentity, currentBody]);
   const announced = partial
-    ? (state?.bodyId ?? null) === bodyId
-      ? Math.max(state?.liveBytes ?? 0, totalBytes)
-      : (state?.liveBytes ?? 0)
-    : (state?.expectedBytes ?? totalBytes);
-  // A sealed body is complete when everything it announced is on screen. A
-  // running step is never "complete"; it has more to read while the body is
-  // longer than what is displayed.
+    ? Math.max(state.liveBytes, currentBody === bodyId ? totalBytes : 0)
+    : totalBytes;
   const complete = !partial && bytes >= announced;
-  const more = state?.blocked ? false : partial ? announced > bytes : !complete;
+  const more = !state.blocked && bytes < announced;
+  useEffect(() => {
+    if (complete && sealedKey !== undefined && text !== preview) writePageCache(sealedKey, text);
+  }, [complete, preview, sealedKey, text]);
+
   const fetcher = useCallback(
     async (signal: AbortSignal, offset: number): Promise<void> => {
+      // A layout effect may be replayed before the view paints in development.
+      await Promise.resolve();
+      if (signal.aborted) return;
+      const updateCurrent = (update: (old: LoadedBody) => LoadedBody) => {
+        setLoaded((old) =>
+          !signal.aborted &&
+          old.projectionId === projectionId &&
+          old.bodyId === currentBody &&
+          old.bytes === offset
+            ? update(old)
+            : old,
+        );
+      };
+      const showError = (error: string) => updateCurrent((old) => ({ ...old, error }));
       const result = await window.aura.v1
         .readAgentMessageText({
           session_id: sessionId,
@@ -274,105 +229,66 @@ function useProgressiveBody({
           limit: MESSAGE_TEXT_PAGE_BYTES,
         })
         .catch((reason: unknown) => {
-          if (!signal.aborted)
-            setLoaded((old) => ({ ...old, error: failedAction(reason, BODY_UNREAD, BODY_NEXT) }));
+          showError(failedAction(reason, BODY_UNREAD, BODY_NEXT));
           throw reason;
         });
       if (signal.aborted) return;
       if (!result.ok) {
-        const shown = failedAction(result.error, BODY_UNREAD, BODY_NEXT);
-        setLoaded((old) => ({ ...old, error: shown }));
+        showError(failedAction(result.error, BODY_UNREAD, BODY_NEXT));
         throw new Error(result.error.message);
       }
       if (!matchesSource(result.value.source, source)) {
-        setLoaded((old) => ({ ...old, error: '正文来源已变化，请重新加载会话。' }));
+        showError('正文来源已变化，请重新加载会话。');
         throw new Error('message text source changed');
       }
       const page = result.value;
-      if (partial) {
-        if (page.body_id == null) {
-          // The step finished while this reader was paging it. The sealed text is
-          // authoritative and need not equal the live bytes, so nothing more is
-          // read from here: the projection will report the sealed source and this
-          // component reads that from its own preview.
-          setLoaded((old) => ({ ...old, blocked: true }));
-          return;
-        }
-        if (page.body_id !== (state?.bodyId ?? null)) {
-          // The body restarted under this reader (a retry began). Its bytes are
-          // not a prefix of the new body, so nothing read so far survives; the
-          // next page starts from the first byte of the new body.
-          setLoaded((old) => ({
-            ...old,
-            blocked: false,
-            bodyId: page.body_id ?? null,
-            error: undefined,
-            liveBytes: page.total_bytes,
-            text: '',
-          }));
-          return;
-        }
-        if (page.from_offset !== offset) {
-          // The page does not continue the bytes on screen: read the body again
-          // from its start rather than splice unrelated text together.
-          setLoaded((old) => ({ ...old, error: undefined, liveBytes: page.total_bytes, text: '' }));
-          return;
-        }
-        setLoaded((old) => ({
+      const pageBody = page.body_id ?? null;
+      if (partial !== (pageBody !== null)) {
+        // Wait for the projection when the read and the view disagree about sealing.
+        updateCurrent((old) => ({ ...old, blocked: true }));
+        return;
+      }
+      if (partial && (pageBody !== currentBody || (page.from_offset !== offset && offset > 0))) {
+        // A different live body or a moved UTF-8 boundary requires a fresh prefix.
+        updateCurrent((old) => ({
           ...old,
-          blocked: false,
+          bodyId: pageBody,
+          bytes: 0,
           error: undefined,
           liveBytes: page.total_bytes,
-          text: old.text + page.text,
+          text: '',
         }));
         return;
       }
-      if (page.body_id != null) {
-        // The projection said the step was done, but the Core answers from a
-        // live body: the sealed text may differ, so wait for the sealed source
-        // instead of appending live bytes to a sealed answer.
-        setLoaded((old) => ({ ...old, blocked: true }));
-        return;
-      }
       if (
-        page.total_bytes !== totalBytes ||
-        (sealedRevision !== null && page.sealed_revision !== sealedRevision) ||
-        page.from_offset !== offset
+        page.from_offset !== offset ||
+        (!partial &&
+          (page.total_bytes !== totalBytes ||
+            (sealedRevision !== null && page.sealed_revision !== sealedRevision)))
       ) {
-        setLoaded((old) => ({ ...old, error: '正文来源已变化，请重新加载会话。' }));
-        throw new Error('message text total changed');
+        showError('正文来源已变化，请重新加载会话。');
+        throw new Error('message text boundary changed');
       }
-      if (page.text === '' && (page.next_offset ?? null) === null) {
-        // The source reports itself exhausted. That is only believable when the
-        // bytes already read really add up to the announced size; a short body
-        // with an empty final page must never be recorded as complete, because
-        // that would silently shorten the answer and hide the missing remainder.
-        if (offset >= totalBytes) {
-          setLoaded((old) => ({ ...old, error: undefined, exhausted: true }));
-          return;
-        }
-        const detail = '正文少于声明的长度，请重新加载会话。';
-        setLoaded((old) => ({ ...old, error: detail }));
+      const nextBytes = offset + pageBytes(page.text);
+      if (nextBytes > page.total_bytes) {
+        showError('正文超过声明的长度，请重新加载会话。');
+        throw new Error('message text exceeded the announced length');
+      }
+      if (nextBytes === offset && offset < page.total_bytes) {
+        showError('正文少于声明的长度，请重新加载会话。');
         throw new Error('message text ended before the announced length');
       }
-      setLoaded((old) => {
-        const text = old.text + page.text;
-        // Only a complete body whose pages agree with the recorded revision
-        // enters the cache. An incomplete or live suffix is never reusable.
-        if (
-          sealedKey !== undefined &&
-          !partial &&
-          page.body_id == null &&
-          text.startsWith(preview) &&
-          page.sealed_revision === sealedRevision &&
-          pageBytes(text) === totalBytes
-        ) {
-          writePageCache(sealedKey, text);
-        }
-        return { ...old, error: undefined, text };
-      });
+      // Check the applied cursor inside the updater. Two responses can arrive
+      // before React commits, both reporting the same valid request offset.
+      updateCurrent((old) => ({
+        ...old,
+        bytes: nextBytes,
+        error: undefined,
+        liveBytes: page.total_bytes,
+        text: old.text + page.text,
+      }));
     },
-    [partial, preview, sealedKey, sealedRevision, sessionId, source, state?.bodyId, totalBytes],
+    [currentBody, partial, projectionId, sealedRevision, sessionId, setLoaded, source, totalBytes],
   );
   const [visible, setVisible] = useState(false);
   const element = useRef<HTMLDivElement | null>(null);
@@ -382,10 +298,10 @@ function useProgressiveBody({
   // the byte the next page continues from and carries the viewport state, so a
   // page for a body the user is looking at never queues behind background work.
   useLayoutEffect(() => {
-    if (!more || state?.error !== undefined || state?.blocked) return;
+    if (!more || state.error !== undefined) return;
     messageTextQueue.read(readId, bytes, fetcher, visible);
     messageTextQueue.setVisible(readId, visible);
-  }, [bytes, fetcher, readId, more, state?.blocked, state?.error, visible]);
+  }, [bytes, fetcher, readId, more, state.error, visible]);
   useLayoutEffect(() => () => messageTextQueue.remove(readId), [readId]);
   useEffect(() => {
     const target = element.current;
@@ -410,17 +326,29 @@ function useProgressiveBody({
     observer.observe(target);
     return () => observer.disconnect();
   }, []);
-  const retry = useCallback(() => {
+  const retry = () => {
     setLoaded((old) => ({ ...old, error: undefined }));
     messageTextQueue.retry(readId);
-  }, [readId]);
+  };
 
   return {
-    busy: !complete && !partial && state?.error === undefined,
+    busy: !complete && !partial && state.error === undefined,
     element,
-    error: state?.error,
+    error: state.error,
     more: !complete,
     retry,
-    text: content,
+    text,
   };
+}
+
+interface LoadedBody {
+  /** Body ID returned by the reader, which can temporarily lead the projection. */
+  bodyId: string | null;
+  /** Wait for the projection when a read finds the live/sealed state has changed. */
+  blocked: boolean;
+  bytes: number;
+  error: string | undefined;
+  liveBytes: number;
+  projectionId: string;
+  text: string;
 }

@@ -324,3 +324,33 @@ test('a section opened by hand stays as chosen when the turn’s earlier steps a
   view.rerender(<Conversation {...props} projection={withEarlierStep(turn('completed'))} />);
   expect(first().getAttribute('aria-expanded')).toBe('false');
 });
+
+test('a delivered interim message appears once after the user addition and stays visible when the turn folds', async () => {
+  const projection = turn('completed', true);
+  const step = projection.turns[0]!.assistant_messages[0]!;
+  const callId = 'tcl_01HOSTTOOLCALL0000000003';
+  Object.assign(step, {
+    tool_call_ids: [callId],
+    interim_replies: [
+      { tool_call_id: callId, text: '第一阶段已完成，继续核对。', at: '2026-10-18T00:00:03Z' },
+    ],
+  });
+  activity.mockResolvedValue({
+    ok: true,
+    value: {
+      session_id: 'session',
+      next_before_call_id: null,
+      calls: [call(callId, '中途回复', 'succeeded')],
+    },
+  });
+  render(<Conversation {...props} projection={projection} />);
+  const reply = await screen.findByText('第一阶段已完成，继续核对。');
+  expect(reply.closest('.agent-interim-reply')).toBeTruthy();
+  expect(screen.getAllByText('第一阶段已完成，继续核对。')).toHaveLength(1);
+  const user = screen.getByText('顺便看看代理设置');
+  const answer = screen.getByText('Both worked.');
+  expect(user.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(reply.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await openProcesses();
+  expect(screen.queryByText('中途回复')).toBeNull();
+});

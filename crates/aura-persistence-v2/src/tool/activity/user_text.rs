@@ -31,7 +31,7 @@ const UNKNOWN_OUTCOME: &str = "tool.runtime.dispatch_outcome_unknown";
 const CAUSES: &[(&str, &str, &str)] = &[
     ("tool.approval.expired", "批准请求在你回答前过期了", "模型需要时会再次请求批准"),
     ("tool.approval.denied", "你拒绝了这个调用", ""),
-    ("tool.approval.invalidated", "等待批准时会话的权限模式变了", "模型需要时会按新的模式重新调用"),
+    ("tool.approval.invalidated", "等待批准时会话的权限模式变了", "任务会按当前权限继续"),
     ("tool.hook.blocked", "被你设置的 Hook 拦下了", "模型会收到 Hook 给的原因"),
     ("tool.schema.arguments_invalid", "模型给的参数不完整或格式不对", "模型会收到说明并改正"),
     (

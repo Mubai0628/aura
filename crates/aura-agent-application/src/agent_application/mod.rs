@@ -33,6 +33,7 @@ pub mod context_window;
 pub mod continuation;
 mod derived_backfill;
 mod desktop;
+mod drive_failure;
 pub mod estimators;
 pub mod fault;
 mod history_memo;
@@ -396,135 +397,6 @@ impl AgentApplication {
 
     /// Records the failure of one run's own step.
     ///
-    /// The record is one admitted write whose real result is handed to the receipt owner: a
-    /// caller that stopped waiting, a cancel or a shutdown cannot lose it. When the record
-    /// itself cannot be written, the run keeps an honest local diagnostic - it does not become
-    /// a process-wide fact about every other session.
-    pub async fn persist_drive_failure(
-        &self,
-        run: AgentRunId,
-        generation: RunGeneration,
-        error: &anyhow::Error,
-        cancelled: bool,
-    ) {
-        // A task from an older generation must not overwrite the projection a newer one owns.
-        if self.supervisor.generation_of(run).is_some_and(|current| current != generation) {
-            self.note_run_diagnostic(
-                run,
-                "recording",
-                "agent.stale_generation",
-                "a late failure from an older run generation was not recorded",
-            );
-            return;
-        }
-        // One transaction: a wait that committed between the old read and
-        // interrupt must not be cancelled, and a CAS miss must not poison
-        // process-wide status (Native approval stays visible to agent.status).
-        // The class is decided by the error's own type (see `fault`). No field below is derived
-        // from the error's text: a binding refusal is recognized because the transport built a
-        // `ProviderBindingViolationDiagnostic`, not because a message quoted a phrase.
-        let classified = fault::StepFault::of(error);
-        let stored = classified.stored_text();
-        let diagnostic = classified.structured();
-        let stored: String = stored.chars().take(500).collect();
-        // The code only: the text can quote paths and content, and stays in the store.
-        append_core_log(
-            "agent.run_failure",
-            serde_json::json!({
-                "agent_run_id": run,
-                "code": stored.split([':', ' ']).next().unwrap_or_default(),
-                "cancelled": cancelled,
-            }),
-        );
-        let payload = match &diagnostic {
-            Some(diagnostic) => serde_json::json!({"error": stored, "diagnostic": diagnostic}),
-            None => serde_json::json!({"error": stored}),
-        };
-        let step = StoreStep::run(run, "agent.drive_failure_record");
-        let outcome = self
-            .store
-            .write_retained(step, move |journal| {
-                // Stamped when it runs: queued behind a slower write, a time taken earlier can
-                // precede the run's last change, and the record is refused as going back in time.
-                let at = UtcTimestamp::now();
-                journal.database.unit_of_work(|tx| {
-                    // Aura's shutdown fired the stop and nobody asked for one: what failed is the
-                    // shutdown's doing, and the run is left for the next start like any other.
-                    if cancelled && !store::cancellation_requested(tx, run)? {
-                        return Ok(false);
-                    }
-                    aura_persistence_core::event::append(
-                        tx,
-                        &aura_persistence_core::event::EventDraft {
-                            id: EventId::new(),
-                            owner: &run.to_string(),
-                            kind: "agent.application_error",
-                            version: 1,
-                            payload: &payload,
-                            at,
-                        },
-                        "agent",
-                    )?;
-                    if matches!(
-                        turns::load_run(tx, run)?.state,
-                        AgentRunState::AwaitingApproval { .. }
-                            | AgentRunState::AwaitingQuery { .. }
-                            | AgentRunState::AwaitingContextRemediation { .. }
-                    ) {
-                        return Ok(true);
-                    }
-                    store::interrupt_with_diagnostic(
-                        tx,
-                        run,
-                        "agent.execution_interrupted",
-                        cancelled,
-                        at,
-                        diagnostic.as_ref(),
-                    )?;
-                    Ok(true)
-                })
-            })
-            .await;
-        match outcome {
-            Ok((true, _)) => {
-                // The run's own failure is durable again: its local diagnostic is spent.
-                self.store.diagnostics().clear(run);
-            }
-            Ok((false, _)) => self.note_run_diagnostic(
-                run,
-                "recording",
-                "agent.shutdown_left_for_restart",
-                "shutdown ended this generation's task without recording its failure",
-            ),
-            Err(error) if error.not_started() => {
-                self.note_run_diagnostic(
-                    run,
-                    "recording",
-                    "agent.failure_record_not_started",
-                    error.to_string(),
-                );
-            }
-            Err(error) => {
-                if self.run_is_waiting(run).await {
-                    // A durable wait is still visible; the interruption belongs to the wait.
-                    return;
-                }
-                self.note_run_diagnostic(
-                    run,
-                    "recording",
-                    error.code(),
-                    format!(
-                        "the run's failure record could not be written: {error}{}",
-                        error
-                            .receipt()
-                            .map(|receipt| format!(" (receipt {receipt})"))
-                            .unwrap_or_default()
-                    ),
-                );
-            }
-        }
-    }
-
     /// One run-local diagnostic, recorded and logged. Never a process-wide fault.
     pub(crate) fn note_run_diagnostic(
         &self,
@@ -544,22 +416,6 @@ impl AgentApplication {
             }),
         );
         self.store.diagnostics().record(run, stage, code, detail);
-    }
-
-    async fn run_is_waiting(&self, run: AgentRunId) -> bool {
-        self.store
-            .read(StoreStep::run(run, "agent.run_is_waiting"), move |db| {
-                turns::load_run(db, run).map(|loaded| {
-                    matches!(
-                        loaded.state,
-                        AgentRunState::AwaitingApproval { .. }
-                            | AgentRunState::AwaitingQuery { .. }
-                            | AgentRunState::AwaitingContextRemediation { .. }
-                    )
-                })
-            })
-            .await
-            .unwrap_or(false)
     }
 
     /// The store fact the UI and the logs read, without inventing any current state.

@@ -34118,6 +34118,136 @@
         "created_at": "2026-09-09T00:00:00Z",
         "updated_at": "2026-09-09T00:00:00Z"
       }
+    },
+    {
+      "handler": {
+        "handler": "session_reply"
+      },
+      "definition": {
+        "tool_id": "tol_01M2DG020980080021AN942050",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "tool_package_id": null,
+        "package_key": null,
+        "tool_key": null,
+        "canonical_name": "session.reply",
+        "display_name": "Send a message while working",
+        "model_description": "Show a short assistant message in the current conversation before this turn finishes. Use it when an acknowledgment, progress update, or explanation helps the user while work continues. You can use it at any useful point, with or without a new user message or a TODO list. Supply the visible text (up to 2000 characters). The receipt confirms delivery to the conversation; continue the current turn. Use query.user_question when you need an answer. For the final answer, follow the current mode's completion instructions.",
+        "model_summary": "Send a message while working",
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "3d9b412c34efa24d0bacfa4ee874f93c7a8456c07e1169517e717c86f048b21e"
+          }
+        },
+        "strict": true,
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "EventId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "description": "The ID of the message stored in the active conversation.",
+              "properties": {
+                "event_id": {
+                  "$ref": "#/$defs/EventId"
+                }
+              },
+              "required": [
+                "event_id"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "f1147d3fd11b884312248d5e9792cc97fc867cd07fae46642279c08dbad5801d"
+            }
+          }
+        },
+        "runtime": {
+          "type": "external_source",
+          "source_contract_key": "aura.builtin.session.reply.v1"
+        },
+        "capabilities": [
+          "agent_task_write"
+        ],
+        "resource_claims": [],
+        "audience": "parent_agent_only",
+        "source_kind": "built_in",
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "repeat_is_idempotent": false,
+          "may_create_persistent_effects": true
+        },
+        "runtime_file_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "90356fb25e9ef40366e7550e570551c000f4dd846ad0706c1562886baf69771e"
+        },
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "3f9a39831dca0709d73777e157b2a9e4c4f24dc4eef1fba65029a7bb17996e8d"
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z"
+      },
+      "instance": {
+        "tool_instance_id": "tin_01M2DG020980080021AN94SW4K",
+        "tool_id": "tol_01M2DG020980080021AN942050",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "1"
+        },
+        "source_kind": "built_in",
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "07a4ad1bfc9e559db7f48bbe13c504e7e13311f1897a08f9cf6ba65026ab5219"
+          }
+        },
+        "enabled": true,
+        "runtime_health": "healthy",
+        "overrides": {
+          "timeout_ms": null,
+          "max_retries": null,
+          "max_concurrent_attempts": null,
+          "subagent_enabled": null
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z",
+        "updated_at": "2026-09-09T00:00:00Z"
+      }
     }
   ]
 }
