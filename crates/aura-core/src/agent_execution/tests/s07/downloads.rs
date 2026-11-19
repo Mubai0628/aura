@@ -4,7 +4,8 @@ use super::*;
 async fn a_partial_response_cannot_publish_or_overwrite_a_download() {
     let server = Server::start().await;
     let f = fixture(PermissionMode::FullAccess, &["http.download"]).await;
-    std::fs::write(f.root.join("previous.pdf"), b"intact previous version").unwrap();
+    std::fs::write(f.root.join("previous.pdf"), b"intact previous version")
+        .expect("seed previous download");
     let batch = f.admit(&[
         ("http.download", json!({"url":format!("{}/partial",server.url),"path":"new.pdf"})),
         ("http.download", json!({"url":format!("{}/range-with-200",server.url),"path":"previous.pdf","overwrite":true})),
@@ -12,7 +13,10 @@ async fn a_partial_response_cannot_publish_or_overwrite_a_download() {
     f.execute(batch).await;
     assert_eq!(server.count(), 2);
     assert!(!f.root.join("new.pdf").exists());
-    assert_eq!(std::fs::read(f.root.join("previous.pdf")).unwrap(), b"intact previous version");
+    assert_eq!(
+        std::fs::read(f.root.join("previous.pdf")).expect("read preserved previous download"),
+        b"intact previous version"
+    );
 }
 
 #[tokio::test]

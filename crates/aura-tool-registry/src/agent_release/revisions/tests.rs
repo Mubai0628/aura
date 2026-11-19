@@ -9,9 +9,10 @@ fn graduation_tool_schemas_refuse_fixed_limit_violations() {
     )
     .expect("definitions");
     let accepts = |name, value| {
-        let entry = entries.iter().find(|entry| entry.handler.name() == name).unwrap();
+        let entry =
+            entries.iter().find(|entry| entry.handler.name() == name).expect("registered tool");
         CompiledToolSchemaV1::compile(entry.definition.input_schema.canonical_document())
-            .unwrap()
+            .expect("valid tool input schema")
             .validate(&value)
             .valid
     };

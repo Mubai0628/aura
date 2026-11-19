@@ -8,7 +8,7 @@ use aura_tool_contract::{
     ModelVisibleToolSuccessPayloadV1,
 };
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::{cmp::Reverse, collections::BTreeSet};
 
 pub(in crate::agent_application) const PRIOR_MATERIALS: &str = "agent.prior_materials";
 const EXCERPT_CHARACTERS: usize = 420;
@@ -136,7 +136,7 @@ fn sources(
             result.push(material);
         }
     }
-    result.sort_by(|a, b| b.score.cmp(&a.score));
+    result.sort_by_key(|material| Reverse(material.score));
     Ok(result)
 }
 

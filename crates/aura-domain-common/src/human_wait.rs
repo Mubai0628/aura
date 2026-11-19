@@ -84,13 +84,16 @@ mod tests {
     #[test]
     fn a_blur_releases_only_its_own_window() {
         let now = UtcTimestamp::now();
-        let a = HumanWait::advance(None, "a", Activity::Focus, now).unwrap();
+        let a = HumanWait::advance(None, "a", Activity::Focus, now).expect("focus first window");
         let later = UtcTimestamp::from_value(now.value() + Duration::from_secs(4));
-        let both = HumanWait::advance(Some(&a), "b", Activity::Focus, later).unwrap();
-        let b = HumanWait::advance(Some(&both), "a", Activity::Blur, later).unwrap();
+        let both =
+            HumanWait::advance(Some(&a), "b", Activity::Focus, later).expect("focus second window");
+        let b =
+            HumanWait::advance(Some(&both), "a", Activity::Blur, later).expect("blur first window");
         assert_eq!(b.focused_until(later), both.focused_until(later));
         assert_eq!(b.deadline, both.deadline);
-        let idle = HumanWait::advance(Some(&b), "b", Activity::Blur, later).unwrap();
+        let idle =
+            HumanWait::advance(Some(&b), "b", Activity::Blur, later).expect("blur second window");
         assert_eq!(idle.focused_until(later), None);
         assert_eq!(idle.deadline, idle_deadline(later));
     }
@@ -98,11 +101,12 @@ mod tests {
     #[test]
     fn a_crashed_window_releases_its_lease_without_gaining_time_on_reopen() {
         let now = UtcTimestamp::now();
-        let wait = HumanWait::advance(None, "a", Activity::Focus, now).unwrap();
-        let recovered: HumanWait =
-            serde_json::from_str(&serde_json::to_string(&wait).unwrap()).unwrap();
+        let wait = HumanWait::advance(None, "a", Activity::Focus, now).expect("focused wait");
+        let persisted = serde_json::to_string(&wait).expect("serialize focused wait");
+        let recovered: HumanWait = serde_json::from_str(&persisted).expect("recover focused wait");
         let reopened = UtcTimestamp::from_value(now.value() + Duration::from_secs(13));
-        let seen = HumanWait::advance(Some(&recovered), "b", Activity::Present, reopened).unwrap();
+        let seen = HumanWait::advance(Some(&recovered), "b", Activity::Present, reopened)
+            .expect("present recovered wait");
         assert_eq!(seen.focused_until(reopened), None);
         assert_eq!((seen.deadline.value() - reopened.value()).whole_seconds(), 59);
         assert!(HumanWait::advance(None, "b", Activity::Blur, reopened).is_none());

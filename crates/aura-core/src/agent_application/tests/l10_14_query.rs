@@ -175,8 +175,17 @@ async fn a_question_nobody_touches_ends_as_no_response_and_the_run_goes_on() {
         let late = UtcTimestamp::from_value(
             question.created_at.value() + std::time::Duration::from_secs(90),
         );
-        assert!(query::wait_deadline(store.database.connection(), run).unwrap().is_none());
-        assert!(!store.database.unit_of_work(|tx| query::expire(tx, run, late)).unwrap());
+        assert!(
+            query::wait_deadline(store.database.connection(), run)
+                .expect("check unpresented question deadline")
+                .is_none()
+        );
+        assert!(
+            !store
+                .database
+                .unit_of_work(|tx| query::expire(tx, run, late))
+                .expect("check unpresented question expiry")
+        );
     }
     let deadline = present_question(&runtime, &request, question.query_id).await;
     {
@@ -232,7 +241,7 @@ async fn present_question(
         )
         .await,
     )
-    .unwrap();
+    .expect("presented question wait activity");
     view.deadline_at
 }
 

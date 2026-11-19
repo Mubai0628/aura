@@ -190,19 +190,18 @@ mod tests {
         let body = "项目要求详见手册。";
         assert!(QueryTerms::new("指南").passage(title, body, 80).is_none());
         let query = QueryTerms::new("指南").with_synonyms();
-        assert!(query.passage(title, body, 80).unwrap().excerpt.contains("手册"));
+        let synonym = query.passage(title, body, 80).expect("synonym passage");
+        assert!(synonym.excerpt.contains("手册"));
         assert!(query.passage("晚餐", "红烧排骨", 80).is_none());
-        assert!(
-            query.passage("直接命中指南", body, 80).unwrap().score
-                > query.passage(title, body, 80).unwrap().score
-        );
+        let exact = query.passage("直接命中指南", body, 80).expect("exact passage");
+        assert!(exact.score > synonym.score);
     }
 
     #[test]
     fn unquoted_words_may_be_separated_and_reordered() {
         let query = QueryTerms::new("工作区 参考文献");
         let body = format!("{}参考文献在本工作区索引。", "略".repeat(500));
-        let hit = query.passage("项目笔记", &body, 80).unwrap();
+        let hit = query.passage("项目笔记", &body, 80).expect("passage matching both terms");
         assert!(hit.excerpt.contains("参考文献"));
         assert!(query.passage("与此无关", "你好", 80).is_none());
     }

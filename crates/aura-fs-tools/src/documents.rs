@@ -239,10 +239,11 @@ fn heading(paragraph: roxmltree::Node<'_, '_>) -> bool {
 fn docx_text_uses_only_bounded_document_xml_and_preserves_paragraphs() {
     use std::io::Write;
     let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
-    zip.start_file("word/document.xml", zip::write::SimpleFileOptions::default()).unwrap();
-    zip.write_all(br#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>A &amp; B</w:t><w:tab/><w:t>C</w:t></w:r></w:p><w:p><w:r><w:t>D</w:t></w:r></w:p></w:body></w:document>"#).unwrap();
-    let blob = zip.finish().unwrap().into_inner();
-    assert_eq!(docx_text(&blob).unwrap().text, "A & B\tC\nD");
+    zip.start_file("word/document.xml", zip::write::SimpleFileOptions::default())
+        .expect("start DOCX XML entry");
+    zip.write_all(br#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>A &amp; B</w:t><w:tab/><w:t>C</w:t></w:r></w:p><w:p><w:r><w:t>D</w:t></w:r></w:p></w:body></w:document>"#).expect("write DOCX XML fixture");
+    let blob = zip.finish().expect("finish DOCX fixture").into_inner();
+    assert_eq!(docx_text(&blob).expect("DOCX text").text, "A & B\tC\nD");
     assert!(docx_text(b"PK\x03\x04bad").is_err());
 }
 
@@ -251,12 +252,13 @@ fn docx_text_uses_only_bounded_document_xml_and_preserves_paragraphs() {
 fn docx_headings_point_at_the_actual_extracted_lines() {
     use std::io::Write;
     let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
-    zip.start_file("word/document.xml", zip::write::SimpleFileOptions::default()).unwrap();
-    zip.write_all(br#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>One</w:t><w:br/><w:t>Two</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Evidence</w:t></w:r></w:p></w:body></w:document>"#).unwrap();
-    let blob = zip.finish().unwrap().into_inner();
+    zip.start_file("word/document.xml", zip::write::SimpleFileOptions::default())
+        .expect("start DOCX XML entry");
+    zip.write_all(br#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>One</w:t><w:br/><w:t>Two</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Evidence</w:t></w:r></w:p></w:body></w:document>"#).expect("write DOCX XML fixture");
+    let blob = zip.finish().expect("finish DOCX fixture").into_inner();
     let hash = ContentHash::sha256(&blob);
-    let document = extract(&blob, &hash).unwrap();
-    let cached = extract(&blob, &hash).unwrap();
+    let document = extract(&blob, &hash).expect("extract DOCX headings");
+    let cached = extract(&blob, &hash).expect("retrieve cached DOCX text");
     assert!(Arc::ptr_eq(&document, &cached));
     assert_eq!(document.headings[0].start_line_index, 2);
     assert_eq!(document.text.lines().nth(2), Some(document.headings[0].text.as_str()));
