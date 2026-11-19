@@ -94,6 +94,12 @@ fn read(result: &Map<String, Value>, envelope: &Envelope) -> Option<String> {
     for field in ["logical_hash", "encoding", "line_ending"] {
         fields.insert(field.to_owned(), result.get(field)?.clone());
     }
+    if let Some(format) = result.get("document_format").filter(|value| value.is_string()) {
+        fields.insert("document_format".to_owned(), format.clone());
+    }
+    if let Some(headings) = result.get("document_headings").filter(|value| value.is_array()) {
+        fields.insert("document_headings".to_owned(), headings.clone());
+    }
     if flag(result, "is_dirty") {
         fields.insert("unsaved_editor_changes".to_owned(), Value::Bool(true));
     }

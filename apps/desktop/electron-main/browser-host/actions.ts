@@ -31,12 +31,12 @@ import { siteOfUrl } from './site-rules.js';
 import { mediaSection, pageMedia } from './media.js';
 import { BOXED, renderSnapshot, type AxNode, type Box } from './snapshot.js';
 import { closedText } from './policy.js';
+import { debuggingRefusal, isDebugging } from './debugging.js';
 
 export const VIEWPORT = { width: 1280, height: 800 };
 const SNAPSHOT_CHARS = 12_000;
 const SCRIPT_MS = 10_000;
 const VALUE_CHARS = 20_000;
-const DEBUGGING_OFF = '网页调试没有开启：只有用户能在 设置 → 网络与浏览器 打开“允许模型调试网页”。';
 /**
  * How the model learns of the user's takeover, and how to wait for it.
  */
@@ -309,6 +309,26 @@ async function textOnPage(devtools: PageDebugger): Promise<string> {
   return typeof result?.value === 'string' ? result.value : '';
 }
 
+async function showsAccessForm(devtools: PageDebugger): Promise<boolean> {
+  // Only report the presence of a visible gate. Never read values entered in it.
+  try {
+    const { result } = await devtools.send<{ result?: { value?: unknown } }>('Runtime.evaluate', {
+      expression: `(() => {
+        const cue = /log[ -]?in|sign[ -]?in|verify (?:you|your identity)|authentication required|登录|登入|身份验证|安全验证|人机验证/iu;
+        const visible = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility === 'visible';
+        const headings = Array.from(document.querySelectorAll('h1,h2,[role=heading]')).slice(0, 12);
+        const gate = Array.from(document.querySelectorAll('input[type=password],input[autocomplete=one-time-code],iframe[title*="captcha" i]')).slice(0, 12);
+        return (cue.test(document.title) || headings.some((element) => visible(element) && cue.test(element.textContent.slice(0, 200)))) && gate.some(visible);
+      })()`,
+      returnByValue: true,
+      timeout: 700,
+    });
+    return result?.value === true;
+  } catch {
+    return false;
+  }
+}
+
 async function act(
   deps: ExecutorDeps,
   command: BrowserHostCommandV1,
@@ -322,15 +342,27 @@ async function act(
   const action: BrowserHostActionV1 = command.action;
   const url = () => contents.getURL();
   const touched = pages.userHad(session, pageId);
+  const downloads = pages.downloads(session, pageId);
+  if (['type', 'press', 'evaluate'].includes(action.kind)) downloads?.interrupt();
   const held = pages.state(session, pageId)?.userInControl
     ? HELD_NOTICE
     : touched === undefined
       ? null
       : TOUCHED[touched].notice;
-  const page = (notice: string | null = null, chars = SNAPSHOT_CHARS) =>
-    pageResult(contents, devtools, chars, notice ?? held).then((result) =>
-      done(command, url(), result),
+  const page = async (notice: string | null = null, chars = SNAPSHOT_CHARS) => {
+    const result = await pageResult(contents, devtools, chars, notice ?? held);
+    const clickId = action.kind === 'click' ? command.command_id : undefined;
+    const readingDownload = downloads && (action.kind === 'click' || action.kind === 'snapshot');
+    const now = Date.now();
+    const checkingAccess = readingDownload && (clickId || downloads.activeClick(now));
+    const accessRequired = Boolean(
+      checkingAccess &&
+      (devtools.network.documentAccessDenied(url()) ||
+        (devtools.network.documentIsHtml(url()) && (await showsAccessForm(devtools)))),
     );
+    const download = readingDownload ? downloads.result(now, clickId, accessRequired) : undefined;
+    return done(command, url(), download ? { ...result, download } : result);
+  };
   const no = (message: string) => refused(command, url(), message);
   const target = async (
     ref: string | null | undefined,
@@ -389,6 +421,7 @@ async function act(
       const point = await target(action.element, { x: action.x ?? 0, y: action.y ?? 0 });
       if (typeof point === 'string') return no(point);
       mark(devtools, point);
+      downloads?.begin(command.command_id, Date.now());
       await click(devtools, point, scale, action.button, action.double);
       await settle(contents, 10_000);
       return page();
@@ -512,13 +545,11 @@ async function act(
       });
     }
     case 'evaluate': {
-      if (pages.policy.debugging !== true) return no(DEBUGGING_OFF);
       const evaluated = await evaluate(devtools, action.expression);
       await settle(contents, 1_000);
       return done(command, url(), { url: url(), ...evaluated });
     }
     case 'network': {
-      if (pages.policy.debugging !== true) return no(DEBUGGING_OFF);
       const { entries, truncated } = devtools.network.entries(
         action.failed_only,
         action.max_entries,
@@ -526,13 +557,11 @@ async function act(
       return done(command, url(), { url: url(), entries, truncated });
     }
     case 'inspect': {
-      if (pages.policy.debugging !== true) return no(DEBUGGING_OFF);
       const inspected = await inspectElement(devtools, action.element);
       if (typeof inspected === 'string') return no(inspected);
       return done(command, url(), { url: url(), ...inspected });
     }
     case 'performance': {
-      if (pages.policy.debugging !== true) return no(DEBUGGING_OFF);
       return done(command, url(), { url: url(), metrics: await performanceCounters(devtools) });
     }
   }
@@ -585,7 +614,8 @@ export async function execute(
   const contents = pages.contents(session, pageId) as CapturablePage | undefined;
   if (contents === undefined)
     return refused(command, 'about:blank', '页面没有打开，请重试 browser.open。');
-  if (isInput(action)) {
+  const debug = isDebugging(action);
+  if (isInput(action) || debug) {
     if (pages.state(session, pageId)?.userInControl) return refused(command, current(), TAKEN_OVER);
     const touched = pages.userHad(session, pageId);
     if (touched !== undefined) return refused(command, current(), TOUCHED[touched].refusal);
@@ -606,10 +636,21 @@ export async function execute(
     const devtools = deps.debuggerFor(contents);
     await devtools.ready();
     const scale = await deps.emulate(session, pageId, devtools);
+    const why = debuggingRefusal(
+      action,
+      pages.policy,
+      pages.documentId(session, pageId),
+      current(),
+    );
+    if (why || (debug && contents.isLoading()))
+      return refused(command, current(), why ?? '页面仍在加载，本次调试未执行。请先刷新页面快照。');
+    if (debug && (pages.state(session, pageId)?.userInControl || pages.userHad(session, pageId)))
+      return refused(command, current(), TAKEN_OVER);
     const result = await act(deps, command, pageId, contents, devtools, scale);
     if (result.outcome.outcome === 'completed' && LOOKS.has(action.kind))
       pages.modelLooked(session, pageId);
-    return result;
+    const observedDocument = pages.documentId(session, pageId);
+    return observedDocument === undefined ? result : { ...result, document_id: observedDocument };
   } catch (error) {
     return {
       command_id: command.command_id,

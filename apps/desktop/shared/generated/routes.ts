@@ -54,6 +54,8 @@ import type {
   AgentToolSettingsRequest,
   AgentToolSettingsUpdate,
   AgentToolSettingsView,
+  AgentWaitActivityRequest,
+  AgentWaitActivityView,
   ApprovalRequest,
   ApprovalResolution,
   ApprovalView,
@@ -1010,6 +1012,7 @@ export type AgentMainParams = {
   'agent.mode.control': AgentModeControlRequest;
   'agent.query.answer': AgentQueryAnswerRequest;
   'agent.query.touch': AgentQueryTouchRequest;
+  'agent.wait.activity': AgentWaitActivityRequest;
   'agent.approval.get': ExecutionApprovalRequest;
   'agent.approval.resolve': ExecutionApprovalResolutionRequest;
   'agent.hooks.list': HookListRequest;
@@ -1164,6 +1167,7 @@ export type AgentMainResult = {
   'agent.mode.control': AgentModeEpisodeView;
   'agent.query.answer': AgentRunProjection;
   'agent.query.touch': AgentQueryTouchView;
+  'agent.wait.activity': AgentWaitActivityView;
   'agent.approval.get': ExecutionApprovalView;
   'agent.approval.resolve': AgentRunProjection;
   'agent.hooks.list': HookRegistryView;
@@ -1382,6 +1386,7 @@ export type AgentCoreParams = {
   'agent.mode.control': AgentModeControlRequest;
   'agent.query.answer': AgentQueryAnswerRequest;
   'agent.query.touch': AgentQueryTouchRequest;
+  'agent.wait.activity': AgentWaitActivityRequest;
   'agent.approval.get': ExecutionApprovalRequest;
   'agent.approval.resolve': ExecutionApprovalResolutionRequest;
   'agent.hooks.list': HookListRequest;
@@ -1536,6 +1541,7 @@ export type AgentCoreResult = {
   'agent.mode.control': AgentModeEpisodeView;
   'agent.query.answer': AgentRunProjection;
   'agent.query.touch': AgentQueryTouchView;
+  'agent.wait.activity': AgentWaitActivityView;
   'agent.approval.get': ExecutionApprovalView;
   'agent.approval.resolve': AgentRunProjection;
   'agent.hooks.list': HookRegistryView;
@@ -3365,6 +3371,17 @@ export const MAIN_ROUTES = {
     auth: 'trusted_renderer',
     request_type: 'AgentQueryTouchRequest',
     response_type: 'AgentQueryTouchView',
+    idempotency: 'transient_input',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.wait.activity': {
+    method: 'agent.wait.activity',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentWaitActivityRequest',
+    response_type: 'AgentWaitActivityView',
     idempotency: 'transient_input',
     cancellation: 'none',
     test_only: false,
@@ -6775,6 +6792,17 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.wait.activity': {
+    method: 'agent.wait.activity',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentWaitActivityRequest',
+    response_type: 'AgentWaitActivityView',
+    idempotency: 'transient_input',
+    cancellation: 'none',
+    test_only: false,
+  },
   'agent.approval.get': {
     method: 'agent.approval.get',
     owner: 'agent',
@@ -8640,4 +8668,4 @@ export function coreRoute(method: string) {
     ? CORE_ROUTES[method as keyof typeof CORE_ROUTES]
     : undefined;
 }
-export const ROUTE_COUNTS = { main: 309, core: 313 } as const;
+export const ROUTE_COUNTS = { main: 310, core: 314 } as const;

@@ -3,6 +3,7 @@
 //! The page itself, its input and its site policy live in the host.
 mod bridge;
 mod copies;
+mod debugging;
 mod invoke;
 mod local_path;
 mod resolve;
@@ -107,6 +108,7 @@ impl ExecutionBackend for BrowserBackend {
     fn execute(&self, dispatch: AuthorizedDispatch) -> BackendFuture<'_, ExecutionHandle> {
         Box::pin(async move {
             let request = dispatch.request();
+            self.port.service.verify_browser_debugging(&request.operation)?;
             if request.plan.validate().is_err()
                 || request.plan.prepared.backend != self.descriptor
                 || self.port.inspect(&request.operation).await? != request.plan.prepared.preparation

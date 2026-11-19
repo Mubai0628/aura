@@ -336,7 +336,7 @@ fn dispatch(
             })
         }
         "task_lineage.reconcile" => {
-            let bound = bound_reconcile(tx, &turn, arguments)?;
+            let bound = bound_reconcile(tx, &turn, id.model_step_id, arguments)?;
             value(super::reconcile::apply(tx, turn.turn_task_id, &bound, at)?)
         }
         "mode.disposition" => {
@@ -427,12 +427,31 @@ fn clear_satisfied_lineage(
 fn bound_reconcile(
     tx: &Transaction<'_>,
     turn: &TurnTask,
+    step: ModelStepId,
     arguments: &Value,
 ) -> StoreResult<TaskLineageReconcileInput> {
     let tool: TaskLineageReconcileToolInput = input(arguments)?;
     let current = session::load(tx, turn.session_id)?;
-    let current_user_event_id =
-        current.pending_user_event_ids.last().copied().unwrap_or(turn.root_user_event_id);
+    let execution = crate::model::step_snapshot(tx, step)?;
+    let context =
+        crate::context::snapshot(tx, execution.context_snapshot_id)?.ok_or(Error::Conflict)?;
+    if context.session_id != turn.session_id
+        || context.turn_task_id != turn.turn_task_id
+        || context.agent_run_id != turn.agent_run_id
+        || context.model_step_id != step
+    {
+        return Err(Error::Conflict);
+    }
+    let mut eligible = super::query::events(tx, turn.turn_task_id)?;
+    eligible.extend(current.pending_user_event_ids.iter().copied());
+    eligible.extend(
+        super::inbox::consumed(tx, turn.turn_task_id)?
+            .into_iter()
+            .flat_map(|group| group.user_event_ids),
+    );
+    eligible.push(turn.root_user_event_id);
+    let current_user_event_id = latest_reconcile_source(&context.conversation_items, &eligible)
+        .ok_or(Error::Invalid("task_lineage.identity_mismatch"))?;
     let expected_lineage_revision = match &tool.decision {
         TaskLineageReconcileToolDecision::ExpirePrior { lineage_id } => {
             Some(lineage::load(tx, *lineage_id)?.revision)
@@ -451,4 +470,39 @@ fn bound_reconcile(
         completion_policy_update: tool.completion_policy_update,
         reason: tool.reason,
     })
+}
+
+fn latest_reconcile_source(
+    items: &[aura_model_domain::LogicalConversationItem],
+    eligible: &[EventId],
+) -> Option<EventId> {
+    items.iter().rev().find_map(|item| match item {
+        aura_model_domain::LogicalConversationItem::User { source_event_id, .. }
+            if eligible.contains(source_event_id) =>
+        {
+            Some(*source_event_id)
+        }
+        _ => None,
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn reconcile_uses_the_last_eligible_user_input_seen_by_this_step() {
+    use aura_model_domain::LogicalConversationItem;
+    let (root, addition, arrived_later, other_turn) =
+        (EventId::new(), EventId::new(), EventId::new(), EventId::new());
+    let user = |source_event_id| LogicalConversationItem::User {
+        source_event_id,
+        content: "user".into(),
+        content_hash: ContentHash::sha256(b"user"),
+    };
+    assert_eq!(
+        latest_reconcile_source(
+            &[user(root), user(addition), user(other_turn)],
+            &[root, addition, arrived_later]
+        ),
+        Some(addition)
+    );
+    assert_eq!(latest_reconcile_source(&[user(other_turn)], &[root]), None);
 }

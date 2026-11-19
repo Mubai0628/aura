@@ -67,6 +67,15 @@ test('a refusal names the cause its code records', () => {
   expect(rejected('http.request', 'tool.runtime.http_gateway_failed', 'unavailable')).toBe(
     '网络请求没有完成',
   );
+  const partial = call(
+    'http.download',
+    { type: 'failed' },
+    {
+      error_code: 'tool.result.http_partial_response',
+      error_class: 'other',
+    },
+  );
+  expect(stateOf(partial).text).toBe('仅收到分段内容，未保存');
 });
 
 // A call its run ended without a result is not at work: it does not spin.

@@ -47,9 +47,9 @@ describe('设置 → 网络与浏览器', () => {
     expect(browser.dataset.state).toBeUndefined();
     answer({ ok: true, value: shown() });
     await waitFor(() => expect(browser.dataset.state).toBe('checked'));
-    expect(screen.getByRole('switch', { name: '允许模型调试网页' }).dataset.state).toBe(
-      'unchecked',
-    );
+    expect(
+      (screen.getByRole('combobox', { name: '模型网页调试' }) as HTMLSelectElement).value,
+    ).toBe('ask');
   });
 
   it('saves the switch and the site lists at the revision shown', async () => {
@@ -100,7 +100,7 @@ describe('设置 → 网络与浏览器', () => {
     render(<BrowserSettings coreReady />);
     await screen.findByText('docs.rs');
     expect(screen.getByText(/运行它写的脚本/u)).toBeTruthy();
-    await user.click(screen.getByRole('switch', { name: '允许模型调试网页' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: '模型网页调试' }), 'allowed');
     expect(updateSettings).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('登录状态');

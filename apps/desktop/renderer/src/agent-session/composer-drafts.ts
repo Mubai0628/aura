@@ -3,6 +3,8 @@ import type { PermissionMode } from '@aura/contracts/generated';
 import { isQuoteBlocks, type QuoteBlock } from './quote-reply/quote-block';
 
 const KEY = 'aura.composer-drafts.v1';
+export const EXTRA_DRAFT_KINDS = ['attachments', 'references', 'skills'] as const;
+export type ExtraDraftKind = (typeof EXTRA_DRAFT_KINDS)[number];
 export interface ComposerDraft {
   id: string;
   text: string;
@@ -13,8 +15,10 @@ export interface ComposerDraft {
   permissionMode?: PermissionMode;
   /** Passages of the conversation replied to with 回复, sent before the words. */
   quotes?: QuoteBlock[];
+  extraKinds?: ExtraDraftKind[];
 }
 const listeners = new Set<() => void>();
+const pending = new Map<string, number>();
 let records: ComposerDraft[] | undefined;
 function read(): ComposerDraft[] {
   if (records) return records;
@@ -33,7 +37,10 @@ function read(): ComposerDraft[] {
             (item.modelId === undefined || typeof item.modelId === 'string') &&
             (item.permissionMode === undefined ||
               ['read_only', 'workspace_read_write', 'full_access'].includes(item.permissionMode)) &&
-            (item.quotes === undefined || isQuoteBlocks(item.quotes)),
+            (item.quotes === undefined || isQuoteBlocks(item.quotes)) &&
+            (item.extraKinds === undefined ||
+              (Array.isArray(item.extraKinds) &&
+                item.extraKinds.every((kind: ExtraDraftKind) => EXTRA_DRAFT_KINDS.includes(kind)))),
         )
       : [];
   } catch {
@@ -43,7 +50,13 @@ function read(): ComposerDraft[] {
 }
 /** A draft that holds something of the user's: words, quotes, an unconfirmed send or a session. */
 const touched = (item: ComposerDraft) =>
-  Boolean(item.text.trim() || item.quotes?.length || item.needsReview || item.serverSessionId);
+  Boolean(
+    item.text.trim() ||
+    item.quotes?.length ||
+    item.needsReview ||
+    item.serverSessionId ||
+    item.extraKinds?.length,
+  );
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => {
@@ -79,9 +92,33 @@ export function createLocalConversation(workspaceId: string): string {
 export function removeComposerDraft(id: string): void {
   publish(read().filter((item) => item.id !== id));
 }
+export function beginComposerDraftWork(id: string, workspaceId?: string): () => void {
+  pending.set(id, (pending.get(id) ?? 0) + 1);
+  if (workspaceId && !getComposerDraft(id)) updateComposerDraft(id, { workspaceId });
+  return () => {
+    const remaining = (pending.get(id) ?? 1) - 1;
+    if (remaining === 0) pending.delete(id);
+    else pending.set(id, remaining);
+  };
+}
+export function setDraftExtraPresent(
+  id: string,
+  kind: ExtraDraftKind,
+  present: boolean,
+  workspaceId?: string,
+): boolean {
+  const old = getComposerDraft(id);
+  const kinds = old?.extraKinds ?? [];
+  if (kinds.includes(kind) === present) return true;
+  return updateComposerDraft(id, {
+    extraKinds: present ? [...kinds, kind] : kinds.filter((entry) => entry !== kind),
+    ...(id.startsWith('draft_') && workspaceId && !old?.workspaceId ? { workspaceId } : {}),
+  });
+}
 export function discardEmptyConversations(): void {
-  publish(read().filter((item) => !item.workspaceId || touched(item)));
+  publish(read().filter((item) => !item.workspaceId || touched(item) || pending.has(item.id)));
 }
 export function resetComposerDraftsForTests(): void {
   records = undefined;
+  pending.clear();
 }

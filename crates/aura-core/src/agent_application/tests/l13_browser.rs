@@ -73,6 +73,7 @@ fn page(url: &str) -> serde_json::Value {
         }],
         dialogs: vec![],
         notice: None,
+        download: None,
     })
     .expect("page")
 }
@@ -135,7 +136,7 @@ pub(super) fn play_host(runtime: &crate::RuntimeState, host: Host) -> (Seen, Wit
                     "html": "<div id=\"board\">…</div>", "html_truncated": false,
                     "box_model": {"x": 8, "y": 40, "width": 640, "height": 480},
                     "styles": ["display: flex", "z-index: 2"]}),
-                BrowserHostActionV1::Performance => json!({"url": url,
+                BrowserHostActionV1::Performance { .. } => json!({"url": url,
                     "metrics": ["JSHeapUsedSize: 12.4 MB", "Nodes: 1520"]}),
                 BrowserHostActionV1::Network { .. } => json!({"url": url, "entries": [{
                     "method": "GET", "url": "http://127.0.0.1:9/board.json", "kind": "fetch",
@@ -147,6 +148,7 @@ pub(super) fn play_host(runtime: &crate::RuntimeState, host: Host) -> (Seen, Wit
             bridge.complete(BrowserHostResultV1 {
                 command_id: command.command_id,
                 page_url: url.clone(),
+                document_id: Some("fixture-document".into()),
                 outcome: BrowserHostOutcomeV1::Completed { result, image },
             });
         }
@@ -207,7 +209,12 @@ async fn run_on(
     let (runtime, session, model) = waiting::prepare_in_mode(&host, &provider, mode).await;
     set_browser(&runtime, settings);
     if let Some(url) = page_url {
-        services(&runtime).agent_required().browser().note_page(session, "model", url);
+        services(&runtime).agent_required().browser().record_page(
+            session,
+            "model",
+            url,
+            Some("fixture-document"),
+        );
     }
     let (seen, withdrawn) = play_host(&runtime, host_play);
     let started = waiting::start(&runtime, session, model, AgentTaskMode::Normal).await;
@@ -217,6 +224,51 @@ async fn run_on(
 
 fn debugging(settings: &mut BrowserSettings) {
     settings.debugging = true;
+}
+
+fn prohibit_debugging(settings: &mut BrowserSettings) {
+    settings.debugging_blocked = Some(true);
+}
+
+#[tokio::test]
+async fn network_debugging_asks_even_in_full_access_and_binds_the_answer_to_one_document() {
+    for allow in [true, false] {
+        let browser = run_on(
+            NETWORK,
+            PermissionMode::FullAccess,
+            |_| (),
+            Some("http://127.0.0.1:9/game"),
+            Host::Answers,
+        )
+        .await;
+        let Browsing { runtime, request, provider, seen, .. } = &browser;
+        let pending = waiting::wait(runtime, request, asking).await;
+        let approval_id = pending.pending_approval_ids[0];
+        let params = json!({"session_id":request.session_id,"approval_id":approval_id});
+        let approval = crate::r03_tests::success(runtime, "agent.approval.get", params).await;
+        assert_eq!(approval["approval"]["allowed_decisions"], json!(["allow_once", "deny"]));
+        let presented = crate::r03_tests::success(runtime, "agent.wait.activity", json!({
+            "session_id": request.session_id, "target":{"kind":"approval","approval_id": approval_id},
+            "activity":"present", "viewer":"fixture-window"
+        })).await;
+        assert!(presented.get("deadline_at").is_some());
+        assert!(seen.lock().expect("seen").is_empty());
+        crate::r03_tests::success(
+            runtime,
+            "agent.approval.resolve",
+            json!({
+                "session_id":request.session_id, "approval_id":approval_id,
+                "expected_revision":approval["approval"]["revision"],
+                "decision": if allow { "allow_once" } else { "deny" }
+            }),
+        )
+        .await;
+        waiting::wait(runtime, request, completed).await;
+        assert_eq!(seen.lock().expect("seen").len(), usize::from(allow));
+        if allow {
+            assert!(returned(provider).contains("board.json"));
+        }
+    }
 }
 
 fn asking(view: &AgentRunProjection) -> bool {
@@ -353,12 +405,12 @@ async fn a_browser_switched_off_is_refused_with_where_to_switch_it_on() {
 }
 
 #[tokio::test]
-async fn page_debugging_is_refused_until_the_user_switches_it_on() {
+async fn an_explicit_debugging_prohibition_blocks_without_asking() {
     for scenario in [EVALUATE, NETWORK] {
         let browsing = run_on(
             scenario,
             PermissionMode::FullAccess,
-            |_| (),
+            prohibit_debugging,
             Some("http://127.0.0.1:9/game"),
             Host::Answers,
         )
@@ -367,7 +419,7 @@ async fn page_debugging_is_refused_until_the_user_switches_it_on() {
         waiting::wait(runtime, request, completed).await;
         assert!(seen.lock().expect("seen").is_empty());
         let text = returned(provider);
-        assert!(text.contains("网页调试没有开启") && text.contains("只有用户能"), "{text}");
+        assert!(text.contains("网页调试已在设置中禁止"), "{text}");
     }
     // Switched on, the page's network log is a read like its console.
     let browsing = run_on(
@@ -381,10 +433,10 @@ async fn page_debugging_is_refused_until_the_user_switches_it_on() {
     let Browsing { runtime, provider, seen, request, .. } = &browsing;
     waiting::wait(runtime, request, completed).await;
     let commands = seen.lock().expect("seen").clone();
-    assert_eq!(
+    assert!(matches!(
         commands[0].action,
-        BrowserHostActionV1::Network { failed_only: true, max_entries: 50 }
-    );
+        BrowserHostActionV1::Network { failed_only: true, max_entries: 50, binding: Some(_) }
+    ));
     assert!(returned(provider).contains("board.json"));
 }
 
@@ -402,8 +454,10 @@ async fn a_script_runs_on_this_computers_page_and_asks_on_any_other_site() {
     waiting::wait(runtime, request, completed).await;
     let commands = seen.lock().expect("seen").clone();
     assert_eq!(commands.len(), 1, "{}", returned(provider));
-    assert!(matches!(&commands[0].action, BrowserHostActionV1::Evaluate { expression }
-        if expression == "window.game && window.game.score"));
+    assert!(
+        matches!(&commands[0].action, BrowserHostActionV1::Evaluate { expression, binding: Some(_) }
+        if expression == "window.game && window.game.score")
+    );
     assert_eq!(commands[0].expected_host.as_deref(), Some("127.0.0.1"), "held to the page");
     assert!(returned(provider).contains("42"));
     // Another site is asked first, even with full access; a machine on the local network counts
@@ -489,7 +543,7 @@ async fn element_inspection_and_performance_counters_need_the_switch_and_only_re
         let off = run_on(
             scenario,
             PermissionMode::FullAccess,
-            |_| (),
+            prohibit_debugging,
             Some("http://127.0.0.1:9/game"),
             Host::Answers,
         )
@@ -497,12 +551,10 @@ async fn element_inspection_and_performance_counters_need_the_switch_and_only_re
         let Browsing { runtime, provider, seen, request, .. } = &off;
         waiting::wait(runtime, request, completed).await;
         assert!(seen.lock().expect("seen").is_empty());
-        assert!(returned(provider).contains("网页调试没有开启"));
+        assert!(returned(provider).contains("网页调试已在设置中禁止"));
     }
-    for (scenario, action, shows) in [
-        (INSPECT, BrowserHostActionV1::Inspect { element: "e3".into() }, "display: flex"),
-        (PERFORMANCE, BrowserHostActionV1::Performance, "JSHeapUsedSize: 12.4 MB"),
-    ] {
+    for (scenario, shows) in [(INSPECT, "display: flex"), (PERFORMANCE, "JSHeapUsedSize: 12.4 MB")]
+    {
         let on = run_on(
             scenario,
             PermissionMode::ReadOnly,
@@ -514,7 +566,7 @@ async fn element_inspection_and_performance_counters_need_the_switch_and_only_re
         let Browsing { runtime, provider, seen, request, .. } = &on;
         waiting::wait(runtime, request, completed).await;
         let commands = seen.lock().expect("seen").clone();
-        assert_eq!(commands[0].action, action);
+        assert!(commands[0].action.debug_binding().flatten().is_some());
         assert!(returned(provider).contains(shows));
     }
 }

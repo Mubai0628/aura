@@ -27,6 +27,12 @@ pub(super) fn poisoned() -> anyhow::Error {
     )
 }
 
+pub(super) fn partial(status: u16) -> String {
+    format!(
+        "http.partial_response: 服务器回应 HTTP {status}，只提供了分段或增量内容，文件没有发布。可以换一个能返回完整文件的地址。"
+    )
+}
+
 pub(super) fn finished() -> anyhow::Error {
     anyhow::anyhow!(
         "http.staging_finished: 下载用的临时文件已经收走（这次下载已经结束或被停止），文件没有保存。可以重新下载。"
@@ -85,6 +91,7 @@ mod tests {
         assert!(status(503).contains("服务器出错了") && status(401).contains("登录"));
         for (line, code) in [
             (not_found.clone(), "http.download_status"),
+            (partial(206), "http.partial_response"),
             (PERMISSION_WITHDRAWN.to_owned(), "agent.permission_withdrawn"),
             (poisoned().to_string(), "http.staging_poisoned"),
             (finished().to_string(), "http.staging_finished"),

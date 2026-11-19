@@ -19,6 +19,13 @@ DROP TABLE builtin_credential_rebind_required;
 ALTER TABLE builtin_credential_rebind_v50 RENAME TO builtin_credential_rebind_required;
 ";
 
+const APPROVAL_WAIT_SCHEMA: &str = r"
+CREATE TABLE approval_wait_state(
+    approval_request_id TEXT PRIMARY KEY REFERENCES approval_requests(approval_request_id),
+    timing_json TEXT NOT NULL CHECK(json_valid(timing_json))
+);
+";
+
 pub(super) fn apply(
     tx: &Transaction<'_>,
     current: i64,
@@ -39,6 +46,13 @@ pub(super) fn apply(
             tx.execute_batch("THIS IS AN INJECTED INVALID BUILTIN REBIND MIGRATION")?;
         }
         record(tx, 50, "builtin_credential_rebind_required", REBIND_SCHEMA)?;
+    }
+    if current < 51 && target >= 51 {
+        tx.execute_batch(APPROVAL_WAIT_SCHEMA)?;
+        if fault == Some(MigrationFaultPoint::DuringMigration) && current >= 50 {
+            tx.execute_batch("THIS IS AN INJECTED INVALID APPROVAL WAIT MIGRATION")?;
+        }
+        record(tx, 51, "approval_wait_state", APPROVAL_WAIT_SCHEMA)?;
     }
     Ok(())
 }

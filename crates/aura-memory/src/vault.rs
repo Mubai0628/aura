@@ -85,6 +85,9 @@ impl Vault {
     pub fn status(&self) -> MemoryResult<VaultIndexStatus> {
         Ok(self.lock().index.status()?)
     }
+    pub fn source_revision(&self) -> u64 {
+        self.lock().index.source_revision()
+    }
     pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, VaultState> {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -95,6 +98,14 @@ impl Vault {
             return Ok(result);
         }
         Ok(self.lock().index.search(query)?)
+    }
+    pub fn search_related(&self, query: &MemorySearch) -> MemoryResult<MemorySearchResult> {
+        if self.rebuilding.load(std::sync::atomic::Ordering::Acquire) {
+            let mut result = MemoryIndex::open_reader(&self.cache)?.search_related(query)?;
+            result.incomplete = true;
+            return Ok(result);
+        }
+        Ok(self.lock().index.search_related(query)?)
     }
     pub fn recent(&self, limit: Option<u32>) -> MemoryResult<MemorySearchResult> {
         if self.rebuilding.load(std::sync::atomic::Ordering::Acquire) {

@@ -182,6 +182,40 @@ test('Main answers only its folder routes itself and passes every other agent ro
   expect(requestAgent).toHaveBeenLastCalledWith('agent.skills.list', { workspace_id: null });
 });
 
+test('hidden or minimized native windows cannot start a human wait, and may release focus', async () => {
+  const { requestAgent, supervisor } = await fixture();
+  const shown = vi.fn(() => false);
+  const minimized = vi.fn(() => false);
+  const window = { isVisible: shown, isMinimized: minimized } as unknown as BrowserWindow;
+  const handle = agentRouteHandler(supervisor, () => window);
+  const event = {} as never;
+  const wait = {
+    session_id: 'session',
+    target: { kind: 'approval', approval_id: 'approval' },
+    viewer: 'viewer-a',
+  } as const;
+  const activity = (activity: 'present' | 'focus' | 'touch' | 'blur') =>
+    handle(event, 'agent.wait.activity', { ...wait, activity });
+  for (const kind of ['present', 'focus', 'touch'] as const) {
+    await expect(activity(kind)).rejects.toThrow('agent.wait.window_hidden');
+  }
+  shown.mockReturnValue(true);
+  minimized.mockReturnValue(true);
+  await expect(activity('present')).rejects.toThrow('agent.wait.window_hidden');
+  expect(requestAgent).not.toHaveBeenCalled();
+  await activity('blur');
+  expect(requestAgent).toHaveBeenLastCalledWith('agent.wait.activity', {
+    ...wait,
+    activity: 'blur',
+  });
+  minimized.mockReturnValue(false);
+  await activity('present');
+  expect(requestAgent).toHaveBeenLastCalledWith('agent.wait.activity', {
+    ...wait,
+    activity: 'present',
+  });
+});
+
 test('L10: the plugin dialogs and opening a plugin folder are Main’s; importing is Core’s', async () => {
   const { requestAgent, supervisor } = await fixture();
   const window = { isDestroyed: () => false } as BrowserWindow;

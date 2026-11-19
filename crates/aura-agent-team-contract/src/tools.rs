@@ -25,6 +25,7 @@ pub const REPORT: &str = "agent.report";
 #[serde(deny_unknown_fields)]
 pub struct AgentsSpawnInput {
     /// A short name for the task, shown to the user.
+    #[schemars(length(min = 1, max = 40), regex(pattern = r"\S"))]
     pub name: String,
     pub task: TaskSheet,
     /// The model, by name or id: one the user allowed for sub-agents. By default this
@@ -40,6 +41,13 @@ pub struct AgentsSpawnInput {
     /// this workspace. What it may change is its permission mode, which the user sets.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub worktree: bool,
+    /// Absolute files or directories needed for read-only work. With main-agent approval enabled,
+    /// Core checks each against a user workspace or an existing read grant and the parent's
+    /// authority. Use the same absolute paths in the task sheet. This task's built-in file
+    /// readers may use the proven scope.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(length(max = 8))]
+    pub read_paths: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -65,6 +73,9 @@ pub struct AgentsStatusInput {
     /// One sub-agent's handle; all of them by default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
+    /// Page the exact pending approval request before deciding on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_detail: Option<crate::AgentApprovalDetailInput>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -76,6 +87,8 @@ pub struct AgentsStatusResult {
     /// Questions of theirs for you to answer first with agents.approve.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub approvals: Vec<crate::AgentApprovalRequestView>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval_detail: Option<crate::AgentApprovalDetail>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]

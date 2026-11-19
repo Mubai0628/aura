@@ -1,16 +1,37 @@
 //! The main agent answering its sub-agents' questions first: agents.wait and agents.status give it
 //! the questions under review, agents.wait wakes for one it has not been given, and agents.approve
 //! answers one. Which questions are under review the host says: the settings let the main agent
-//! answer, the question only deletes or writes in the sub-agent's own folders, and it was asked
-//! less than [`crate::REVIEW_SECONDS`] ago while the main agent works.
+//! answer, and the question only deletes or writes in the sub-agent's own folders. The response
+//! window starts when a review is shown to the main agent.
 use super::*;
 use crate::{
-    AgentApprovalRequestView, AgentsApproveInput, AgentsApproveResult, Answered, AnsweredBy,
-    ApprovalAnswer, REVIEW_SECONDS, ReviewRequest, note_review,
+    AgentApprovalDetail, AgentApprovalDetailInput, AgentApprovalRequestView, AgentsApproveInput,
+    AgentsApproveResult, Answered, AnsweredBy, ApprovalAnswer, REVIEW_SECONDS, ReviewRequest,
+    note_review, review_seconds_left,
 };
 
 /// The longest request text the main agent is given.
 const REQUEST_CHARS: usize = 2_000;
+const DETAIL_CHARS: usize = 6_000;
+
+fn request_page(text: &str, offset: u32, count: usize) -> (String, Option<u32>) {
+    let mut chars = text.chars().skip(offset as usize);
+    let page = chars.by_ref().take(count).collect();
+    (page, chars.next().map(|_| offset.saturating_add(count as u32)))
+}
+
+#[cfg(test)]
+#[test]
+fn approval_read_pages_keep_the_entire_unicode_request() {
+    let request = "甲".repeat(2_000) + &"乙".repeat(6_000) + "最后一行";
+    let (preview, offset) = request_page(&request, 0, REQUEST_CHARS);
+    assert_eq!(offset, Some(2_000));
+    let (first, offset) = request_page(&request, 2_000, DETAIL_CHARS);
+    assert_eq!(offset, Some(8_000));
+    let (tail, end) = request_page(&request, 8_000, DETAIL_CHARS);
+    assert_eq!(end, None);
+    assert_eq!(preview + &first + &tail, request);
+}
 
 impl<H: TeamHost> Team<'_, H> {
     /// The questions of `parent`'s sub-agents under review, each with the member it is of.
@@ -81,20 +102,47 @@ impl<H: TeamHost> Team<'_, H> {
         Ok(found
             .into_iter()
             .map(|(member, request)| {
-                let elapsed = (now.value() - request.asked_at.value()).whole_seconds();
-                let left = i64::from(REVIEW_SECONDS).saturating_sub(elapsed).max(0);
+                let presented = member.details.reviews.iter().find_map(|review| {
+                    (review.approval_id == request.approval_id)
+                        .then_some(review.presented_at)
+                        .flatten()
+                });
+                let (preview, next_offset_chars) = request_page(&request.request, 0, REQUEST_CHARS);
                 AgentApprovalRequestView {
                     agent: member.handle,
                     approval_id: request.approval_id,
                     tool: request.tool,
-                    request: request.request.chars().take(REQUEST_CHARS).collect(),
+                    request: preview,
+                    next_offset_chars,
                     purpose: request.purpose,
                     deletes: request.deletes,
                     allow_workspace: request.allow_workspace,
-                    seconds_left: u32::try_from(left).unwrap_or(0),
+                    seconds_left: review_seconds_left(now, presented),
                 }
             })
             .collect())
+    }
+
+    pub(super) async fn review_detail(
+        &self,
+        parent: SessionId,
+        input: AgentApprovalDetailInput,
+    ) -> anyhow::Result<AgentApprovalDetail> {
+        let Some((_, request)) = self
+            .under_review(parent)
+            .await?
+            .into_iter()
+            .find(|(_, review)| review.approval_id == input.approval_id)
+        else {
+            return Err(Refusal::new(
+                "agents.approval_not_reviewed",
+                "这个审批已处理或已交给用户，请查看最新状态。",
+            )
+            .into());
+        };
+        let (text, next_offset_chars) =
+            request_page(&request.request, input.offset_chars, DETAIL_CHARS);
+        Ok(AgentApprovalDetail { approval_id: input.approval_id, request: text, next_offset_chars })
     }
 
     pub(super) async fn approve(&self, call: &TeamCall) -> anyhow::Result<AgentsApproveResult> {

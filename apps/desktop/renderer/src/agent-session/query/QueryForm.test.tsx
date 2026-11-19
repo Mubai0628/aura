@@ -34,16 +34,11 @@ const query: UserQuery = {
 } as unknown as UserQuery;
 
 const answer = vi.fn();
-const touch = vi.fn();
 beforeEach(() => {
   answer.mockReset().mockResolvedValue({ ok: true, value: {} });
-  touch.mockReset().mockImplementation(async () => ({
-    ok: true,
-    value: { query_id: query.query_id, deadline_at: new Date(Date.now() + 60_000).toISOString() },
-  }));
   Object.defineProperty(window, 'aura', {
     configurable: true,
-    value: { v1: { answerAgentQuery: answer, touchAgentQuery: touch } },
+    value: { v1: { answerAgentQuery: answer } },
   });
 });
 afterEach(() => {
@@ -149,6 +144,12 @@ test('an answer to a question that already ended says it was not delivered and w
 test('left alone for 30 s the countdown shows, and a touch starts the time again', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: false });
   vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+  let deadline = Date.now() + 60_000;
+  const activity = vi.fn(async ({ activity }: { activity: string }) => {
+    if (activity === 'touch') deadline = Date.now() + 60_000;
+    return { ok: true, value: { deadline_at: new Date(deadline).toISOString() } };
+  });
+  Object.assign(window.aura.v1, { updateAgentWait: activity });
   render(
     <QueryForm
       query={query}
@@ -158,29 +159,129 @@ test('left alone for 30 s the countdown shows, and a touch starts the time again
     />,
   );
   expect(screen.queryByRole('timer')).toBeNull();
-  act(() => {
-    vi.advanceTimersByTime(31_000);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(31_000);
   });
   expect(screen.getByRole('timer').textContent).toBe('29 秒后视为暂时没有回应');
   // Any touch: here a click on the card itself.
-  fireEvent.pointerDown(screen.getByRole('form', { name: '回答当前问题' }));
-  expect(screen.queryByRole('timer')).toBeNull();
-  expect(touch).toHaveBeenCalledTimes(1);
-  expect(touch.mock.calls[0]![0]).toEqual({
-    session_id: 'ses_1',
-    agent_run_id: query.agent_run_id,
-    query_id: query.query_id,
-  });
-  // A burst of touches reaches Core once more, after it settles.
-  fireEvent.keyDown(screen.getByRole('radio', { name: '跳过' }));
-  fireEvent.keyDown(screen.getByRole('radio', { name: '跳过' }));
-  expect(touch).toHaveBeenCalledTimes(1);
   await act(async () => {
-    vi.advanceTimersByTime(2_000);
+    fireEvent.pointerDown(screen.getByRole('form', { name: '回答当前问题' }));
   });
-  expect(touch).toHaveBeenCalledTimes(2);
-  act(() => {
-    vi.advanceTimersByTime(59_000);
+  expect(screen.queryByRole('timer')).toBeNull();
+  expect(activity.mock.calls.at(-1)?.[0]).toMatchObject({
+    session_id: 'ses_1',
+    target: { kind: 'query', agent_run_id: query.agent_run_id, query_id: query.query_id },
+    activity: 'touch',
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(59_000);
   });
   expect(screen.getByRole('timer').textContent).toBe('1 秒后视为暂时没有回应');
+});
+
+test('a mounted question in a hidden document does not start the timer', async () => {
+  const state = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  const activity = vi.fn(async () => ({
+    ok: true,
+    value: { deadline_at: new Date().toISOString() },
+  }));
+  Object.assign(window.aura.v1, { updateAgentWait: activity });
+  try {
+    render(<QueryForm query={query} sessionId="ses_1" onChanged={vi.fn()} />);
+    expect(activity).not.toHaveBeenCalled();
+    await act(async () => {
+      state.mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(activity.mock.calls).toHaveLength(1);
+    expect(activity).toHaveBeenCalledWith(expect.objectContaining({ activity: 'present' }));
+  } finally {
+    state.mockRestore();
+  }
+});
+
+test('a question below the scroll area waits until the user scrolls it into view', async () => {
+  let observe!: IntersectionObserverCallback;
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        observe = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const activity = vi.fn(async () => ({
+    ok: true,
+    value: { deadline_at: new Date().toISOString() },
+  }));
+  Object.assign(window.aura.v1, { updateAgentWait: activity });
+  try {
+    render(<QueryForm query={query} sessionId="ses_1" onChanged={vi.fn()} />);
+    expect(activity).not.toHaveBeenCalled();
+    const target = screen.getByRole('form', { name: '回答当前问题' });
+    const scroll = (visible: boolean) =>
+      act(async () => {
+        const intersectionRect = new DOMRect(0, 0, visible ? 100 : 0, visible ? 20 : 0);
+        observe(
+          [
+            {
+              target,
+              isIntersecting: visible,
+              intersectionRect,
+              boundingClientRect: new DOMRect(0, 0, 100, 20),
+              intersectionRatio: visible ? 1 : 0,
+              rootBounds: null,
+              time: performance.now(),
+            },
+          ],
+          {} as IntersectionObserver,
+        );
+      });
+    await scroll(false);
+    expect(activity).not.toHaveBeenCalled();
+    await scroll(true);
+    expect(activity).toHaveBeenCalledWith(expect.objectContaining({ activity: 'present' }));
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+test('a keyboard-focused question pauses and releases after focus leaves the form', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-20T10:00:00Z'));
+  let deadline = Date.now() + 60_000;
+  const activity = vi.fn().mockImplementation(async (input) => {
+    if (input.activity !== 'present') deadline = Date.now() + 60_000;
+    return { ok: true, value: { deadline_at: new Date(deadline).toISOString() } };
+  });
+  Object.assign(window.aura.v1, { updateAgentWait: activity });
+  render(
+    <>
+      <QueryForm
+        query={query}
+        sessionId="ses_1"
+        deadlineAt="2026-10-20T10:01:00Z"
+        onChanged={vi.fn()}
+      />
+      <button type="button">离开提问</button>
+    </>,
+  );
+  await act(async () => {
+    screen.getByRole('radio', { name: '跳过' }).focus();
+  });
+  expect(activity.mock.calls.some(([input]) => input.activity === 'focus')).toBe(true);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(70_000);
+  });
+  expect(screen.queryByRole('timer')).toBeNull();
+  await act(async () => {
+    screen.getByText('离开提问').focus();
+  });
+  expect(activity.mock.calls.at(-1)?.[0].activity).toBe('blur');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(31_000);
+  });
+  expect(screen.getByRole('timer').textContent).toBe('29 秒后视为暂时没有回应');
 });

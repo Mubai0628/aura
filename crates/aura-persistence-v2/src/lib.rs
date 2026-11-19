@@ -14,6 +14,7 @@ pub mod model;
 pub mod network_consents;
 pub mod packages;
 mod record_compatibility;
+pub mod retrieval;
 pub use record_compatibility::{RECORDS_READABLE_SINCE, copy_before_start};
 mod schema_migration;
 pub use schema_migration::migration_pending;

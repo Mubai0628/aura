@@ -1,22 +1,17 @@
-//! A question nobody touches ends as "no response" — its idle time and its
-//! countdown after it was asked, or after the user last touched it. Touching it never changes the
-//! question's revision, so an answer being written at the same moment still applies.
-use super::super::{application, facts, turns, work};
+//! A pending question receives a deadline when shown or interacted with.
+use super::super::{application, turns, work};
 use super::resolve;
 use aura_agent_domain::*;
 use aura_domain_common::*;
-use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
+use aura_persistence_core::StoreResult;
 use rusqlite::{Connection, Transaction};
 
-const TOUCH: &str = "agent.query_touch";
-
-/// When this question ends as "no response"; `None` once it has ended.
+/// No deadline applies to a pending question the user has never seen.
 pub fn deadline(db: &Connection, query: &UserQuery) -> StoreResult<Option<UtcTimestamp>> {
     if query.state != UserQueryState::Pending {
         return Ok(None);
     }
-    let touched: Option<UtcTimestamp> = facts::latest(db, &query.query_id.to_string(), TOUCH)?;
-    Ok(Some(query_deadline(query.created_at, touched)))
+    super::super::human_wait::recorded_deadline(db, &query.query_id.to_string())
 }
 
 /// The deadline of the question this run waits on, if it waits on one.
@@ -39,26 +34,6 @@ pub fn wait_deadline(db: &Connection, run: AgentRunId) -> StoreResult<Option<Utc
         (Some(approval), Some(question)) => Some(approval.min(question)),
         (approval, question) => approval.or(question),
     })
-}
-
-/// The user touched the question: its countdown starts again from `at`.
-pub fn touch(
-    tx: &Transaction<'_>,
-    input: &AgentQueryTouchRequest,
-    at: UtcTimestamp,
-) -> StoreResult<UtcTimestamp> {
-    let run = turns::load_run(tx, input.agent_run_id)?;
-    let turn = turns::load(tx, run.turn_task_id)?;
-    let query = work::query(tx, turn.turn_task_id)?.ok_or(Error::Conflict)?;
-    if turn.session_id != input.session_id
-        || query.query_id != input.query_id
-        || query.state != UserQueryState::Pending
-        || run.state != (AgentRunState::AwaitingQuery { query_id: query.query_id })
-    {
-        return Err(Error::Conflict);
-    }
-    facts::append(tx, EventId::new(), &query.query_id.to_string(), TOUCH, &at, at)?;
-    Ok(query_deadline(query.created_at, Some(at)))
 }
 
 /// Ends the run's question as "no response" once its time has run out; `false` while there is
@@ -89,22 +64,4 @@ pub fn expire(tx: &Transaction<'_>, run_id: AgentRunId, now: UtcTimestamp) -> St
         .collect::<Vec<_>>();
     resolve(tx, &run, &turn, &query, &answers, now)?;
     Ok(true)
-}
-
-/// After a restart, a question still waiting is shown again: its countdown starts over from `at`.
-pub fn restart_countdown(
-    tx: &Transaction<'_>,
-    run_id: AgentRunId,
-    at: UtcTimestamp,
-) -> StoreResult<()> {
-    let run = turns::load_run(tx, run_id)?;
-    let AgentRunState::AwaitingQuery { query_id } = run.state else {
-        return Ok(());
-    };
-    if work::query(tx, run.turn_task_id)?
-        .is_some_and(|query| query.query_id == query_id && query.state == UserQueryState::Pending)
-    {
-        facts::append(tx, EventId::new(), &query_id.to_string(), TOUCH, &at, at)?;
-    }
-    Ok(())
 }

@@ -27,13 +27,22 @@ pub struct BrowserSettings {
     pub allowed_sites: Vec<String>,
     /// Sites the browser never loads, in every mode, including requests a page makes itself.
     pub blocked_sites: Vec<String>,
-    /// Advanced: lets the model run scripts in pages and read full network records (default off).
+    /// Persistent debugging permission. Sensitive scripts still require a separate approval.
     pub debugging: bool,
+    /// Explicit prohibition. With neither flag set, debugging requires a one-time approval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debugging_blocked: Option<bool>,
 }
 
 impl Default for BrowserSettings {
     fn default() -> Self {
-        Self { enabled: true, allowed_sites: vec![], blocked_sites: vec![], debugging: false }
+        Self {
+            enabled: true,
+            allowed_sites: vec![],
+            blocked_sites: vec![],
+            debugging: false,
+            debugging_blocked: None,
+        }
     }
 }
 
@@ -127,9 +136,12 @@ pub(crate) fn settings_from_document(
     if let Some(enabled) = flag("enabled")? {
         settings.enabled = enabled;
     }
-    if let Some(debugging) = flag("debugging")? {
-        settings.debugging = debugging;
-    }
+    let previous = flag("debugging")?;
+    settings.debugging = previous.unwrap_or(false);
+    settings.debugging_blocked = flag("debugging_blocked")?.or_else(|| {
+        // A stored off switch predates per-operation approvals and still means off.
+        (previous == Some(false)).then_some(true)
+    });
     (settings.allowed_sites, settings.blocked_sites) =
         checked_sites(&list("allowed_sites")?, &list("blocked_sites")?)?;
     Ok(settings)
@@ -169,7 +181,17 @@ impl SettingsFacade {
             })?;
         self.update(ConfigModule::Browser, expected_revision, |values| {
             values.insert("enabled".into(), Value::Bool(settings.enabled));
-            values.insert("debugging".into(), Value::Bool(settings.debugging));
+            if settings.debugging
+                || settings.debugging_blocked.is_some()
+                || values.contains_key("debugging")
+            {
+                values.insert("debugging".into(), Value::Bool(settings.debugging));
+            }
+            if let Some(blocked) = settings.debugging_blocked {
+                values.insert("debugging_blocked".into(), Value::Bool(blocked));
+            } else {
+                values.remove("debugging_blocked");
+            }
             values.insert(
                 "allowed_sites".into(),
                 Value::Array(allowed.iter().cloned().map(Value::String).collect()),

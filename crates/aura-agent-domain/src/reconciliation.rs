@@ -68,11 +68,22 @@ impl From<TaskLineageReconcileToolDecision> for TaskLineageReconcileDecision {
 /// revision are bound by Core from the live call.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+#[schemars(extend(
+    "if" = { "properties": { "decision": { "properties": {
+        "decision": { "enum": ["expire_prior", "reference_prior"] }
+    } } } },
+    "then" = { "properties": { "completion_policy_update": { "type": "null" } } },
+    "else" = { "required": ["relations"], "properties": { "relations": { "minItems": 1 } } },
+    "allOf" = [{ "if": { "properties": { "decision": { "properties": {
+        "decision": { "const": "expire_prior" }
+    } } } }, "then": { "properties": { "relations": { "maxItems": 0 } } } }]
+))]
 pub struct TaskLineageReconcileToolInput {
     pub decision: TaskLineageReconcileToolDecision,
     #[serde(default)]
     pub relations: Vec<TaskLineageRelationInput>,
     pub completion_policy_update: Option<CompletionPolicyUpdate>,
+    #[schemars(regex(pattern = r"\S"))]
     pub reason: String,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]

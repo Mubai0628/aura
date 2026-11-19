@@ -265,6 +265,19 @@ impl ControlledWeb {
             "request_future_dropped":false,
             "content_trust":"external_untrusted"
         });
+        if let Some(error) = output.as_ref().err() {
+            let http = match error.downcast_ref::<aura_web_runtime::WebError>() {
+                Some(aura_web_runtime::WebError::Http(status)) => Some((*status, "origin")),
+                Some(aura_web_runtime::WebError::AccessDenied) => Some((403, "origin")),
+                _ => error
+                    .downcast_ref::<super::web_service::FetchServiceFailure>()
+                    .map(|failure| (failure.status, "fetch_service")),
+            };
+            if let Some((status, source)) = http {
+                evidence["http_status"] = serde_json::json!(status);
+                evidence["http_source"] = serde_json::json!(source);
+            }
+        }
         if let Some(route) = self.take_route(request.operation.operation_id) {
             evidence["network_route"] = route;
         }

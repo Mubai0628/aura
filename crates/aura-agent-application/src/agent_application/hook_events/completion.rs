@@ -4,6 +4,7 @@ use super::*;
 /// How many times one turn's answer may be sent back by `turn.before_complete` before the
 /// turn stops instead of looping.
 const MAX_COMPLETION_BLOCKS: usize = 3;
+const DELIVERY_REVIEW: &str = "aura.exact_artifact";
 
 /// What `turn.before_complete` decided about a held answer.
 pub(in crate::agent_application) enum CompletionReview {
@@ -11,6 +12,7 @@ pub(in crate::agent_application) enum CompletionReview {
     Completed,
     /// The Hook kept sending it back; the turn stops with its reason on record.
     Stop,
+    ArtifactUnverified,
 }
 
 impl AgentApplication {
@@ -35,25 +37,44 @@ impl AgentApplication {
         let Some((step, answer)) = held else { return Ok(None) };
         let turn = self.turn(run_id).await?;
         let turn_id = turn.turn_task_id;
-        let earlier = self
+        let (earlier, requirements) = self
             .store
             .read(StoreStep::run(run_id, "agent.hooks.completion_blocks"), move |db| {
-                hook_store::completion_blocks(db, turn_id)
+                Ok((
+                    hook_store::completion_blocks(db, turn_id)?,
+                    aura_persistence_v2::agent::exact_artifacts::requirements(
+                        db,
+                        &aura_persistence_v2::agent::turns::load(db, turn_id)?,
+                    )?,
+                ))
             })
-            .await?
-            .len();
-        let block = if self.hooks_registered()
+            .await?;
+        let err_path =
+            self.execution.unverified_delivery_path(turn.workspace_id, requirements).await?;
+        let delivery_stop =
+            err_path.is_some() && earlier.iter().any(|(gate, _)| gate == DELIVERY_REVIEW);
+        let user_blocks = earlier.iter().filter(|(gate, _)| gate != DELIVERY_REVIEW).count();
+        let settled = if let Some(path) = err_path {
+            Some((
+                DELIVERY_REVIEW.to_owned(),
+                format!(
+                    "交付文件「{}」未核对到用户明确要求逐字保留的内容。请对照本轮原始用户要求和最新修订核对实际文件，必要时修正并读回。",
+                    path.as_str()
+                ),
+            ))
+        } else if self.hooks_registered()
             && self.hook_runner()?.hears(HookEvent::TurnBeforeComplete)
         {
-            let payload = serde_json::json!({"final_report": answer, "blocks_so_far": earlier});
+            let payload = serde_json::json!({"final_report": answer, "blocks_so_far": user_blocks});
             self.run_hooks(self.hook_call(HookEvent::TurnBeforeComplete, &turn, payload))
                 .await?
                 .block
+                .map(|block| (block.hook_name, block.reason))
         } else {
             None
         };
-        let stop = block.is_some() && earlier + 1 >= MAX_COMPLETION_BLOCKS;
-        let settled = block.map(|block| (block.hook_name, block.reason));
+        let stop = settled.as_ref().is_some_and(|(gate, _)| gate != DELIVERY_REVIEW)
+            && user_blocks + 1 >= MAX_COMPLETION_BLOCKS;
         let completed = self
             .store
             .write(StoreStep::run(run_id, "agent.hooks.completion_settled"), move |journal| {
@@ -67,7 +88,9 @@ impl AgentApplication {
                 })
             })
             .await?;
-        Ok(if stop {
+        Ok(if delivery_stop {
+            Some(CompletionReview::ArtifactUnverified)
+        } else if stop {
             Some(CompletionReview::Stop)
         } else if completed {
             Some(CompletionReview::Completed)
@@ -89,6 +112,7 @@ impl AgentApplication {
             })
             .await?;
         Ok(blocks.last().map(|(hook, reason)| {
+            if hook == DELIVERY_REVIEW { return reason.clone(); }
             format!(
                 "From Hook {hook} (turn.before_complete): the user's Hook did not accept the answer as complete: {reason}\nContinue the task and address this before you finish."
             )

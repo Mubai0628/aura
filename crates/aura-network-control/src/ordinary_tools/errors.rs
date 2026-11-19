@@ -42,6 +42,11 @@ pub fn safe_transport_line(error: &E) -> String {
 
 fn sentence(error: &E) -> &'static str {
     match error {
+        E::RoutedTransport { error, request_not_started: false, .. }
+            if matches!(error.as_ref(), E::UrlCredentialsForbidden) =>
+        {
+            "已收到目标的 HTTP 跳转回应。跳转地址带有用户名或密码，Aura 停在这一跳。请使用无凭据的网址。"
+        }
         E::RoutedTransport { error, request_not_started: true, .. } if uncertain(error) => {
             "连接目标时没有成功，尚未向目标发出 HTTP 请求。请确认网络和目标服务正常后再重试。"
         }

@@ -280,7 +280,7 @@ pub fn extract_search(
     body: &[u8],
     max_results: u32,
 ) -> Result<Vec<WebSearchHit>, WebError> {
-    if !(1..=20).contains(&max_results) {
+    if !(1..=aura_web_domain::LOCAL_SEARCH_MAX_RESULTS).contains(&max_results) {
         return Err(WebError::invalid(search::MAX_RESULTS_RULE));
     }
     let (media, text) = response_text(status, content_type, body)?;
@@ -291,7 +291,7 @@ pub fn extract_search(
 }
 
 pub fn excerpt(text: &str, offset: u32, max_chars: u32) -> Result<(String, Option<u32>), WebError> {
-    if !(1..=65536).contains(&max_chars) {
+    if !(1..=aura_web_domain::MAX_READ_CHARS).contains(&max_chars) {
         return Err(WebError::invalid("max_chars must be between 1 and 65536. Nothing was read."));
     }
     let count = text.chars().count();

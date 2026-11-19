@@ -90,12 +90,14 @@ pub struct AgentApplication {
     pub supervisor: RunSupervisor,
     /// The one owner of each run's expiry timer.
     expiry_timers: approval_expiry::ExpiryTimers,
+    legacy_expiry_timers: approval_expiry::ExpiryTimers<ApprovalRequestId>,
     /// The one owner of the derived-backfill task.
     derived_backfill: derived_backfill::DerivedBackfill,
     /// The turns this process's start found under way and cut off, until they are continued.
     startup_interrupted: Mutex<Vec<aura_persistence_v2::agent::recovery::InterruptedTurn>>,
     pub memory_maintenance: Arc<memory_maintenance::Maintenance>,
     registry_cache: Mutex<BTreeMap<AgentRunId, tools::RegistryCache>>,
+    recall_cache: context::preparation::recall::RecallCache,
     /// Sessions whose `session.started`/`session.resumed` Hooks ran in this process.
     hook_sessions: Mutex<std::collections::BTreeSet<SessionId>>,
     /// Serializes the tool-settings read-then-save. Asynchronous because the save's journal
@@ -292,10 +294,12 @@ impl AgentApplication {
             store,
             supervisor,
             expiry_timers: approval_expiry::ExpiryTimers::default(),
+            legacy_expiry_timers: approval_expiry::ExpiryTimers::default(),
             derived_backfill: derived_backfill::DerivedBackfill::default(),
             startup_interrupted: Mutex::new(Vec::new()),
             memory_maintenance,
             registry_cache: Mutex::new(BTreeMap::new()),
+            recall_cache: Default::default(),
             hook_sessions: Mutex::new(Default::default()),
             tool_configuration_lock: tokio::sync::Mutex::new(()),
             strategy_apply_lock: Mutex::new(()),

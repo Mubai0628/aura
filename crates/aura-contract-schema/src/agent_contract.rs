@@ -154,6 +154,8 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
         AgentQueryAnswerRequest,
         AgentQueryTouchRequest,
         AgentQueryTouchView,
+        AgentWaitActivityRequest,
+        AgentWaitActivityView,
         AgentBranchCopyingView,
         AgentModeControlRequest,
         AgentModeEpisodeView,

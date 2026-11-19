@@ -103,6 +103,7 @@ export const TOOL_ERROR_CODES_V1 = [
   "tool.resource.unsupported_claim",
   "tool.result.artifact_missing",
   "tool.result.evidence_invalid",
+  "tool.result.http_partial_response",
   "tool.result.json_invalid",
   "tool.result.outcome_state_invalid",
   "tool.result.reconciliation_inconclusive",
@@ -974,6 +975,14 @@ export const TOOL_ERROR_CATALOG_V1 = {
       "visibility": "renderer_and_model_safe",
       "retry_class": "never",
       "safe_message_key": "tool_result_evidence_invalid",
+      "suggested_not_executed_reason": null
+    },
+    {
+      "code": "tool.result.http_partial_response",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_http_partial_response",
       "suggested_not_executed_reason": null
     },
     {

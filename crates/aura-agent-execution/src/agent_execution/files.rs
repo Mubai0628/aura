@@ -1,6 +1,7 @@
 //! File operations reuse the R05 secure resolver, editor ownership, atomic
 //! changeset and compensation journal. They never invoke an external shell.
 mod external_read;
+mod exact_delivery;
 mod external_write;
 mod fresh_facts;
 pub(super) mod invocation;
@@ -160,7 +161,11 @@ fn read_policy_external(
         range: input.range,
         explicit_encoding: input.explicit_encoding,
     })?;
-    Ok(FsReadTextResult {
+    Ok(external_text_result(read))
+}
+
+fn external_text_result(read: aura_fs_tools::FsExternalTextReadResult) -> FsReadTextResult {
+    FsReadTextResult {
         path: read.relative_path,
         text: read.text,
         encoding: read.encoding,
@@ -175,8 +180,13 @@ fn read_policy_external(
         total_characters: read.total_characters,
         total_lines: read.total_lines,
         returned_range: read.returned_range,
-        external: Some(FsExternalReadTarget { grant_id: None, display_path: read.display_path }),
-    })
+        document_format: read.document_format,
+        document_headings: read.document_headings,
+        external: Some(FsExternalReadTarget {
+            grant_id: read.grant_id,
+            display_path: read.display_path,
+        }),
+    }
 }
 pub(super) fn inspect(service: &AgentExecution, call: &CallContext) -> Result<Value> {
     let facts = crate::broker::files::facts(
@@ -409,28 +419,7 @@ fn read_external(
         range: input.range,
         explicit_encoding: input.explicit_encoding,
     })?;
-    Ok(FsReadTextResult {
-        path: read.relative_path,
-        text: read.text,
-        encoding: read.encoding,
-        line_ending: read.line_ending,
-        source: FileStorageSource::Disk,
-        logical_hash: read.logical_hash,
-        disk_hash: read.disk_hash,
-        buffer_revision: None,
-        is_dirty: false,
-        // An external file is never owned by a workspace editor buffer, so there is
-        // no session whose in-memory copy could be authoritative.
-        active_editor_session: None,
-        disk_may_be_stale: false,
-        total_characters: read.total_characters,
-        total_lines: read.total_lines,
-        returned_range: read.returned_range,
-        external: Some(FsExternalReadTarget {
-            grant_id: Some(grant_id),
-            display_path: read.display_path,
-        }),
-    })
+    Ok(external_text_result(read))
 }
 
 fn list_external(

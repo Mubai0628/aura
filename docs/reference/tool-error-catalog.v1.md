@@ -106,6 +106,7 @@
 | `tool.resource.unsupported_claim` | `validation` | `renderer_and_model_safe` | `never` | `tool_resource_unsupported_claim` | `resource_claim_resolution_failed` |
 | `tool.result.artifact_missing` | `protocol` | `renderer_and_model_safe` | `never` | `tool_result_artifact_missing` | `` |
 | `tool.result.evidence_invalid` | `protocol` | `renderer_and_model_safe` | `never` | `tool_result_evidence_invalid` | `` |
+| `tool.result.http_partial_response` | `protocol` | `renderer_and_model_safe` | `never` | `tool_result_http_partial_response` | `` |
 | `tool.result.json_invalid` | `protocol` | `renderer_and_model_safe` | `never` | `tool_result_json_invalid` | `` |
 | `tool.result.outcome_state_invalid` | `protocol` | `renderer_and_model_safe` | `never` | `tool_result_outcome_state_invalid` | `` |
 | `tool.result.reconciliation_inconclusive` | `protocol` | `renderer_and_model_safe` | `never` | `tool_result_reconciliation_inconclusive` | `` |

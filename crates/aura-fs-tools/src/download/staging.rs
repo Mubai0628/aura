@@ -16,6 +16,7 @@ pub struct DownloadStaging {
     folders: super::folders::DownloadFolders,
 }
 pub struct DownloadPublication {
+    pub detected_media_type: Option<&'static str>,
     pub bytes_written: u64,
     pub hash: aura_domain_common::ContentHash,
     pub overwritten: bool,
@@ -123,7 +124,9 @@ impl FsToolService {
         )
         .map_err(invalid)?;
         let (published, receipts) = crate::with_file_publications(|| {
-            let published = stage.publish().map_err(|e| publication_error(&download.target, e))?;
+            let mut published =
+                stage.publish().map_err(|e| publication_error(&download.target, e))?;
+            let media_type = super::media::detect(published.file_mut(), bytes_written);
             let parent = download.target.parent()?;
             let info = published.commit().map_err(|e| publication_error(&download.target, e))?;
             let previous = download
@@ -139,9 +142,9 @@ impl FsToolService {
                 previous.as_ref(),
                 &info,
             );
-            Ok::<_, FsToolError>(())
+            Ok::<_, FsToolError>(media_type)
         });
-        published?;
+        let detected_media_type = published?;
         download.folders.keep();
         if let Some(path) = &download.target.workspace_path {
             let catalog = self.catalog(workspace)?;
@@ -169,6 +172,7 @@ impl FsToolService {
             self.workspace.notify_projection_change()?;
         }
         Ok(DownloadPublication {
+            detected_media_type,
             bytes_written,
             hash,
             overwritten: download.target.identity.is_some(),

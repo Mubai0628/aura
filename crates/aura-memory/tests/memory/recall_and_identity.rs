@@ -4,6 +4,34 @@ use aura_memory::*;
 use support::*;
 
 #[test]
+fn keyword_recall_finds_reordered_terms_and_file_names_without_inactive_notes() {
+    let f = Fixture::project();
+    let mut replaced = f.write("rules/replaced.md", "# Atlas retrieval handbook\nOld value");
+    replaced.note.metadata.status = MemoryStatus::Superseded;
+    f.vault
+        .write(
+            &[
+                f.write("rules/current.md", "# Handbook\nThe Atlas project tracks retrieval."),
+                f.write("rules/exact-file.md", "# Unrelated title\nStable format"),
+                replaced,
+            ],
+            &actor(),
+        )
+        .expect("notes");
+    for (query, expected) in [
+        ("retrieval Atlas handbook", "rules/current.md"),
+        ("rules/exact-file.md", "rules/exact-file.md"),
+    ] {
+        let result = f
+            .vault
+            .search(&MemorySearch { query: query.into(), ..Default::default() })
+            .expect("indexed recall");
+        assert_eq!(result.hits.first().map(|hit| hit.path.as_str()), Some(expected));
+        assert!(result.hits.iter().all(|hit| hit.path != "rules/replaced.md"));
+    }
+}
+
+#[test]
 fn final_path_aliases_share_one_writer_and_cannot_change_the_vault_scope() {
     let f = Fixture::project();
     f.vault.write(&[f.write("rules/a.md", "# alias\n")], &actor()).expect("write");

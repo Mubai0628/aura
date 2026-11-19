@@ -13,16 +13,20 @@ const LIST_MAX: usize = 50;
 #[serde(deny_unknown_fields)]
 pub struct TaskSheet {
     /// What the sub-agent is to find out or do.
+    #[schemars(length(max = 8000), regex(pattern = r"\S"))]
     pub goal: String,
     /// When the task counts as done: what its report must contain.
+    #[schemars(length(max = 8000), regex(pattern = r"\S"))]
     pub done_when: String,
     /// The part of the project the task covers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
     /// Rules the work keeps to.
+    #[schemars(length(max = 50))]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub constraints: Vec<String>,
     /// Files to read first, relative to the workspace.
+    #[schemars(length(max = 50))]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
     /// Facts from this conversation the sub-agent needs; it sees nothing else of it.

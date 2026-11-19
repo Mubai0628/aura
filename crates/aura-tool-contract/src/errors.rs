@@ -182,6 +182,7 @@ define_error_domain!(ToolNetworkErrorCode, {
 });
 
 define_error_domain!(ToolResultErrorCode, {
+    HttpPartialResponse => "tool.result.http_partial_response",
     Utf8Invalid => "tool.result.utf8_invalid",
     JsonInvalid => "tool.result.json_invalid",
     SchemaValidationFailed => "tool.result.schema_validation_failed",

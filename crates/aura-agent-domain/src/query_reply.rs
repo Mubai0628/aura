@@ -10,19 +10,16 @@ use aura_domain_common::{UserQueryId, UtcTimestamp};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
-/// How long a question may go untouched before its countdown shows.
-pub const QUERY_IDLE_SECONDS: u64 = 30;
-/// How long the countdown runs before the question ends as "no response".
-pub const QUERY_COUNTDOWN_SECONDS: u64 = 30;
+pub use aura_domain_common::human_wait::{
+    COUNTDOWN_SECONDS as QUERY_COUNTDOWN_SECONDS, IDLE_SECONDS as QUERY_IDLE_SECONDS,
+};
 
 /// When a question ends as "no response": its idle time and its countdown after it was asked, or
 /// after the user last touched it.
 #[must_use]
 pub fn query_deadline(created_at: UtcTimestamp, last_touch: Option<UtcTimestamp>) -> UtcTimestamp {
     let from = last_touch.map_or(created_at, |touch| touch.max(created_at));
-    UtcTimestamp::from_value(
-        from.value() + std::time::Duration::from_secs(QUERY_IDLE_SECONDS + QUERY_COUNTDOWN_SECONDS),
-    )
+    aura_domain_common::human_wait::idle_deadline(from)
 }
 
 const DECLINED_NOTE: &str = "The user chose not to answer these questions. Do not ask them again in this turn and do not decide them for the user. Continue with the work that does not depend on the answers, and say in your final report what was left undone because of it.";

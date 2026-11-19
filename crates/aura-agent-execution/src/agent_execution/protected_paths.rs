@@ -39,6 +39,15 @@ pub fn classify(final_path: &Path) -> ExternalPathClass {
     ExternalPathClass::Ordinary
 }
 
+/// A directory delegation can be used to search descendants, so check both directions.
+pub(super) fn can_delegate_read(final_path: &Path, directory: bool) -> bool {
+    let candidate = fold(final_path);
+    !sensitive_roots()
+        .iter()
+        .chain(&system_roots())
+        .any(|root| is_within(&candidate, root) || directory && is_within(root, &candidate))
+}
+
 /// Whether a directory grant rooted at `root` may cover `candidate` by its recursive scope.
 ///
 /// # Why a recursive grant is not enough on its own
@@ -168,6 +177,18 @@ fn is_within(candidate: &str, root: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_ordinary_parent_cannot_delegate_a_tree_of_credential_stores() {
+        let Ok(profile) = std::env::var("USERPROFILE") else { return };
+        let profile = Path::new(&profile);
+        if classify(profile) != ExternalPathClass::Ordinary {
+            return;
+        }
+        assert!(!can_delegate_read(profile, true));
+        assert!(!can_delegate_read(&profile.join(".ssh"), true));
+        assert!(can_delegate_read(&profile.join("ordinary-project"), true));
+    }
 
     /// A real protected directory the environment declares, with a synthetic name below
     /// it: the classification is exercised without reading anything.

@@ -54,9 +54,9 @@ describe("the model's request for the user's help", () => {
 });
 
 describe('page debugging', () => {
-  it("is refused while the user's switch is off, whatever Core sent", async () => {
+  it('enforces an explicit debugging prohibition', async () => {
     const { deps, pages, tools } = setup();
-    pages.setPolicy(POLICY);
+    pages.setPolicy({ ...POLICY, debuggingBlocked: true });
     await execute(deps, command(open));
     for (const action of [
       { kind: 'evaluate', expression: 'document.cookie' } as const,
@@ -65,7 +65,7 @@ describe('page debugging', () => {
       const result = await execute(deps, command(action, '127.0.0.1'));
       expect(result.outcome).toMatchObject({
         outcome: 'refused',
-        message: expect.stringContaining('允许模型调试网页'),
+        message: expect.stringContaining('设置禁止网页调试'),
       });
     }
     expect(tools.methods()).not.toContain('Runtime.evaluate');
@@ -73,8 +73,13 @@ describe('page debugging', () => {
 
   it('runs a script on the page it was approved for and returns its value or what it threw', async () => {
     const { deps, pages, tools } = setup();
-    pages.setPolicy({ ...POLICY, debugging: true });
-    await execute(deps, command(open));
+    pages.setPolicy({ ...POLICY, debugging: true, revision: 7 });
+    const opened = await execute(deps, command(open));
+    const binding = {
+      document_id: opened.document_id!,
+      origin: 'http://127.0.0.1:9',
+      settings_revision: 7,
+    };
     tools.answers.set('Runtime.evaluate', (params) =>
       params.expression === 'boom()'
         ? { result: {}, exceptionDetails: { exception: { description: 'ReferenceError: boom' } } }
@@ -82,7 +87,7 @@ describe('page debugging', () => {
     );
     const value = await execute(
       deps,
-      command({ kind: 'evaluate', expression: 'window.game' }, '127.0.0.1'),
+      command({ kind: 'evaluate', expression: 'window.game', binding }, '127.0.0.1'),
     );
     expect(value.outcome).toMatchObject({
       outcome: 'completed',
@@ -92,7 +97,7 @@ describe('page debugging', () => {
     expect(sent).toMatchObject({ awaitPromise: true, returnByValue: true, userGesture: false });
     const thrown = await execute(
       deps,
-      command({ kind: 'evaluate', expression: 'boom()' }, '127.0.0.1'),
+      command({ kind: 'evaluate', expression: 'boom()', binding }, '127.0.0.1'),
     );
     expect(thrown.outcome).toMatchObject({
       result: { value: null, exception: 'ReferenceError: boom' },
@@ -101,7 +106,7 @@ describe('page debugging', () => {
     tools.sent = [];
     const moved = await execute(
       deps,
-      command({ kind: 'evaluate', expression: 'window.game' }, 'bank.example'),
+      command({ kind: 'evaluate', expression: 'window.game', binding }, 'bank.example'),
     );
     expect(moved.outcome.outcome).toBe('refused');
     expect(tools.methods()).not.toContain('Runtime.evaluate');
@@ -109,15 +114,15 @@ describe('page debugging', () => {
     pages.setUserControl(S, 'model', true);
     const taken = await execute(
       deps,
-      command({ kind: 'evaluate', expression: 'window.game' }, '127.0.0.1'),
+      command({ kind: 'evaluate', expression: 'window.game', binding }, '127.0.0.1'),
     );
     expect(taken.outcome).toMatchObject({ outcome: 'refused' });
   });
 
   it("lists the page's requests with their credentials hidden", async () => {
     const { deps, pages, tools } = setup();
-    pages.setPolicy({ ...POLICY, debugging: true });
-    await execute(deps, command(open));
+    pages.setPolicy({ ...POLICY, debugging: true, revision: 7 });
+    const opened = await execute(deps, command(open));
     tools.emit('Network.requestWillBeSent', {
       requestId: '3',
       type: 'XHR',
@@ -133,7 +138,19 @@ describe('page debugging', () => {
     });
     const result = await execute(
       deps,
-      command({ kind: 'network', failed_only: true, max_entries: 50 }, '127.0.0.1'),
+      command(
+        {
+          kind: 'network',
+          failed_only: true,
+          max_entries: 50,
+          binding: {
+            document_id: opened.document_id!,
+            origin: 'http://127.0.0.1:9',
+            settings_revision: 7,
+          },
+        },
+        '127.0.0.1',
+      ),
     );
     expect(result.outcome).toMatchObject({
       outcome: 'completed',

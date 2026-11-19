@@ -144,6 +144,9 @@ test('what the model writes between its tools reads as a reply, between the proc
   await openProcesses();
   const reply = await screen.findByText(/Retrying now/u);
   expect(reply.closest('.agent-interim-reply')).not.toBeNull();
+  expect(reply.closest('.agent-interim-reply')?.getAttribute('aria-label')).toBe('过程回复');
+  expect(screen.queryByText('过程回复')).toBeNull();
+  expect(reply.closest('.agent-interim-reply')?.classList.contains('is-current')).toBe(false);
   expect(reply.closest('.agent-steps, .agent-process-section')).toBeNull();
   // Order on the page: the first thought, the reply, then the tools and the next thought, then
   // the answer.
@@ -160,6 +163,7 @@ test('what the model writes between its tools reads as a reply, between the proc
     'agent-final-report',
   ]);
   expect(document.querySelector('.agent-final-report')?.textContent).toBe('Both worked.');
+  expect(document.querySelector('.agent-final-report .agent-interim-label')).toBeNull();
   // Each section says what is in it while it is closed.
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /读取网页、运行命令/u })).toBeTruthy(),
@@ -266,9 +270,7 @@ test('a message the user added during the turn reads as their message, not a pro
   expect(added.closest('.agent-steps, .agent-process-section')).toBeNull();
 });
 
-// The button sits under the
-// turn's status line, in view once the turn has folded its process, and shown once when it is open.
-test('a call the debugging switch stopped keeps its enable button in view after the turn folds', async () => {
+test('an older refused debugging call has no settings action in a completed turn', async () => {
   // The same call ids as the tests above, read again with the refusal.
   forgetToolCallDirectories();
   const refused = call('tcl_01HOSTTOOLCALL0000000001', '检查网页元素', 'not_executed');
@@ -286,12 +288,10 @@ test('a call the debugging switch stopped keeps its enable button in view after 
   render(<Conversation {...props} projection={turn('completed')} />);
   const status = await screen.findByRole('button', { name: /^已完成/u });
   expect(status.getAttribute('aria-expanded')).toBe('false');
-  await screen.findByRole('button', { name: '允许模型调试网页' });
   fireEvent.click(status);
   await screen.findByText(/Retrying now/u);
-  await waitFor(() =>
-    expect(screen.getAllByRole('button', { name: '允许模型调试网页' })).toHaveLength(1),
-  );
+  await screen.findAllByText('检查网页元素');
+  expect(screen.queryByRole('button', { name: '允许模型调试网页' })).toBeNull();
 });
 
 /** The same turn once its first step, read when the reader reached it, is in front of the rest. */
@@ -346,6 +346,8 @@ test('a delivered interim message appears once after the user addition and stays
   render(<Conversation {...props} projection={projection} />);
   const reply = await screen.findByText('第一阶段已完成，继续核对。');
   expect(reply.closest('.agent-interim-reply')).toBeTruthy();
+  expect(reply.closest('.agent-interim-reply')?.getAttribute('aria-label')).toBe('过程回复');
+  expect(screen.queryByText('过程回复')).toBeNull();
   expect(screen.getAllByText('第一阶段已完成，继续核对。')).toHaveLength(1);
   const user = screen.getByText('顺便看看代理设置');
   const answer = screen.getByText('Both worked.');

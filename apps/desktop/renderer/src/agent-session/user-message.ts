@@ -147,6 +147,8 @@ const messages: Record<string, string> = {
   'agent.protocol_not_completed': '本轮没有按协议提交完成。已停止自动继续，过程输出仍可阅读。',
   'agent.deterministic_correction_exhausted':
     '同一类参数错误在纠正后仍未修复，已停止本轮自动执行。',
+  'agent.exact_artifact_unverified':
+    '未核对到交付文件中要求逐字保留的内容，任务尚未完成。可以检查成品，或在输入框要求继续核对。',
   'agent.mode_switch_requires_idle':
     '切换 Plan 或 Goal 只能在空闲时开始。这条消息不会进入队列或追加。',
   'agent.queue_must_be_resolved_before_mode_start':

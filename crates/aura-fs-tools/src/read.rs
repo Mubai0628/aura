@@ -8,8 +8,8 @@ use aura_workspace_domain::{
     FsGlobRequest, FsGlobResult, FsHashRequest, FsHashResult, FsInspectRequest, FsInspectResult,
     FsListEntry, FsListRequest, FsListResult, FsNodeKind, FsReadBinaryRangeRequest,
     FsReadBinaryRangeResult, FsReadTextRequest, FsReadTextResult, FsSearchTextRequest,
-    FsSearchTextResult, FsStatRequest, FsStatResult, LargeFileReadMode, PathSearchResult,
-    TextEncoding, TextReadRange,
+    FsSearchTextResult, FsStatRequest, FsStatResult, LargeFileReadMode, LineEnding,
+    PathSearchResult, TextEncoding, TextReadRange,
 };
 
 use crate::inspect::{inspect_bytes, render_binary};
@@ -137,6 +137,44 @@ impl FsToolService {
 
     pub fn read_text(&self, request: FsReadTextRequest) -> Result<FsReadTextResult, FsToolError> {
         let resolver = self.resolver(request.workspace_id)?;
+        if let Some(kind) =
+            crate::documents::kind(std::path::Path::new(request.target.path.as_str()))
+        {
+            let mut file = resolver.open_existing(
+                &request.target.path,
+                aura_windows_platform::NativeFileAccess::Read,
+            )?;
+            let path = file.file.info().final_path.clone();
+            let identity = aura_workspace::domain_identity(&file.file.info().identity);
+            let document = crate::documents::read(
+                file.file.file_mut(),
+                &path,
+                kind,
+                &request.range,
+                &self.policy,
+            )?;
+            crate::external::ensure_same_file(&path, &identity)?;
+            self.record_path_use(request.workspace_id, &request.target.path)?;
+            return Ok(FsReadTextResult {
+                path: request.target.path,
+                text: document.text,
+                encoding: TextEncoding::Utf8,
+                line_ending: LineEnding::Lf,
+                source: FileStorageSource::Disk,
+                logical_hash: document.logical_hash,
+                disk_hash: Some(document.disk_hash),
+                buffer_revision: None,
+                is_dirty: false,
+                active_editor_session: None,
+                disk_may_be_stale: false,
+                total_characters: document.total_characters,
+                total_lines: document.total_lines,
+                returned_range: request.range,
+                document_format: Some(document.format),
+                document_headings: document.headings,
+                external: None,
+            });
+        }
         // The size decision uses the opened handle, never a catalog estimate.
         let stream = self.buffers().disk_text_snapshot_streaming(
             &resolver,
@@ -180,6 +218,8 @@ impl FsToolService {
                     total_characters: snapshot.total_characters,
                     total_lines: snapshot.total_lines,
                     returned_range: request.range,
+                    document_format: None,
+                    document_headings: vec![],
                     // A workspace read is not an external target.
                     external: None,
                 })
@@ -214,6 +254,8 @@ impl FsToolService {
                     total_characters,
                     total_lines,
                     returned_range: request.range,
+                    document_format: None,
+                    document_headings: vec![],
                     // A workspace read is not an external target.
                     external: None,
                 })
@@ -400,7 +442,7 @@ pub(crate) fn enforce_text_policy(
     Ok(())
 }
 
-fn select_text_range(text: &str, range: &TextReadRange) -> Result<String, FsToolError> {
+pub(crate) fn select_text_range(text: &str, range: &TextReadRange) -> Result<String, FsToolError> {
     match range {
         TextReadRange::Full => Ok(text.to_owned()),
         TextReadRange::Lines { start_line_index, count } => {

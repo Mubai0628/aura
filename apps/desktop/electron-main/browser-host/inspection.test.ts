@@ -11,9 +11,9 @@ const POLICY = { enabled: true, allowed: [], blocked: parsedRules([]) };
 const open = { kind: 'open', url: 'http://127.0.0.1:9/game' } as const;
 
 describe('element inspection and performance counters', () => {
-  it("are refused while the user's switch is off", async () => {
+  it('are refused under an explicit debugging prohibition', async () => {
     const { deps, pages, tools } = setup();
-    pages.setPolicy(POLICY);
+    pages.setPolicy({ ...POLICY, debuggingBlocked: true });
     await execute(deps, command(open));
     for (const action of [
       { kind: 'inspect', element: 'e3' } as const,
@@ -22,7 +22,7 @@ describe('element inspection and performance counters', () => {
       const result = await execute(deps, command(action, '127.0.0.1'));
       expect(result.outcome).toMatchObject({
         outcome: 'refused',
-        message: expect.stringContaining('允许模型调试网页'),
+        message: expect.stringContaining('设置禁止网页调试'),
       });
     }
     expect(tools.methods()).not.toContain('DOM.getOuterHTML');
@@ -31,8 +31,13 @@ describe('element inspection and performance counters', () => {
 
   it("read an element's HTML, border box and computed style by its ref, with no page script", async () => {
     const { deps, pages, tools, devtools } = setup();
-    pages.setPolicy({ ...POLICY, debugging: true });
-    await execute(deps, command(open));
+    pages.setPolicy({ ...POLICY, debugging: true, revision: 7 });
+    const opened = await execute(deps, command(open));
+    const binding = {
+      document_id: opened.document_id!,
+      origin: 'http://127.0.0.1:9',
+      settings_revision: 7,
+    };
     const ref = devtools.refs.refFor(77);
     tools.answers.set('DOM.getOuterHTML', () => ({ outerHTML: '<canvas id="board"></canvas>' }));
     tools.answers.set('DOM.getBoxModel', () => ({
@@ -46,7 +51,10 @@ describe('element inspection and performance counters', () => {
         { name: 'animation-name', value: 'none' },
       ],
     }));
-    const result = await execute(deps, command({ kind: 'inspect', element: ref }, '127.0.0.1'));
+    const result = await execute(
+      deps,
+      command({ kind: 'inspect', element: ref, binding }, '127.0.0.1'),
+    );
     expect(result.outcome).toMatchObject({
       outcome: 'completed',
       result: {
@@ -63,14 +71,17 @@ describe('element inspection and performance counters', () => {
     expect(tools.methods()).not.toContain('Runtime.evaluate');
     expect(tools.methods()).not.toContain('Runtime.callFunctionOn');
     // A ref from no snapshot names nothing.
-    const unknown = await execute(deps, command({ kind: 'inspect', element: 'e999' }, '127.0.0.1'));
+    const unknown = await execute(
+      deps,
+      command({ kind: 'inspect', element: 'e999', binding }, '127.0.0.1'),
+    );
     expect(unknown.outcome).toMatchObject({ outcome: 'refused' });
   });
 
   it("read the page's counters with their units", async () => {
     const { deps, pages, tools } = setup();
-    pages.setPolicy({ ...POLICY, debugging: true });
-    await execute(deps, command(open));
+    pages.setPolicy({ ...POLICY, debugging: true, revision: 7 });
+    const opened = await execute(deps, command(open));
     tools.answers.set('Performance.getMetrics', () => ({
       metrics: [
         { name: 'Nodes', value: 1520 },
@@ -79,7 +90,20 @@ describe('element inspection and performance counters', () => {
         { name: 'Timestamp', value: 123 },
       ],
     }));
-    const result = await execute(deps, command({ kind: 'performance' }, '127.0.0.1'));
+    const result = await execute(
+      deps,
+      command(
+        {
+          kind: 'performance',
+          binding: {
+            document_id: opened.document_id!,
+            origin: 'http://127.0.0.1:9',
+            settings_revision: 7,
+          },
+        },
+        '127.0.0.1',
+      ),
+    );
     expect(result.outcome).toMatchObject({
       outcome: 'completed',
       result: {

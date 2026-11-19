@@ -28,10 +28,12 @@ grep-matcher.workspace = true
 grep-regex.workspace = true
 grep-searcher.workspace = true
 regex.workspace = true
+roxmltree = "0.21"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 ulid.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 aura-windows-platform = { path = "../aura-windows-platform" }

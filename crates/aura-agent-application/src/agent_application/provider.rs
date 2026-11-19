@@ -331,7 +331,9 @@ pub(super) async fn execute(
             &aura_model_adapter_anthropic::AnthropicMessagesAdapter
         }
     };
-    let execution = transport.execute(ModelTransportExecution {
+    // Compaction polls the same transport beneath context preparation. Keep its streaming
+    // state out of the enclosing future so those layers fit the runtime's worker stack.
+    let mut execution = Box::pin(transport.execute(ModelTransportExecution {
         snapshot: &snapshot,
         endpoint_timeouts: &timeouts,
         gate: &gate,
@@ -341,8 +343,7 @@ pub(super) async fn execute(
         initial_compatibility_overrides: BTreeSet::new(),
         cancellation: cancel,
         events: &events,
-    });
-    tokio::pin!(execution);
+    }));
     // The stream loop's event transaction is a real journal write, and it used to run
     // inline on this async task: a Provider that answered quickly could still park the reactor on
     // the shared journal mutex for as long as another writer held it. It is now one admitted,

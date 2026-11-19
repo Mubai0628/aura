@@ -201,18 +201,26 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
       </section>
       <section aria-label="浏览器调试" className="settings-surface browser-settings-debug">
         <label className="browser-settings-toggle">
-          <ToggleSwitch
-            checked={settings?.debugging}
-            disabled={!ready}
-            label="允许模型调试网页"
-            onCheckedChange={(checked) =>
-              checked ? setConfirming('debugging') : void save({ debugging: false })
-            }
-          />
           <span>
-            允许模型调试网页
+            模型网页调试
             <small>{DEBUGGING_RISK}</small>
           </span>
+          <select
+            aria-label="模型网页调试"
+            disabled={!ready}
+            value={
+              settings?.debugging_blocked ? 'blocked' : settings?.debugging ? 'allowed' : 'ask'
+            }
+            onChange={(event) => {
+              const choice = event.currentTarget.value;
+              if (choice === 'allowed') setConfirming('debugging');
+              else void save({ debugging: false, debugging_blocked: choice === 'blocked' });
+            }}
+          >
+            <option value="ask">逐次审批</option>
+            <option value="blocked">禁止调试</option>
+            <option value="allowed">长期允许</option>
+          </select>
         </label>
       </section>
       {unread === undefined ? null : (
@@ -246,7 +254,7 @@ export function BrowserSettings({ coreReady }: { coreReady: boolean }) {
           onCancel={() => setConfirming(undefined)}
           onConfirm={() => {
             setConfirming(undefined);
-            void save({ debugging: true });
+            void save({ debugging: true, debugging_blocked: false });
           }}
           title="允许模型调试网页？"
           titleId={debugTitle}

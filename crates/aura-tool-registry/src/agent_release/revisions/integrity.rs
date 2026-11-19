@@ -1,19 +1,9 @@
 use super::super::{AgentBuiltinEntry, BuiltinToolDefinitionSetError};
-use super::{
-    PUBLISHED, PUBLISHED_BROWSER, PUBLISHED_HANDOVER, PUBLISHED_LATER, PUBLISHED_MEDIA,
-    PUBLISHED_SHARED, PUBLISHED_TEAM, PublishedRevision,
-};
+use super::PublishedRevision;
 use aura_domain_common::{Revision, ToolId, ToolInstanceId};
 
 pub fn current(name: &str) -> Result<&'static PublishedRevision, BuiltinToolDefinitionSetError> {
-    PUBLISHED
-        .iter()
-        .chain(PUBLISHED_BROWSER)
-        .chain(PUBLISHED_MEDIA)
-        .chain(PUBLISHED_LATER)
-        .chain(PUBLISHED_TEAM)
-        .chain(PUBLISHED_HANDOVER)
-        .chain(PUBLISHED_SHARED)
+    super::all()
         .filter(|r| r.name == name)
         .max_by_key(|r| r.revision)
         .ok_or(BuiltinToolDefinitionSetError::InvalidDocument)

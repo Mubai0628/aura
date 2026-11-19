@@ -3,9 +3,7 @@
 //! The browser must be on and its settings readable; a blocked site is refused here, before any
 //! approval could be asked for it. The page's site is the one the host last reported; the host
 //! checks again before it acts, so an approval never carries over to a page that has moved.
-//! Page debugging (a script in the page, its network log) needs the user's own switch in the
-//! settings, which no tool can change; a script on a site other than this computer's own pages
-//! is a sensitive action, asked every time.
+//! Debugging authority is bound to the observed document and the effective settings revision.
 use super::super::*;
 use anyhow::{anyhow, bail, ensure};
 use aura_browser_domain::*;
@@ -44,8 +42,6 @@ pub(crate) struct BrowserResolution {
     pub network: OperationNetwork,
     pub risks: Vec<OperationRiskFlag>,
 }
-
-const DEBUGGING_OFF: &str = "browser.debugging_off: 网页调试没有开启。只有用户能在 设置 → 网络与浏览器 打开“允许模型调试网页”；在此之前请用 browser.snapshot、browser.console 和截图。";
 
 fn element(text: Option<String>) -> anyhow::Result<Option<String>> {
     if let Some(text) = &text {
@@ -109,7 +105,8 @@ impl AgentExecution {
                 .map(ToString::to_string),
         };
         // The page as the host last reported it.
-        let current = self.browser.page_url(session, page_id).as_deref().and_then(site_of_url);
+        let observed = self.browser.observation(session, page_id);
+        let current = observed.as_ref().and_then(|p| site_of_url(&p.url));
         let mut on_page = vec![page.clone()];
         on_page.extend(current.as_ref().map(site));
         let input = action.clone();
@@ -117,6 +114,19 @@ impl AgentExecution {
             (caps.to_vec(), on_page.clone(), network, host)
         };
         let mut risks = vec![];
+        let debugging = if super::debugging::action(handler.name()) {
+            ensure!(
+                current.as_ref().is_none_or(|s| BrowserSiteDecision::of(s, &allowed, &blocked)
+                    != BrowserSiteDecision::Blocked),
+                "browser.blocked: 当前页面已被浏览器策略阻止，本次调试没有执行。"
+            );
+            if !settings.settings.debugging {
+                risks.push(OperationRiskFlag::SensitiveBrowserAction);
+            }
+            Some(super::debugging::binding(&settings, observed.as_ref())?)
+        } else {
+            None
+        };
         let (caps, resources, network, host) = match handler {
             H::BrowserOpen => {
                 let open: BrowserOpenInput = arguments(handler, &input)?;
@@ -410,13 +420,15 @@ impl AgentExecution {
                 )
             }
             H::BrowserEvaluate => {
-                ensure!(settings.settings.debugging, DEBUGGING_OFF);
                 let input: BrowserEvaluateInput = arguments(handler, &input)?;
                 ensure!(
                     !input.expression.trim().is_empty() && input.expression.len() <= 20_000,
                     "browser.evaluate: 给出一段 JavaScript 表达式（最多 20000 字节）"
                 );
-                let action = BrowserHostActionV1::Evaluate { expression: input.expression };
+                let action = BrowserHostActionV1::Evaluate {
+                    expression: input.expression,
+                    binding: debugging,
+                };
                 // This computer's own pages (a dev server, a workspace file) are the model's to
                 // debug; anywhere else a script reads and acts as the signed-in user.
                 if current.as_ref().is_none_or(|site| this_computer(&site.host)) {
@@ -426,7 +438,9 @@ impl AgentExecution {
                         action,
                     )
                 } else {
-                    risks.push(OperationRiskFlag::SensitiveBrowserAction);
+                    if risks.is_empty() {
+                        risks.push(OperationRiskFlag::SensitiveBrowserAction);
+                    }
                     page_action(
                         &[C::BrowserSensitiveAction],
                         OperationNetwork::BrowserSitePolicy,
@@ -435,7 +449,6 @@ impl AgentExecution {
                 }
             }
             H::BrowserNetwork => {
-                ensure!(settings.settings.debugging, DEBUGGING_OFF);
                 let input: BrowserNetworkInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
@@ -443,12 +456,12 @@ impl AgentExecution {
                     BrowserHostActionV1::Network {
                         failed_only: input.failed_only,
                         max_entries: bounded(input.max_entries, 50, 1, 200),
+                        binding: debugging,
                     },
                 )
             }
             // Read through DevTools; no script runs in the page, nothing changes on it.
             H::BrowserInspect => {
-                ensure!(settings.settings.debugging, DEBUGGING_OFF);
                 let input: BrowserInspectInput = arguments(handler, &input)?;
                 ensure!(
                     !input.element.trim().is_empty() && input.element.len() <= 64,
@@ -457,16 +470,15 @@ impl AgentExecution {
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::None,
-                    BrowserHostActionV1::Inspect { element: input.element },
+                    BrowserHostActionV1::Inspect { element: input.element, binding: debugging },
                 )
             }
             H::BrowserPerformance => {
-                ensure!(settings.settings.debugging, DEBUGGING_OFF);
                 let _: BrowserPerformanceInput = arguments(handler, &input)?;
                 page_action(
                     &[C::BrowserRead],
                     OperationNetwork::None,
-                    BrowserHostActionV1::Performance,
+                    BrowserHostActionV1::Performance { binding: debugging },
                 )
             }
             other => bail!(

@@ -72,14 +72,16 @@ impl ControlResources {
     pub(in crate::agent_execution) fn overlaps(
         &self,
         info: &NativePathInfo,
-        mutating: bool,
+        include_descendants: bool,
     ) -> bool {
         self.paths.read().unwrap_or_else(|e| e.into_inner()).iter().any(|path| {
             match aura_windows_platform::inspect_existing_path(path, true) {
                 Ok(root) => {
                     root.identity == info.identity
                         || root.is_directory && final_path_within(&root, info)
-                        || mutating && info.is_directory && final_path_within(info, &root)
+                        || include_descendants
+                            && info.is_directory
+                            && final_path_within(info, &root)
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                     same_entry(path, &info.final_path)

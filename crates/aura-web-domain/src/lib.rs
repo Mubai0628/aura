@@ -6,11 +6,19 @@ pub use http::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub const MAX_FETCH_BYTES: u32 = 8 * 1024 * 1024;
+pub const MAX_READ_CHARS: u32 = 65_536;
+pub const LOCAL_SEARCH_MAX_QUERY_BYTES: usize = 8192;
+pub const LOCAL_SEARCH_MAX_RESULTS: u32 = 20;
+
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct WebSearchInput {
+    /// A nonempty query. The configured search service may impose a smaller limit.
+    #[schemars(length(max = 8192), regex(pattern = r"\S"))]
     pub query: String,
     #[serde(default = "default_search_results")]
+    #[schemars(range(min = 1, max = 50))]
     pub max_results: u32,
 }
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -28,6 +36,7 @@ pub struct WebFetchInput {
     #[serde(default)]
     pub mode: WebFetchMode,
     #[serde(default = "default_fetch_bytes")]
+    #[schemars(range(min = 1, max = 8388608))]
     pub max_bytes: u32,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -37,6 +46,7 @@ pub struct WebReadInput {
     #[serde(default)]
     pub offset_chars: u32,
     #[serde(default = "default_read_chars")]
+    #[schemars(range(min = 1, max = 65536))]
     pub max_chars: u32,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]

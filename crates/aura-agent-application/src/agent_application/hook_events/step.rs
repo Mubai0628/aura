@@ -23,7 +23,9 @@ impl AgentApplication {
         options: &aura_model_domain::ResolvedModelRequestOptions,
     ) -> anyhow::Result<StepHooks> {
         let mut hooks = StepHooks::default();
+        let completion = self.completion_guidance(run_id, turn.turn_task_id).await?;
         if !self.hooks_registered() {
+            hooks.injections.extend(completion);
             return Ok(hooks);
         }
         let owned = turn.clone();
@@ -33,7 +35,7 @@ impl AgentApplication {
                 hook_store::message_notes_for_turn(db, &owned)
             })
             .await?;
-        hooks.injections.extend(self.completion_guidance(run_id, turn.turn_task_id).await?);
+        hooks.injections.extend(completion);
         let runner = self.hook_runner()?;
         let context_payload =
             serde_json::json!({"model_step_id": step, "mode": turn.mode, "injections": []});

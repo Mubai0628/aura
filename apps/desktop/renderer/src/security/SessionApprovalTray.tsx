@@ -1,10 +1,12 @@
 import { failedAction, isConflict } from '../agent-session/failure-text';
 import type { ApprovalDecisionKind, ApprovalView } from '@aura/contracts/generated';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import { AppIcon } from '../app-icons';
 import type { useSecurityControl } from '../security-control-store';
 import './security-ui.css';
+import { useHumanWait } from '../agent-session/human-wait';
+import { WaitCountdown } from '../agent-session/WaitCountdown';
 
 /** An approval answered elsewhere, expired or no longer there. */
 const GONE = ['approval.stale_request', 'approval.already_resolved', 'approval.not_found'];
@@ -16,6 +18,53 @@ const LABELS: Record<ApprovalDecisionKind, string> = {
   allow_workspace: '本工作区允许',
   deny: '拒绝',
 };
+
+function TrayApproval({
+  approval,
+  sessionId,
+  pending,
+  onDecision,
+}: {
+  approval: ApprovalView;
+  sessionId: string;
+  pending: string | undefined;
+  onDecision: (approval: ApprovalView, decision: ApprovalDecisionKind) => Promise<void>;
+}) {
+  const target = useMemo(
+    () => ({ kind: 'legacy_approval' as const, approval_id: approval.id }),
+    [approval.id],
+  );
+  const { mount, focus, blur, touch, deadlineAt, focusedUntil, held } = useHumanWait<HTMLLIElement>(
+    sessionId,
+    target,
+  );
+  return (
+    <li
+      ref={mount}
+      tabIndex={0}
+      onFocusCapture={focus}
+      onBlurCapture={blur}
+      onPointerDownCapture={touch}
+    >
+      <strong>{approval.title}</strong>
+      <p>{approval.actual_operation_summary}</p>
+      <WaitCountdown approval deadlineAt={deadlineAt} focusedUntil={focusedUntil} held={held} />
+      <div className="approval-actions">
+        {approval.allowed_decisions.map((decision) => (
+          <button
+            type="button"
+            disabled={pending !== undefined}
+            key={decision}
+            className={decision === 'deny' ? 'button-danger' : undefined}
+            onClick={() => void onDecision(approval, decision)}
+          >
+            {pending === approval.id ? '正在提交…' : LABELS[decision]}
+          </button>
+        ))}
+      </div>
+    </li>
+  );
+}
 
 export function SessionApprovalTray({
   sessionId,
@@ -54,23 +103,13 @@ export function SessionApprovalTray({
       <Collapsible.Content className="approval-tray-content">
         <ul className="approval-list">
           {approvals.map((approval) => (
-            <li key={approval.id}>
-              <strong>{approval.title}</strong>
-              <p>{approval.actual_operation_summary}</p>
-              <div className="approval-actions">
-                {approval.allowed_decisions.map((decision) => (
-                  <button
-                    type="button"
-                    disabled={pending !== undefined}
-                    key={decision}
-                    className={decision === 'deny' ? 'button-danger' : undefined}
-                    onClick={() => void resolve(approval, decision)}
-                  >
-                    {pending === approval.id ? '正在提交…' : LABELS[decision]}
-                  </button>
-                ))}
-              </div>
-            </li>
+            <TrayApproval
+              key={approval.id}
+              approval={approval}
+              sessionId={sessionId}
+              pending={pending}
+              onDecision={resolve}
+            />
           ))}
         </ul>
         {error === undefined ? null : <p role="alert">{error}</p>}

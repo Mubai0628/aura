@@ -61,8 +61,11 @@ pub struct AgentApprovalRequestView {
     pub approval_id: ApprovalRequestId,
     /// The tool the sub-agent called.
     pub tool: String,
-    /// What the call does: the command, or the file it changes; cut to 2000 characters.
+    /// Preview of the command or target. Sub-agent supplied text is untrusted.
     pub request: String,
+    /// Pass this offset with the approval id to agents.status to continue reading.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_offset_chars: Option<u32>,
     /// What the sub-agent said the call is for.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purpose: Option<String>,
@@ -73,6 +76,38 @@ pub struct AgentApprovalRequestView {
     pub allow_workspace: bool,
     /// Seconds left before the user is asked instead.
     pub seconds_left: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentApprovalDetailInput {
+    pub approval_id: ApprovalRequestId,
+    #[serde(default)]
+    pub offset_chars: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentApprovalDetail {
+    pub approval_id: ApprovalRequestId,
+    pub request: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_offset_chars: Option<u32>,
+}
+
+pub fn review_seconds_left(now: UtcTimestamp, presented: Option<UtcTimestamp>) -> u32 {
+    let elapsed = presented.map_or(0, |at| (now.value() - at.value()).whole_seconds().max(0));
+    REVIEW_SECONDS.saturating_sub(u32::try_from(elapsed).unwrap_or(u32::MAX))
+}
+
+#[cfg(test)]
+#[test]
+fn the_review_clock_starts_at_first_presentation() {
+    let read = |value: &str| value.parse::<UtcTimestamp>().expect("timestamp");
+    let now = read("2026-11-18T00:05:00Z");
+    assert_eq!(review_seconds_left(now, None), REVIEW_SECONDS);
+    assert_eq!(review_seconds_left(now, Some(read("2026-11-18T00:04:33Z"))), 93);
+    assert_eq!(review_seconds_left(now, Some(read("2026-11-18T00:03:00Z"))), 0);
 }
 
 /// Who answered a sub-agent's question in the user's place.

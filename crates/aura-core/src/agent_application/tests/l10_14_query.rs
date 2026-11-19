@@ -83,8 +83,8 @@ async fn touching_a_question_moves_its_deadline_and_a_custom_reply_reaches_the_m
     let provider = Provider::scenario(Scenario::Query).await;
     let (runtime, request, waiting) = waiting_question(&host, &provider).await;
     let question = waiting.pending_query.clone().expect("a waiting question");
-    let first = waiting.pending_query_deadline_at.expect("a waiting question has a deadline");
-    assert_eq!(first, query_deadline(question.created_at, None));
+    assert_eq!(waiting.pending_query_deadline_at, None);
+    let first = present_question(&runtime, &request, question.query_id).await;
 
     let touched: AgentQueryTouchView = serde_json::from_value(
         crate::r03_tests::success(
@@ -167,8 +167,18 @@ async fn a_question_nobody_touches_ends_as_no_response_and_the_run_goes_on() {
     let provider = Provider::scenario(Scenario::Query).await;
     let (runtime, request, waiting) = waiting_question(&host, &provider).await;
     let crate::StartupMode::Ready(s) = &runtime.startup_mode else { unreachable!() };
-    let deadline = waiting.pending_query_deadline_at.expect("deadline");
     let run = request.agent_run_id;
+    let question = waiting.pending_query.expect("question");
+    assert!(waiting.pending_query_deadline_at.is_none());
+    {
+        let mut store = s.broker.lock().expect("V2 store");
+        let late = UtcTimestamp::from_value(
+            question.created_at.value() + std::time::Duration::from_secs(90),
+        );
+        assert!(query::wait_deadline(store.database.connection(), run).unwrap().is_none());
+        assert!(!store.database.unit_of_work(|tx| query::expire(tx, run, late)).unwrap());
+    }
+    let deadline = present_question(&runtime, &request, question.query_id).await;
     {
         let mut store = s.broker.lock().expect("V2 store");
         // The run's timer waits for the question as it waits for an approval.
@@ -205,4 +215,40 @@ async fn a_question_nobody_touches_ends_as_no_response_and_the_run_goes_on() {
     assert_eq!(body["outcome"], "no_response");
     assert_eq!(body["answers"][0]["reply"]["kind"], "no_response");
     assert!(the_model_read(&provider, "busy or away"));
+}
+
+async fn present_question(
+    runtime: &crate::RuntimeState,
+    request: &AgentRunRequest,
+    query_id: UserQueryId,
+) -> UtcTimestamp {
+    let view: AgentWaitActivityView = serde_json::from_value(
+        crate::r03_tests::success(
+            runtime,
+            "agent.wait.activity",
+            json!({"session_id": request.session_id,
+            "target": {"kind": "query", "agent_run_id": request.agent_run_id, "query_id": query_id},
+            "viewer": "foreground-window", "activity": "present"}),
+        )
+        .await,
+    )
+    .unwrap();
+    view.deadline_at
+}
+
+#[tokio::test]
+async fn only_one_window_can_answer_a_question() {
+    let host = crate::r03_tests::Fixture::new();
+    let provider = Provider::scenario(Scenario::Query).await;
+    let (runtime, request, waiting) = waiting_question(&host, &provider).await;
+    let a = json!(answer(&request, &waiting, QueryAnswerValue::Custom { text: "window A".into() }));
+    let b = json!(answer(&request, &waiting, QueryAnswerValue::Custom { text: "window B".into() }));
+    let (a, b) = tokio::join!(
+        crate::r03_tests::request(&runtime, "agent.query.answer", a),
+        crate::r03_tests::request(&runtime, "agent.query.answer", b),
+    );
+    assert_ne!(a.get("error").is_some(), b.get("error").is_some(), "{a}\n{b}");
+    wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
+    assert_eq!(reply(&runtime)["query_reply"]["outcome"], "answered");
+    assert_ne!(the_model_read(&provider, "window A"), the_model_read(&provider, "window B"));
 }

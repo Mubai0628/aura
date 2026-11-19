@@ -21,6 +21,7 @@ const GENERAL: &[&str] = &[
     "tool.resource.identity_resolution_failed",
     "tool.resource.scope_resolution_failed",
     "tool.resource.resolver_unavailable",
+    "tool.runtime.http_gateway_failed",
 ];
 
 /// A call whose result Core could not establish; the family's own Chinese sentence, when it has
@@ -29,6 +30,32 @@ const UNKNOWN_OUTCOME: &str = "tool.runtime.dispatch_outcome_unknown";
 
 /// For a code a person may meet: what happened, and what comes next ("" when nothing does).
 const CAUSES: &[(&str, &str, &str)] = &[
+    (
+        "web.access_denied",
+        "网站拒绝访问（HTTP 403）",
+        "可用其他公开来源，或请你在已登录的浏览器打开",
+    ),
+    ("web.authentication_required", "网站需要登录", "可用公开来源或已登录的浏览器"),
+    ("web.http_failed", "网站返回 HTTP 错误", "检查网址或按网站的回应决定是否重试"),
+    (
+        "web.unsupported_media_type",
+        "网页工具不支持这类文件",
+        "需要文件时可通过下载和相应格式的工具读取",
+    ),
+    ("web.bot_challenge", "网站返回了访问验证", "可改用公开来源"),
+    (
+        "tool.result.http_partial_response",
+        "服务器只返回了分段或增量内容，文件没有发布",
+        "模型可以改用能返回完整文件的地址",
+    ),
+    ("web.rendering_unavailable", "页面没能渲染", "可尝试读取原始 HTML 或改用浏览器"),
+    ("web.deepseek_fetch_empty", "抓取服务未取得正文", "可改用直接 HTTP 或浏览器读取"),
+    ("web.deepseek_fetch_refused", "抓取服务拒绝读取", "可尝试其他公开来源"),
+    ("web.deepseek_unavailable", "网页抓取服务暂时不可用", "可稍后重试或使用直接 HTTP"),
+    ("web.deepseek_rate_limited", "网页抓取服务限流", "按服务提示稍后重试"),
+    ("fs.pdf_text_unavailable", "当前无法直接提取 PDF 文本", "可用已配置的 PDF 读取能力"),
+    ("fs.document_invalid", "文档格式无效或不完整", "请核对文件或用文档应用打开"),
+    ("fs.document_too_large", "文档超过提取上限", "可将所需内容导出成较小的文档或文本"),
     ("tool.approval.expired", "批准请求在你回答前过期了", "模型需要时会再次请求批准"),
     ("tool.approval.denied", "你拒绝了这个调用", ""),
     ("tool.approval.invalidated", "等待批准时会话的权限模式变了", "任务会按当前权限继续"),

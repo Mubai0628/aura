@@ -246,6 +246,8 @@ export function agentBridge(
       invoke('agent.query.answer', request),
     touchAgentQuery: (request: AgentMainParams['agent.query.touch']) =>
       invoke('agent.query.touch', request),
+    updateAgentWait: (request: AgentMainParams['agent.wait.activity']) =>
+      invoke('agent.wait.activity', request),
     readAgentSessionsActivity: (request: AgentMainParams['agent.sessions.activity']) =>
       invoke('agent.sessions.activity', request),
     listAgentTeam: (request: AgentMainParams['agent.team.list']) =>

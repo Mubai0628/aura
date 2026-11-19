@@ -122,6 +122,7 @@ export function NewSessionView({
       key={draft.id}
       className="conversation-workspace new-session-workspace"
       draftKey={draft.id}
+      draftWorkspaceId={draft.workspaceId}
     >
       <header className="conversation-header">
         <h2>新会话</h2>

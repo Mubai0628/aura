@@ -105,6 +105,33 @@ pub struct AgentQueryTouchView {
     pub query_id: UserQueryId,
     pub deadline_at: UtcTimestamp,
 }
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AgentWaitTarget {
+    Query { agent_run_id: AgentRunId, query_id: UserQueryId },
+    Approval { approval_id: ApprovalRequestId },
+    LegacyApproval { approval_id: ApprovalRequestId },
+}
+
+pub use aura_domain_common::human_wait::Activity as AgentWaitActivity;
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWaitActivityRequest {
+    pub session_id: SessionId,
+    pub target: AgentWaitTarget,
+    #[schemars(length(min = 1, max = 64))]
+    pub viewer: String,
+    pub activity: AgentWaitActivity,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWaitActivityView {
+    pub deadline_at: UtcTimestamp,
+    pub focused_until: Option<UtcTimestamp>,
+}
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunProjection {

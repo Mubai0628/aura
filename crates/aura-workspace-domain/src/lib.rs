@@ -53,10 +53,10 @@ pub use fs::{
     FsExternalWriteTarget, FsFindPathsRequest, FsGlobRequest, FsGlobResult, FsHashRequest,
     FsHashResult, FsInspectRequest, FsInspectResult, FsListEntry, FsListRequest, FsListResult,
     FsMoveRequest, FsMutationDisposition, FsMutationResult, FsNodeKind, FsReadBinaryRangeRequest,
-    FsReadBinaryRangeResult, FsReadTextRequest, FsReadTextResult, FsSearchCompletion,
-    FsSearchContext, FsSearchContextLine, FsSearchIncompleteReason, FsSearchPattern,
-    FsSearchTextMatch, FsSearchTextRequest, FsSearchTextResult, FsStatRequest, FsStatResult,
-    FsWriteFileRequest,
+    FsReadBinaryRangeResult, FsReadDocumentFormat, FsReadDocumentHeading, FsReadTextRequest, FsReadTextResult,
+    FsSearchCompletion, FsSearchContext, FsSearchContextLine, FsSearchIncompleteReason,
+    FsSearchPattern, FsSearchTextMatch, FsSearchTextRequest, FsSearchTextResult, FsStatRequest,
+    FsStatResult, FsWriteFileRequest,
 };
 mod file;
 pub use file::{

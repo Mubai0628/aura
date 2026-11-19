@@ -3,6 +3,21 @@
 use super::PublishedRevision;
 
 pub const PUBLISHED_LATER: &[PublishedRevision] = &[
+    // A success receipt confirms that the body was a full transfer.
+    PublishedRevision {
+        name: "http.download",
+        revision: 4,
+        tool: "tol_01M2DG020980080021AN942010",
+        instance: "tin_01M2DG020980080021AN94SP10",
+        fingerprint: "15ea5c4c9172e80ebd4fe9149b2b69544701eb7e3665c84ac9076288254822a6",
+    },
+    PublishedRevision {
+        name: "http.download",
+        revision: 5,
+        tool: "tol_01M2DG020980080021AN942010",
+        instance: "tin_01M2DG020980080021AN94SR10",
+        fingerprint: "f423570194a338a1baf40e84657382c6364d924d36c261534b41b8d84e53ff15",
+    },
     // `path_glob` without `/` names file names in any folder; files a partial search did not
     // reach may hold matches.
     PublishedRevision {

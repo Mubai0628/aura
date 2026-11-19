@@ -38,7 +38,7 @@ fn only_deepseeks_own_api_over_https_carries_the_web_service() {
 
 #[test]
 fn search_and_fetch_take_the_models_input_in_deepseeks_shape() {
-    let search = serde_json::json!({"query": "rust 2024 edition", "max_results": 80});
+    let search = serde_json::json!({"query": "rust 2024 edition", "max_results": 50});
     assert_eq!(
         request_body("web.search", &search).expect("search"),
         serde_json::json!({"query": "rust 2024 edition", "count": 50}),
@@ -46,6 +46,8 @@ fn search_and_fetch_take_the_models_input_in_deepseeks_shape() {
     );
     let long = serde_json::json!({"query": "x".repeat(129), "max_results": 5});
     assert!(request_body("web.search", &long).is_err(), "more than 128 characters");
+    let too_many = serde_json::json!({"query": "Rust", "max_results": 51});
+    assert!(request_body("web.search", &too_many).is_err());
     let fetch =
         serde_json::json!({"url": "https://example.com/a", "mode": "auto", "max_bytes": 1024});
     assert_eq!(
@@ -94,6 +96,7 @@ fn a_fetch_asked_directly_or_of_a_file_goes_from_this_computer() {
     };
     for (url, mode) in [
         ("https://example.com/page", "http_only"),
+        ("https://example.com/page", "headless_render_required"),
         ("https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js", "auto"),
         ("https://example.com/data.json?page=2", "auto"),
         ("https://example.com/styles/site.css", "auto"),

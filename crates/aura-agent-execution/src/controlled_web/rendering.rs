@@ -95,17 +95,6 @@ impl ControlledWeb {
                     Ok(document)
                 })
             }
-            Err(WebError::UnsupportedMediaType(_)) => OrCancel::Value(RenderedDocument {
-                document: aura_web_runtime::extract_document(
-                    page.url,
-                    page.status,
-                    page.content_type,
-                    page.body,
-                    WebFetchMode::HttpOnly,
-                )
-                .map_err(Into::into),
-                stop_confirmed: true,
-            }),
             Err(error) => OrCancel::Value(RenderedDocument {
                 document: Err(error.into()),
                 stop_confirmed: true,

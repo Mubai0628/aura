@@ -362,7 +362,12 @@ pub fn resolve(
     {
         None
     } else {
-        grant_expiry(consent.as_ref(), approval.expires_at)
+        let dispatch_window = if crate::agent::human_wait::approval_presented(tx, id)? {
+            UtcTimestamp::from_value(now.value() + std::time::Duration::from_secs(600))
+        } else {
+            approval.expires_at
+        };
+        grant_expiry(consent.as_ref(), dispatch_window)
     };
     let mut grant = AuthorizationGrant {
         grant_id,
@@ -398,14 +403,15 @@ pub fn resolve(
 /// * the **dispatch credential** is the short-lived `AuthorizationDecision`, which
 ///   every caller already bounds separately and which must lie inside this Grant.
 ///
-/// Every other authorization keeps the confirmation window, which is the meaning it
-/// has always had.
+/// A presented request has a separate confirmation timer. A grant issued after a
+/// timely answer must cover the dispatch credential, even when the user answered
+/// at the end of the timer. Unpresented approvals keep their original expiry.
 fn grant_expiry(
     consent: Option<&super::security::NativeSessionConsent>,
-    approval_expires_at: UtcTimestamp,
+    dispatch_window_end: UtcTimestamp,
 ) -> Option<UtcTimestamp> {
     match consent {
         Some(_) => None,
-        None => Some(approval_expires_at),
+        None => Some(dispatch_window_end),
     }
 }

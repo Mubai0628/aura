@@ -373,6 +373,24 @@ pub struct BrowserConsoleEntryV1 {
     pub source: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BrowserDownloadStatus {
+    NotObserved,
+    BlockedByHost,
+    AccessRequired,
+}
+
+/// Evidence from the browser host. A saved file is confirmed by the download tool's receipt.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrowserDownloadObservation {
+    pub status: BrowserDownloadStatus,
+    pub click_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
+}
+
 /// What the page looks like after an action.
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -388,6 +406,8 @@ pub struct BrowserPageResult {
     pub dialogs: Vec<String>,
     /// What stopped or changed the action, such as a navigation the settings refused.
     pub notice: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub download: Option<BrowserDownloadObservation>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

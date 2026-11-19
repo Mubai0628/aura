@@ -34,6 +34,7 @@ pub(super) struct Reader<'a> {
     db: &'a Connection,
     session: SessionId,
     carried: Option<Carried>,
+    with_tool_results: bool,
 }
 
 struct Carried {
@@ -44,7 +45,12 @@ struct Carried {
 
 impl<'a> Reader<'a> {
     pub(super) fn new(db: &'a Connection, session: SessionId) -> Self {
-        Self { db, session, carried: None }
+        Self { db, session, carried: None, with_tool_results: true }
+    }
+
+    pub(super) fn without_tool_results(mut self) -> Self {
+        self.with_tool_results = false;
+        self
     }
 
     pub(super) fn rows(&mut self, round: &Round) -> StoreResult<Vec<Row>> {
@@ -64,7 +70,11 @@ impl<'a> Reader<'a> {
         if self.carried.is_none() {
             self.carried = Some(Carried {
                 rows: crate::agent::branch::carried_rows(self.db, self.session)?,
-                results: crate::agent::branch::carried_tool_results(self.db, self.session)?,
+                results: if self.with_tool_results {
+                    crate::agent::branch::carried_tool_results(self.db, self.session)?
+                } else {
+                    BTreeMap::new()
+                },
                 times: crate::agent::branch::carried_user_times(self.db, self.session)?,
             });
         }
@@ -193,15 +203,18 @@ impl<'a> Reader<'a> {
 
     /// A call of the session's own, with what it gave back once it has a result.
     fn call(&self, call: &NormalizedToolCall) -> StoreResult<Call> {
-        let recorded: Option<String> = self
-            .db
-            .query_row(
-                "SELECT c.id FROM tool_calls c JOIN tool_batches b ON b.id=c.batch_id \
+        let recorded: Option<String> = if self.with_tool_results {
+            self.db
+                .query_row(
+                    "SELECT c.id FROM tool_calls c JOIN tool_batches b ON b.id=c.batch_id \
                  WHERE c.id=?1 AND b.session_id=?2",
-                params![call.tool_call_id.to_string(), self.session.to_string()],
-                |r| r.get(0),
-            )
-            .ok();
+                    params![call.tool_call_id.to_string(), self.session.to_string()],
+                    |r| r.get(0),
+                )
+                .ok()
+        } else {
+            None
+        };
         let finished = recorded.is_some()
             && crate::tool::execution::call(self.db, call.tool_call_id)?.result.is_some();
         if !finished {

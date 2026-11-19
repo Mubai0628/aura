@@ -255,13 +255,16 @@ impl CoreHttpClientGateway {
                 }
                 let current = Url::parse(&request.plan.requested_url)
                     .map_err(|_| NetworkControlError::InvalidUrl)?;
-                let next = current.join(&location).map_err(|_| NetworkControlError::InvalidUrl)?;
-                if !next.username().is_empty()
-                    || next.password().is_some()
-                    || next.fragment().is_some()
-                {
-                    return Err(NetworkControlError::UrlCredentialsForbidden);
+                let mut next =
+                    current.join(&location).map_err(|_| NetworkControlError::InvalidUrl)?;
+                if !next.username().is_empty() || next.password().is_some() {
+                    return Err(super::user_proxy::routed_error(
+                        NetworkControlError::UrlCredentialsForbidden,
+                        &routing,
+                        false,
+                    ));
                 }
+                // HTTP never sends a fragment. Browser navigation handles it separately.
                 if ordinary && current.origin() != next.origin() {
                     credential_forwarding = false;
                     request.headers.retain(|(name, _)| {
@@ -281,6 +284,7 @@ impl CoreHttpClientGateway {
                     }
                 }
                 redirect_chain.push(crate::ordinary_tools::safe_url(next.as_str()));
+                next.set_fragment(None);
                 request.plan.requested_url = next.into();
                 request.plan.destination = None;
                 continue;

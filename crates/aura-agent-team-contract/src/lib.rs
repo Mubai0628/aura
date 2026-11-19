@@ -14,7 +14,10 @@ mod view;
 mod worktree;
 
 pub use limits::{AgentTeamLimits, AgentTeamSettingsSetRequest, AgentTeamSettingsView};
-pub use member::{Allowances, Grant, Member, MemberDetails, MemberState, TurnEnd, member_handle};
+pub use member::{
+    Allowances, DelegatedReadBasis, DelegatedReadScope, DelegatedReads, Grant, Member,
+    MemberDetails, MemberState, TurnEnd, member_handle,
+};
 pub use permissions::AgentTeamPermissions;
 pub use report::{Report, ReportInput, ReportInputStatus, ReportStatus};
 pub use review::*;
@@ -57,12 +60,17 @@ pub fn refusal_category(code: &str) -> Option<aura_domain_common::ErrorCategory>
         | "agents.task_names_conversation"
         | "agents.task_too_long"
         | "agents.title_invalid"
+        | "agents.read_paths_invalid"
         | "agents.approve_invalid"
         | "agent.report_invalid"
         | "agent.report_final_answer" => Some(Validation),
         "agents.unknown_agent" | "agents.approval_not_reviewed" | "agents.no_worktree" => {
             Some(NotFound)
         }
+        "agents.read_path_unavailable" => Some(NotFound),
+        "agents.read_delegation_unavailable"
+        | "agents.read_path_not_authorized"
+        | "agents.read_path_protected" => Some(aura_domain_common::ErrorCategory::Permission),
         _ => None,
     }
 }

@@ -23,6 +23,7 @@ pub(super) struct CompilationInput<'a> {
     pub fixed_tool_ids: &'a [aura_domain_common::ToolId],
     /// The screenshots the request may carry, attached anew on each pass.
     pub screenshots: &'a super::preparation::screenshots::Screenshots,
+    pub memory_available: bool,
 }
 
 impl AgentApplication {
@@ -45,6 +46,7 @@ impl AgentApplication {
             estimators,
             fixed_tool_ids,
             screenshots,
+            memory_available,
         } = pass;
         let mut passes = 0;
         // Compacting every sealed group is the last thing tried before the user is asked.
@@ -85,20 +87,20 @@ impl AgentApplication {
                 .map_err(aura_context_runtime::ContextPreparationError::from)
             };
         let mut prepared = loop {
+            // Apply recall after the effective history range is known, including each new
+            // compaction pass. Visible sources remain in their original messages.
+            self.refresh_recalled_sources(turn, &mut input, memory_available).await;
             // Only the screenshots whose results this pass still carries as they were.
             let unread_pictures = screenshots.attach(&mut input);
-            // The state as of this pass: a compaction or a clearing may have taken the result
-            // that showed the to-do.
-            write_control_state(&mut input, &state, &unread_pictures)?;
             // Boundary: the manual-compaction request read, one bounded section per pass.
-            let manual = {
+            let record = {
                 let journal = Arc::clone(&self.execution.journal);
                 self.store
                     .run_critical(
                         StoreStep::run(run_id, "agent.context.manual_compaction"),
                         StoreAccess::Read,
                         move || {
-                            Ok(aura_persistence_v2::context::manual_compaction::requested(
+                            Ok(aura_persistence_v2::context::manual_compaction::record(
                                 journal.lock()?.database.connection(),
                                 run_id,
                             )?)
@@ -106,6 +108,21 @@ impl AgentApplication {
                     )
                     .await?
             };
+            if let Some(record) = record.as_ref().filter(|record| {
+                record.state == aura_context_domain::ManualCompactionRequestState::Completed
+            }) {
+                state["manual_compaction_result"] = if record.source_context_snapshot_id.is_some() {
+                    "compacted".into()
+                } else {
+                    "nothing_eligible".into()
+                };
+            }
+            let manual = record.filter(|record| {
+                record.state == aura_context_domain::ManualCompactionRequestState::Requested
+            });
+            // The state as of this pass: a compaction or a clearing may have taken the result
+            // that showed the to-do.
+            write_control_state(&mut input, &state, &unread_pictures)?;
             // `over` is the request that does not fit, with its reasons; `None` when it fits.
             // `prefix` is what that request is made of, for a compaction asked on it.
             let compiled = ContextPreparationCompiler::new(&estimators)
@@ -210,6 +227,15 @@ impl AgentApplication {
                     }
                 }
             }
+            // A recalled note can be revised or forgotten. Keep this live context out of
+            // the persisted summary by using the isolated request while it is present.
+            let carries_recalled_sources = input.section_inputs.iter().any(|section| {
+                section.fragments.iter().any(|fragment| {
+                    matches!(&fragment.source_ref, ContextSourceRef::RuntimeState { state_kind, .. }
+                        if state_kind == super::preparation::recall::RELATED_SOURCES
+                            || state_kind == super::preparation::prior_materials::PRIOR_MATERIALS)
+                })
+            });
             let compacted = self
                 .compact(
                     &input,
@@ -220,7 +246,7 @@ impl AgentApplication {
                         non_history_tokens,
                         manual: manual.as_ref(),
                         everything_sealed,
-                        prefix: if isolated_only { None } else { Some(&prefix) },
+                        prefix: (!isolated_only && !carries_recalled_sources).then_some(&prefix),
                         fixed_tool_ids,
                         resolved_attachments: screenshots.resolved(&prefix.attachments)?.into(),
                     },

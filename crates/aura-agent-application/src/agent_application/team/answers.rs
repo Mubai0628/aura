@@ -1,25 +1,60 @@
 //! A sub-agent's questions answered before or instead of the user. Its main agent answers first
 //! those the settings let it (agents.approve) while its turn is under way, for at most
-//! `REVIEW_SECONDS` after the question was asked; the settings answer its downloads when they
+//! `REVIEW_SECONDS` after it sees the request; the settings answer its downloads when they
 //! allow them. Each answer covers one call, except the main agent's allow_workspace, which is the
 //! allowance the user's card offers; everything else waits for the user as before.
 use super::*;
 use aura_agent_team::{
-    Answered, AnsweredBy, ApprovalAnswer, REVIEW_SECONDS, ReviewRequest, note_review,
+    Answered, AnsweredBy, ApprovalAnswer, ReviewRequest, note_review, review_seconds_left,
 };
+use aura_context_domain::{ContextSourceRef, ModelEgressAuthorizationBasis, ModelEgressSourceKind};
+use aura_context_runtime::ContextFragment;
+use aura_domain_common::Revision;
 use aura_execution_contract::{
     ExecutionApprovalRequest, ExecutionApprovalResolutionRequest, ExecutionApprovalView,
 };
+use aura_persistence_core::{Connection, StoreResult};
 use aura_persistence_v2::agent::{approval, approver, session};
-use aura_security_contract::{ApprovalDecisionKind, ResolvedCapability};
+use aura_security_contract::{ApprovalDecisionKind, NetworkDataClass, ResolvedCapability};
 
 /// What a sub-agent's settings answer is recorded with.
 const DOWNLOAD_REASON: &str = "设置里允许子 Agent 下载。";
 
 impl AgentApplication {
+    /// Points the main agent to reviews it can collect with agents.status or agents.wait.
+    pub(in crate::agent_application) async fn main_agent_review_fragment(
+        self: &Arc<Self>,
+        session: SessionId,
+        revision: Revision,
+    ) -> anyhow::Result<Option<ContextFragment>> {
+        let pending = self
+            .store
+            .read(StoreStep::operation("agents.review.unpresented"), move |db| {
+                unpresented_reviews(db, session)
+            })
+            .await?;
+        let mut handles = Vec::new();
+        for (child, handle, ids) in pending {
+            let (_, reviews) = self.split_reviews(child, ids).await?;
+            if !reviews.is_empty() {
+                handles.push(handle);
+            }
+        }
+        Ok((!handles.is_empty()).then(|| ContextFragment {
+            source_ref: ContextSourceRef::RuntimeState {
+                state_kind: "agent.main_agent_reviews.v1".into(),
+                state_revision: revision,
+            },
+            source_kind: ModelEgressSourceKind::AuraCore,
+            data_class: NetworkDataClass::PublicContent,
+            authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
+            content: serde_json::json!({"waiting_for_main_agent_review": handles}).to_string(),
+        }))
+    }
+
     /// Splits the questions sub-agent `conversation` waits on into the user's and those its main
     /// agent answers first.
-    pub(super) async fn split_reviews(
+    pub(in crate::agent_application) async fn split_reviews(
         self: &Arc<Self>,
         conversation: SessionId,
         pending: Vec<ApprovalRequestId>,
@@ -27,36 +62,55 @@ impl AgentApplication {
         if pending.is_empty() {
             return Ok((pending, Vec::new()));
         }
+        let existing = pending.clone();
         let reviewer = self
             .store
             .read(StoreStep::operation("agents.review.reviewer"), move |db| {
                 let Some(member) = team_store::member_by_child(db, conversation)? else {
-                    return Ok(false);
+                    return Ok(None);
                 };
                 let approves = aura_agent_team::limits::settings(db)?.1.main_agent_approves;
                 // The main agent answers only while a turn of its own is under way.
                 let working = session::load(db, member.parent_session_id)?.active_turn.is_some();
-                Ok(approves && working)
+                if !approves || !working {
+                    return Ok(None);
+                }
+                let mut for_user = Vec::new();
+                for approval_id in existing {
+                    if aura_persistence_v2::agent::human_wait::approval_presented(db, approval_id)?
+                    {
+                        for_user.push(approval_id);
+                    }
+                }
+                Ok(Some((member.details.reviews, for_user)))
             })
             .await?;
-        if !reviewer {
+        let Some((reviews, already_with_user)) = reviewer else {
             return Ok((pending, Vec::new()));
-        }
+        };
         let now = UtcTimestamp::now();
-        let window = time::Duration::seconds(i64::from(REVIEW_SECONDS));
         let (mut users, mut reviewing) = (Vec::new(), Vec::new());
         for approval_id in pending {
+            if already_with_user.contains(&approval_id) {
+                users.push(approval_id);
+                continue;
+            }
             let view = self
                 .stored_approval(ExecutionApprovalRequest { session_id: conversation, approval_id })
                 .await?;
             let asked_at = view.approval.requested_at;
-            let reviewable = if now.value() - asked_at.value() < window {
-                let execution = Arc::clone(&self.execution);
-                let operation = view.operation.clone();
-                tokio::task::spawn_blocking(move || execution.reviewable(&operation)).await??
-            } else {
-                None
-            };
+            let presented = reviews
+                .iter()
+                .find(|review| review.approval_id == approval_id)
+                .and_then(|review| review.presented_at);
+            let reviewable =
+                if view.approval.expires_at > now && review_seconds_left(now, presented) > 0 {
+                    let execution = Arc::clone(&self.execution);
+                    let operation = view.operation.clone();
+                    tokio::task::spawn_blocking(move || execution.reviewable(&operation)).await??
+                } else {
+                    None
+                };
             let Some(reviewable) = reviewable else {
                 users.push(approval_id);
                 continue;
@@ -230,6 +284,35 @@ impl AgentApplication {
         }
         Ok(())
     }
+}
+
+fn unpresented_reviews(
+    db: &Connection,
+    parent: SessionId,
+) -> StoreResult<Vec<(SessionId, String, Vec<ApprovalRequestId>)>> {
+    if !aura_agent_team::limits::settings(db)?.1.main_agent_approves {
+        return Ok(Vec::new());
+    }
+    let mut ready = Vec::new();
+    for member in team_store::members_of(db, parent)? {
+        let child = member.child_session_id;
+        let Some(turn_id) = session::load(db, child)?.active_turn else { continue };
+        let turn = turns::load(db, turn_id)?;
+        if turn.state != TurnTaskState::AwaitingApproval {
+            continue;
+        }
+        let mut ids = approval::pending(db, turn.agent_run_id)?;
+        ids.retain(|id| {
+            !member.details.reviews.iter().any(|review| {
+                review.approval_id == *id
+                    && (review.presented_at.is_some() || review.answered.is_some())
+            })
+        });
+        if !ids.is_empty() {
+            ready.push((child, member.handle, ids));
+        }
+    }
+    Ok(ready)
 }
 
 /// Whether the question in `view` asks only for a download of a command: no risk flag, no

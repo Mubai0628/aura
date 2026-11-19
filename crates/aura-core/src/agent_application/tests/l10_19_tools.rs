@@ -177,6 +177,15 @@ async fn web_search_goes_to_the_chosen_deepseek_connection() {
         .expect("DeepSeek's search was asked");
     assert_eq!(searched["query"], "aura fixture query");
     assert_eq!(searched["count"], 3);
+    assert!(
+        requests
+            .iter()
+            .flat_map(|body| body["messages"].as_array().into_iter().flatten())
+            .filter_map(|message| message["content"].as_str())
+            .any(|text| text.contains("web_search_limits")
+                && text.contains("\"max_query_chars\":128")),
+        "the model is told the selected search route's bound"
+    );
     let result = requests
         .iter()
         .flat_map(|body| body["messages"].as_array().cloned().unwrap_or_default())
@@ -187,10 +196,9 @@ async fn web_search_goes_to_the_chosen_deepseek_connection() {
     assert!(result.contains("A longer summary the model reads."), "{result}");
 }
 
-/// The call is
-/// rejected as a page that has no content, and the model reads Core's sentence, not a bare code.
+/// The model learns that the fetch service answered HTTP 404 and what it can try next.
 #[tokio::test]
-async fn a_page_deepseek_cannot_fetch_is_a_rejection_the_model_reads() {
+async fn a_page_deepseek_cannot_fetch_reports_the_service_status_to_the_model() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::DeepSeekWebFetchMissing).await;
     let (runtime, session, model) =
@@ -235,7 +243,7 @@ async fn a_page_deepseek_cannot_fetch_is_a_rejection_the_model_reads() {
         .find_map(|content| serde_json::from_str(&content).ok())
         .expect("the fetch's result reached the model");
     let outcome = &result["outcome"];
-    assert_eq!(outcome["type"], "operation_rejected", "{result}");
+    assert_eq!(outcome["type"], "failed", "{result}");
     assert_eq!(outcome["error"]["code"], "web.deepseek_fetch_empty", "{result}");
     assert_eq!(outcome["error"]["category"], "not_found", "{result}");
     let message = outcome["error"]["message"].as_str().expect("message");

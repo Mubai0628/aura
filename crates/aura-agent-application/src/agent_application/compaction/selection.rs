@@ -111,7 +111,12 @@ pub(super) fn is_dynamic_source(
         || matches!(
             source_ref,
             ContextSourceRef::RuntimeState { state_kind, .. }
-                if matches!(state_kind.as_str(), "agent.activity_index.v1" | "agent.activity_index.workspace.v1" | "agent.activity_index.personal.v1")
+                if matches!(state_kind.as_str(),
+                    "agent.activity_index.v1" | "agent.activity_index.workspace.v1" | "agent.activity_index.personal.v1"
+                    | crate::agent_application::context::preparation::recall::RELATED_SOURCES
+                    | crate::agent_application::context::preparation::recall::DOCUMENT_READS
+                    | crate::agent_application::context::preparation::prior_materials::PRIOR_MATERIALS
+                    | "agent.team_download_receipts")
         )
 }
 /// Chooses which history units this compaction may replace.

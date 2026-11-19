@@ -51,6 +51,8 @@ impl<H: TeamHost> Team<'_, H> {
         let (_, permissions, _) =
             self.host.read("agents.spawn.settings", crate::limits::settings).await?;
         let mode = permissions.starting_mode(input.worktree);
+        let delegated_reads =
+            self.host.delegated_reads(call.session_id, call.turn_task_id, input.read_paths).await?;
         let placed = match input.worktree {
             true => Some(self.place_worktree(parent.workspace_id, call.tool_call_id).await?),
             false => None,
@@ -95,6 +97,7 @@ impl<H: TeamHost> Team<'_, H> {
                 model_name: model.name.clone(),
                 sheet: input.task,
                 grant: Grant { tools, shared: worktree.is_none() },
+                delegated_reads,
                 mode: Some(mode),
                 // What the settings let a new sub-agent's commands do; deleting without asking is
                 // only ever in a worktree, whose files its branch keeps.
@@ -144,6 +147,13 @@ impl<H: TeamHost> Team<'_, H> {
             None => sheet.push_str(SHARED_NOTE),
         }
         sheet.push_str(&mode_note(mode));
+        if let Some(reads) = &member.details.delegated_reads {
+            sheet.push_str("\nAuthorized read-only resources for this task. Use the absolute paths with fs.read, fs.list, fs.find or fs.search:");
+            for scope in &reads.scopes {
+                sheet.push_str("\n- ");
+                sheet.push_str(&scope.path);
+            }
+        }
         if let Err(error) =
             self.host.deliver(child, sheet, command_for(call.tool_call_id, "start")).await
         {

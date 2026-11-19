@@ -20,6 +20,8 @@ export interface BrowserPolicy {
   blocked: readonly SiteRule[];
   /** The user allowed models to debug pages (a script in the page, its network log). */
   debugging?: boolean;
+  debuggingBlocked?: boolean;
+  revision?: number;
 }
 
 /** Who a page belongs to and, for a model page, what its session allows. */

@@ -46,6 +46,8 @@ export const errorCodeLabel = (
       return '超过大小上限';
     case 'tool.runtime.http_gateway_failed':
       return '网络请求没有完成';
+    case 'tool.result.http_partial_response':
+      return '仅收到分段内容，未保存';
     // Another call held the file the whole wait; this call did nothing.
     case 'agent.resource_wait_exhausted':
     case 'fs.resource_busy':

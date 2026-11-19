@@ -9,16 +9,16 @@
 //! visible either way, and one run's timer cannot degrade another session's status.
 use super::*;
 use aura_core_broker::agent_store::StoreStep;
-use aura_persistence_v2::agent::{approval, query, recovery};
+use aura_persistence_v2::agent::{approval, human_wait, query, recovery};
 use std::collections::BTreeMap;
 
 /// The timers one Core owns, at most one per run.
 #[derive(Default)]
-pub(crate) struct ExpiryTimers {
-    inner: Mutex<BTreeMap<AgentRunId, tokio::task::JoinHandle<()>>>,
+pub(crate) struct ExpiryTimers<Id = AgentRunId> {
+    inner: Mutex<BTreeMap<Id, tokio::task::JoinHandle<()>>>,
 }
 
-impl ExpiryTimers {
+impl<Id: Ord> ExpiryTimers<Id> {
     #[cfg(any(test, feature = "test-hooks"))]
     pub(super) async fn stop_and_join_for_test(&self, deadline: Instant) {
         let tasks = std::mem::take(&mut *self.inner.lock().expect("expiry timer owner"));
@@ -32,15 +32,16 @@ impl ExpiryTimers {
     }
 
     /// Replaces any previous timer for this run, so a re-armed wait cannot be expired twice.
-    pub(super) fn install(&self, run: AgentRunId, task: tokio::task::JoinHandle<()>) {
-        if let Ok(mut timers) = self.inner.lock()
-            && let Some(previous) = timers.insert(run, task)
-        {
-            previous.abort();
+    pub(super) fn install(&self, id: Id, task: tokio::task::JoinHandle<()>) {
+        if let Ok(mut timers) = self.inner.lock() {
+            timers.retain(|_, timer| !timer.is_finished());
+            if let Some(previous) = timers.insert(id, task) {
+                previous.abort();
+            }
         }
     }
 
-    pub(super) fn cancel(&self, run: AgentRunId) {
+    pub(super) fn cancel(&self, run: Id) {
         if let Ok(mut timers) = self.inner.lock()
             && let Some(task) = timers.remove(&run)
         {
@@ -54,7 +55,91 @@ impl ExpiryTimers {
     }
 }
 
+fn sleep_until_check(deadline: UtcTimestamp) -> tokio::time::Sleep {
+    let millis = (deadline.value() - UtcTimestamp::now().value())
+        .whole_milliseconds()
+        .clamp(50, 600_000) as u64;
+    tokio::time::sleep(std::time::Duration::from_millis(millis))
+}
+
 impl AgentApplication {
+    pub async fn update_human_wait(
+        self: &Arc<Self>,
+        input: AgentWaitActivityRequest,
+    ) -> anyhow::Result<AgentWaitActivityView> {
+        if let AgentWaitTarget::LegacyApproval { approval_id } = input.target {
+            return self.update_legacy_wait(input, approval_id).await;
+        }
+        if let AgentWaitTarget::Approval { approval_id } = input.target {
+            let (for_user, _) = self.split_reviews(input.session_id, vec![approval_id]).await?;
+            anyhow::ensure!(
+                !for_user.is_empty(),
+                "approval.in_review: 主 Agent 正在处理这项审批。"
+            );
+        }
+        let (view, rearm) = self
+            .store
+            .write(StoreStep::operation("agent.wait.activity"), move |journal| {
+                journal
+                    .database
+                    .unit_of_work(|tx| human_wait::activity(tx, &input, UtcTimestamp::now()))
+            })
+            .await?;
+        if let Some(run) = rearm {
+            self.schedule_expiry(run).await?;
+        }
+        Ok(view)
+    }
+
+    async fn update_legacy_wait(
+        self: &Arc<Self>,
+        input: AgentWaitActivityRequest,
+        id: ApprovalRequestId,
+    ) -> anyhow::Result<AgentWaitActivityView> {
+        let persistence = Arc::clone(&self.execution.persistence);
+        let (wait, rearm) = tokio::task::spawn_blocking(move || {
+            persistence.update_legacy_approval_wait(
+                input.session_id,
+                id,
+                input.viewer,
+                input.activity,
+            )
+        })
+        .await??;
+        if rearm {
+            let weak = Arc::downgrade(self);
+            let mut deadline = wait.deadline;
+            let task = tokio::spawn(async move {
+                loop {
+                    sleep_until_check(deadline).await;
+                    let Some(app) = weak.upgrade() else { return };
+                    let persistence = Arc::clone(&app.execution.persistence);
+                    drop(app);
+                    match tokio::task::spawn_blocking(move || {
+                        persistence.expire_legacy_approval_wait(id)
+                    })
+                    .await
+                    {
+                        Ok(Ok(Some(next))) => deadline = next,
+                        Ok(Ok(None)) => return,
+                        failed => {
+                            aura_core_base::append_core_log(
+                                "approval.legacy_wait_expiry_failed",
+                                serde_json::json!({"approval_id": id, "error": format!("{failed:?}")}),
+                            );
+                            return;
+                        }
+                    }
+                }
+            });
+            self.legacy_expiry_timers.install(id, task);
+        }
+        Ok(AgentWaitActivityView {
+            deadline_at: wait.deadline,
+            focused_until: wait.focused_until(UtcTimestamp::now()),
+        })
+    }
+
     pub async fn restore_waits(self: &Arc<Self>) -> anyhow::Result<()> {
         // A branch copy a previous process left unfinished goes on.
         self.resume_branch_copies().await?;
@@ -69,15 +154,6 @@ impl AgentApplication {
             {
                 continue;
             }
-            // A question left waiting by the previous process is shown again: its countdown
-            // starts over instead of ending as soon as Core is back.
-            self.store
-                .write(StoreStep::run(run, "agent.expiry.restart_question"), move |journal| {
-                    journal
-                        .database
-                        .unit_of_work(|tx| query::restart_countdown(tx, run, UtcTimestamp::now()))
-                })
-                .await?;
             self.schedule_expiry(run).await?;
         }
         Ok(())
@@ -98,10 +174,7 @@ impl AgentApplication {
         let task = tokio::spawn(async move {
             let mut deadline = deadline;
             loop {
-                let delay = (deadline.value() - UtcTimestamp::now().value())
-                    .whole_milliseconds()
-                    .clamp(50, 600_000) as u64;
-                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+                sleep_until_check(deadline).await;
                 let Some(app) = weak.upgrade() else {
                     return;
                 };

@@ -15,6 +15,14 @@ impl<H: TeamHost> Team<'_, H> {
     pub(super) async fn status(&self, call: &TeamCall) -> anyhow::Result<AgentsStatusResult> {
         let input: AgentsStatusInput = parse(&call.arguments)?;
         self.refuse_subagent(call.session_id).await?;
+        if let Some(detail) = input.approval_detail {
+            return Ok(AgentsStatusResult {
+                agents: Vec::new(),
+                overlaps: Vec::new(),
+                approvals: Vec::new(),
+                approval_detail: Some(self.review_detail(call.session_id, detail).await?),
+            });
+        }
         let handles: Vec<String> = input.agent.into_iter().collect();
         let mut agents = Vec::new();
         for member in self.chosen(call.session_id, &handles).await? {
@@ -50,7 +58,7 @@ impl<H: TeamHost> Team<'_, H> {
         }
         let overlaps = self.overlaps(call.session_id).await?;
         let approvals = self.give_reviews(call.session_id).await?;
-        Ok(AgentsStatusResult { agents, overlaps, approvals })
+        Ok(AgentsStatusResult { agents, overlaps, approvals, approval_detail: None })
     }
 
     /// Waits, before the call is admitted, until one of the sub-agents it waits for has a report

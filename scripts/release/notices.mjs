@@ -155,7 +155,7 @@ export function releaseNotices() {
   const text = notices([
     ['Rust crates', rust],
     ['npm packages', npm],
-    ['Fonts and terminal', fonts],
+    ['Bundled fonts, terminal and language data', fonts],
   ]);
   return { text, rust, npm, fonts };
 }

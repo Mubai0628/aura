@@ -2,6 +2,7 @@
 
 mod agent_find;
 mod agent_list;
+mod documents;
 pub mod download;
 mod error;
 mod external;

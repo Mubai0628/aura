@@ -356,6 +356,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'untrustPlugin',
       'untrustSkill',
       'untrustWorkspaceSkills',
+      'updateAgentWait',
       'updateUiSettings',
       // A workspace's media for the 文件 tab (its own validated channel).
       'workspaceMediaUrl',

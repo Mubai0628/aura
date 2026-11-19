@@ -283,6 +283,34 @@ fn running_the_same_version_again_repairs_its_files() {
 }
 
 #[test]
+fn a_rebuilt_same_version_uses_its_new_release_identity() {
+    let work = Work::new();
+    let old = work.release("0.3.2");
+    work.install(&old, None, false).unwrap();
+    let before = work.state();
+
+    let rebuilt = work.release("0.3.2");
+    let mut archive = payload::open_in_program(&rebuilt).unwrap();
+    let release = install::read_release(&mut archive).unwrap();
+    assert_ne!(release.descriptor, before.release_descriptor);
+    let data = default_locations(&work.host()).data_root;
+    fs::create_dir_all(&data).unwrap();
+    fs::write(data.join("owner-data"), b"keep existing data").unwrap();
+
+    assert_eq!(work.install(&rebuilt, None, false).unwrap().kind, Kind::Repair);
+    let state = work.state();
+    assert_eq!(
+        state,
+        aura_runtime_contract::ActiveInstallState {
+            release_descriptor: release.descriptor,
+            ..before
+        }
+    );
+    aura_launcher::resolve_version(&work.root(), "0.3.2", Some(&state.release_descriptor)).unwrap();
+    assert_eq!(fs::read(data.join("owner-data")).unwrap(), b"keep existing data");
+}
+
+#[test]
 fn a_release_whose_files_do_not_match_its_manifest_leaves_the_installation_as_it_was() {
     let work = Work::new();
     work.install(&work.release("0.1.0"), None, false).unwrap();

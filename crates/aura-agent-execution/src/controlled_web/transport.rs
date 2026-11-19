@@ -9,6 +9,34 @@ impl ControlledWeb {
         max_bytes: u32,
         event: &str,
     ) -> Result<(u16, String, Vec<u8>)> {
+        let content = &dispatch.request().operation.content;
+        let auto = content.action_kind == "web.fetch"
+            && !matches!(
+                content.action.get("mode").and_then(|mode| mode.as_str()),
+                Some("http_only" | "headless_render_required")
+            );
+        let response = self
+            .retry_web_read(dispatch, auto && event == "web.request_started", || {
+                self.gateway_get_once(dispatch, url, max_bytes, event)
+            })
+            .await?
+            .response;
+        let media = response
+            .headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+            .map_or("", |(_, v)| v.as_str())
+            .to_owned();
+        Ok((response.status, media, response.body))
+    }
+
+    async fn gateway_get_once(
+        &self,
+        dispatch: &AuthorizedDispatch,
+        url: &url::Url,
+        max_bytes: u32,
+        event: &str,
+    ) -> Result<aura_network_control::OrdinaryGatewayResponse> {
         let parent = crate::agent_execution::network::gateway_request(
             &dispatch.request().operation.content,
         )?;
@@ -45,14 +73,39 @@ impl ControlledWeb {
                 super::proxy::explain_transport_to(error, url)
             })?;
         self.remember_route(operation_id, &opened.routing);
-        let response = opened.response;
-        let media = response
-            .headers
-            .iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case("content-type"))
-            .map_or("", |(_, v)| v.as_str())
-            .to_owned();
-        Ok((response.status, media, response.body))
+        Ok(opened)
+    }
+
+    /// A terminal transient response to a read can be tried once. Each try gets its own
+    /// request grant, and the attempt is revalidated against the original dispatch.
+    pub(super) async fn retry_web_read<F, Fut>(
+        &self,
+        dispatch: &AuthorizedDispatch,
+        enabled: bool,
+        mut send: F,
+    ) -> Result<aura_network_control::OrdinaryGatewayResponse>
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<aura_network_control::OrdinaryGatewayResponse>>,
+    {
+        // The gateway future owns the transport state. Keep it out of the retry frame.
+        let first = Box::pin(send()).await?;
+        let Some(delay) = enabled.then(|| retry_delay(&first.response)).flatten() else {
+            return Ok(first);
+        };
+        tokio::time::sleep(delay).await;
+        let checked = dispatch.request().clone();
+        let web = self.clone();
+        let run = checked.operation.content.identity.agent_run_id;
+        let current = self
+            .section(store_step(run, "agent.web.retry_authority"), StoreAccess::Read, move || {
+                Ok(web.inspect(&checked.operation)? == checked.plan.prepared.preparation)
+            })
+            .await?;
+        if !current {
+            return Ok(first);
+        }
+        Box::pin(send()).await
     }
 
     pub(super) async fn transport_start(
@@ -68,7 +121,9 @@ impl ControlledWeb {
             .ok_or_else(|| anyhow::anyhow!(super::inspection::SESSION_REQUIRED))?;
         let operation_id = dispatch.request().operation.operation_id;
         let run = content.identity.agent_run_id;
-        let launch = if self.activities.started_mode(operation_id, session)?.is_none() {
+        let launch = if self.activities.started_mode(operation_id, session)?.is_none()
+            || event == "web.request_started"
+        {
             Some(self.persistence.permission_start_lease(session).await)
         } else {
             None
@@ -80,6 +135,10 @@ impl ControlledWeb {
         let method = request.plan.method.clone();
         let request_id = request.plan.request_id;
         self.section(store_step(run,"agent.web.request_journal"),StoreAccess::Write,move || {
+            if event == "web.request_started" {
+                ensure!(web.inspect(&checked.operation)? == checked.plan.prepared.preparation,
+                    super::inspection::PREPARATION_CHANGED);
+            }
             web.journal.lock()?.database.unit_of_work(|tx| {
                 aura_persistence_v2::agent::checkpoint::verify_start_operation(tx,operation_id)?;
                 aura_persistence_v2::execution::dispatch_authority(tx,&checked,UtcTimestamp::now())?;
@@ -120,4 +179,17 @@ impl ControlledWeb {
             })
         })
     }
+}
+
+fn retry_delay(response: &aura_network_control::GatewayResponse) -> Option<Duration> {
+    let status = response.status;
+    if !matches!(status, 408 | 429 | 502 | 503 | 504) {
+        return None;
+    }
+    let wait = response.retry_after().map(|value| value.delay_ms());
+    if status == 429 && wait.is_none() {
+        return None;
+    }
+    let delay = wait.unwrap_or(400);
+    (delay <= 2_000).then(|| Duration::from_millis(delay))
 }

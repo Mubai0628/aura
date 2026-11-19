@@ -5928,6 +5928,122 @@
       ],
       "type": "object"
     },
+    "AgentWaitActivity": {
+      "enum": [
+        "present",
+        "touch",
+        "focus",
+        "blur"
+      ],
+      "type": "string"
+    },
+    "AgentWaitActivityRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "activity": {
+          "$ref": "#/$defs/AgentWaitActivity"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "target": {
+          "$ref": "#/$defs/AgentWaitTarget"
+        },
+        "viewer": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "target",
+        "viewer",
+        "activity"
+      ],
+      "type": "object"
+    },
+    "AgentWaitActivityView": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline_at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "focused_until": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "deadline_at"
+      ],
+      "type": "object"
+    },
+    "AgentWaitTarget": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "agent_run_id": {
+              "$ref": "#/$defs/AgentRunId"
+            },
+            "kind": {
+              "const": "query",
+              "type": "string"
+            },
+            "query_id": {
+              "$ref": "#/$defs/UserQueryId"
+            }
+          },
+          "required": [
+            "kind",
+            "agent_run_id",
+            "query_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "approval_id": {
+              "$ref": "#/$defs/ApprovalRequestId"
+            },
+            "kind": {
+              "const": "approval",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "approval_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "approval_id": {
+              "$ref": "#/$defs/ApprovalRequestId"
+            },
+            "kind": {
+              "const": "legacy_approval",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "approval_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "AgentWorkspacePath": {
       "description": "A path relative to the workspace root (\".\" is the root). An absolute path inside the workspace names the same file.",
       "type": "string"
@@ -8341,6 +8457,64 @@
       ],
       "type": "object"
     },
+    "BrowserDebugBindingV1": {
+      "additionalProperties": false,
+      "description": "The observed top document and the browser policy used to authorize one debugging action.",
+      "properties": {
+        "document_id": {
+          "type": "string"
+        },
+        "origin": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "settings_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "document_id",
+        "settings_revision"
+      ],
+      "type": "object"
+    },
+    "BrowserDownloadObservation": {
+      "additionalProperties": false,
+      "description": "Evidence from the browser host. A saved file is confirmed by the download tool's receipt.",
+      "properties": {
+        "click_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "filename": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/BrowserDownloadStatus"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "BrowserDownloadStatus": {
+      "enum": [
+        "not_observed",
+        "blocked_by_host",
+        "access_required"
+      ],
+      "type": "string"
+    },
     "BrowserElementBoxV1": {
       "additionalProperties": false,
       "description": "Where an element is drawn, in CSS pixels of the page's viewport, rounded.",
@@ -8779,6 +8953,16 @@
         {
           "additionalProperties": false,
           "properties": {
+            "binding": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserDebugBindingV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "expression": {
               "type": "string"
             },
@@ -8796,6 +8980,16 @@
         {
           "additionalProperties": false,
           "properties": {
+            "binding": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserDebugBindingV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "failed_only": {
               "type": "boolean"
             },
@@ -8820,6 +9014,16 @@
           "additionalProperties": false,
           "description": "One element's HTML, box and computed style, read through DevTools.",
           "properties": {
+            "binding": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserDebugBindingV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "element": {
               "type": "string"
             },
@@ -8838,6 +9042,16 @@
           "additionalProperties": false,
           "description": "The page's performance counters.",
           "properties": {
+            "binding": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserDebugBindingV1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "kind": {
               "const": "performance",
               "type": "string"
@@ -9007,6 +9221,12 @@
       "properties": {
         "command_id": {
           "type": "string"
+        },
+        "document_id": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "outcome": {
           "$ref": "#/$defs/BrowserHostOutcomeV1"
@@ -9355,6 +9575,16 @@
           },
           "type": "array"
         },
+        "download": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserDownloadObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "notice": {
           "description": "What stopped or changed the action, such as a navigation the settings refused.",
           "type": [
@@ -9689,8 +9919,15 @@
           "type": "array"
         },
         "debugging": {
-          "description": "Advanced: lets the model run scripts in pages and read full network records (default off).",
+          "description": "Persistent debugging permission. Sensitive scripts still require a separate approval.",
           "type": "boolean"
+        },
+        "debugging_blocked": {
+          "description": "Explicit prohibition. With neither flag set, debugging requires a one-time approval.",
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "enabled": {
           "description": "Whether the built-in browser can be used at all (default on).",
@@ -21363,6 +21600,31 @@
       ],
       "type": "object"
     },
+    "FsReadDocumentFormat": {
+      "enum": [
+        "docx"
+      ],
+      "type": "string"
+    },
+    "FsReadDocumentHeading": {
+      "additionalProperties": false,
+      "properties": {
+        "start_line_index": {
+          "description": "Use this line index directly with a lines range.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "start_line_index"
+      ],
+      "type": "object"
+    },
     "FsReadTextRequest": {
       "additionalProperties": false,
       "properties": {
@@ -21432,6 +21694,24 @@
         },
         "disk_may_be_stale": {
           "type": "boolean"
+        },
+        "document_format": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FsReadDocumentFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Present when the returned UTF-8 text was extracted from a document."
+        },
+        "document_headings": {
+          "description": "Named sections in the same text projection as `returned_range`.",
+          "items": {
+            "$ref": "#/$defs/FsReadDocumentHeading"
+          },
+          "type": "array"
         },
         "encoding": {
           "$ref": "#/$defs/TextEncoding"
@@ -24448,6 +24728,13 @@
             "null"
           ]
         },
+        "detected_media_type": {
+          "description": "Media type recognized from the saved bytes, independently of the server's Content-Type.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "final_url": {
           "type": "string"
         },
@@ -24468,6 +24755,13 @@
           "maximum": 65535,
           "minimum": 0,
           "type": "integer"
+        },
+        "transfer_complete": {
+          "description": "Old receipts lack proof that their HTTP body represented the complete file.",
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       },
       "required": [
@@ -59063,7 +59357,53 @@
     },
     "TaskLineageReconcileToolInput": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decision": {
+                "properties": {
+                  "decision": {
+                    "const": "expire_prior"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "relations": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
       "description": "Model-facing reconcile arguments. Session, current user event, and lineage\nrevision are bound by Core from the live call.",
+      "else": {
+        "properties": {
+          "relations": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "relations"
+        ]
+      },
+      "if": {
+        "properties": {
+          "decision": {
+            "properties": {
+              "decision": {
+                "enum": [
+                  "expire_prior",
+                  "reference_prior"
+                ]
+              }
+            }
+          }
+        }
+      },
       "properties": {
         "completion_policy_update": {
           "anyOf": [
@@ -59079,6 +59419,7 @@
           "$ref": "#/$defs/TaskLineageReconcileToolDecision"
         },
         "reason": {
+          "pattern": "\\S",
           "type": "string"
         },
         "relations": {
@@ -59093,6 +59434,13 @@
         "decision",
         "reason"
       ],
+      "then": {
+        "properties": {
+          "completion_policy_update": {
+            "type": "null"
+          }
+        }
+      },
       "type": "object"
     },
     "TaskLineageRelation": {
@@ -67514,6 +67862,7 @@
     },
     "ToolResultErrorCode": {
       "enum": [
+        "tool.result.http_partial_response",
         "tool.result.utf8_invalid",
         "tool.result.json_invalid",
         "tool.result.schema_validation_failed",
@@ -69991,7 +70340,8 @@
         "max_bytes": {
           "default": 1048576,
           "format": "uint32",
-          "minimum": 0,
+          "maximum": 8388608,
+          "minimum": 1,
           "type": "integer"
         },
         "mode": {
@@ -70058,7 +70408,8 @@
         "max_chars": {
           "default": 8000,
           "format": "uint32",
-          "minimum": 0,
+          "maximum": 65536,
+          "minimum": 1,
           "type": "integer"
         },
         "offset_chars": {
@@ -70138,10 +70489,14 @@
         "max_results": {
           "default": 5,
           "format": "uint32",
-          "minimum": 0,
+          "maximum": 50,
+          "minimum": 1,
           "type": "integer"
         },
         "query": {
+          "description": "A nonempty query. The configured search service may impose a smaller limit.",
+          "maxLength": 8192,
+          "pattern": "\\S",
           "type": "string"
         }
       },

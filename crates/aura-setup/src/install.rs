@@ -356,6 +356,32 @@ pub fn install(
         ensure_not_running(host, root)?;
     }
     let namespace = &release.manifest.bundle_namespace;
+    let state = match &plan.kind {
+        Kind::Fresh => ActiveInstallState {
+            active: release.version.clone(),
+            release_descriptor: release.descriptor.clone(),
+            previous: None,
+            pending: None,
+            last_known_good: Some(release.version.clone()),
+            data_location: None,
+        },
+        Kind::Repair => {
+            let mut state = read_install_state(root)?;
+            ensure!(
+                state.active == release.version
+                    && state.release_descriptor.bundle_namespace == *namespace,
+                "the installation no longer matches this repair"
+            );
+            state.release_descriptor = release.descriptor.clone();
+            state
+        }
+        Kind::Relocate => read_install_state(root)?,
+        Kind::Upgrade { .. } | Kind::Downgrade { .. } => {
+            let mut state = read_install_state(root)?;
+            state.pending = Some(release.version.clone());
+            state
+        }
+    };
     // A folder the user chose gets the default place's permissions before anything is in it.
     if plan.kind == Kind::Fresh && *root != host.default_root(namespace)? {
         private_folder::make(root)
@@ -375,13 +401,18 @@ pub fn install(
             root.join("versions").join(format!(".replaced-{}-{}", release.version, nonce())),
         )
         .map_err(|error| in_use(host, &version_folder, error))?;
-        match resolve_version(root, &release.version, Some(&release.descriptor)) {
-            Ok(_) => moved.keep(),
-            Err(error) => {
-                moved.undo();
-                return Err(error.context(Refusal::FilesMismatch));
-            }
+        if let Err(error) = resolve_version(root, &release.version, Some(&release.descriptor)) {
+            moved.undo();
+            return Err(error.context(Refusal::FilesMismatch));
         }
+        // Keep the old version folder until the launcher can open its replacement.
+        if plan.kind == Kind::Repair
+            && let Err(error) = write_install_state(root, &state)
+        {
+            moved.undo();
+            return Err(error);
+        }
+        moved.keep();
         // The launcher and the uninstaller are copies of the programs the manifest names in the
         // version folder just checked, never files from the archive's root.
         let named = |kind| {
@@ -427,23 +458,9 @@ pub fn install(
     result?;
     marker::write(root, namespace)?;
 
-    let state = match &plan.kind {
-        Kind::Fresh => ActiveInstallState {
-            active: release.version.clone(),
-            release_descriptor: release.descriptor.clone(),
-            previous: None,
-            pending: None,
-            last_known_good: Some(release.version.clone()),
-            data_location: None,
-        },
-        Kind::Repair | Kind::Relocate => read_install_state(root)?,
-        Kind::Upgrade { .. } | Kind::Downgrade { .. } => {
-            let mut state = read_install_state(root)?;
-            state.pending = Some(release.version.clone());
-            state
-        }
-    };
-    write_install_state(root, &state)?;
+    if plan.kind != Kind::Repair {
+        write_install_state(root, &state)?;
+    }
     remove_unkept_versions(root, &state);
     register::shortcuts(host, root, namespace, options.desktop_shortcut)?;
     register::entry(host, root, namespace, &release.version)?;

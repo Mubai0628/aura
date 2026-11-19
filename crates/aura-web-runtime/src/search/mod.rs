@@ -22,11 +22,11 @@ pub fn search_url_for(
 ) -> Result<Url, WebError> {
     let broken = if query.trim().is_empty() {
         Some("the search query is empty; give the words to search for. Nothing was searched.")
-    } else if query.len() > 8192 {
+    } else if query.len() > aura_web_domain::LOCAL_SEARCH_MAX_QUERY_BYTES {
         Some("the search query is longer than 8192 bytes; shorten it. Nothing was searched.")
     } else if query.contains('\0') {
         Some("the search query contains a NUL character; remove it. Nothing was searched.")
-    } else if !(1..=20).contains(&max_results) {
+    } else if !(1..=aura_web_domain::LOCAL_SEARCH_MAX_RESULTS).contains(&max_results) {
         Some(MAX_RESULTS_RULE)
     } else {
         None

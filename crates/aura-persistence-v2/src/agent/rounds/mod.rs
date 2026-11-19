@@ -5,6 +5,7 @@
 //! Rounds and their entries are worked out from the turns and events whenever they are asked for;
 //! a round that is over never changes, so its ids stay. A branch's carried turns come first.
 mod entries;
+mod recall;
 mod referred;
 mod rows;
 mod search;
@@ -18,6 +19,7 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
 use rusqlite::Connection;
 
 pub use entries::Entry;
+pub use recall::{RecallHistoryHit, recall_user_sources};
 pub use referred::recap_lines;
 pub use turns::Round;
 

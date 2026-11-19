@@ -32,6 +32,9 @@ pub struct HttpRequestResult {
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HttpDownloadResult {
+    /// Media type recognized from the saved bytes, independently of the server's Content-Type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detected_media_type: Option<String>,
     pub status: u16,
     pub path: String,
     pub bytes_written: u64,
@@ -40,4 +43,7 @@ pub struct HttpDownloadResult {
     pub final_url: String,
     pub overwritten: bool,
     pub published: bool,
+    /// Old receipts lack proof that their HTTP body represented the complete file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transfer_complete: Option<bool>,
 }

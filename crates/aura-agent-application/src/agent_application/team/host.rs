@@ -83,6 +83,25 @@ impl TeamHost for TeamApp {
         }
     }
 
+    fn delegated_reads(
+        &self,
+        session: SessionId,
+        turn: TurnTaskId,
+        paths: Vec<String>,
+    ) -> impl Future<Output = anyhow::Result<Option<aura_agent_team::DelegatedReads>>> + Send {
+        let execution = Arc::clone(&self.0.execution);
+        async move {
+            if paths.is_empty() {
+                return Ok(None);
+            }
+            tokio::task::spawn_blocking(move || {
+                execution.prepare_delegated_reads(session, turn, &paths)
+            })
+            .await?
+            .map(Some)
+        }
+    }
+
     fn open(
         &self,
         parent: &Parent,

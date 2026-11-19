@@ -573,6 +573,9 @@ export interface AuraApiV1 extends SessionConsentsApi {
   touchAgentQuery(
     request: AgentMainParams['agent.query.touch'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.query.touch']>>;
+  updateAgentWait(
+    request: AgentMainParams['agent.wait.activity'],
+  ): Promise<ResultEnvelope<AgentMainResult['agent.wait.activity']>>;
   /** Which conversations have a turn running or waiting for the user, for the sidebar. */
   readAgentSessionsActivity(
     request: AgentMainParams['agent.sessions.activity'],

@@ -149,7 +149,8 @@ export function useReferenceMenu({
   draftKey?: string | undefined;
 }) {
   const [menu, setMenu] = useState<MenuState>();
-  const [chosen, setChosen] = useKeptDraft('references', draftKey, NOT_CHOSEN);
+  const saved = useKeptDraft('references', draftKey, NOT_CHOSEN, scope?.workspace);
+  const { value: chosen, update: setChosen } = saved;
   const [captureError, setCaptureError] = useState<string>();
   const [found, setFound] = useState<Found>();
   // The workspace's first entries, most recently used first, read once per opening: names in
@@ -455,6 +456,8 @@ export function useReferenceMenu({
   };
 
   return {
+    restoring: saved.loading,
+    draftError: saved.error,
     menu,
     options,
     /** The conversations, terminals, pages and resources chosen for the message, as chips. */

@@ -96,6 +96,8 @@ pub struct MemberDetails {
     pub model_name: String,
     pub sheet: TaskSheet,
     pub grant: Grant,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegated_reads: Option<DelegatedReads>,
     /// The permission mode it started in; none in a record from before sub-agents had one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<aura_security_contract::PermissionMode>,
@@ -109,6 +111,30 @@ pub struct MemberDetails {
     pub reports_seen: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_turn: Option<TurnEnd>,
+}
+
+/// Core-verified authority for one parent task.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DelegatedReads {
+    pub parent_turn: TurnTaskId,
+    pub parent_permission_revision: u64,
+    pub scopes: Vec<DelegatedReadScope>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DelegatedReadScope {
+    pub path: String,
+    pub identity: aura_domain_common::FileIdentity,
+    pub basis: DelegatedReadBasis,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
+pub enum DelegatedReadBasis {
+    Workspace { workspace: aura_domain_common::WorkspaceId, epoch: aura_domain_common::Revision },
+    ExternalGrant { grant: aura_domain_common::ExternalGrantId, revision: u64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

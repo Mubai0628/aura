@@ -66,7 +66,7 @@
     [data-streamdown='code-block'],
     [data-streamdown='table-wrapper']
   ),
-.agent-interim-reply.markdown-body
+.agent-interim-text.markdown-body
   :is(
     p,
     h1,
@@ -121,7 +121,7 @@
     [data-streamdown='code-block'],
     [data-streamdown='table-wrapper']
   ):first-child,
-.agent-interim-reply.markdown-body
+.agent-interim-text.markdown-body
   :is(
     p,
     h1,
@@ -176,7 +176,7 @@
     [data-streamdown='code-block'],
     [data-streamdown='table-wrapper']
   ):last-child,
-.agent-interim-reply.markdown-body
+.agent-interim-text.markdown-body
   :is(
     p,
     h1,

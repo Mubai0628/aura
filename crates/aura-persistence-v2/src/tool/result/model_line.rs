@@ -61,6 +61,7 @@ fn core_sentence_code(code: &str) -> bool {
         "authority_changed",
         // The steps of a download.
         "download_status",
+        "partial_response",
         "staging_poisoned",
         "staging_finished",
         "staging_write_failed",

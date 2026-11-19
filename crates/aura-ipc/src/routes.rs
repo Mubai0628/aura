@@ -170,6 +170,8 @@ mod tests {
                 ("Core".into(), "terminal.user.write"),
                 ("Main".into(), "agent.query.touch"),
                 ("Core".into(), "agent.query.touch"),
+                ("Main".into(), "agent.wait.activity"),
+                ("Core".into(), "agent.wait.activity"),
                 // Main is quitting, so the Store may record a normal exit.
                 ("Core".into(), "runtime.prepare_exit"),
                 // The browser host's answer to one command: it completes Core's wait and is

@@ -9,7 +9,7 @@ use aura_security_contract::ResolvedCapability as C;
 
 const PAGE: &str = "Returns the page's accessibility snapshot (elements carry refs such as e3 for browser.click, browser.type and the rest) and the console errors and failed loads since the previous browser result.";
 const INPUT: &str = "Aura's browser has its own input: the user's mouse and keyboard are never moved or used. If the user has taken the page over, input is refused until they hand it back. ReadOnly asks before acting on a page.";
-const DEBUGGING: &str = "Available only while the user has turned on page debugging in Aura's browser settings (off by default); otherwise the call is refused, and only the user can turn it on.";
+const DEBUGGING: &str = "Open or refresh the page first. Debugging normally asks the user to approve the exact call. A browser policy prohibition or a changed page prevents execution.";
 
 pub(super) fn entries(
     at: UtcTimestamp,

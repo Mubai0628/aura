@@ -102,7 +102,7 @@ pub(super) fn execute(
                         call.validated.call.tool_call_id,
                         at,
                         |tx, name, arguments| {
-                            super::registry::execute(tx, call, name, arguments, at)
+                            super::registry::execute(service, tx, call, name, arguments, at)
                         },
                     )
                 } else if let Some(refusal) = archived {

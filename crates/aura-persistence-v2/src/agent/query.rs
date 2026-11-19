@@ -7,7 +7,7 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
 use rusqlite::{Connection, Transaction};
 
 mod deadline;
-pub use deadline::{deadline, expire, restart_countdown, run_deadline, touch, wait_deadline};
+pub use deadline::{deadline, expire, run_deadline, wait_deadline};
 
 pub fn answered(
     db: &Connection,
@@ -52,6 +52,7 @@ pub fn select_file(
         || query.query_id != input.query_id
         || query.revision != input.expected_revision
         || query.state != UserQueryState::Pending
+        || deadline(tx, &query)?.is_some_and(|deadline| deadline <= at)
     {
         return Err(Error::Conflict);
     }
@@ -89,6 +90,7 @@ pub fn answer(
         || application::cancellation_requested(tx, run.agent_run_id)?
         || old.query_id != input.query_id
         || old.revision != input.expected_revision
+        || deadline(tx, &old)?.is_some_and(|deadline| deadline <= at)
         // "no response" is Core's to record when the question's time runs out.
         || input.answers.iter().any(|answer| answer.value == QueryAnswerValue::NoResponse)
     {

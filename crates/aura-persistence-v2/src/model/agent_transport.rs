@@ -254,7 +254,15 @@ pub fn record_output(
     if batch.is_none() {
         // With a `turn.before_complete` Hook, an answer that would end the turn is kept
         // and the turn waits for the Hook, which runs outside this transaction.
-        if hold_completion && crate::agent::completion::natural_eligible(tx, output, at)? {
+        let review = (hold_completion
+            || (output.stop_reason == aura_model_domain::NormalizedStopReason::EndTurn
+                && !crate::agent::exact_artifacts::requirements(
+                    tx,
+                    &turns::load(tx, old.turn_task_id)?,
+                )?
+                .is_empty()))
+            && crate::agent::completion::natural_eligible(tx, output, at)?;
+        if review {
             crate::hooks::hold_completion(tx, output.model_step_id, at)?;
         } else {
             crate::agent::completion::natural_from_response(tx, output, at)?;

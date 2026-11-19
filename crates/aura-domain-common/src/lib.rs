@@ -9,6 +9,7 @@ mod display_path;
 mod error;
 mod file;
 mod file_name;
+pub mod human_wait;
 mod id;
 mod nonce;
 mod revision;

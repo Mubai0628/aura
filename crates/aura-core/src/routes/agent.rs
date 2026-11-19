@@ -397,6 +397,8 @@ pub(crate) async fn dispatch(
             };
             return Ok(serde_json::to_value(value)?);
         }
+        let invocation =
+            || request.command_invocation_id.ok_or_else(|| anyhow::anyhow!(NO_INVOCATION));
         let value = match request.method.as_str() {
             "agent.continue" => {
                 agent
@@ -458,36 +460,31 @@ pub(crate) async fn dispatch(
                 return Ok(serde_json::to_value(
                     agent
                         .control_mode(
-                            request
-                                .command_invocation_id
-                                .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
+                            invocation()?,
                             serde_json::from_value(request.params.clone())?,
                         )
                         .await?,
                 )?);
             }
-            // The user touched the waiting question; its countdown starts again.
+            "agent.wait.activity" => {
+                return Ok(serde_json::to_value(
+                    agent
+                        .update_human_wait(serde_json::from_value(request.params.clone())?)
+                        .await?,
+                )?);
+            }
             "agent.query.touch" => {
                 return Ok(serde_json::to_value(
                     agent.touch_query(serde_json::from_value(request.params.clone())?).await?,
                 )?);
             }
             "agent.query.answer" => {
-                agent
-                    .answer(
-                        request
-                            .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
-                        serde_json::from_value(request.params.clone())?,
-                    )
-                    .await?
+                agent.answer(invocation()?, serde_json::from_value(request.params.clone())?).await?
             }
             "agent.approval.resolve" => {
                 agent
                     .resolve_approval(
-                        request
-                            .command_invocation_id
-                            .ok_or_else(|| anyhow::anyhow!(NO_INVOCATION))?,
+                        invocation()?,
                         serde_json::from_value(request.params.clone())?,
                     )
                     .await?

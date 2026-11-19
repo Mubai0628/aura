@@ -143,6 +143,21 @@ export class NetworkLog {
     };
   }
 
+  documentAccessDenied(url: string): boolean {
+    const latest = this.#document(url);
+    return latest?.status === 401 || latest?.status === 403;
+  }
+
+  documentIsHtml(url: string): boolean {
+    const latest = this.#document(url);
+    return latest?.status === 200 && latest.mime_type?.toLowerCase() === 'text/html';
+  }
+
+  #document(url: string): BrowserNetworkEntryV1 | undefined {
+    const address = redactUrl(url);
+    return this.#entries.findLast((entry) => entry.kind === 'document' && entry.url === address);
+  }
+
   #push(entry: BrowserNetworkEntryV1): void {
     this.#entries.push(entry);
     if (this.#entries.length > KEEP) this.#entries = this.#entries.slice(-KEEP);

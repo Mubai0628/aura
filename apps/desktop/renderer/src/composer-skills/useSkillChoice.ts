@@ -15,10 +15,11 @@ type Picker = { loading: boolean; skills: SkillView[]; error?: string };
 /**
  * The Skills the user chose for the next turn, and the Skills that can be chosen now
  * (switched on, trusted and unchanged). Core checks the choice again when the message is sent.
- * The choice is kept for the conversation `draftKey` names while Aura runs.
+ * The choice is saved for the conversation `draftKey` names.
  */
 export function useSkillChoice(workspaceId: string | undefined, draftKey?: string) {
-  const [chosen, setChosen] = useKeptDraft('skills', draftKey, NONE);
+  const saved = useKeptDraft('skills', draftKey, NONE, workspaceId);
+  const { value: chosen, update: setChosen } = saved;
   const [picker, setPicker] = useState<Picker>();
   // The Skills usable now, for the picker and for the "@" list.
   const usable = useCallback(async (): Promise<SkillView[]> => {
@@ -56,6 +57,8 @@ export function useSkillChoice(workspaceId: string | undefined, draftKey?: strin
     );
   return {
     chosen,
+    restoring: saved.loading,
+    draftError: saved.error,
     picker,
     usable,
     open,

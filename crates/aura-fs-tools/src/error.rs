@@ -13,6 +13,8 @@ pub enum FsToolError {
     ScopeUnavailable,
     #[error("invalid fs request: {0}")]
     InvalidRequest(String),
+    #[error("{0}")]
+    Document(&'static str),
     #[error("file is too large for a full text read; provide a lines or characters range")]
     LargeFileRangeRequired,
     #[error(

@@ -86,7 +86,7 @@ impl ControlledWeb {
                 let input: WebFetchInput =
                     serde_json::from_value(input).map_err(|e| input_error(kind, &e))?;
                 ensure!(
-                    (1..=8 * 1024 * 1024).contains(&input.max_bytes),
+                    (1..=aura_web_domain::MAX_FETCH_BYTES).contains(&input.max_bytes),
                     "web.byte_limit: max_bytes must be between 1 and 8388608 (8 MiB). Nothing was \
                      fetched."
                 );

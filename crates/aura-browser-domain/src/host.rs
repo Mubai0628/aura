@@ -20,6 +20,16 @@ pub struct BrowserPageAccessV1 {
     pub file_root: Option<String>,
 }
 
+/// The observed top document and the browser policy used to authorize one debugging action.
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrowserDebugBindingV1 {
+    pub document_id: String,
+    pub settings_revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, JsonSchema, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum BrowserHostActionV1 {
@@ -83,20 +93,41 @@ pub enum BrowserHostActionV1 {
     },
     Evaluate {
         expression: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        binding: Option<BrowserDebugBindingV1>,
     },
     Network {
         failed_only: bool,
         max_entries: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        binding: Option<BrowserDebugBindingV1>,
     },
     /// One element's HTML, box and computed style, read through DevTools.
     Inspect {
         element: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        binding: Option<BrowserDebugBindingV1>,
     },
     /// The page's performance counters.
-    Performance,
+    Performance {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        binding: Option<BrowserDebugBindingV1>,
+    },
 }
 
 impl BrowserHostActionV1 {
+    /// Outer option denotes a debugging action, including older stored actions without a binding.
+    #[must_use]
+    pub fn debug_binding(&self) -> Option<Option<&BrowserDebugBindingV1>> {
+        match self {
+            Self::Evaluate { binding, .. }
+            | Self::Network { binding, .. }
+            | Self::Inspect { binding, .. }
+            | Self::Performance { binding } => Some(binding.as_ref()),
+            _ => None,
+        }
+    }
+
     /// Whether the action is the model's input on the page: refused while the user has taken the
     /// page over, and of unknown effect when it does not answer.
     #[must_use]
@@ -173,6 +204,8 @@ pub struct BrowserHostResultV1 {
     pub command_id: String,
     /// The page's address afterwards (about:blank when there is no page).
     pub page_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_id: Option<String>,
     pub outcome: BrowserHostOutcomeV1,
 }
 

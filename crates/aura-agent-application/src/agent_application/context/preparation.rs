@@ -15,6 +15,12 @@ mod prompt_capabilities;
 // The workspace's AGENTS.md, read for each step.
 #[path = "agents.rs"]
 mod agents;
+#[path = "recall.rs"]
+pub(in crate::agent_application) mod recall;
+#[path = "team_downloads.rs"]
+mod team_downloads;
+#[path = "prior_materials.rs"]
+pub(in crate::agent_application) mod prior_materials;
 
 impl AgentApplication {
     pub(in crate::agent_application) async fn prepare(
@@ -257,12 +263,39 @@ impl AgentApplication {
             authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
             content: serde_json::to_string(&prompt_state(&state, &history.items))?,
         }];
+        if registry
+            .catalog_entries
+            .iter()
+            .any(|entry| entry.canonical_name.as_str() == "web.search")
+        {
+            let web = Arc::clone(&self.execution.web);
+            let limits = tokio::task::spawn_blocking(move || web.web_search_limits()).await?;
+            task_state_fragments.push(ContextFragment {
+                source_ref: ContextSourceRef::RuntimeState {
+                    state_kind: "agent.web_search_limits.v1".into(),
+                    state_revision: turn.revision,
+                },
+                source_kind: ModelEgressSourceKind::AuraCore,
+                data_class: NetworkDataClass::PublicContent,
+                authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
+                content: serde_json::json!({"web_search_limits": limits}).to_string(),
+            });
+        }
         // A sub-agent sees its task sheet, the project's instructions and the project memory, and
         // the user's Skills when it was given their tools: not what other conversations are doing.
         let member = super::super::team::team_member(self, turn.session_id).await?;
         if member.is_none() {
+            if let Some(reviews) =
+                self.main_agent_review_fragment(turn.session_id, turn.revision).await?
+            {
+                task_state_fragments.push(reviews);
+            }
             task_state_fragments.extend(activity_summary.fragments()?);
         }
+        let memory_available = registry
+            .catalog_entries
+            .iter()
+            .any(|entry| entry.canonical_name.as_str() == "memory.read");
         // The workspace's AGENTS.md, read again for every step: the folders' files with the task's
         // state, which changes anyway, the root file before the conversation.
         let agents =
@@ -456,6 +489,18 @@ impl AgentApplication {
             coverage_hops: Vec::new(),
         };
         super::compaction::apply(self, &mut input).await?;
+        let downloads = self
+            .team_downloads(
+                &turn,
+                member.as_ref(),
+                recall::latest_input(&input).map(|(_, text)| text),
+            )
+            .await;
+        if let Some(state) =
+            input.section_inputs.iter_mut().find(|s| s.kind == ContextSectionKind::CurrentTaskState)
+        {
+            state.fragments.extend(downloads);
+        }
         // The tool results the previous request showed cleared stay cleared.
         clearing::keep_cleared(&mut input)?;
         clearing::shorten_arguments(&mut input)?;
@@ -482,8 +527,8 @@ impl AgentApplication {
             .map(|entry| entry.tool_id)
             .collect::<Vec<_>>();
         let closing_question = asked_again_after.as_deref().and_then(super::provider::retry_note);
-        let Some((prepared, compiled_state)) = self
-            .compile_context(compilation::CompilationInput {
+        let Some((prepared, compiled_state)) =
+            Box::pin(self.compile_context(compilation::CompilationInput {
                 run_id,
                 turn: &turn,
                 step: &step,
@@ -498,7 +543,8 @@ impl AgentApplication {
                 estimators,
                 fixed_tool_ids: &fixed_tool_ids,
                 screenshots: &screenshots,
-            })
+                memory_available,
+            }))
             .await?
         else {
             return Ok(None);

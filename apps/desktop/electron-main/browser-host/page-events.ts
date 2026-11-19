@@ -13,10 +13,14 @@ interface EventPage {
 interface PageEvents {
   policy(): BrowserPolicy;
   access(): PageAccess;
+  documentChanged(): void;
   update(change: Partial<BrowserPageState>): void;
 }
 
-export function wirePage(page: EventPage, { policy, access, update }: PageEvents): void {
+export function wirePage(
+  page: EventPage,
+  { policy, access, documentChanged, update }: PageEvents,
+): void {
   const contents = page.view.webContents;
   const history = () => ({
     canGoBack: contents.navigationHistory.canGoBack(),
@@ -34,11 +38,14 @@ export function wirePage(page: EventPage, { policy, access, update }: PageEvents
     update({ loading: false, ...history() });
   });
   contents.on('did-navigate', ((_event: unknown, url: string) => {
+    documentChanged();
     page.refusals.clear();
     update({ url, notice: undefined, ...history() });
   }) as Listener);
   contents.on('did-navigate-in-page', ((_event: unknown, url: string, isMainFrame: boolean) => {
-    if (isMainFrame) update({ url, ...history() });
+    if (!isMainFrame) return;
+    documentChanged();
+    update({ url, ...history() });
   }) as Listener);
   contents.on('page-title-updated', ((_event: unknown, title: string) =>
     update({ title })) as Listener);
@@ -58,7 +65,8 @@ export function wirePage(page: EventPage, { policy, access, update }: PageEvents
         : { kind: 'failed', text: loadFailureText(code, description) },
     });
   }) as Listener);
-  contents.on('render-process-gone', () =>
-    update({ loading: false, notice: { kind: 'crashed', text: '页面已崩溃，刷新可重新加载' } }),
-  );
+  contents.on('render-process-gone', () => {
+    documentChanged();
+    update({ loading: false, notice: { kind: 'crashed', text: '页面已崩溃，刷新可重新加载' } });
+  });
 }

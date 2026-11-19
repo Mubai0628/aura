@@ -1,9 +1,9 @@
 import type { QueryAnswer, UserQuery } from '@aura/contracts/generated';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AppIcon } from '../../app-icons';
-import { PixelRing } from '../../ui/PixelRing';
 import { connectionCause, failedAction } from '../failure-text';
-import { QUERY_COUNTDOWN_SECONDS, useQueryCountdown } from './query-countdown';
+import { useHumanWait } from '../human-wait';
+import { WaitCountdown } from '../WaitCountdown';
 import { draftAnswer, type QuestionDraft } from './query-draft';
 import { QueryPager } from './QueryPager';
 import { QueryQuestionBlock } from './QueryQuestion';
@@ -33,7 +33,23 @@ export function QueryForm({
   deadlineAt?: string | null | undefined;
   onChanged: () => void;
 }) {
-  const countdown = useQueryCountdown(query, sessionId, deadlineAt);
+  const target = useMemo(
+    () => ({
+      kind: 'query' as const,
+      agent_run_id: query.agent_run_id,
+      query_id: query.query_id,
+    }),
+    [query.agent_run_id, query.query_id],
+  );
+  const {
+    mount,
+    focus,
+    blur,
+    touch,
+    deadlineAt: waitDeadline,
+    held,
+    focusedUntil,
+  } = useHumanWait<HTMLFormElement>(sessionId, target);
   const questions = query.input.questions;
   const [drafts, setDrafts] = useState<Record<string, QuestionDraft>>(() =>
     Object.fromEntries(
@@ -106,9 +122,11 @@ export function QueryForm({
     <form
       aria-label="回答当前问题"
       className="agent-query"
-      onFocusCapture={countdown.touch}
-      onKeyDownCapture={countdown.touch}
-      onPointerDownCapture={countdown.touch}
+      ref={mount}
+      onFocusCapture={focus}
+      onBlurCapture={blur}
+      onKeyDownCapture={touch}
+      onPointerDownCapture={touch}
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -124,7 +142,11 @@ export function QueryForm({
             ? `第 ${Math.min(shown, questions.length - 1) + 1} / ${questions.length} 题`
             : 'Aura 在等你回复'}
         </span>
-        {countdown.visible ? <QueryCountdownChip remaining={countdown.remaining ?? 0} /> : null}
+        <WaitCountdown
+          deadlineAt={waitDeadline ?? deadlineAt}
+          held={held}
+          focusedUntil={focusedUntil}
+        />
       </header>
       {/* A div scrolls; the question's own fieldset disables its controls while sending. */}
       <div className="agent-query-body">
@@ -174,21 +196,5 @@ export function QueryForm({
         </button>
       </footer>
     </form>
-  );
-}
-
-/** "28 秒后视为暂时没有回应", with a ring that empties as the time goes. */
-function QueryCountdownChip({ remaining }: { remaining: number }) {
-  const left = Math.min(1, Math.max(0, remaining / QUERY_COUNTDOWN_SECONDS));
-  return (
-    <span
-      className="agent-query-countdown"
-      data-ending={remaining <= 10 || undefined}
-      role="timer"
-      title="一直没有操作这个提问时，到时 Aura 会告诉 AI 你可能在忙、先做不受影响的工作；任何点击、选择或输入都会重新计时。"
-    >
-      <PixelRing className="agent-query-countdown-ring" share={left} />
-      {remaining > 0 ? `${remaining} 秒后视为暂时没有回应` : '正在告诉 AI 你暂时没有回应…'}
-    </span>
   );
 }

@@ -25,6 +25,7 @@ pub(crate) const WEB_SERVICE_FIELD: &str = "web_service";
 const SEARCH_SURFACE: &str = "deepseek-search-v1";
 /// DeepSeek's search takes a query of at most this many characters.
 const QUERY_CHARS: usize = 128;
+const SERVICE_MAX_RESULTS: u32 = 50;
 
 /// The DeepSeek connection one planned call uses.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -123,6 +124,23 @@ impl ControlledWeb {
         let _ = self.web_service.set(source);
     }
 
+    /// Bounded public facts for the model. The selected connection and key stay in Core.
+    pub fn web_search_limits(&self) -> serde_json::Value {
+        match self.deepseek_service("web.search", &serde_json::Value::Null) {
+            Ok(Some(_)) => serde_json::json!({
+                "route": "configured_search_service",
+                "max_query_chars": QUERY_CHARS,
+                "max_results": SERVICE_MAX_RESULTS,
+            }),
+            Ok(None) => serde_json::json!({
+                "route": "local",
+                "max_query_utf8_bytes": aura_web_domain::LOCAL_SEARCH_MAX_QUERY_BYTES,
+                "max_results": aura_web_domain::LOCAL_SEARCH_MAX_RESULTS,
+            }),
+            Err(_) => serde_json::json!({ "route": "configured_search_service_unavailable" }),
+        }
+    }
+
     /// The DeepSeek service for one call being planned: `None` when the settings keep the web on
     /// this computer, and for a fetch of a loopback or private address.
     pub(crate) fn deepseek_service(
@@ -165,50 +183,55 @@ impl ControlledWeb {
         };
         let kind = content.action_kind.clone();
         let action = crate::agent_execution::network::model_action(&content.action);
-        let sent = or_cancel(cancel, async {
-            let request = crate::agent_execution::network::gateway_request(content)?;
-            let usage = credential_use(&service).map(|(usage, _)| usage);
-            let grant = aura_network_control::ordinary_tools::OrdinaryToolRequestGrant::issue(
-                dispatch,
-                &request,
-                usage.clone(),
-                UtcTimestamp::from_value(UtcTimestamp::now().value() + time::Duration::seconds(30)),
-            )?;
-            let grant = self
-                .apply_frozen_proxy(dispatch.request().operation.operation_id, Some(run), grant)
-                .await?;
-            let start = self.transport_start(dispatch, &request, "web.request_started").await?;
-            let resolver = match (usage, &service.credential) {
-                (Some(usage), Some(requested)) => Some(ConnectionKey {
-                    usage,
-                    requested: requested.clone(),
-                    provider: p05_credential::PersistentProviderCredentialResolver::new(
-                        Arc::clone(&self.persistence),
+        let sent = or_cancel(
+            cancel,
+            self.retry_web_read(dispatch, kind == "web.fetch", || async {
+                let request = crate::agent_execution::network::gateway_request(content)?;
+                let usage = credential_use(&service).map(|(usage, _)| usage);
+                let grant = aura_network_control::ordinary_tools::OrdinaryToolRequestGrant::issue(
+                    dispatch,
+                    &request,
+                    usage.clone(),
+                    UtcTimestamp::from_value(
+                        UtcTimestamp::now().value() + time::Duration::seconds(30),
                     ),
-                }),
-                _ => None,
-            };
-            let operation_id = dispatch.request().operation.operation_id;
-            let response = self
-                .gateway
-                .execute_ordinary(
-                    grant,
-                    request,
-                    resolver.as_ref().map(|key| key as &dyn ToolCredentialResolver),
-                    start,
-                )
-                .await
-                .map_err(super::proxy::explain_transport)?;
-            self.remember_route(operation_id, &response.routing);
-            anyhow::Ok((response.response.status, response.response.body))
-        })
+                )?;
+                let grant = self
+                    .apply_frozen_proxy(dispatch.request().operation.operation_id, Some(run), grant)
+                    .await?;
+                let start = self.transport_start(dispatch, &request, "web.request_started").await?;
+                let resolver = match (usage, &service.credential) {
+                    (Some(usage), Some(requested)) => Some(ConnectionKey {
+                        usage,
+                        requested: requested.clone(),
+                        provider: p05_credential::PersistentProviderCredentialResolver::new(
+                            Arc::clone(&self.persistence),
+                        ),
+                    }),
+                    _ => None,
+                };
+                let operation_id = dispatch.request().operation.operation_id;
+                let response = self
+                    .gateway
+                    .execute_ordinary(
+                        grant,
+                        request,
+                        resolver.as_ref().map(|key| key as &dyn ToolCredentialResolver),
+                        start,
+                    )
+                    .await
+                    .map_err(super::proxy::explain_transport)?;
+                self.remember_route(operation_id, &response.routing);
+                anyhow::Ok(response)
+            }),
+        )
         .await;
         let (status, body) = match sent {
             OrCancel::Cancelled { stop_confirmed } => {
                 return InvokeFinish::cancelled(stop_confirmed);
             }
             OrCancel::Value(Err(error)) => return failed(error),
-            OrCancel::Value(Ok(value)) => value,
+            OrCancel::Value(Ok(value)) => (value.response.status, value.response.body),
         };
         if let Err(error) = refused(status, &body) {
             return failed(error);
@@ -346,7 +369,13 @@ pub(crate) fn request_body(kind: &str, action: &serde_json::Value) -> Result<ser
             input.query.chars().count() <= QUERY_CHARS,
             "web.search_query_too_long: DeepSeek 搜索的查询最多 {QUERY_CHARS} 个字符，请缩短后重试。"
         );
-        Ok(serde_json::json!({ "query": input.query, "count": input.max_results.clamp(1, 50) }))
+        ensure!(
+            !input.query.trim().is_empty()
+                && !input.query.contains('\0')
+                && (1..=SERVICE_MAX_RESULTS).contains(&input.max_results),
+            "web.search_input_invalid: 请给出有效查询，max_results 取 1 至 50。"
+        );
+        Ok(serde_json::json!({ "query": input.query, "count": input.max_results }))
     } else {
         let input: WebFetchInput = serde_json::from_value(action.clone())?;
         Ok(serde_json::json!({ "url": input.url }))
@@ -390,7 +419,7 @@ pub(crate) fn fetched_here(input: &WebFetchInput) -> Result<bool> {
         .and_then(|mut parts| parts.next_back())
         .and_then(|name| name.rsplit_once('.'))
         .is_some_and(|(_, extension)| FILES.contains(&extension.to_ascii_lowercase().as_str()));
-    Ok(local_address(&url) || input.mode == aura_web_domain::WebFetchMode::HttpOnly || file)
+    Ok(local_address(&url) || input.mode != aura_web_domain::WebFetchMode::Auto || file)
 }
 
 /// DeepSeek's fetch hands back a page as Markdown with the punctuation of its
@@ -473,6 +502,13 @@ fn local_address(url: &url::Url) -> bool {
 }
 
 /// What a refusal by DeepSeek means for the user.
+#[derive(Debug, thiserror::Error)]
+#[error("{message}")]
+pub(super) struct FetchServiceFailure {
+    pub(super) status: u16,
+    message: String,
+}
+
 fn refused(status: u16, body: &[u8]) -> Result<()> {
     let detail = serde_json::from_slice::<serde_json::Value>(body)
         .ok()
@@ -498,7 +534,8 @@ fn refused(status: u16, body: &[u8]) -> Result<()> {
     };
     // The first line is Core's own and reaches the model and the user; DeepSeek's detail
     // stays on the second, in the receipt only.
-    Err(anyhow::anyhow!("{reason}（HTTP {status}）\n{detail}"))
+    Err(FetchServiceFailure { status, message: format!("{reason}（HTTP {status}）\n{detail}") }
+        .into())
 }
 
 /// A refusal about the
@@ -508,9 +545,7 @@ pub(crate) fn rejection(error: &str) -> Option<aura_tool_contract::ModelSafeTool
     let line = error.lines().next()?;
     let (code, _) = line.split_once(':')?;
     let category = match code {
-        "web.deepseek_fetch_empty" => aura_domain_common::ErrorCategory::NotFound,
-        "web.deepseek_fetch_refused" => aura_domain_common::ErrorCategory::Permission,
-        "web.deepseek_refused" | "web.search_query_too_long" => {
+        "web.search_input_invalid" | "web.search_query_too_long" => {
             aura_domain_common::ErrorCategory::Validation
         }
         _ => return None,

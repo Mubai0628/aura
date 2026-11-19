@@ -6184,6 +6184,7 @@ export type ToolResourceErrorCode =
  * via the `definition` "ToolResultErrorCode".
  */
 export type ToolResultErrorCode =
+  | 'tool.result.http_partial_response'
   | 'tool.result.utf8_invalid'
   | 'tool.result.json_invalid'
   | 'tool.result.schema_validation_failed'
@@ -6613,6 +6614,11 @@ export type TextReadRange =
       range_kind: 'characters';
       start_character_offset: number;
     };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "FsReadDocumentFormat".
+ */
+export type FsReadDocumentFormat = 'docx';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "FsSearchPattern".
@@ -7548,6 +7554,29 @@ export type WebServiceSettingV1 =
       kind: 'deepseek';
     };
 /**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentWaitActivity".
+ */
+export type AgentWaitActivity = 'present' | 'touch' | 'focus' | 'blur';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentWaitTarget".
+ */
+export type AgentWaitTarget =
+  | {
+      agent_run_id: AgentRunId;
+      kind: 'query';
+      query_id: UserQueryId;
+    }
+  | {
+      approval_id: ApprovalRequestId;
+      kind: 'approval';
+    }
+  | {
+      approval_id: ApprovalRequestId;
+      kind: 'legacy_approval';
+    };
+/**
  * Where a program in the catalog comes from.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -8026,6 +8055,11 @@ export type BackgroundState = 'running' | 'exited' | 'interrupted' | 'unknown';
 export type BrowserAssistOutcome = 'done' | 'declined' | 'timed_out' | 'closed';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "BrowserDownloadStatus".
+ */
+export type BrowserDownloadStatus = 'not_observed' | 'blocked_by_host' | 'access_required';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "BrowserConsoleLevel".
  */
 export type BrowserConsoleLevel = 'error' | 'warning' | 'all';
@@ -8113,19 +8147,23 @@ export type BrowserHostActionV1 =
       timeout_ms: number;
     }
   | {
+      binding?: BrowserDebugBindingV1 | null;
       expression: string;
       kind: 'evaluate';
     }
   | {
+      binding?: BrowserDebugBindingV1 | null;
       failed_only: boolean;
       kind: 'network';
       max_entries: number;
     }
   | {
+      binding?: BrowserDebugBindingV1 | null;
       element: string;
       kind: 'inspect';
     }
   | {
+      binding?: BrowserDebugBindingV1 | null;
       kind: 'performance';
     };
 /**
@@ -17254,6 +17292,14 @@ export interface FsReadTextResult {
   buffer_revision?: Revision | null;
   disk_hash?: ContentHash | null;
   disk_may_be_stale: boolean;
+  /**
+   * Present when the returned UTF-8 text was extracted from a document.
+   */
+  document_format?: FsReadDocumentFormat | null;
+  /**
+   * Named sections in the same text projection as `returned_range`.
+   */
+  document_headings?: FsReadDocumentHeading[];
   encoding: TextEncoding;
   /**
    * Present when this read used an authorized external target. It names the
@@ -17275,6 +17321,17 @@ export interface FsReadTextResult {
   text: string;
   total_characters: number;
   total_lines: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "FsReadDocumentHeading".
+ */
+export interface FsReadDocumentHeading {
+  /**
+   * Use this line index directly with a lines range.
+   */
+  start_line_index: number;
+  text: string;
 }
 /**
  * The authorized external target one read used.
@@ -20208,6 +20265,24 @@ export interface WebServiceConnectionV1 {
   endpoint_id: EndpointId;
 }
 /**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentWaitActivityRequest".
+ */
+export interface AgentWaitActivityRequest {
+  activity: AgentWaitActivity;
+  session_id: SessionId;
+  target: AgentWaitTarget;
+  viewer: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentWaitActivityView".
+ */
+export interface AgentWaitActivityView {
+  deadline_at: UtcTimestamp;
+  focused_until?: UtcTimestamp | null;
+}
+/**
  * One entry of an
  * attached zip outside the workspace, by its path in the zip's listing. Core copies it into Aura's
  * own folder for the conversation and says where, for Main only. Or of a zip in the session's workspace, by its path there — one of the two.
@@ -20789,6 +20864,7 @@ export interface BrowserPageResult {
    * Dialogs the page opened during the action, and how Aura answered them.
    */
   dialogs: string[];
+  download?: BrowserDownloadObservation | null;
   /**
    * What stopped or changed the action, such as a navigation the settings refused.
    */
@@ -20817,6 +20893,17 @@ export interface BrowserConsoleEntryV1 {
    */
   source?: string | null;
   text: string;
+}
+/**
+ * Evidence from the browser host. A saved file is confirmed by the download tool's receipt.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "BrowserDownloadObservation".
+ */
+export interface BrowserDownloadObservation {
+  click_id?: string | null;
+  filename?: string | null;
+  status: BrowserDownloadStatus;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -20880,6 +20967,17 @@ export interface BrowserConsoleResult {
    */
   truncated: boolean;
   url: string;
+}
+/**
+ * The observed top document and the browser policy used to authorize one debugging action.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "BrowserDebugBindingV1".
+ */
+export interface BrowserDebugBindingV1 {
+  document_id: string;
+  origin?: string | null;
+  settings_revision: number;
 }
 /**
  * Where an element is drawn, in CSS pixels of the page's viewport, rounded.
@@ -21013,6 +21111,7 @@ export interface BrowserHostResultAck {
  */
 export interface BrowserHostResultV1 {
   command_id: string;
+  document_id?: string | null;
   outcome: BrowserHostOutcomeV1;
   /**
    * The page's address afterwards (about:blank when there is no page).
@@ -21316,9 +21415,13 @@ export interface BrowserSettings {
    */
   blocked_sites: string[];
   /**
-   * Advanced: lets the model run scripts in pages and read full network records (default off).
+   * Persistent debugging permission. Sensitive scripts still require a separate approval.
    */
   debugging: boolean;
+  /**
+   * Explicit prohibition. With neither flag set, debugging requires a one-time approval.
+   */
+  debugging_blocked?: boolean | null;
   /**
    * Whether the built-in browser can be used at all (default on).
    */
@@ -23804,12 +23907,20 @@ export interface HttpHeader {
 export interface HttpDownloadResult {
   bytes_written: number;
   content_type?: string | null;
+  /**
+   * Media type recognized from the saved bytes, independently of the server's Content-Type.
+   */
+  detected_media_type?: string | null;
   final_url: string;
   hash: ContentHash;
   overwritten: boolean;
   path: string;
   published: boolean;
   status: number;
+  /**
+   * Old receipts lack proof that their HTTP body represented the complete file.
+   */
+  transfer_complete?: boolean | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -27507,13 +27618,6 @@ export interface TaskLineageRelationInput {
   later_excerpt?: UserMessageExcerptSelector | null;
   later_user_event_id: EventId;
 }
-/**
- * Model-facing reconcile arguments. Session, current user event, and lineage
- * revision are bound by Core from the live call.
- *
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "TaskLineageReconcileToolInput".
- */
 export interface TaskLineageReconcileToolInput {
   completion_policy_update?: CompletionPolicyUpdate | null;
   decision: TaskLineageReconcileToolDecision;
@@ -27988,6 +28092,9 @@ export interface WebReadResult {
  */
 export interface WebSearchInput {
   max_results?: number;
+  /**
+   * A nonempty query. The configured search service may impose a smaller limit.
+   */
   query: string;
 }
 /**

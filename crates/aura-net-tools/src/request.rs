@@ -183,7 +183,7 @@ pub fn web_service_request(
     identity: InvocationIdentity,
     limit: u64,
 ) -> Result<GatewayRequest> {
-    ensure!(limit > 0 && limit <= HTTP_RESPONSE_LIMIT, BYTE_LIMIT);
+    ensure!((1..=u64::from(aura_web_domain::MAX_FETCH_BYTES)).contains(&limit), BYTE_LIMIT);
     request(
         url,
         "POST".into(),
@@ -196,7 +196,7 @@ pub fn web_service_request(
 }
 
 pub fn web_request(url: &str, identity: InvocationIdentity, limit: u64) -> Result<GatewayRequest> {
-    ensure!(limit > 0 && limit <= HTTP_RESPONSE_LIMIT, BYTE_LIMIT);
+    ensure!((1..=u64::from(aura_web_domain::MAX_FETCH_BYTES)).contains(&limit), BYTE_LIMIT);
     request(url, "GET".into(), vec![], vec![], identity, NetworkCallerKind::WebRuntime, limit)
 }
 

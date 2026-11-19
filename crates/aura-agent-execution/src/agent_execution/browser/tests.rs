@@ -59,11 +59,13 @@ async fn a_command_goes_out_on_mains_connection_and_its_answer_comes_back_by_id(
             assert!(!bridge.complete(BrowserHostResultV1 {
                 command_id: "bcm-not-this-one".into(),
                 page_url: "about:blank".into(),
+                document_id: None,
                 outcome: BrowserHostOutcomeV1::Refused { message: "x".into() },
             }));
             assert!(bridge.complete(BrowserHostResultV1 {
                 command_id: sent.command_id,
                 page_url: "http://127.0.0.1:9/game".into(),
+                document_id: Some("initial".into()),
                 outcome: BrowserHostOutcomeV1::Completed {
                     result: serde_json::json!({}),
                     image: None
@@ -91,6 +93,7 @@ async fn each_page_is_known_at_the_address_main_last_reported_for_it() {
             assert!(bridge.complete(BrowserHostResultV1 {
                 command_id: sent.command_id,
                 page_url: "http://127.0.0.1:9/docs".into(),
+                document_id: Some("handed".into()),
                 outcome: BrowserHostOutcomeV1::Completed {
                     result: serde_json::json!({}),
                     image: None
@@ -125,6 +128,7 @@ async fn no_connection_and_no_answer_are_reported_not_waited_on() {
     assert!(!bridge.complete(BrowserHostResultV1 {
         command_id: late.command_id,
         page_url: "about:blank".into(),
+        document_id: None,
         outcome: BrowserHostOutcomeV1::Refused { message: "late".into() },
     }));
 }
@@ -166,6 +170,7 @@ async fn a_stopped_call_withdraws_its_command_at_once() {
     assert!(!bridge.complete(BrowserHostResultV1 {
         command_id: sent.command_id,
         page_url: "about:blank".into(),
+        document_id: None,
         outcome: BrowserHostOutcomeV1::Refused { message: "late".into() },
     }));
     // A call already stopped never waits.

@@ -1,4 +1,5 @@
 use std::str::FromStr;
+mod approval_waits;
 mod attachment_grants;
 pub(crate) mod session_authority;
 mod transition;
@@ -1399,6 +1400,7 @@ impl PersistenceCoordinator {
             }
 
             let resolved_at = UtcTimestamp::now();
+            approval_waits::require_open(&transaction, approval_id, resolved_at)?;
             let decision_id = ApprovalDecisionId::new();
             let mut grant_ids = Vec::new();
             match decision.grant_lifetime() {

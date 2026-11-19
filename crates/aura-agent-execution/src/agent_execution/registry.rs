@@ -99,6 +99,7 @@ fn capability_phrase(capability: aura_security_contract::ResolvedCapability) -> 
     }
 }
 pub(super) fn execute(
+    service: &AgentExecution,
     tx: &Transaction<'_>,
     call: &CallContext,
     name: &str,
@@ -107,14 +108,28 @@ pub(super) fn execute(
 ) -> StoreResult<Value> {
     match name {
         "tools.search" => {
-            serde_json::to_value(search(tx, call, &serde_json::from_value(args.clone())?, at)?)
-                .map_err(Into::into)
+            let mut page = search(tx, call, &serde_json::from_value(args.clone())?, at)?;
+            for hit in &mut page.results {
+                if let Some(status) =
+                    service.browser_debugging_status(call.snapshot.session_id, &hit.canonical_name)
+                {
+                    hit.summary.push(' ');
+                    hit.summary.push_str(status);
+                }
+            }
+            Ok(serde_json::to_value(page)?)
         }
         "tools.describe" => {
             let input: AgentToolDescribeInput = serde_json::from_value(args.clone())?;
             let definition_ref = definition_ref(call, input.tool_id)?;
-            serde_json::to_value(describe(tx, call, &ToolDescribeRequestV1 { definition_ref })?)
-                .map_err(Into::into)
+            let mut description = describe(tx, call, &ToolDescribeRequestV1 { definition_ref })?;
+            if let Some(status) = service
+                .browser_debugging_status(call.snapshot.session_id, description.canonical_name.as_str())
+            {
+                description.model_description.push('\n');
+                description.model_description.push_str(status);
+            }
+            Ok(serde_json::to_value(description)?)
         }
         "tools.list_loaded" => {
             let _: aura_agent_domain::EmptyToolInput = serde_json::from_value(args.clone())?;

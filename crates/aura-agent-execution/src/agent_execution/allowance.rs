@@ -112,7 +112,7 @@ impl AgentExecution {
                 if !found.outside.is_empty() || found.deletes && !found.deletes_here {
                     return Ok(None);
                 }
-                command.script
+                format!("Working directory: {}\n{}", command.working_directory, command.script)
             }
             kind if kind.starts_with("fs.") => {
                 let Some(path) = content.action.get("path").and_then(serde_json::Value::as_str)

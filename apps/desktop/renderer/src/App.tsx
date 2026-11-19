@@ -13,6 +13,7 @@ import {
   updateComposerDraft,
   useComposerDrafts,
 } from './agent-session/composer-drafts';
+import { moveKeptDrafts } from './agent-session/kept-draft';
 import { flushPendingTitles } from './agent-session/session-titles';
 import { setReadinessConnection } from './runtime-readiness-store';
 import type {
@@ -424,9 +425,17 @@ export function App() {
               }}
               onInspect={(sessionId) => {
                 const draft = getComposerDraft(shownDraft.id) ?? shownDraft;
-                updateComposerDraft(sessionId, { text: draft.text, needsReview: true });
-                removeComposerDraft(draft.id);
-                setSelectedSessionId(sessionId);
+                void moveKeptDrafts(draft.id, sessionId).then(() => {
+                  updateComposerDraft(sessionId, {
+                    text: draft.text,
+                    ...(draft.quotes ? { quotes: draft.quotes } : {}),
+                    needsReview: true,
+                  });
+                  removeComposerDraft(draft.id);
+                  setSelectedSessionId((current) =>
+                    current === draft.id || current === '' ? sessionId : current,
+                  );
+                });
               }}
             />
           ) : selectedSession && activeSession ? (

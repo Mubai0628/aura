@@ -5,5 +5,6 @@ mod history;
 mod index;
 mod maintenance;
 mod search;
+mod search_index;
 pub use index::{CACHE_SCHEMA_VERSION, IndexedFile, MemoryIndex, VaultIndexStatus};
 pub use search::{MemorySearch, MemorySearchHit, MemorySearchResult};

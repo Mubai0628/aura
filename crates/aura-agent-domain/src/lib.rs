@@ -9,6 +9,7 @@ pub struct EmptyToolInput {}
 mod activity;
 pub use aura_domain_common::ComputerMode;
 mod application;
+mod exact_values;
 mod attachment_files;
 mod attachments;
 mod branch;
@@ -37,6 +38,7 @@ mod speed;
 mod work;
 pub use activity::*;
 pub use application::*;
+pub use exact_values::*;
 pub use attachment_files::*;
 pub use attachments::*;
 pub use branch::*;

@@ -25,7 +25,7 @@ CREATE TABLE memory_entries (
     indexed_at TEXT NOT NULL
 ) STRICT;
 CREATE INDEX memory_entries_id ON memory_entries(memory_id);
-CREATE VIRTUAL TABLE memory_fts USING fts5(relative_path UNINDEXED, title, body, tokenize='trigram');
+-- memory_fts is initialized by memory/search_index.sql, also used for the V1 index upgrade.
 CREATE TABLE memory_links (
     source_path TEXT NOT NULL REFERENCES memory_entries(relative_path) ON DELETE CASCADE,
     target_id TEXT NOT NULL,

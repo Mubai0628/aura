@@ -1,5 +1,64 @@
 use super::*;
 
+#[test]
+fn graduation_tool_schemas_refuse_fixed_limit_violations() {
+    use aura_tool_contract::CompiledToolSchemaV1;
+    use serde_json::json;
+    let entries = crate::agent_release::definitions::entries(
+        "2026-09-09T00:00:00Z".parse().expect("release timestamp"),
+    )
+    .expect("definitions");
+    let accepts = |name, value| {
+        let entry = entries.iter().find(|entry| entry.handler.name() == name).unwrap();
+        CompiledToolSchemaV1::compile(entry.definition.input_schema.canonical_document())
+            .unwrap()
+            .validate(&value)
+            .valid
+    };
+    let artifact = aura_domain_common::ArtifactId::new();
+    let lineage = aura_domain_common::TaskLineageId::new();
+    let url = "https://example.test/page";
+    for (tool, value) in [
+        ("web.fetch", json!({"url": url, "max_bytes": 0})),
+        ("web.fetch", json!({"url": url, "max_bytes": 8_388_609})),
+        ("web.read", json!({"document_artifact_id": artifact, "max_chars": 0})),
+        ("web.search", json!({"query": "  ", "max_results": 5})),
+        ("agents.spawn", json!({"name": "长".repeat(41), "task": {"goal":"g", "done_when":"d"}})),
+        ("agents.spawn", json!({"name": "A", "task": {"goal":"", "done_when":"d"}})),
+        (
+            "agents.spawn",
+            json!({"name": "A", "task": {
+                "goal":"g", "done_when":"d", "files": vec!["f"; 51]
+            }}),
+        ),
+        (
+            "task_lineage.reconcile",
+            json!({"decision":{"decision":"continue_existing"},"reason":"test"}),
+        ),
+        (
+            "task_lineage.reconcile",
+            json!({
+                "decision":{"decision":"modify_existing"},"relations":[],"reason":"test"
+            }),
+        ),
+    ] {
+        assert!(!accepts(tool, value.clone()), "{tool} accepted {value}");
+    }
+    assert!(accepts("web.fetch", json!({"url": url, "max_bytes": 8_388_608})));
+    assert!(accepts("web.read", json!({"document_artifact_id": artifact, "max_chars": 65_536})));
+    assert!(accepts(
+        "agents.spawn",
+        json!({"name":"长".repeat(40),"task":{"goal":"g","done_when":"d"}})
+    ));
+    assert!(accepts(
+        "task_lineage.reconcile",
+        json!({
+            "decision":{"decision":"reference_prior", "lineage_id": lineage},
+            "reason":"test"
+        })
+    ));
+}
+
 /// A changed definition fails here, naming the fingerprint its new revision publishes.
 #[test]
 fn every_definition_is_its_newest_published_revision() {

@@ -26,9 +26,13 @@ import {
   workspaceTargets,
 } from './approval-facts';
 import type { ApprovalDecisionKind, ExecutionApprovalView } from '@aura/contracts/generated';
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useHumanWait } from './human-wait';
+import { WaitCountdown } from './WaitCountdown';
+import { BrowserApprovalFacts } from './BrowserApprovalFacts';
 import { AppIcon } from '../app-icons';
 import { approvalActionLabel } from './approval-action-label';
+import { PERMISSION_MODE_NAMES } from '../security/permission-mode-names';
 
 const labels: Record<ApprovalDecisionKind, string> = {
   allow_once: '仅此一次',
@@ -126,6 +130,15 @@ export function ApprovalPanel({
   onChanged: () => void;
 }) {
   const [view, setView] = useState<ExecutionApprovalView>();
+  const target = useMemo(
+    () => ({ kind: 'approval' as const, approval_id: approvalId }),
+    [approvalId],
+  );
+  const { mount, focus, blur, touch, deadlineAt, focusedUntil, held } = useHumanWait(
+    sessionId,
+    target,
+    view?.approval.state === 'pending',
+  );
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   // A read that failed because Core did not answer is tried again until the card shows.
@@ -268,7 +281,14 @@ export function ApprovalPanel({
       /^(workspace|external)_file_(read|write|create|delete|move)$/.test(capability),
     );
   return (
-    <section className="agent-approval" aria-label="当前任务审批">
+    <section
+      className="agent-approval"
+      aria-label="当前任务审批"
+      ref={mount}
+      onFocusCapture={focus}
+      onBlurCapture={blur}
+      onPointerDownCapture={touch}
+    >
       <header className="agent-approval-header">
         <span className="agent-approval-mark" aria-hidden="true">
           <AppIcon name="shield" size={15} />
@@ -282,10 +302,39 @@ export function ApprovalPanel({
               : approvalActionLabel(view.operation.content.action_kind)}
           </span>
         ) : null}
+        {view?.approval.state === 'pending' ? (
+          <WaitCountdown
+            approval
+            deadlineAt={deadlineAt ?? view.approval.expires_at}
+            focusedUntil={focusedUntil}
+            held={held}
+          />
+        ) : null}
       </header>
       {view ? (
         <>
           <div className="agent-approval-body">
+            <BrowserApprovalFacts view={view} from={from ?? '本会话 Agent'} />
+            {from || targets.length ? (
+              <dl className="agent-approval-external">
+                <dt>本次调用权限</dt>
+                <dd>{PERMISSION_MODE_NAMES[view.mode]}</dd>
+                {targets.length ? (
+                  <>
+                    <dt>外部目标</dt>
+                    <dd>
+                      {targets.map((target) => (
+                        <span key={`${target.kind}:${target.display}`} data-scope={target.kind}>
+                          {target.display}（{target.scope}）
+                        </span>
+                      ))}
+                    </dd>
+                    <dt>请求能力</dt>
+                    <dd>{capabilities.length ? capabilities.join('、') : '未声明外部能力'}</dd>
+                  </>
+                ) : null}
+              </dl>
+            ) : null}
             {/* The card shows the model's own explanation; everything else is one click
                 away under 查看详情. */}
             <p className="agent-approval-purpose">
@@ -392,26 +441,16 @@ export function ApprovalPanel({
                   </dd>
                   <dt>确认期限</dt>
                   <dd>
-                    请在 <Deadline at={view.approval.expires_at} />{' '}
+                    请在 <Deadline at={deadlineAt ?? view.approval.expires_at} />{' '}
                     前确认。批准后的可用范围以所点的按钮为准。
                   </dd>
                 </dl>
               ) : null}
               {targets.length ? (
                 <dl className="agent-approval-external">
-                  <dt>外部目标</dt>
-                  <dd>
-                    {targets.map((target) => (
-                      <span key={`${target.kind}:${target.display}`} data-scope={target.kind}>
-                        {target.display}（{target.scope}）
-                      </span>
-                    ))}
-                  </dd>
-                  <dt>请求能力</dt>
-                  <dd>{capabilities.length ? capabilities.join('、') : '未声明外部能力'}</dd>
                   <dt>确认期限</dt>
                   <dd>
-                    请在 <Deadline at={view.approval.expires_at} />{' '}
+                    请在 <Deadline at={deadlineAt ?? view.approval.expires_at} />{' '}
                     前确认。批准后的可用范围以所点的按钮为准。
                   </dd>
                 </dl>
@@ -420,7 +459,7 @@ export function ApprovalPanel({
                 <dl className="agent-approval-external">
                   <dt>确认期限</dt>
                   <dd>
-                    请在 <Deadline at={view.approval.expires_at} />{' '}
+                    请在 <Deadline at={deadlineAt ?? view.approval.expires_at} />{' '}
                     前确认。批准后的可用范围以所点的按钮为准。
                   </dd>
                 </dl>

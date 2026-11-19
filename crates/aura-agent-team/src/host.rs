@@ -104,6 +104,18 @@ pub trait TeamHost: crate::WorktreeHost {
 
     fn parent(&self, session: SessionId) -> impl Future<Output = anyhow::Result<Parent>> + Send;
 
+    fn delegated_reads(
+        &self,
+        _session: SessionId,
+        _turn: TurnTaskId,
+        paths: Vec<String>,
+    ) -> impl Future<Output = anyhow::Result<Option<crate::DelegatedReads>>> + Send {
+        async move {
+            anyhow::ensure!(paths.is_empty(), "agents.read_delegation_unavailable");
+            Ok(None)
+        }
+    }
+
     /// Opens the hidden conversation a sub-agent works in, using `model`, in the parent's
     /// workspace or in `worktree`'s, in permission mode `mode`.
     fn open(

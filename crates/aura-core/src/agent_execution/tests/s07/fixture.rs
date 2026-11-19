@@ -107,6 +107,12 @@ impl Server {
                             let path = text.split_whitespace().nth(1).unwrap_or("/").to_owned();
                             observed.lock().expect("record local request").push(text.clone());
                             if path == "/disconnect" { return }
+                            if path == "/partial" || path == "/range-with-200" {
+                                let status = if path == "/partial" { "206 Partial Content" } else { "200 OK" };
+                                let response = format!("HTTP/1.1 {status}\r\nContent-Type: application/pdf\r\nContent-Range: bytes 0-8/320\r\nContent-Length: 9\r\nConnection: close\r\n\r\n%PDF-1.7\n");
+                                let _ = stream.write_all(response.as_bytes()).await;
+                                return;
+                            }
                             if path == "/timeout" {
                                 tokio::time::sleep(std::time::Duration::from_secs(45)).await;
                             }

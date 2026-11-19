@@ -149,12 +149,32 @@ pub struct FsReadTextResult {
     pub total_characters: u64,
     pub total_lines: u64,
     pub returned_range: TextReadRange,
+    /// Present when the returned UTF-8 text was extracted from a document.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub document_format: Option<FsReadDocumentFormat>,
+    /// Named sections in the same text projection as `returned_range`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub document_headings: Vec<FsReadDocumentHeading>,
     /// Present when this read used an authorized external target. It names the
     /// grant that authorized it and the absolute path the caller referred to, so
     /// the model and the audit trail can tell an external file from a workspace
     /// file without guessing from the path.
     #[serde(default)]
     pub external: Option<FsExternalReadTarget>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FsReadDocumentFormat {
+    Docx,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FsReadDocumentHeading {
+    pub text: String,
+    /// Use this line index directly with a lines range.
+    pub start_line_index: u64,
 }
 
 /// The authorized external target one read used.

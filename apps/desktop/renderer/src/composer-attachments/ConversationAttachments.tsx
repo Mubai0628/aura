@@ -4,15 +4,17 @@ import { useComposerAttachments } from './useComposerAttachments';
 import { ConversationAttachmentContext } from './conversation-attachment-context';
 import './composer-attachments.css';
 
-/** `draftKey` names the conversation whose pictures and files are kept while Aura runs. */
+/** `draftKey` names the conversation whose pictures and files are saved. */
 export function ConversationAttachmentState({
   draftKey,
+  draftWorkspaceId,
   children,
 }: {
   draftKey?: string | undefined;
+  draftWorkspaceId?: string | undefined;
   children: ReactNode;
 }) {
-  const attached = useComposerAttachments(undefined, draftKey);
+  const attached = useComposerAttachments(undefined, draftKey, draftWorkspaceId);
   return (
     <ConversationAttachmentContext.Provider value={attached}>
       {children}
@@ -24,14 +26,16 @@ export function ConversationAttachmentState({
 export function ConversationAttachments({
   className,
   draftKey,
+  draftWorkspaceId,
   children,
 }: {
   className?: string;
   draftKey?: string | undefined;
+  draftWorkspaceId?: string | undefined;
   children: ReactNode;
 }) {
   return (
-    <ConversationAttachmentState draftKey={draftKey}>
+    <ConversationAttachmentState draftKey={draftKey} draftWorkspaceId={draftWorkspaceId}>
       <ConversationDropArea className={className}>{children}</ConversationDropArea>
     </ConversationAttachmentState>
   );

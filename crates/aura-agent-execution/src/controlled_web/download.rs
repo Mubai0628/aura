@@ -72,6 +72,14 @@ impl ControlledWeb {
             };
             self.remember_route(operation_id, &stream.routing);
             ensure!((200..300).contains(&stream.response.status),lines::status(stream.response.status));
+            ensure!(
+                !matches!(stream.response.status, 206 | 226)
+                && !stream.response.headers.iter().any(|(key, value)| {
+                    key.eq_ignore_ascii_case("content-range") || (key.eq_ignore_ascii_case("content-type")
+                        && value.split(';').next().is_some_and(|mime| mime.trim().eq_ignore_ascii_case("multipart/byteranges")))
+                }),
+                lines::partial(stream.response.status),
+            );
             loop {
                 ensure!(!*cancel.borrow(),"http.cancelled");
                 let chunk = tokio::select! { biased;
@@ -114,8 +122,9 @@ impl ControlledWeb {
                 })?
             }).await?;
             Ok(serde_json::to_value(HttpDownloadResult {status:stream.response.status,path:content.action["path"].as_str().unwrap_or_default().into(),bytes_written:published.bytes_written,
-                hash:published.hash,content_type:stream.response.headers.iter().find(|(k,_)|k.eq_ignore_ascii_case("content-type")).map(|(_,v)|v.clone()),
-                final_url:stream.final_url,overwritten:published.overwritten,published:true})?)
+                hash:published.hash,detected_media_type:published.detected_media_type.map(str::to_owned),
+                content_type:stream.response.headers.iter().find(|(k,_)|k.eq_ignore_ascii_case("content-type")).map(|(_,v)|v.clone()),
+                final_url:stream.final_url,overwritten:published.overwritten,published:true,transfer_complete:Some(true)})?)
         }.await;
         let cleanup = Arc::clone(&staging);
         service

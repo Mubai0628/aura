@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub(crate) const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
-pub(crate) const LATEST_SCHEMA_VERSION: i64 = 50;
+pub(crate) const LATEST_SCHEMA_VERSION: i64 = 51;
 mod final_migrations;
 
 /// Rebuilds `workspace_mutation_ownership` so one **execution** owns one row.

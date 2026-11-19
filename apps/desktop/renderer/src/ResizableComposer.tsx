@@ -273,7 +273,9 @@ function Composer({
   };
   // While a task runs, a message waits in the queue; the queue appends it at once. Terminals and
   // pages chosen with "@" are read now, as they are when it is sent.
+  const restoringDraft = attached.importing || references.restoring || skills.restoring;
   const send = () => {
+    if (restoringDraft) return;
     if (slash.block) void runBlock(slash.block);
     else
       void (async () => {
@@ -385,7 +387,7 @@ function Composer({
       />
       <ComposerAttachments
         attachments={attached.attachments}
-        error={attached.error}
+        error={attached.error ?? references.draftError ?? skills.draftError}
         onRemove={attached.remove}
         scope={fileScope}
       />
@@ -618,7 +620,7 @@ function Composer({
             <button
               aria-label={activeTurn || queuePending ? '加入下一轮队列' : '发送消息'}
               className="send-button"
-              disabled={empty || submission.busy || submission.needsReview}
+              disabled={empty || restoringDraft || submission.busy || submission.needsReview}
               title={activeTurn || queuePending ? '加入下一轮队列' : '发送消息'}
               onClick={() => send()}
               type="button"

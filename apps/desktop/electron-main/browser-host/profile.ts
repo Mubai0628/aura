@@ -52,6 +52,7 @@ export function guardProfile(session: ProfileSession, pages: BrowserPages): void
         contents.id,
         'download',
         `内置浏览器不支持下载，${item.getFilename()} 没有下载；可以把这个页面的地址复制到系统浏览器里打开，再点一次下载。`,
+        item.getFilename(),
       );
   });
   session.webRequest.onBeforeRequest((request, callback) =>

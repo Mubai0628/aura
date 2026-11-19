@@ -162,6 +162,15 @@ fn file_refusal(error: &F, action: &str, before: &Value) -> Option<Refusal> {
             return io_refusal(source, action, Some(path), Some(failed));
         }
         F::ScopeUnavailable => scope_denied(named_path(before).as_deref()),
+        F::Document(line) => {
+            let (code, message) = line.split_once(": ")?;
+            let category = if code == "fs.pdf_text_unavailable" {
+                ErrorCategory::Compatibility
+            } else {
+                Validation
+            };
+            Refusal::new(code, category, message)
+        }
         F::InvalidPatch(detail) => Refusal::new(
             "fs.invalid_patch",
             Validation,

@@ -181,6 +181,15 @@ fn caused(outcome: &ToolResultOutcomeV1) -> Option<String> {
             cause(error).map(|(cause, _)| format!("未执行：{cause}"))
         }
         ToolResultOutcomeV1::Failed { error } => {
+            if let Some(status) = error.details.get("http_status").and_then(Value::as_u64) {
+                let source = match error.details.get("http_source").and_then(Value::as_str) {
+                    Some("fetch_service") => "抓取服务",
+                    _ => "网站",
+                };
+                if (400..=599).contains(&status) {
+                    return Some(format!("执行失败：{source}返回 HTTP {status}"));
+                }
+            }
             cause(error).map(|(cause, _)| format!("执行失败：{cause}"))
         }
         ToolResultOutcomeV1::NotExecuted { error: Some(error), .. }
@@ -465,6 +474,13 @@ fn project_call(
 
 fn summarize(view: &mut AgentToolDisplay, name: &str, value: &Value) {
     match name {
+        "http.request" => {
+            if let Some(status) =
+                value["status"].as_u64().filter(|status| (100..=599).contains(status))
+            {
+                view.summary = format!("已收到回应 · HTTP {status}");
+            }
+        }
         "git.commit" | "git.branch" | "git.sync" | "git.push" => {
             super::git::summarize(view, name, value)
         }

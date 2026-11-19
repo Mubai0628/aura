@@ -98,7 +98,7 @@ fn checked(
             serde_json::from_value::<BrowserInspectResult>(result).map_err(invalid)?,
         )
         .map_err(invalid),
-        BrowserHostActionV1::Performance => serde_json::to_value(
+        BrowserHostActionV1::Performance { .. } => serde_json::to_value(
             serde_json::from_value::<BrowserPerformanceResult>(result).map_err(invalid)?,
         )
         .map_err(invalid),
@@ -376,6 +376,7 @@ mod tests {
         Ok(BrowserHostResultV1 {
             command_id: "bcm-1".into(),
             page_url: "about:blank".into(),
+            document_id: None,
             outcome,
         })
     }

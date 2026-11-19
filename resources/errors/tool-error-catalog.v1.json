@@ -818,6 +818,14 @@
       "suggested_not_executed_reason": null
     },
     {
+      "code": "tool.result.http_partial_response",
+      "category": "protocol",
+      "visibility": "renderer_and_model_safe",
+      "retry_class": "never",
+      "safe_message_key": "tool_result_http_partial_response",
+      "suggested_not_executed_reason": null
+    },
+    {
       "code": "tool.result.json_invalid",
       "category": "protocol",
       "visibility": "renderer_and_model_safe",

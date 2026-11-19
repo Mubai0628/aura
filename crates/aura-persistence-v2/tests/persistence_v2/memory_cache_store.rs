@@ -26,6 +26,40 @@ fn owners(c: &Connection) -> Vec<(String, String)> {
 }
 
 #[test]
+fn mixed_length_queries_find_old_short_terms_and_synonyms_in_the_body()
+-> Result<(), Box<dyn std::error::Error>> {
+    use aura_memory_domain::{MemoryDocument, MemoryMetadata, MemoryScope};
+    use aura_persistence_v2::memory::{IndexedFile, MemorySearch};
+    let temp = tempfile::tempdir()?;
+    let scope = VaultScope::Project { workspace_id: WorkspaceId::new() };
+    let mut index = MemoryIndex::open(&temp.path().join("vault.db"), "test-vault", scope)?;
+    let note = |path: String, body: &str, old: bool| {
+        let mut metadata = MemoryMetadata::new(MemoryScope::Project, "notes".into());
+        if old {
+            metadata.updated_at = "2020-01-01T00:00:00Z".parse().expect("fixture timestamp");
+        }
+        IndexedFile {
+            path,
+            hash: "sample".into(),
+            note: Some(MemoryDocument { metadata, body: body.into() }),
+            invalid_reason: None,
+        }
+    };
+    let mut files = vec![note("first.md".into(), "# 资料\n手册里有封面和题名。", true)];
+    files.extend((0..140).map(|i| note(format!("new-{i}.md"), "# 其他\n无关", false)));
+    index.replace_all(&files)?;
+    let request = MemorySearch { query: "unmatched 封面 题名".into(), ..Default::default() };
+    let hits = index.search_related(&request)?.hits;
+    assert_eq!(hits.first().map(|hit| hit.path.as_str()), Some("first.md"));
+    let synonym = MemorySearch { query: "指南".into(), ..Default::default() };
+    assert_eq!(index.search_related(&synonym)?.hits[0].path, "first.md");
+    index.update_files(&[note("first.md".into(), "# 资料\n更新后的无关文字。", false)], &[])?;
+    assert!(index.search_related(&request)?.hits.is_empty());
+    assert!(index.search_related(&synonym)?.hits.is_empty());
+    Ok(())
+}
+
+#[test]
 fn the_shared_database_holds_no_memory_tables_or_owner() {
     let temp = tempfile::tempdir().expect("TEMP");
     let store = V2Store::create(&temp.path().join("v2")).expect("new store");
@@ -38,12 +72,53 @@ fn the_shared_database_holds_no_memory_tables_or_owner() {
 fn cache_schema_version_tracks_memory_sql() {
     // Changing memory.sql without bumping CACHE_SCHEMA_VERSION would keep old
     // caches whose structure no longer matches the queries.
-    let digest = blake3::hash(include_bytes!("../../src/memory.sql")).to_hex().to_string();
+    let digest = blake3::Hasher::new()
+        .update(include_bytes!("../../src/memory.sql"))
+        .update(include_bytes!("../../src/memory/search_index.sql"))
+        .finalize()
+        .to_hex()
+        .to_string();
     assert_eq!(
         (CACHE_SCHEMA_VERSION, digest.as_str()),
-        (1, "30a41e73618afe3f58bd5de33652cd85876fac0054ea0e58c02068448d35635d"),
+        (2, "4ae52805c4ad015ab0dce02d51d95a228d9c3fd89de5d7fe0652307ccd62f52b"),
         "bump CACHE_SCHEMA_VERSION together with memory.sql"
     );
+}
+
+#[test]
+fn a_v1_vault_upgrades_its_index_only_after_checking_ownership()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempfile::tempdir()?;
+    let path = temp.path().join("old.db");
+    let workspace_id = WorkspaceId::new();
+    let scope = VaultScope::Project { workspace_id };
+    let db = Connection::open(&path)?;
+    db.execute_batch(include_str!("../../src/memory.sql"))?;
+    db.execute_batch("CREATE VIRTUAL TABLE memory_fts USING fts5(relative_path UNINDEXED,title,body,tokenize='trigram');
+                      PRAGMA user_version=1; INSERT INTO memory_fts VALUES('old.md','old','早期的题名');")?;
+    db.execute(
+        "INSERT INTO memory_vaults VALUES('right',1,'project',?1,NULL,'ready')",
+        [workspace_id.to_string()],
+    )?;
+    db.execute("INSERT INTO memory_history(record_hash,relative_path,action,actor,title,at) VALUES('record','old.md','edit','user','old','2026-01-01')", [])?;
+    drop(db);
+    assert!(MemoryIndex::open(&path, "wrong", scope).is_err());
+    let db = Connection::open(&path)?;
+    assert_eq!(db.pragma_query_value(None, "user_version", |row| row.get::<_, i32>(0))?, 1);
+    drop(db);
+    drop(MemoryIndex::open(&path, "right", scope)?);
+    let db = Connection::open(&path)?;
+    let file: String = db.query_row(
+        "SELECT relative_path FROM memory_fts WHERE memory_fts MATCH 'short_terms:\"_题名\"'",
+        [],
+        |r| r.get(0),
+    )?;
+    assert_eq!(file, "old.md");
+    assert_eq!(
+        db.query_row("SELECT record_hash FROM memory_history", [], |r| r.get::<_, String>(0))?,
+        "record"
+    );
+    Ok(())
 }
 
 #[test]

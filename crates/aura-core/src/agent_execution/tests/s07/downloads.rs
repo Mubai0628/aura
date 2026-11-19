@@ -1,6 +1,21 @@
 use super::*;
 
 #[tokio::test]
+async fn a_partial_response_cannot_publish_or_overwrite_a_download() {
+    let server = Server::start().await;
+    let f = fixture(PermissionMode::FullAccess, &["http.download"]).await;
+    std::fs::write(f.root.join("previous.pdf"), b"intact previous version").unwrap();
+    let batch = f.admit(&[
+        ("http.download", json!({"url":format!("{}/partial",server.url),"path":"new.pdf"})),
+        ("http.download", json!({"url":format!("{}/range-with-200",server.url),"path":"previous.pdf","overwrite":true})),
+    ]);
+    f.execute(batch).await;
+    assert_eq!(server.count(), 2);
+    assert!(!f.root.join("new.pdf").exists());
+    assert_eq!(std::fs::read(f.root.join("previous.pdf")).unwrap(), b"intact previous version");
+}
+
+#[tokio::test]
 async fn s07_n6_download_format_does_not_add_approval() {
     for path in ["bytes.exe", "bytes.zip", "bytes.txt", "bytes"] {
         let server = Server::start().await;

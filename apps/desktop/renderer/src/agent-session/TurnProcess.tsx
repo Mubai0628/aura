@@ -14,7 +14,6 @@ import './turn-process.css';
 import { parseQueryReply } from './query/query-reply';
 import { QueryReplyCard } from './query/QueryReplyCard';
 import { BackupConnectionNote, ContextCleared, ContextCompacted } from './ContextCompacted';
-import { EnableDebuggingOffer } from '../browser-settings/EnableDebuggingOffer';
 
 /**
  * A turn in order: one status line; the model's replies between its tools in the
@@ -46,11 +45,6 @@ export function TurnProcess({
   const collapsible = item.turn.state.state === 'completed' && blocks.some(foldsWithProcess);
   const open = !collapsible || (shown ?? false);
   const processId = `process-${item.turn.turn_task_id}`;
-  // A call the debugging switch
-  // stopped puts its button under the status line, in view whether the process is open or folded.
-  const debuggingOffer = item.assistant_messages.some((message) =>
-    message.tool_call_ids.some((id) => calls.get(id)?.display.offer === 'enable_browser_debugging'),
-  );
   const newest = blocks.findLastIndex((block) => block.kind === 'process');
   const render = (block: TimelineBlock, index: number) => {
     if (block.kind === 'process') {
@@ -82,23 +76,27 @@ export function TurnProcess({
     }
     if (block.kind === 'interim_reply') {
       return (
-        <MarkdownBlocks key={block.key} className="agent-interim-reply" text={block.message.text} />
+        <div key={block.key} className="agent-interim-reply" role="group" aria-label="过程回复">
+          <MarkdownBlocks className="agent-interim-text" text={block.message.text} />
+        </div>
       );
     }
     if (block.kind === 'reply') {
       const message = block.message;
       return (
-        <div key={block.key} className="agent-interim-reply markdown-body">
-          <MessageText
-            sessionId={item.turn.session_id}
-            source={{ kind: 'assistant', model_step_id: message.model_step_id }}
-            preview={message.text}
-            totalBytes={message.text_total_bytes}
-            partial={message.partial}
-            bodyId={message.stream_body_id ?? null}
-            sealedRevision={message.sealed_revision}
-            role="final"
-          />
+        <div key={block.key} className="agent-interim-reply" role="group" aria-label="过程回复">
+          <div className="agent-interim-text markdown-body">
+            <MessageText
+              sessionId={item.turn.session_id}
+              source={{ kind: 'assistant', model_step_id: message.model_step_id }}
+              preview={message.text}
+              totalBytes={message.text_total_bytes}
+              partial={message.partial}
+              bodyId={message.stream_body_id ?? null}
+              sealedRevision={message.sealed_revision}
+              role="final"
+            />
+          </div>
         </div>
       );
     }
@@ -140,7 +138,6 @@ export function TurnProcess({
           collapsible ? { open, onToggle: () => setShown(!open), controls: processId } : undefined
         }
       />
-      {debuggingOffer ? <EnableDebuggingOffer /> : null}
       <div id={processId} className="agent-process-body">
         {blocks.map((block, index) =>
           open || !foldsWithProcess(block) ? render(block, index) : null,

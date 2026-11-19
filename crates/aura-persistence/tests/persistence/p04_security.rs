@@ -1,3 +1,5 @@
+mod approval_waits;
+
 use std::str::FromStr;
 
 use aura_artifact_contract::{ArtifactAccess, ArtifactOwnerRef, ArtifactScope};

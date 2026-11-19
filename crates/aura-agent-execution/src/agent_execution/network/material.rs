@@ -29,11 +29,16 @@ pub(crate) fn gateway_request(content: &OperationContent) -> Result<GatewayReque
     {
         let url = crate::controlled_web::web_service::service_url(&service, &content.action_kind)?;
         let body = crate::controlled_web::web_service::request_body(&content.action_kind, &action)?;
+        let limit = if content.action_kind == "web.fetch" {
+            u64::from(input::<aura_web_domain::WebFetchInput>("web.fetch", action)?.max_bytes)
+        } else {
+            u64::from(aura_web_domain::MAX_FETCH_BYTES)
+        };
         return aura_net_tools::web_service_request(
             url.as_str(),
             &body,
             content.identity.clone(),
-            8 * 1024 * 1024,
+            limit,
         );
     }
     let kind = content.action_kind.as_str();

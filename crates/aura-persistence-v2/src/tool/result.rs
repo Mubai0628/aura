@@ -328,6 +328,9 @@ fn failed_runtime_code(receipt: &Value, named: Option<&str>) -> ErrorCode {
         return code.error_code();
     }
     let blob = named.unwrap_or("").to_ascii_lowercase();
+    if blob.starts_with("http.partial_response:") {
+        return ToolResultErrorCode::HttpPartialResponse.error_code();
+    }
     let code = if blob.contains("control_endpoint_blocked") {
         ToolRuntimeErrorCode::HttpControlEndpointDenied
     } else if blob.contains("credential_reflection") {
@@ -497,19 +500,45 @@ pub fn materialize(
     };
     // A target that refused or could not be found was never sent the request: trying again,
     // once the cause is fixed, is what the model should do.
+    let status = receipt["http_status"].as_u64();
+    let read = matches!(receipt["action"].as_str(), Some("web.fetch" | "web.search"));
     let retryable = !invalid_output
-        && failure_message
+        && (failure_message
             .as_deref()
             .and_then(|line| unreachable_target(line.split(':').next()?.trim()))
-            .is_some_and(|(_, unsent)| unsent);
-    let error = ErrorEnvelope::new(
-        entry.code,
-        entry.category,
+            .is_some_and(|(_, unsent)| unsent)
+            || (read
+                && evidence.outcome == ExecutionOutcome::Failed
+                && evidence.side_effect == SideEffectStateV1::NoEffect
+                && matches!(status, Some(408 | 429 | 502 | 503 | 504))));
+    let status_failure = status.filter(|status| (400..=599).contains(status)).and_then(|status| {
+        let name = failure_message.as_deref()?.split_once(':')?.0;
+        let category = match (name, status) {
+            ("web.http_failed", 404 | 410) | ("web.deepseek_fetch_empty", 404) => {
+                ErrorCategory::NotFound
+            }
+            ("web.access_denied" | "web.deepseek_fetch_refused", 403) => ErrorCategory::Permission,
+            ("web.http_failed" | "web.deepseek_unavailable" | "web.deepseek_rate_limited", _) => {
+                ErrorCategory::Unavailable
+            }
+            _ => return None,
+        };
+        Some((ErrorCode::new(name).ok()?, category))
+    });
+    let (code, category) = status_failure.unwrap_or((entry.code, entry.category));
+    let mut error = ErrorEnvelope::new(
+        code,
+        category,
         message,
         retryable,
         CorrelationId::from_bytes(call_id.to_bytes()),
         None,
     );
+    if let Some(status) = status.filter(|status| (400..=599).contains(status)) {
+        error = error
+            .with_detail("http_status", serde_json::json!(status))
+            .with_detail("http_source", receipt["http_source"].clone());
+    }
     let safe = ModelSafeToolErrorV1 {
         code: error.code.clone(),
         category: error.category,
@@ -718,6 +747,17 @@ fn effect_sentence(side_effect: SideEffectStateV1) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_partial_download_reports_the_http_response_and_that_no_file_was_published() {
+        let receipt = serde_json::json!({ "schema": "controlled-web-result-v1" });
+        let line = "http.partial_response: 服务器回应 HTTP 206，只提供了分段内容，文件没有发布。";
+        assert_eq!(model_safe_named_error(line), Some(line));
+        assert_eq!(
+            failed_runtime_code(&receipt, Some(line)),
+            ToolResultErrorCode::HttpPartialResponse.error_code()
+        );
+    }
 
     #[test]
     fn a_target_core_could_not_reach_is_named_by_kind_with_what_to_do_next() {

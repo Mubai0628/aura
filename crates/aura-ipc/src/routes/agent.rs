@@ -821,6 +821,26 @@ pub(super) const ROUTES: &[RouteDescriptor] = &[
         None
     ),
     route!(
+        "agent.wait.activity",
+        Agent,
+        Main,
+        TrustedRenderer,
+        "AgentWaitActivityRequest",
+        "AgentWaitActivityView",
+        TransientInput,
+        None
+    ),
+    route!(
+        "agent.wait.activity",
+        Agent,
+        Core,
+        AuthenticatedMain,
+        "AgentWaitActivityRequest",
+        "AgentWaitActivityView",
+        TransientInput,
+        None
+    ),
+    route!(
         "agent.approval.get",
         Agent,
         Main,

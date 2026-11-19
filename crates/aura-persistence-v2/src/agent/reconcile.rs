@@ -25,11 +25,11 @@ pub fn apply(
         || run.parent_agent_run_id.is_some()
         || current.active_turn != Some(turn_id)
         || input.reason.trim().is_empty()
-        || (input.current_user_event_id != turn.root_user_event_id
-            && !current.pending_user_event_ids.contains(&input.current_user_event_id))
     {
         return Err(invalid("task_lineage.identity_mismatch"));
     }
+    // The private caller has already required membership in this model step's frozen input.
+    session::user_message(tx, turn.session_id, input.current_user_event_id)?;
     match &input.decision {
         TaskLineageReconcileDecision::ResumeSuspended { .. } => {
             Err(invalid("task_lineage.disposition_not_allowed"))

@@ -126,13 +126,18 @@ impl AgentApplication {
         self: &Arc<Self>,
         input: AgentQueryTouchRequest,
     ) -> anyhow::Result<AgentQueryTouchView> {
-        let stored = input.clone();
         let deadline_at = self
-            .store
-            .write(StoreStep::operation("agent.query.touch"), move |journal| {
-                journal.database.unit_of_work(|tx| query::touch(tx, &stored, UtcTimestamp::now()))
+            .update_human_wait(AgentWaitActivityRequest {
+                session_id: input.session_id,
+                target: AgentWaitTarget::Query {
+                    agent_run_id: input.agent_run_id,
+                    query_id: input.query_id,
+                },
+                viewer: "query-touch".into(),
+                activity: AgentWaitActivity::Touch,
             })
-            .await?;
+            .await?
+            .deadline_at;
         Ok(AgentQueryTouchView { query_id: input.query_id, deadline_at })
     }
 

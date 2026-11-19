@@ -50,6 +50,7 @@ pub enum StopCause {
     },
     NoFinishingCall,
     RepeatedMistake,
+    UnverifiedDelivery,
     /// The provider failed the run's last step; `asked_again` when a step of it was retried.
     Provider {
         failure: NormalizedModelFailure,
@@ -94,6 +95,7 @@ pub fn stop_cause(
         },
         "agent.protocol_not_completed" => StopCause::NoFinishingCall,
         "agent.deterministic_correction_exhausted" => StopCause::RepeatedMistake,
+        "agent.exact_artifact_unverified" => StopCause::UnverifiedDelivery,
         "agent.execution_interrupted" => execution_stop(db, run)?,
         other => StopCause::Other(other.to_owned()),
     })
@@ -131,6 +133,7 @@ impl StopCause {
                 "it ended twice without the call that finishes a turn in its mode, even after a reminder"
                     .into()
             }
+            Self::UnverifiedDelivery => "the delivered file still did not verify against the user's explicit verbatim requirement".into(),
             Self::RepeatedMistake => {
                 "the same mistake in a tool call's arguments came again after it had been pointed out twice"
                     .into()
@@ -250,6 +253,7 @@ impl StopCause {
                 "它两次结束时都没有调用这个模式结束一轮要用的工具，提醒后也一样".into()
             }
             Self::RepeatedMistake => "同一个工具参数错误指出两次后又出现了".into(),
+            Self::UnverifiedDelivery => "交付文件里仍未核对到用户要求逐字保留的内容".into(),
             Self::Provider { failure, asked_again } => format!(
                 "{}{}",
                 failure_text::cause_zh(failure),

@@ -46,6 +46,77 @@ fn settle(
     completion::natural_from_response(tx, output, f.at)
 }
 
+#[test]
+fn exact_values_survive_later_active_messages_and_only_the_user_can_revise_them() {
+    let root = tempfile::tempdir().unwrap();
+    let mut store = V2Store::create(&root.path().join("v2")).unwrap();
+    let f = Fixture::new(&mut store, AgentTaskMode::Normal);
+    attach_addition(&mut store, &f, "题名须逐字保留《初始题名》，写入 cover.txt。");
+    for i in 0..18 {
+        attach_addition(&mut store, &f, &format!("第 {i} 项附注。"));
+    }
+    let requirements = |store: &V2Store| {
+        aura_persistence_v2::agent::exact_artifacts::requirements(
+            store.database.connection(),
+            &f.turn,
+        )
+        .unwrap()
+    };
+    assert!(requirements(&store)[0].matches("题名：初始题名"));
+    attach_addition(&mut store, &f, "模板示例写的是“题名改为《示例》”。");
+    assert!(requirements(&store)[0].matches("题名：初始题名"));
+    attach_addition(&mut store, &f, "题名改为《修订题名》。");
+    assert!(requirements(&store)[0].matches("题名：修订题名"));
+}
+
+#[test]
+fn exact_values_resolve_a_compacted_title_in_a_later_turn() {
+    let root = tempfile::tempdir().unwrap();
+    let mut store = V2Store::create(&root.path().join("v2")).unwrap();
+    let first = Fixture::new(&mut store, AgentTaskMode::Normal);
+    let revision = "题名改为《修订题名、终稿》。";
+    let source = attach_addition(&mut store, &first, revision);
+    let hop = event_hop(&first, source, revision, first.turn.session_id);
+    insert_chain(&mut store, &first, &[hop.compaction]);
+    assert!(completed(&mut store, &first));
+    let next = store
+        .database
+        .unit_of_work(|tx| -> StoreResult<_> {
+            let user = OriginalUserMessage::new(
+                EventId::new(),
+                first.turn.session_id,
+                "在 cover.txt 中只写我最新指定的完整题名，逐字保留。".into(),
+                UserMessageOrigin::UserInput,
+                first.at,
+            )
+            .unwrap();
+            let mut bundle = aura_context_fixtures::p06_prepared_context_fixture()
+                .unwrap()
+                .prompt_bundle_snapshot;
+            bundle.id = PromptBundleSnapshotId::new();
+            bundle.turn_task_id = TurnTaskId::new();
+            context::insert_bundle(tx, first.turn.session_id, &bundle)?;
+            aura_persistence_v2::agent::lifecycle::start(
+                tx,
+                &user,
+                AgentTaskMode::Normal,
+                None,
+                bundle.id,
+            )
+        })
+        .unwrap();
+    let values = aura_persistence_v2::agent::exact_artifacts::requirements(
+        store.database.connection(),
+        &next,
+    )
+    .unwrap();
+    assert_eq!(values.len(), 1);
+    assert_eq!(values[0].path.as_str(), "cover.txt");
+    assert!(values[0].matches("修订题名、终稿\n"));
+    assert!(!values[0].matches("《修订题名、终稿》\n"));
+    assert!(!values[0].matches("旧题名"));
+}
+
 fn attach_addition(store: &mut V2Store, f: &Fixture, text: &str) -> EventId {
     let addition = OriginalUserMessage::new(
         EventId::new(),

@@ -4,6 +4,7 @@
  * page and the tabs the user opened are kept apart, until the user hands one of theirs to the
  * model, which then drives it as its own page. Every load passes the site policy.
  */
+import { randomUUID } from 'node:crypto';
 import {
   MODEL_PAGE_ID,
   type BrowserAssistState,
@@ -13,6 +14,7 @@ import {
 } from '../../shared/browser-api.js';
 import { addressFromInput } from './address.js';
 import { wirePage } from './page-events.js';
+import { DownloadObservation } from './download-observation.js';
 import { ReleasedPages, type PageNavigation } from './released-pages.js';
 import {
   navigationVerdict,
@@ -65,6 +67,8 @@ export interface BrowserRequest {
 
 interface Page {
   readonly key: string;
+  documentId: string;
+  downloads: DownloadObservation;
   readonly view: PageView;
   access: PageAccess;
   state: BrowserPageState;
@@ -178,6 +182,14 @@ export class BrowserPages {
     return this.#pages.get(pageKey(sessionId, pageId))?.view.webContents;
   }
 
+  documentId(sessionId: string, pageId: string): string | undefined {
+    return this.#pages.get(pageKey(sessionId, pageId))?.documentId;
+  }
+
+  downloads(sessionId: string, pageId: string): DownloadObservation | undefined {
+    return this.#pages.get(pageKey(sessionId, pageId))?.downloads;
+  }
+
   /** Where the sidebar last showed the page. */
   bounds(sessionId: string, pageId: string): BrowserBounds | undefined {
     return this.#pages.get(pageKey(sessionId, pageId))?.bounds;
@@ -227,6 +239,7 @@ export class BrowserPages {
       return refusalText(verdict);
     }
     page.userNavigation = true;
+    page.downloads.interrupt();
     if (driven(page)) page.userHad ??= 'navigated';
     this.#update(page, { notice: undefined });
     void page.view.webContents.loadURL(url).catch(() => undefined);
@@ -257,6 +270,7 @@ export class BrowserPages {
   loadForModel(sessionId: string, pageId: string, url: string): Promise<void> | undefined {
     const page = this.#pages.get(pageKey(sessionId, pageId));
     if (page === undefined) return undefined;
+    page.downloads.interrupt();
     page.userNavigation = false;
     this.#update(page, { notice: undefined });
     return page.view.webContents.loadURL(url);
@@ -277,6 +291,7 @@ export class BrowserPages {
     const page = this.#pages.get(pageKey(sessionId, pageId));
     if (page === undefined) return;
     const contents = page.view.webContents;
+    page.downloads.interrupt();
     page.userNavigation = !byModel && kind !== 'stop';
     if (page.userNavigation && driven(page)) page.userHad ??= 'navigated';
     if (kind === 'back' && contents.navigationHistory.canGoBack())
@@ -304,7 +319,10 @@ export class BrowserPages {
   setUserControl(sessionId: string, pageId: string, user: boolean): void {
     const page = this.#pages.get(pageKey(sessionId, pageId));
     if (page === undefined || !driven(page)) return;
-    if (user) page.userHad = 'took_over';
+    if (user) {
+      page.userHad = 'took_over';
+      page.downloads.interrupt();
+    }
     this.#update(page, { userInControl: user });
   }
 
@@ -367,9 +385,13 @@ export class BrowserPages {
     else page.access = access;
   }
 
-  notice(webContentsId: number, kind: BrowserNoticeKind, text: string): void {
+  notice(webContentsId: number, kind: BrowserNoticeKind, text: string, filename?: string): void {
     const page = this.#byContents(webContentsId);
-    if (page !== undefined) this.#update(page, { notice: { kind, text } });
+    if (page !== undefined) {
+      if (kind === 'download' && filename !== undefined)
+        page.downloads.block(filename, this.#now());
+      this.#update(page, { notice: { kind, text } });
+    }
   }
 
   /** The session's one choke point: every request of every page passes here. */
@@ -429,6 +451,8 @@ export class BrowserPages {
     const view = this.#views.create();
     const page: Page = {
       key,
+      documentId: randomUUID(),
+      downloads: new DownloadObservation(),
       view,
       access:
         restored?.access ??
@@ -455,6 +479,9 @@ export class BrowserPages {
     wirePage(page, {
       policy: () => this.#policy,
       access: () => this.#access(page),
+      documentChanged: () => {
+        page.documentId = randomUUID();
+      },
       update: (change) => this.#update(page, change),
     });
     this.#views.attach(view);

@@ -9,7 +9,7 @@
       "path": "aura-contracts.schema.json",
       "content_hash": {
         "algorithm": "blake3",
-        "hex": "4291615c2ed6bb9ce376e318b100391d8843bc89d17f48febf726a9163a72cd6"
+        "hex": "72dd7c66d8d0995b454e712fe3cdadcf51d8511ec0776dfe36514c1d08183b79"
       }
     },
     {
@@ -17,7 +17,7 @@
       "path": "tool-error-catalog.v1.schema.json",
       "content_hash": {
         "algorithm": "blake3",
-        "hex": "56fd7dd4add281d5a9f620d84fa529fe43551e60ac34c0ee4e284e9ae885a620"
+        "hex": "d3e22ab78c2f5d160458ac16aec6c5fdbcc0b33ff9bd3282c12f3d8e2f480aca"
       }
     },
     {

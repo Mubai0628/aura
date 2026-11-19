@@ -27,7 +27,8 @@ fn the_browser_is_on_with_no_site_lists_and_debugging_off_by_default() {
             enabled: true,
             allowed_sites: vec![],
             blocked_sites: vec![],
-            debugging: false
+            debugging: false,
+            debugging_blocked: None,
         }
     );
     assert_eq!(snapshot.revision, Some(1));
@@ -42,6 +43,7 @@ fn sites_are_saved_in_their_canonical_form_and_read_back_after_a_restart() {
         allowed_sites: sites(&["Example.COM.", "https://docs.rs/serde", "localhost:5173"]),
         blocked_sites: sites(&["*.Ads.example.net"]),
         debugging: true,
+        debugging_blocked: None,
     };
     facade.update_browser_settings(1, &chosen).expect("save");
     let saved = BrowserSettings {
@@ -49,6 +51,7 @@ fn sites_are_saved_in_their_canonical_form_and_read_back_after_a_restart() {
         allowed_sites: sites(&["example.com", "docs.rs", "localhost:5173"]),
         blocked_sites: sites(&["*.ads.example.net"]),
         debugging: true,
+        debugging_blocked: None,
     };
     assert_eq!(facade.browser_settings().settings, saved);
     assert_eq!(facade.browser_settings().revision, Some(2));

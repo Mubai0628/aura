@@ -109,6 +109,11 @@ impl AgentExecution {
                     granted
                         || matches!(resource, ResourceDescriptor::ExternalPath { .. })
                             && *capability == ResolvedCapability::ExternalFileRead
+                            && info.as_ref().is_some_and(|info| {
+                                self.delegated_read_covers(operation, session, info, enumerates)
+                            })
+                        || matches!(resource, ResourceDescriptor::ExternalPath { .. })
+                            && *capability == ResolvedCapability::ExternalFileRead
                             && info
                                 .is_some_and(|info| self.in_usable_skill_folder(workspace, &info))
                 }

@@ -1,5 +1,6 @@
 mod folders;
 mod lines;
+mod media;
 mod staging;
 mod target;
 pub use folders::{FOLDER_LINE_PREFIX, missing_folder_line};

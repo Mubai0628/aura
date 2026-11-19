@@ -70,6 +70,11 @@ async fn compact_in_an_idle_session_starts_a_task_that_compacts_before_its_first
         .expect("the confirming step's request")
         .to_string();
     assert!(answer.contains("This is a /compact task"), "the model is told what was done");
+    assert!(manual.source_context_snapshot_id.is_none(), "this short history fits retention");
+    assert!(
+        answer.contains(r#"\"manual_compaction_result\":\"nothing_eligible\""#),
+        "the confirmation can distinguish a no-op from actual compression"
+    );
     assert!(answer.contains("保留测试命令") && answer.contains("/compact"), "the note travels");
     assert!(!requests[0].to_string().contains("This is a /compact task"));
 }

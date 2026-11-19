@@ -118,6 +118,7 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
       allowed_sites: allowed,
       blocked_sites: blocked,
       debugging,
+      debugging_blocked: debuggingBlocked,
     } = snapshot.settings;
     const allowedSites = strings(allowed);
     const blockedSites = strings(blocked);
@@ -129,6 +130,8 @@ export function installBrowserHost(options: BrowserHostOptions): BrowserHost {
       allowed: parsedRules(allowedSites),
       blocked: parsedRules(blockedSites),
       debugging: debugging === true && snapshot.issue === null,
+      debuggingBlocked: debuggingBlocked === true,
+      ...(typeof snapshot.revision === 'number' ? { revision: snapshot.revision } : {}),
       closedBecause: snapshot.issue === null ? 'off' : 'issue',
     });
   };

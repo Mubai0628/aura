@@ -119,6 +119,7 @@
         "tool.resource.unsupported_claim",
         "tool.result.artifact_missing",
         "tool.result.evidence_invalid",
+        "tool.result.http_partial_response",
         "tool.result.json_invalid",
         "tool.result.outcome_state_invalid",
         "tool.result.reconciliation_inconclusive",
@@ -263,8 +264,8 @@
       "items": {
         "$ref": "#/$defs/ToolErrorCatalogEntryV1"
       },
-      "maxItems": 152,
-      "minItems": 152,
+      "maxItems": 153,
+      "minItems": 153,
       "type": "array"
     }
   },

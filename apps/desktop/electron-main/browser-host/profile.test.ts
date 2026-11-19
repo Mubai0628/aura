@@ -76,6 +76,7 @@ describe('the browser profile', () => {
       7,
       'download',
       '内置浏览器不支持下载，report.pdf 没有下载；可以把这个页面的地址复制到系统浏览器里打开，再点一次下载。',
+      'report.pdf',
     );
   });
 

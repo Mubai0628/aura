@@ -739,7 +739,7 @@ fn fs_error(error: FsToolError, correlation_id: CorrelationId) -> IpcErrorEnvelo
         FsToolError::ScopeUnavailable => {
             ("file.scope_unavailable", ErrorCategory::Permission, false)
         }
-        FsToolError::InvalidRequest(_) => invalid("fs.invalid_request"),
+        FsToolError::InvalidRequest(_) | FsToolError::Document(_) => invalid("fs.invalid_request"),
         FsToolError::LargeFileRangeRequired => invalid("fs.range_required"),
         FsToolError::TextRangeTooLarge { .. } => invalid("fs.range_too_large"),
         FsToolError::BinaryRangeTooLarge => invalid("fs.binary_range_too_large"),

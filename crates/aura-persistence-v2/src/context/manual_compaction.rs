@@ -148,9 +148,13 @@ pub fn requested(
     db: &Connection,
     run: AgentRunId,
 ) -> StoreResult<Option<ManualCompactionRequestRecord>> {
-    Ok(latest(db, run)?
-        .filter(|v| v.record.state == ManualCompactionRequestState::Requested)
-        .map(|v| v.record))
+    Ok(record(db, run)?.filter(|v| v.state == ManualCompactionRequestState::Requested))
+}
+pub fn record(
+    db: &Connection,
+    run: AgentRunId,
+) -> StoreResult<Option<ManualCompactionRequestRecord>> {
+    Ok(latest(db, run)?.map(|v| v.record))
 }
 pub fn focus(
     db: &Connection,

@@ -91,6 +91,15 @@ export function agentRouteHandler(
     params: AgentMainParams[AgentMainCommand],
   ) => Promise<unknown>;
   const served: Partial<Record<AgentMainCommand, Served>> = {
+    'agent.wait.activity': async (event, params) => {
+      const activity = params as AgentMainParams['agent.wait.activity'];
+      const window = owner(event);
+      // Chromium may report a hidden window as visible when background throttling is off.
+      if (activity.activity !== 'blur' && (!window.isVisible() || window.isMinimized())) {
+        throw new Error('agent.wait.window_hidden: 确认组件所在的窗口尚未显示。');
+      }
+      return supervisor.requestAgent('agent.wait.activity', activity);
+    },
     'agent.commands.open_directory': (_event, params) =>
       openCommandDirectory(params as Request, supervisor),
     'agent.hooks.select_directory': (event) => selectHookDirectory(owner(event)),

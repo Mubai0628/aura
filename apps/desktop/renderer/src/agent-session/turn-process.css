@@ -128,10 +128,17 @@
    (19 and 18 px between the words, now about 6). Its margins take back the 2px of the sections
    around it; after the turn's status line, the line keeps no space of its own below. */
 .agent-interim-reply {
-  margin: -2px 0;
-  color: var(--ink);
-  font-size: 15px;
+  margin: 4px 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 14px;
   line-height: 1.65;
+}
+.agent-interim-text.markdown-body {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 /* The process sits in its own body, which a finished turn folds. */
 .agent-turn-status:has(+ .agent-process-body > .agent-interim-reply:first-child) {
@@ -488,24 +495,4 @@
 .agent-context-compacted-text {
   flex: 0 1 auto;
   text-align: center;
-}
-
-/* What the user can do about a call that did not run, under its row. */
-.tool-offer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 0 6px 28px;
-}
-
-.tool-offer p,
-.tool-offer-status {
-  margin: 0;
-  font-size: 12px;
-  color: var(--quiet);
-}
-
-.tool-offer-status {
-  margin: 4px 0 6px 28px;
 }

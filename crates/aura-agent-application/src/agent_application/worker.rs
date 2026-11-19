@@ -264,6 +264,10 @@ impl AgentApplication {
                             self.interrupt(run_id, "hooks.completion_blocked", false).await?;
                             return Ok(());
                         }
+                        Some(super::hook_events::CompletionReview::ArtifactUnverified) => {
+                            self.interrupt(run_id, "agent.exact_artifact_unverified", false).await?;
+                            return Ok(());
+                        }
                         None => {}
                     }
                     let now = UtcTimestamp::now();

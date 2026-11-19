@@ -4,10 +4,8 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::Path;
 
-/// Bump with every change to `memory.sql`. A cache is derived from the Vault's
-/// files and the metadata records beside it, so a cache of another version is
-/// discarded and rebuilt instead of migrated.
-pub const CACHE_SCHEMA_VERSION: i32 = 1;
+/// Covers both the Vault metadata and the derived search index.
+pub const CACHE_SCHEMA_VERSION: i32 = 2;
 
 pub struct MemoryIndex {
     pub(super) connection: Connection,
@@ -30,6 +28,11 @@ pub struct VaultIndexStatus {
 }
 
 impl MemoryIndex {
+    /// A process-local cache key. It changes when this writer applies an index update.
+    pub fn source_revision(&self) -> u64 {
+        self.connection.total_changes()
+    }
+
     pub fn open_reader(cache: &Path) -> StoreResult<Self> {
         Ok(Self { connection: aura_persistence_core::open_reader(cache)? })
     }
@@ -57,6 +60,9 @@ impl MemoryIndex {
             })?;
         if live != (kind.to_owned(), workspace) {
             return Err(Error::Invalid("Vault scope"));
+        }
+        if tx.pragma_query_value(None, "user_version", |r| r.get::<_, i32>(0))? == 1 {
+            super::search_index::upgrade_v1(&tx)?;
         }
         tx.commit()?;
         Ok(Self { connection })
@@ -163,15 +169,14 @@ fn connect(cache: &Path) -> StoreResult<Connection> {
     Ok(connection)
 }
 
-/// Opens a cache of the current schema. Any other cache (an earlier schema, a
-/// partial creation or an unrelated file) is removed and created again; the next
-/// rebuild derives the same rows from files, so nothing authoritative is lost.
+/// A known V1 cache can upgrade its search index after the owner is checked. Unknown schemas
+/// retain the existing rebuild policy.
 fn current_cache(cache: &Path) -> StoreResult<Connection> {
     let connection = connect(cache)?;
     let version: i32 = connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
     let objects: i64 =
         connection.query_row("SELECT count(*) FROM sqlite_master", [], |r| r.get(0))?;
-    if objects > 0 && version == CACHE_SCHEMA_VERSION {
+    if objects > 0 && matches!(version, 1 | CACHE_SCHEMA_VERSION) {
         return Ok(connection);
     }
     let connection = if objects > 0 {
@@ -190,8 +195,9 @@ fn current_cache(cache: &Path) -> StoreResult<Connection> {
         connection
     };
     connection.execute_batch(&format!(
-        "BEGIN;\n{}\nPRAGMA user_version={CACHE_SCHEMA_VERSION};\nCOMMIT;",
-        include_str!("../memory.sql")
+        "BEGIN;\n{}\n{}\nPRAGMA user_version={CACHE_SCHEMA_VERSION};\nCOMMIT;",
+        include_str!("../memory.sql"),
+        super::search_index::SCHEMA
     ))?;
     Ok(connection)
 }
@@ -222,10 +228,7 @@ fn put(tx: &Connection, file: &IndexedFile) -> StoreResult<()> {
             at
         ],
     )?;
-    tx.execute(
-        "INSERT INTO memory_fts(relative_path,title,body) VALUES(?1,?2,?3)",
-        params![file.path, note.title(), note.body],
-    )?;
+    super::search_index::insert(tx, &file.path, &note.title(), &note.body)?;
     for (kind, ids) in [
         ("related", &m.related_ids),
         ("supersedes", &m.supersedes_ids),

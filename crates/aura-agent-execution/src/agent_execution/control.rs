@@ -14,7 +14,7 @@ impl AgentExecution {
         // Domain preflight precedes all lock/Attempt acquisition. These are the
         // exact batch calls, not a partial subset selected by an Agent input.
         // Boundary: the control preflight read is one bounded section.
-        let prepared = {
+        let (prepared, exact_values) = {
             let service = Arc::clone(self);
             let batch = admitted.batch.clone();
             let run_id = admitted.batch.invocation_identity.agent_run_id;
@@ -29,16 +29,32 @@ impl AgentExecution {
                 move || {
                     // A completion gate's refusal becomes the line the model reads; a store
                     // failure keeps its type, so the section still classifies it.
-                    control::prepare(
-                        service.journal.lock()?.database.connection(),
-                        &batch,
-                        UtcTimestamp::now(),
-                    )
-                    .map_err(|error| preflight_refusal(&tools, error))
+                    let journal = service.journal.lock()?;
+                    let db = journal.database.connection();
+                    let ready = control::prepare(db, &batch, UtcTimestamp::now())
+                        .map_err(|error| preflight_refusal(&tools, error))?;
+                    let values = if tools.iter().any(|name| name == "normal.complete") {
+                        use aura_persistence_v2::agent::{exact_artifacts, turns};
+                        exact_artifacts::requirements(
+                            db,
+                            &turns::load(db, batch.invocation_identity.turn_task_id)?,
+                        )?
+                    } else {
+                        Vec::new()
+                    };
+                    Ok((ready, values))
                 },
             )
             .await?
         };
+        if let Some(path) =
+            self.unverified_delivery_path(admitted.snapshot.workspace_id, exact_values).await?
+        {
+            anyhow::bail!(
+                "normal.complete: 未核对到交付文件「{}」中用户要求逐字保留的内容，本次没有完成任务。请核对当前文件和用户最新原值。",
+                path.as_str()
+            );
+        }
         let executable: Vec<_> = prepared.executed_call_ids().collect();
         let mut selected_calls = BTreeMap::new();
         for call_id in &executable {

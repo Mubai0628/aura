@@ -128,6 +128,13 @@ pub struct GatewayResponse {
     pub redirect_hops: u8,
 }
 
+impl GatewayResponse {
+    #[must_use]
+    pub fn retry_after(&self) -> Option<GatewayRetryAfterV1> {
+        parse_gateway_retry_after(&self.headers)
+    }
+}
+
 /// Gateway-parsed `Retry-After` evidence. Raw response Header values never
 /// cross into P07 retry policy, and callers cannot manufacture this value
 /// from a Package or Renderer DTO.

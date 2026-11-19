@@ -80,7 +80,7 @@
 .markdown-body.agent-message-text,
 .markdown-body.agent-final-report,
 .markdown-body.agent-reasoning,
-.markdown-body.agent-interim-reply {
+.markdown-body.agent-interim-text {
   white-space: normal;
 }
 .agent-reasoning {
