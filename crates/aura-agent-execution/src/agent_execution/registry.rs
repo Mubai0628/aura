@@ -123,9 +123,10 @@ pub(super) fn execute(
             let input: AgentToolDescribeInput = serde_json::from_value(args.clone())?;
             let definition_ref = definition_ref(call, input.tool_id)?;
             let mut description = describe(tx, call, &ToolDescribeRequestV1 { definition_ref })?;
-            if let Some(status) = service
-                .browser_debugging_status(call.snapshot.session_id, description.canonical_name.as_str())
-            {
+            if let Some(status) = service.browser_debugging_status(
+                call.snapshot.session_id,
+                description.canonical_name.as_str(),
+            ) {
                 description.model_description.push('\n');
                 description.model_description.push_str(status);
             }

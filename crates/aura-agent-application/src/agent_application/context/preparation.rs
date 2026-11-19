@@ -15,12 +15,12 @@ mod prompt_capabilities;
 // The workspace's AGENTS.md, read for each step.
 #[path = "agents.rs"]
 mod agents;
+#[path = "prior_materials.rs"]
+pub(in crate::agent_application) mod prior_materials;
 #[path = "recall.rs"]
 pub(in crate::agent_application) mod recall;
 #[path = "team_downloads.rs"]
 mod team_downloads;
-#[path = "prior_materials.rs"]
-pub(in crate::agent_application) mod prior_materials;
 
 impl AgentApplication {
     pub(in crate::agent_application) async fn prepare(

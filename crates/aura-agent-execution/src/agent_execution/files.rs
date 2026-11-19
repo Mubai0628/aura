@@ -1,7 +1,7 @@
 //! File operations reuse the R05 secure resolver, editor ownership, atomic
 //! changeset and compensation journal. They never invoke an external shell.
-mod external_read;
 mod exact_delivery;
+mod external_read;
 mod external_write;
 mod fresh_facts;
 pub(super) mod invocation;

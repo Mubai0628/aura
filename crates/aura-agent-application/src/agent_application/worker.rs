@@ -265,7 +265,8 @@ impl AgentApplication {
                             return Ok(());
                         }
                         Some(super::hook_events::CompletionReview::ArtifactUnverified) => {
-                            self.interrupt(run_id, "agent.exact_artifact_unverified", false).await?;
+                            self.interrupt(run_id, "agent.exact_artifact_unverified", false)
+                                .await?;
                             return Ok(());
                         }
                         None => {}
