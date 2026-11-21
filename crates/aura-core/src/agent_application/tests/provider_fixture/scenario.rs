@@ -101,7 +101,6 @@ pub enum Scenario {
     CompactToolOnPrefix,
     /// Plain answers; a compaction asked on the step's request is answered with a write that must
     /// never run, and once its call is answered, with the summary.
-    CompactToolOnceOnPrefix,
     /// Plain answers; the first compaction's answer breaks off after its first words, and the
     /// next is answered with the summary.
     CompactInterruptedOnPrefix,
@@ -265,10 +264,7 @@ impl Scenario {
     pub const fn compacts_on_prefix(self) -> bool {
         matches!(
             self,
-            Self::CompactOnPrefix
-                | Self::CompactToolOnPrefix
-                | Self::CompactToolOnceOnPrefix
-                | Self::CompactInterruptedOnPrefix
+            Self::CompactOnPrefix | Self::CompactToolOnPrefix | Self::CompactInterruptedOnPrefix
         )
     }
 

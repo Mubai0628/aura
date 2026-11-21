@@ -26,18 +26,58 @@ pub(super) fn message(error: &ValidationError<'_>, root: &Value) -> String {
     message_at_depth(error, root, 0)
 }
 
+/// A closed object without properties is compiled by the validator as a false subschema.
+/// It reports the object location with the extra property's value. Recover only declared
+/// structure and bounded field names, never the submitted value.
+pub(super) fn closed_object_fields(
+    error: &ValidationError<'_>,
+    schema: &Value,
+    arguments: &Value,
+) -> Option<String> {
+    if !matches!(error.kind(), Kind::FalseSchema) {
+        return None;
+    }
+    let parent = error.schema_path().as_str().strip_suffix("/additionalProperties")?;
+    let declared = schema.pointer(parent)?;
+    if declared.get("additionalProperties") != Some(&Value::Bool(false))
+        || declared.get("patternProperties").is_some()
+        || declared
+            .get("properties")
+            .and_then(Value::as_object)
+            .is_some_and(|fields| !fields.is_empty())
+    {
+        return None;
+    }
+    let path = error.instance_path().as_str();
+    let object = arguments.pointer(path)?.as_object()?;
+    let fields = object.keys().take(8).cloned().collect::<Vec<_>>();
+    if fields.is_empty() {
+        return None;
+    }
+    let listed = names(path, &fields);
+    Some(
+        format!("additionalproperties: 该对象不接受额外字段，请移除 {listed}。")
+            .chars()
+            .take(512)
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect(),
+    )
+}
+
 fn message_at_depth(error: &ValidationError<'_>, root: &Value, depth: usize) -> String {
     let actual = shape(error.instance());
     let text = match error.kind() {
         Kind::AdditionalProperties { unexpected } | Kind::UnevaluatedProperties { unexpected } => {
             // The fields the object does take, so a value can move to the right one.
             let parent = error.schema_path().as_str().rsplit_once('/').map_or("", |(p, _)| p);
-            let taken = root
-                .pointer(parent)
-                .and_then(|schema| schema.get("properties"))
-                .and_then(Value::as_object)
-                .filter(|properties| !properties.is_empty())
-                .map(|properties| {
+            let properties = root.pointer(parent).and_then(|s| s["properties"].as_object());
+            let extras = names(error.instance_path().as_str(), unexpected);
+            if let Some((field, unit)) = output_limit_hint(unexpected, properties) {
+                format!(
+                    "remove unexpected field(s) {extras}. This tool's output limit is `{field}` ({unit})."
+                )
+            } else {
+                let taken = properties.filter(|p| !p.is_empty()).map(|properties| {
                     properties
                         .keys()
                         .take(12)
@@ -45,11 +85,11 @@ fn message_at_depth(error: &ValidationError<'_>, root: &Value, depth: usize) -> 
                         .collect::<Vec<_>>()
                         .join(", ")
                 });
-            format!(
-                "expected only the fields {}; remove unexpected field(s) {}",
-                taken.as_deref().unwrap_or("the schema lists"),
-                names(error.instance_path().as_str(), unexpected)
-            )
+                format!(
+                    "expected only the fields {}; remove unexpected field(s) {extras}",
+                    taken.as_deref().unwrap_or("the schema lists")
+                )
+            }
         }
         Kind::Required { property } => {
             format!(
@@ -190,6 +230,35 @@ fn names(parent: &str, values: &[String]) -> String {
         .map(|name| format!("`{}`", field_path(parent, name).chars().take(128).collect::<String>()))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// Suggest a unit only for an output-limit mix-up with one unambiguous declared field.
+fn output_limit_hint(
+    unexpected: &[String],
+    properties: Option<&serde_json::Map<String, Value>>,
+) -> Option<(&'static str, &'static str)> {
+    const LIMITS: &[(&str, &str)] = &[
+        ("max_output_bytes", "bytes"),
+        ("max_bytes", "bytes"),
+        ("max_chars", "characters"),
+        ("max_lines", "lines"),
+        ("max_results", "results"),
+        ("max_entries", "entries"),
+        ("max_elements", "elements"),
+    ];
+    let properties = properties?;
+    let budgets = ["max_tokens", "max_output_tokens", "max_completion_tokens"];
+    if budgets.iter().any(|name| properties.contains_key(*name)) {
+        return None;
+    }
+    if !unexpected.iter().any(|field| {
+        budgets.contains(&field.as_str()) || LIMITS.iter().any(|(name, _)| name == field)
+    }) {
+        return None;
+    }
+    let mut candidates = LIMITS.iter().copied().filter(|(name, _)| properties.contains_key(*name));
+    let candidate = candidates.next()?;
+    candidates.next().is_none().then_some(candidate)
 }
 
 fn describe(schema: &Value, root: &Value, depth: usize) -> String {

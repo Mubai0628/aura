@@ -217,6 +217,7 @@ fn failed_attempts_keep_one_manual_request_and_never_publish_partial_compaction(
                 id: ContextProjectionSnapshotId::new(),
                 session_id: input.session_id,
                 agent_run_id: input.agent_run_id,
+                background_sources: vec![],
                 source_step_id: step.model_step_id,
                 sequence: 1,
                 revision: Revision::INITIAL,
@@ -272,7 +273,6 @@ fn failed_attempts_keep_one_manual_request_and_never_publish_partial_compaction(
                     CompactionModelAttemptState::Failed,
                     None,
                     Some("context.invalid_compaction".into()),
-                    ordinal < MAX_COMPACTION_ATTEMPTS,
                     f.at,
                 )?;
                 let status = manual::status(

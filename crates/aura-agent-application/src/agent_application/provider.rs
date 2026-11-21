@@ -25,6 +25,7 @@ pub(super) struct Request {
     pub attachments: Arc<[aura_model_domain::ResolvedModelAttachment]>,
     /// Another of the provider's connections is still untried in this run, so a temporary
     /// failure goes there instead of being retried on this one.
+    pub single_attempt: bool,
     pub backup_waiting: bool,
     /// The step asks again after the provider went silent in the middle of the answer of the
     /// step before it, so it waits longer for the provider's next bytes.
@@ -317,7 +318,13 @@ pub(super) async fn execute(
     let transport = ModelTransport::new(
         network,
         store,
-        if factory.backup_waiting { policy.without_temporary_retries() } else { policy },
+        if factory.single_attempt {
+            policy.single_request()
+        } else if factory.backup_waiting {
+            policy.without_temporary_retries()
+        } else {
+            policy
+        },
         SseLimits::default(),
     );
     let decoder: &dyn ModelProtocolDecoder = match snapshot.api_format {

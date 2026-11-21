@@ -52,8 +52,9 @@ pub struct ShellQueryInput {
     /// Byte offset into stderr. Default 0.
     #[serde(default)]
     pub stderr_offset: u64,
-    /// Bytes per page. Default 65536.
+    /// Bytes to read per stream. Default 65536.
     #[serde(default = "default_query_bytes")]
+    #[schemars(range(min = 1, max = 65536))]
     pub max_bytes: u32,
 }
 fn default_query_bytes() -> u32 {

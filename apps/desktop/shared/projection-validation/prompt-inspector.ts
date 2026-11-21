@@ -73,7 +73,23 @@ export const isPromptInspectorProjection = (value: unknown): boolean =>
 
 /** What one step's preparation gave back before its request went out. */
 const isPromptInspectorReduction = (value: unknown): boolean =>
-  exactRecord(value, ['cleared_tool_results', 'compacted', 'input_tokens_before']) &&
+  recordWithOptional(
+    value,
+    ['cleared_tool_results', 'compacted', 'input_tokens_before'],
+    ['summary_cache'],
+  ) &&
+  isOptionalNullable(
+    value.summary_cache,
+    (cache) =>
+      recordWithOptional(
+        cache,
+        ['reusable_prefix_tokens'],
+        ['reported_input_tokens', 'reported_cached_tokens'],
+      ) &&
+      isSafeUnsigned(cache.reusable_prefix_tokens) &&
+      isOptionalNullableSafeUnsigned(cache.reported_input_tokens) &&
+      isOptionalNullableSafeUnsigned(cache.reported_cached_tokens),
+  ) &&
   isSafeUnsigned(value.cleared_tool_results) &&
   typeof value.compacted === 'boolean' &&
   isSafeUnsigned(value.input_tokens_before);

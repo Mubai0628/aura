@@ -164,6 +164,18 @@ pub struct RuntimeWindowCorrectionBasis {
     pub corrected_at: UtcTimestamp,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SummaryLengthMode {
+    Auto,
+    Custom,
+}
+
+#[must_use]
+pub fn automatic_summary_tokens(window: u64) -> u64 {
+    (u128::from(window) * 3 / 100).clamp(3_000, 12_000) as u64
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelContextWindowConfig {
@@ -174,9 +186,31 @@ pub struct ModelContextWindowConfig {
     pub runtime_correction_basis: Option<RuntimeWindowCorrectionBasis>,
     pub runtime_effective_window_tokens: u64,
     pub historical_snapshot_max_tokens: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary_length_mode: Option<SummaryLengthMode>,
 }
 
 impl ModelContextWindowConfig {
+    #[must_use]
+    pub fn summary_target_tokens(&self) -> u64 {
+        self.summary_target_for_window(self.runtime_effective_window_tokens)
+    }
+
+    /// A provider correction can try a different window before the profile itself is changed.
+    #[must_use]
+    pub fn summary_target_for_window(&self, window_tokens: u64) -> u64 {
+        let mode =
+            self.summary_length_mode.unwrap_or(if self.historical_snapshot_max_tokens == 1_024 {
+                SummaryLengthMode::Auto
+            } else {
+                SummaryLengthMode::Custom
+            });
+        match mode {
+            SummaryLengthMode::Auto => automatic_summary_tokens(window_tokens),
+            SummaryLengthMode::Custom => self.historical_snapshot_max_tokens,
+        }
+    }
+
     #[must_use]
     pub fn effective_window_tokens(&self, basis_is_current: bool) -> u64 {
         if basis_is_current && let Some(corrected) = self.runtime_corrected_window_tokens {
@@ -362,6 +396,7 @@ mod tests {
             runtime_corrected_window_tokens: Some(32_000),
             runtime_correction_basis: None,
             runtime_effective_window_tokens: 32_000,
+            summary_length_mode: None,
             historical_snapshot_max_tokens: 1_024,
         };
 
@@ -376,6 +411,38 @@ mod tests {
             ..config
         };
         assert_eq!(fallback.effective_window_tokens(false), DEFAULT_MODEL_CONTEXT_WINDOW_TOKENS);
+    }
+
+    #[test]
+    fn automatic_background_targets_have_a_floor_and_soft_ceiling() {
+        assert_eq!(super::automatic_summary_tokens(64_000), 3_000);
+        assert_eq!(super::automatic_summary_tokens(128_000), 3_840);
+        assert_eq!(super::automatic_summary_tokens(540_000), 12_000);
+        assert_eq!(super::automatic_summary_tokens(u64::MAX), 12_000);
+    }
+
+    #[test]
+    fn compaction_defaults_follow_a_window_correction_and_keep_explicit_targets() {
+        let old = json!({"catalog_window_tokens":128000,"user_override_window_tokens":null,
+            "user_override_revision":0,"runtime_corrected_window_tokens":null,"runtime_correction_basis":null,
+            "runtime_effective_window_tokens":128000,"historical_snapshot_max_tokens":1024});
+        let mut config: ModelContextWindowConfig =
+            serde_json::from_value(old).expect("valid compaction fixture and receipt");
+        assert_eq!(config.summary_target_tokens(), 3840);
+        config.runtime_effective_window_tokens = 64_000;
+        assert_eq!(config.summary_target_tokens(), 3000);
+        config.historical_snapshot_max_tokens = 8192;
+        assert_eq!(config.summary_target_tokens(), 8192);
+        assert_eq!(config.summary_target_for_window(32_000), 8192);
+        config.summary_length_mode = Some(super::SummaryLengthMode::Custom);
+        config.historical_snapshot_max_tokens = 1024;
+        let stored = serde_json::to_value(config).expect("valid compaction fixture and receipt");
+        assert_eq!(
+            serde_json::from_value::<ModelContextWindowConfig>(stored)
+                .expect("valid compaction fixture and receipt")
+                .summary_target_tokens(),
+            1024
+        );
     }
 
     #[test]

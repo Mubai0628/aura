@@ -36,6 +36,7 @@ pub mod reconcile;
 pub mod recovery;
 pub mod references;
 pub mod related;
+pub mod request_boundary;
 pub mod restart_continuation;
 pub mod rounds;
 pub mod sender;

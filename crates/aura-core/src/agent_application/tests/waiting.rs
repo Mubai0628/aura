@@ -24,7 +24,7 @@ mod l18_6_speed;
 mod l10_16_activity;
 // Room for the output, clearing old tool results, and compaction on the request's prefix.
 #[path = "l10_19_compaction.rs"]
-mod l10_19_compaction;
+pub(super) mod l10_19_compaction;
 // Tool results and provider failures.
 #[path = "l10_19_tools.rs"]
 mod l10_19_tools;
@@ -465,9 +465,10 @@ async fn compaction_of_a_span_with_a_tool_call_continues_the_turn() {
         AgentRunRequest { session_id: start.turn.session_id, agent_run_id: start.run.agent_run_id };
     wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
     let requests = provider.requests.lock().expect("Agent test setup and persisted assertion");
-    let compaction =
-        |body: &serde_json::Value| body.to_string().contains("Write the summary as one paragraph");
-    assert_eq!(requests.iter().filter(|b| compaction(b)).count(), 2, "bounded compaction");
+    let compaction = |body: &serde_json::Value| {
+        body.to_string().contains("Compaction request: write the summary")
+    };
+    assert_eq!(requests.iter().filter(|b| compaction(b)).count(), 1, "single compaction");
     let first_call = requests[1]["messages"]
         .as_array()
         .expect("second request messages")
@@ -494,8 +495,8 @@ async fn compaction_uses_real_provider_then_original_source_receipt_without_fake
         wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
     assert_eq!(
         provider.requests.lock().expect("Agent test setup and persisted assertion").len(),
-        6,
-        "four normal calls and two bounded compaction attempts"
+        5,
+        "four normal calls and one compaction"
     );
     // The fixture profile allows 4096 output tokens and a 1024-token snapshot. A reasoning
     // model spends output tokens before it writes, so the call keeps the step's cap, and the
@@ -505,22 +506,19 @@ async fn compaction_uses_real_provider_then_original_source_receipt_without_fake
         .lock()
         .expect("Agent test setup and persisted assertion")
         .iter()
-        .filter(|body| body.to_string().contains("Write the summary as one paragraph"))
+        .filter(|body| body.to_string().contains("Compaction request: write the summary"))
         .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(compaction_requests.len(), 2);
+    assert_eq!(compaction_requests.len(), 1);
     for body in &compaction_requests {
         let cap = body.get("max_completion_tokens").or_else(|| body.get("max_tokens"));
         assert_eq!(cap, Some(&serde_json::json!(4096)), "compaction output cap in {body}");
         assert!(
-            body.to_string().contains("of plain prose of at most 3000 characters"),
+            body.to_string().contains("Aim for about "),
             "the summary's length is stated to the model"
         );
-        // Core keeps which sources a summary replaced: the model writes no headings and lists
-        // no anchors, the format a real model kept getting wrong.
         assert!(
-            body.to_string().contains("without headings, lists or anchors"),
-            "the paragraph the parser accepts is stated to the model"
+            body.to_string().contains("preserve important facts even if the background is longer")
         );
     }
     assert_eq!(
@@ -534,13 +532,9 @@ async fn compaction_uses_real_provider_then_original_source_receipt_without_fake
     let compaction = aura_persistence_v2::context::compaction::latest(db, request.session_id)
         .expect("Agent test setup and persisted assertion")
         .expect("Agent test setup and persisted assertion");
-    assert_eq!(compaction.attempts.len(), 2);
+    assert_eq!(compaction.attempts.len(), 1);
     assert_eq!(
         compaction.attempts[0].state,
-        aura_context_domain::CompactionModelAttemptState::Failed
-    );
-    assert_eq!(
-        compaction.attempts[1].state,
         aura_context_domain::CompactionModelAttemptState::Completed
     );
     let read = aura_persistence_v2::context::read::compaction(

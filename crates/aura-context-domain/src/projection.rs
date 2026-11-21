@@ -259,6 +259,17 @@ pub struct PromptInspectorReductionView {
     pub input_tokens_before: u64,
     pub cleared_tool_results: u32,
     pub compacted: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary_cache: Option<CompactionCacheUsage>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompactionCacheUsage {
+    /// Estimated input shared with the normal request frozen for this step.
+    pub reusable_prefix_tokens: u64,
+    pub reported_input_tokens: Option<u64>,
+    pub reported_cached_tokens: Option<u64>,
 }
 
 /// The Inspector's real projection of the frozen activity snapshot.

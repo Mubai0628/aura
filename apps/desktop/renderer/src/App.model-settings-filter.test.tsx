@@ -36,9 +36,9 @@ function threeModels(): ModelSettingsProjection {
     provider_model_name: 'gpt-6-luna',
   };
   projection.registry.endpoints[MODEL_ENDPOINT_ID]!.model_order = [
-    MODEL_PROFILE_ID,
-    NEEDS_LIMIT_ID,
     READY_ID,
+    NEEDS_LIMIT_ID,
+    MODEL_PROFILE_ID,
   ];
   return projection;
 }
@@ -121,6 +121,18 @@ describe('the models of a provider, filtered', () => {
     await user.click(within(section).getByRole('switch', { name: '只看已配置' }));
     expect(shown()).toEqual([]);
     expect(within(section).getByText('没有符合的模型')).toBeTruthy();
+  });
+
+  test('orders display names naturally in both the full and configured lists', async () => {
+    const projection = threeModels();
+    projection.registry.models[READY_ID]!.display_name = 'Model 10';
+    projection.registry.models[MODEL_PROFILE_ID]!.display_name = 'model 2';
+    const { section, shown, user } = await openModels(projection);
+    expect(shown()).toEqual(['gpt-image-2', 'model 2', 'Model 10']);
+    await user.click(within(section).getByRole('switch', { name: '只看已配置' }));
+    expect(shown()).toEqual(['model 2', 'Model 10']);
+    await user.click(within(section).getByRole('switch', { name: '只看已配置' }));
+    expect(shown()).toEqual(['gpt-image-2', 'model 2', 'Model 10']);
   });
 
   test("只看已配置 is each provider's own, shared by its connections", async () => {

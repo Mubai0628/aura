@@ -38,13 +38,17 @@ impl ContentHash {
         hex: impl Into<String>,
     ) -> Result<Self, ContentHashError> {
         let hex = hex.into();
-        if hex.len() != 64
-            || !hex.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-        {
+        if !Self::is_valid_hex(&hex) {
             return Err(ContentHashError);
         }
 
         Ok(Self { algorithm, hex })
+    }
+
+    #[must_use]
+    pub fn is_valid_hex(hex: &str) -> bool {
+        hex.len() == 64
+            && hex.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
     }
 
     #[must_use]

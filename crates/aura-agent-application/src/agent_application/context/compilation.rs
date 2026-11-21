@@ -2,10 +2,6 @@ use super::*;
 use crate::agent_application::compaction::{Compacted, CompactionRequest};
 use aura_core_base::append_core_log;
 
-/// Compaction passes one preparation may make. A history larger than one summary request
-/// can carry is compacted oldest first over several passes.
-const MAX_COMPACTION_PASSES: usize = 8;
-
 pub(super) struct CompilationInput<'a> {
     pub run_id: AgentRunId,
     pub turn: &'a TurnTask,
@@ -48,20 +44,7 @@ impl AgentApplication {
             screenshots,
             memory_available,
         } = pass;
-        let mut passes = 0;
-        // Compacting every sealed group is the last thing tried before the user is asked.
-        let mut everything_sealed = false;
-        // Once a compaction
-        // starts, by the user or because the request no longer fits, it goes on until all but the
-        // recent history is summarized, not only until the request fits again.
-        let mut deep = false;
-        // A compaction this step asked for itself fell short. It is not asked again here: the
-        // request goes as it is when it fits, and otherwise old results are cleared, then the user
-        // decides - the turn never ends for it.
-        let mut fell_short = false;
-        // A compaction asked on the step's request gave no summary: the rest of this preparation
-        // takes the history a part at a time the isolated way, never resending that request.
-        let mut isolated_only = false;
+        let mut attempted = false;
         // What this preparation gave back, for the line the conversation shows -
         // the request's estimate when it first did not fit, results cleared, history compacted.
         let mut reduction: Option<PromptInspectorReductionView> = None;
@@ -111,6 +94,27 @@ impl AgentApplication {
             if let Some(record) = record.as_ref().filter(|record| {
                 record.state == aura_context_domain::ManualCompactionRequestState::Completed
             }) {
+                let journal = Arc::clone(&self.execution.journal);
+                let id = step.model_step_id;
+                let finished = self
+                    .store
+                    .run_critical(
+                        StoreStep::run(run_id, "agent.compaction.finish_command"),
+                        StoreAccess::Write,
+                        move || {
+                            Ok(journal.lock()?.database.unit_of_work(|tx| {
+                                aura_persistence_v2::agent::completion::finish_compaction_command(
+                                    tx,
+                                    id,
+                                    UtcTimestamp::now(),
+                                )
+                            })?)
+                        },
+                    )
+                    .await?;
+                if finished {
+                    return Ok(None);
+                }
                 state["manual_compaction_result"] = if record.source_context_snapshot_id.is_some() {
                     "compacted".into()
                 } else {
@@ -128,9 +132,22 @@ impl AgentApplication {
             let compiled = ContextPreparationCompiler::new(&estimators)
                 .for_request(snapshot, closing_question, Some(&replay_task_states))
                 .compile(input.clone())?;
-            let (budget, non_history_tokens, over, prefix) = match compiled {
+            let (budget, non_history_tokens, over, mut prefix) = match compiled {
                 ContextPreparationCompilationOutcome::Prepared(prepared) => {
-                    if manual.is_none() && !deep && (!force_rebuild || passes > 0) {
+                    let b = &prepared.context.snapshot.budget;
+                    let window = b.runtime_effective_window_tokens;
+                    let reserve = trigger_output_reserve(
+                        snapshot.request_options.effective_max_output_tokens,
+                    );
+                    // Leave space for the closing instruction and the next normal tool exchange.
+                    let growth = (window / 20).clamp(2_048, 16_384);
+                    let near = b
+                        .estimated_input_tokens
+                        .saturating_add(b.safety_reserve_tokens)
+                        .saturating_add(reserve)
+                        .saturating_add(growth)
+                        >= window;
+                    if manual.is_none() && (attempted || (!force_rebuild && !near)) {
                         if let Some(plan) = window_rebuild::no_progress(
                             window_trial.as_ref(),
                             &prepared.context.snapshot,
@@ -196,46 +213,19 @@ impl AgentApplication {
                 input_tokens_before: budget.estimated_input_tokens,
                 cleared_tool_results: 0,
                 compacted: false,
+                summary_cache: None,
             });
-            if passes >= MAX_COMPACTION_PASSES {
-                // A deep compaction that has made the request fit stops here; it is sent.
-                if over.is_none() && manual.is_none() {
-                    deep = false;
-                    continue;
+            if attempted {
+                if let Some((plan, budget)) = over {
+                    self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
+                    return Ok(None);
                 }
-                // Compaction no longer makes the request smaller; the user decides.
-                let Some((plan, budget)) = over else {
-                    anyhow::bail!("context.compaction_no_progress")
-                };
-                self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
-                return Ok(None);
+                anyhow::bail!("context.compaction_no_progress");
             }
-            if fell_short && manual.is_none() {
-                match over {
-                    None => {
-                        deep = false;
-                        continue;
-                    }
-                    Some((plan, budget)) => {
-                        let cleared = super::clearing::clear_next(&mut input, &budget, true)?;
-                        if cleared > 0 {
-                            note_cleared(&mut reduction, cleared);
-                            continue;
-                        }
-                        self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
-                        return Ok(None);
-                    }
-                }
-            }
-            // A recalled note can be revised or forgotten. Keep this live context out of
-            // the persisted summary by using the isolated request while it is present.
-            let carries_recalled_sources = input.section_inputs.iter().any(|section| {
-                section.fragments.iter().any(|fragment| {
-                    matches!(&fragment.source_ref, ContextSourceRef::RuntimeState { state_kind, .. }
-                        if state_kind == super::preparation::recall::RELATED_SOURCES
-                            || state_kind == super::preparation::prior_materials::PRIOR_MATERIALS)
-                })
-            });
+            attempted = true;
+            prefix.closing_question = closing_question.map(str::to_owned);
+            let source_access =
+                super::compaction::dependencies::Access::for_turn(turn, &input, memory_available);
             let compacted = self
                 .compact(
                     &input,
@@ -245,8 +235,8 @@ impl AgentApplication {
                         budget: &budget,
                         non_history_tokens,
                         manual: manual.as_ref(),
-                        everything_sealed,
-                        prefix: (!isolated_only && !carries_recalled_sources).then_some(&prefix),
+                        prefix: &prefix,
+                        source_access: source_access.clone(),
                         fixed_tool_ids,
                         resolved_attachments: screenshots.resolved(&prefix.attachments)?.into(),
                     },
@@ -254,68 +244,30 @@ impl AgentApplication {
                 )
                 .await;
             let error = match compacted {
-                Ok(Compacted::Done { whole }) => {
+                Ok(Compacted::Done(stats)) => {
                     if let Some(reduced) = reduction.as_mut() {
                         reduced.compacted = true;
+                        reduced.summary_cache = stats;
                     }
-                    // A pass that took a part of the history is followed by another.
-                    deep = !whole;
                     None
                 }
-                Ok(Compacted::FellShort { code }) if manual.is_none() => {
-                    append_core_log(
-                        "context.compaction_fell_short",
-                        serde_json::json!({
-                            "agent_run_id": run_id,
-                            "model_step_id": step.model_step_id,
-                            "code": code,
-                        }),
-                    );
-                    fell_short = true;
-                    deep = false;
-                    passes += 1;
-                    continue;
-                }
-                Ok(Compacted::FellShort { code }) => {
+                Ok(Compacted::FellShort { code }) if manual.is_some() => {
                     Some(anyhow::anyhow!("context.compaction_failed: {code}"))
                 }
-                Ok(Compacted::PrefixFailed) => {
-                    isolated_only = true;
-                    deep = true;
-                    passes += 1;
+                outcome @ (Ok(Compacted::FellShort { .. }) | Ok(Compacted::NothingEligible)) => {
+                    if let Ok(Compacted::FellShort { code }) = outcome {
+                        append_core_log(
+                            "context.compaction_fell_short",
+                            serde_json::json!({
+                                "agent_run_id": run_id, "model_step_id": step.model_step_id, "code": code
+                            }),
+                        );
+                    }
+                    if let Some((plan, budget)) = over {
+                        self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
+                        return Ok(None);
+                    }
                     continue;
-                }
-                // Nothing left to
-                // compact never ends the turn. A request that fits is sent as it is; one that does
-                // not first gives up the recent history it kept, then waits for the user's decision
-                // with its reasons.
-                Ok(Compacted::NothingEligible) => {
-                    passes += 1;
-                    let Some((_, over_budget)) = &over else {
-                        // All but the recent history is summarized: the request is sent.
-                        deep = false;
-                        continue;
-                    };
-                    // Each batch of old
-                    // results cleared changes the request in its middle, so the provider's cache
-                    // is lost for all that follows; they go only when compaction cannot make room.
-                    let cleared = super::clearing::clear_next(&mut input, over_budget, true)?;
-                    if cleared > 0 {
-                        note_cleared(&mut reduction, cleared);
-                        continue;
-                    }
-                    match over {
-                        None => continue,
-                        Some(_) if !everything_sealed => {
-                            everything_sealed = true;
-                            continue;
-                        }
-                        Some((plan, budget)) => {
-                            self.require_remediation(run_id, step.model_step_id, plan, budget)
-                                .await?;
-                            return Ok(None);
-                        }
-                    }
                 }
                 Err(error) => Some(error),
             };
@@ -346,8 +298,7 @@ impl AgentApplication {
                 }
                 return Err(error);
             }
-            super::compaction::apply(self, &mut input).await?;
-            passes += 1;
+            super::compaction::apply(self, &mut input, source_access).await?;
             // Boundary: the post-compaction state refresh. Its reads were eleven direct
             // locks inside the loop body; they are now two bounded sections over the same
             // statements, and the JSON they feed is still built from exactly the same rows.
@@ -447,13 +398,5 @@ impl AgentApplication {
                 },
             )
             .await
-    }
-}
-
-/// Counts the old results a preparation cleared, for the line the conversation shows.
-fn note_cleared(reduction: &mut Option<PromptInspectorReductionView>, cleared: usize) {
-    if let Some(reduced) = reduction.as_mut() {
-        reduced.cleared_tool_results =
-            reduced.cleared_tool_results.saturating_add(u32::try_from(cleared).unwrap_or(u32::MAX));
     }
 }

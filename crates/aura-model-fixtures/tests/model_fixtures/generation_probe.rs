@@ -66,6 +66,7 @@ fn endpoint_and_profile(api_format: ModelApiFormat) -> (ModelEndpointConfig, Mod
             runtime_corrected_window_tokens: None,
             runtime_correction_basis: None,
             runtime_effective_window_tokens: 32_000,
+            summary_length_mode: None,
             historical_snapshot_max_tokens: 1_024,
         },
         request_defaults: ModelRequestDefaults {

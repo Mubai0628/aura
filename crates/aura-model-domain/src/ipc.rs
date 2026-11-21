@@ -487,6 +487,8 @@ pub struct ModelProfileUpdateRequest {
     pub enabled: bool,
     pub request_defaults: ModelRequestDefaults,
     pub historical_snapshot_max_tokens: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary_length_mode: Option<crate::SummaryLengthMode>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

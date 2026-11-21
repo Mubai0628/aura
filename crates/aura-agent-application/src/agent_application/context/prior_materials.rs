@@ -152,9 +152,9 @@ fn project(name: &str, value: &Value, query: &QueryTerms, id: &str, at: &str) ->
             (
                 path.as_str().to_lowercase(),
                 hit.score,
-                Some((path.clone(), disk_hash)),
+                Some((path.clone(), disk_hash.clone())),
                 json!({
-                    "path": path, "disk_version_matches": true, "range": value["returned_range"],
+                    "path": path, "disk_hash": disk_hash, "disk_version_matches": true, "range": value["returned_range"],
                     "excerpt": excerpt, "excerpt_complete": excerpt == text,
                 }),
             )

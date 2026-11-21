@@ -188,7 +188,7 @@ impl AgentApplication {
             }).collect();
             let manifest=aura_context_runtime::build_model_egress_manifest(snapshot.context_snapshot_id,drafts)?;
             let mut identity=InvocationIdentity::runtime_user(pending.turn.workspace_id,pending.turn.session_id,CorrelationId::new());identity.actor=InvocationActor::ParentAgent;identity.agent_run_id=Some(run);identity.turn_task_id=Some(pending.turn.turn_task_id);
-            let request=super::super::provider::Request {p05:self.p05.clone(),endpoint,store:self.store.clone(),identity,logical,snapshot,manifest,attachments:Arc::from([]),backup_waiting:false,idle_retry:false};
+            let request=super::super::provider::Request {p05:self.p05.clone(),endpoint,store:self.store.clone(),identity,logical,snapshot,manifest,attachments:Arc::from([]),single_attempt:false,backup_waiting:false,idle_retry:false};
             let request_cancel=ModelCancellationToken::default();
             let result=tokio::select! {result=tokio::time::timeout(MAINTENANCE_LIMIT,super::super::provider::execute(self,request,&request_cancel))=>Some(result),_=cancel.cancelled()=>None};
             match result {

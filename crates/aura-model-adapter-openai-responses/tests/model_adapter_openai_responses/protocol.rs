@@ -189,9 +189,9 @@ fn compiles_frozen_instruction_history_and_output_contract() {
             && parameters["properties"].get("arguments").is_none(),
         "no `_aura`/`arguments` wrapper: {parameters}"
     );
-    // The purpose carries length bounds, which no strict implementation supports, so the
-    // schema is sent without `strict` and Core validates the call.
-    assert!(body["tools"][0].get("strict").is_none(), "strict outside the strict subset");
+    // Responses may normalize an unspecified schema to strict. The purpose's length
+    // bounds are outside Aura's portable subset, so the wire flag must be explicit.
+    assert_eq!(body["tools"][0]["strict"], false);
     assert_eq!(
         plan.request_evidence.tool_registry_snapshot_ref.as_ref(),
         Some(&request.tool_schema_set.registry_snapshot_ref)
@@ -689,7 +689,7 @@ fn fixed_tools_precede_dynamic_tools_and_default_requests_have_no_vendor_options
             .expect("compiled tool name or message text")
             .starts_with("fixture_fixed")
     );
-    assert!(body["tools"][0].get("strict").is_none());
+    assert_eq!(body["tools"][0]["strict"], false);
     for field in [
         "thinking",
         "reasoning_effort",

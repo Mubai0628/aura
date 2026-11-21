@@ -5,6 +5,7 @@ import { AppIcon } from './app-icons';
 import { useDismissablePopover } from './useDismissablePopover';
 import { userMessage } from './agent-session/user-message';
 import { failedAction } from './agent-session/failure-text';
+import { modelNameOrder } from './model-profile-status';
 import {
   clippingBox,
   placeSubmenu,
@@ -52,8 +53,6 @@ interface ProviderGroup {
   name: string;
   choices: ModelChoice[];
 }
-
-const modelNameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 /** Keep provider order and sort each submenu by readiness, then by model name. */
 function providerGroups(choices: ModelChoice[]): ProviderGroup[] {

@@ -68,7 +68,7 @@ pub struct ChromeSnapshotInput {
     /// The tab (a ref from chrome.tabs); the current tab when omitted.
     #[serde(default)]
     pub tab: Option<String>,
-    /// Longest snapshot to return, in characters (default 12000, at most 60000).
+    /// Snapshot length in characters. Default 12000, clamped to 2000–60000.
     #[serde(default)]
     pub max_chars: Option<u32>,
 }
@@ -142,10 +142,10 @@ pub struct ChromePressInput {
     pub tab: Option<String>,
     /// A key or a chord: Enter, Escape, Tab, ArrowLeft, Space, a, Control+a, Shift+Tab.
     pub key: String,
-    /// Press it this many times (default 1, at most 20).
+    /// Key presses. Default 1, clamped to 1–50.
     #[serde(default)]
     pub repeat: Option<u32>,
-    /// Keep it held this long, in milliseconds, as a game expects (at most 3000).
+    /// Key hold in milliseconds. Default 0, capped at 5000.
     #[serde(default)]
     pub hold_ms: Option<u32>,
 }
@@ -169,7 +169,7 @@ pub struct ChromeScrollInput {
     /// Scroll inside this element (a ref) instead of the page.
     #[serde(default, rename = "ref")]
     pub element: Option<String>,
-    /// How far, in CSS pixels (default 600).
+    /// Scroll distance in viewport widths or heights. Default 1, clamped to 1–20.
     #[serde(default)]
     pub amount: Option<u32>,
 }
@@ -209,10 +209,10 @@ pub struct ChromeWaitInput {
     /// Wait until this text is gone.
     #[serde(default)]
     pub text_gone: Option<String>,
-    /// Or simply wait this long, in milliseconds (at most 10000).
+    /// Initial delay in milliseconds, capped at 60000.
     #[serde(default)]
     pub time_ms: Option<u32>,
-    /// Give up after this long, in milliseconds (default 10000, at most 30000).
+    /// Text wait in milliseconds. Default 10000, clamped to 100–60000.
     #[serde(default)]
     pub timeout_ms: Option<u32>,
 }
@@ -235,7 +235,7 @@ pub struct ChromeConsoleInput {
     /// Only errors, errors and warnings, or everything (default all).
     #[serde(default)]
     pub level: Option<ChromeConsoleLevel>,
-    /// The latest this many entries (default 50, at most 200).
+    /// Number of recent entries. Default 50, clamped to 1–500.
     #[serde(default)]
     pub max_entries: Option<u32>,
 }

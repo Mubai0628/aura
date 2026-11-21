@@ -195,6 +195,8 @@ impl AgentApplication {
             // This is a newly allocated, still-unpublished operation snapshot.
             // A trial never edits the Profile or an earlier immutable snapshot.
             snapshot.runtime_effective_window_tokens = *window;
+            snapshot.historical_snapshot_max_tokens =
+                model_profile.context.summary_target_for_window(*window);
         }
         // The step's `context.before_build` and `model.before_call` Hooks, before anything
         // is frozen. A block ends the run with the Hook's name and reason on record.
@@ -361,13 +363,6 @@ impl AgentApplication {
         }
         let (trigger, tool_facts, core_facts) =
             self.continuation_facts(run_id, &step, &turn, &history, &mut sections).await?;
-        // An idle `/compact` task tells the model what Core did for it.
-        let purpose = self
-            .store
-            .read(StoreStep::run(run_id, "agent.context.purpose"), move |db| {
-                aura_persistence_v2::agent::application::purpose(db, run_id)
-            })
-            .await?;
         let activation = PromptActivationInput {
             agent_mode: match turn.mode {
                 AgentTaskMode::Normal => PromptAgentMode::Normal,
@@ -379,10 +374,6 @@ impl AgentApplication {
                 .tools
                 .iter()
                 .flat_map(|s| prompt_capabilities::capabilities_of(&s.canonical_name.to_string()))
-                .chain(
-                    (purpose == AgentTaskPurpose::Compaction)
-                        .then(|| "compaction_command".to_owned()),
-                )
                 .collect(),
             child_agent: member.is_some(),
             recovery_kinds: Default::default(),
@@ -488,7 +479,6 @@ impl AgentApplication {
             compacted_source_proofs: Vec::new(),
             coverage_hops: Vec::new(),
         };
-        super::compaction::apply(self, &mut input).await?;
         let downloads = self
             .team_downloads(
                 &turn,
@@ -501,6 +491,9 @@ impl AgentApplication {
         {
             state.fragments.extend(downloads);
         }
+        let source_access =
+            super::compaction::dependencies::Access::for_turn(&turn, &input, memory_available);
+        super::compaction::apply(self, &mut input, source_access).await?;
         // The tool results the previous request showed cleared stay cleared.
         clearing::keep_cleared(&mut input)?;
         clearing::shorten_arguments(&mut input)?;
@@ -599,6 +592,8 @@ impl AgentApplication {
         // frozen context snapshot is handed back out, so no large domain value is cloned to satisfy
         // the `Send + 'static` requirement - a clone here would be a second copy of state that the
         // transaction is supposed to be deciding about.
+        let request_boundary =
+            aura_persistence_v2::agent::request_boundary::RequestBoundary::of(&logical)?;
         let frozen_context_snapshot = context.snapshot.clone();
         let frozen_model_snapshot = snapshot.clone();
         let artifacts = prepared.artifacts;
@@ -632,6 +627,9 @@ impl AgentApplication {
                                     return Err(
                                         aura_persistence_core::PersistenceCoreError::Conflict,
                                     );
+                                }
+                                if let Some(boundary) = &request_boundary {
+                                    boundary.freeze(tx, step.model_step_id, at)?;
                                 }
                                 for value in &artifacts {
                                     artifact::put(
@@ -720,6 +718,7 @@ impl AgentApplication {
         Ok(Some(Prepared {
             profile: model_profile,
             request: super::provider::Request {
+                single_attempt: false,
                 p05: self.p05.clone(),
                 endpoint,
                 store: Arc::clone(&self.store),

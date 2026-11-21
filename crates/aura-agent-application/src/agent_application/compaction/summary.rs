@@ -4,8 +4,6 @@
 //! conversation as they were.
 use super::*;
 
-/// The summary's length the model is asked for, in characters.
-pub(super) const SUMMARY_CHARS: u64 = 3_000;
 /// The latest rounds the section names.
 pub(super) const RECENT_ROUNDS: usize = 6;
 
@@ -43,48 +41,6 @@ pub(super) fn section(result: &ContextReadCompactionResult, recent: &[HistoryTur
     section
 }
 
-/// Core's own summary when the model gave none: the earlier summary, and where the rest went.
-pub(super) fn fallback(earlier: Option<&str>) -> String {
-    let moved = "Earlier messages of this conversation were moved out of the context without a new summary; find them with history.list_turns, history.search and history.read.";
-    match earlier.map(str::trim).filter(|earlier| !earlier.is_empty()) {
-        Some(earlier) => format!("{earlier} {moved}"),
-        None => moved.to_owned(),
-    }
-}
-
-impl AgentApplication {
-    /// Completes a compaction whose model attempts failed with Core's own summary.
-    pub(super) async fn complete_by_core(
-        self: &Arc<Self>,
-        record: &store::Compaction,
-        text: String,
-    ) -> anyhow::Result<()> {
-        let result = ContextReadCompactionResult {
-            source_context_snapshot_id: record.id,
-            sequence: record.sequence,
-            historical_snapshot: text,
-            active_turn_summary: String::new(),
-            structured_compaction: String::new(),
-            source_span: record.source_span.clone(),
-            anchor_manifest: record.anchors.clone(),
-        };
-        let journal = Arc::clone(&self.execution.journal);
-        let id = record.id;
-        // Boundary: Core's summary is one bounded write.
-        self.store
-            .run_critical(
-                StoreStep::run(record.agent_run_id, "agent.compaction.complete_by_core"),
-                StoreAccess::Write,
-                move || {
-                    Ok(journal.lock()?.database.unit_of_work(|tx| {
-                        store::complete_by_core(tx, id, result, UtcTimestamp::now())
-                    })?)
-                },
-            )
-            .await
-    }
-}
-
 /// `2026-10-27 05:07Z`.
 fn minute(at: UtcTimestamp) -> String {
     let text = at.to_string();
@@ -92,6 +48,30 @@ fn minute(at: UtcTimestamp) -> String {
         (Some(day), Some(time)) => format!("{day} {time}Z"),
         _ => text,
     }
+}
+
+/// Older active runs keep their normal request prefix. Upgrade only the reviewed auxiliary
+/// instruction that describes the retired single-paragraph format.
+pub(super) fn instructions(
+    frozen: &aura_prompt_runtime::ValidatedPromptBundle,
+) -> anyhow::Result<String> {
+    let mut content = Vec::new();
+    for module in frozen.modules.iter().filter(|m| m.module_id.starts_with("compaction.")) {
+        let major = module.module_version.as_str().split('.').next();
+        if module.module_id == "compaction.system" && matches!(major, Some("1" | "2")) {
+            let current = aura_prompt_runtime::ValidatedPromptBundle::embedded()?;
+            let reviewed = current
+                .modules
+                .into_iter()
+                .find(|m| m.module_id == module.module_id)
+                .ok_or_else(|| anyhow::anyhow!("context.compaction_prompt_missing"))?;
+            content.push(reviewed.normalized_content);
+        } else {
+            content.push(module.normalized_content.clone());
+        }
+    }
+    anyhow::ensure!(!content.is_empty(), "context.compaction_prompt_missing");
+    Ok(content.join("\n"))
 }
 
 #[cfg(test)]
@@ -131,13 +111,34 @@ mod tests {
         assert!(section.contains("history.search") && section.contains("history.read"));
         let older = section_of_old();
         assert!(older.contains("历史") && older.contains("进展") && !older.contains("Truth-Index"));
-        assert!(fallback(Some("此前的总结。")).starts_with("此前的总结。 Earlier messages"));
-        assert!(fallback(None).contains("history.search"));
     }
 
     fn section_of_old() -> String {
         let mut old = result("历史", "进展");
         old.structured_compaction = "## Truth-Index\n- a000001".into();
         section(&old, &[])
+    }
+}
+
+#[cfg(test)]
+mod prompt_compatibility {
+    #[test]
+    fn compaction_of_an_old_active_run_uses_the_current_auxiliary_instruction_only() {
+        let current =
+            aura_prompt_runtime::ValidatedPromptBundle::embedded().expect("reviewed bundle");
+        let mut legacy = current.clone();
+        let old = legacy
+            .modules
+            .iter_mut()
+            .find(|m| m.module_id == "compaction.system")
+            .expect("summary module");
+        old.module_version =
+            aura_domain_common::CanonicalSemVer::new("2.2.0").expect("legacy version");
+        old.normalized_content = "Write one paragraph".into();
+        assert_eq!(
+            super::instructions(&legacy).expect("upgraded suffix"),
+            super::instructions(&current).expect("current suffix")
+        );
+        assert!(legacy.modules.iter().any(|m| m.normalized_content == "Write one paragraph"));
     }
 }

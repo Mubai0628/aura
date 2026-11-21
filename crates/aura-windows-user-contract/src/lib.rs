@@ -62,15 +62,13 @@ pub struct ShellExecuteInput {
     /// Text for standard input. Default empty.
     #[serde(default)]
     pub stdin: String,
-    /// Default 120000. After this many milliseconds Aura stops the whole process tree.
-    /// The tool time limit in Tool settings (default 10 minutes, at most 30 minutes) also
-    /// ends the call, so a value above that limit does not help. At most 86400000.
+    /// Default 120000. Process-tree timeout in milliseconds. The tool time limit also applies.
     #[serde(default = "default_timeout_ms")]
+    #[schemars(range(min = 1, max = 86400000))]
     pub timeout_ms: u64,
-    /// Default 65536. Bytes of stdout and of stderr kept, up to 1048576. A command that writes
-    /// more is stopped then, and its result says so (stop_reason output_limit) with the output
-    /// kept; send large output to a file and read that instead.
+    /// Default 65536. Byte limit per stream (stdout and stderr). Exceeding it stops the command.
     #[serde(default = "default_max_output_bytes")]
+    #[schemars(range(min = 1, max = 1048576))]
     pub max_output_bytes: u64,
     /// Default none. Credentials of the user's environment this command needs, by variable name
     /// (names with TOKEN, KEY, SECRET, PASSWORD, PASS, PWD or the like, or holding a

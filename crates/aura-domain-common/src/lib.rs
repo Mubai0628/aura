@@ -30,6 +30,7 @@ pub use error::{
 };
 pub use file::{FileIdentity, WorkspacePath, WorkspacePathError};
 pub use file_name::FileNameComparison;
+pub use id::parse_typed_ulid;
 pub use id::{
     AgentRunId, ApprovalDecisionId, ApprovalRequestId, ArtifactId, AttachmentGrantId,
     BrowserShareId, COMMON_ID_PREFIXES, COMMON_ID_TYPES, CancellationId, CausationId, CommandId,

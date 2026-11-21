@@ -232,6 +232,9 @@ async fn automatic_window_trials_publish_only_the_successful_candidate_once() {
     let request =
         AgentRunRequest { session_id: start.turn.session_id, agent_run_id: start.run.agent_run_id };
     let record = waiting_window(&runtime, &request).await;
+    // The initial conservative count exercises the provider's correction route. Use the product
+    // estimator for the candidates so the fixture's growing tool declarations still fit 64k.
+    count_by_character_class(record.correction.model_profile_id);
     let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
     let before = services.p05_required().model_config.snapshot().expect("initial config");
     crate::r03_tests::success(
@@ -266,14 +269,14 @@ async fn automatic_window_trials_publish_only_the_successful_candidate_once() {
         .model_steps
         .iter()
         .map(|s| {
-            aura_persistence_v2::model::step_snapshot(db, s.model_step_id)
-                .expect("each actual mex")
-                .runtime_effective_window_tokens
+            let snapshot = aura_persistence_v2::model::step_snapshot(db, s.model_step_id)
+                .expect("actual trial snapshot");
+            (snapshot.runtime_effective_window_tokens, snapshot.historical_snapshot_max_tokens)
         })
         .collect::<Vec<_>>();
     // The successful 64000 candidate answered with its own final response, which
     // now ends the turn there; no extra completion step is prepared.
-    assert_eq!(used, [256000, 128000, 64000]);
+    assert_eq!(used, [(256000, 7680), (128000, 3840), (64000, 3000)]);
     let success_trial =
         windows::trial(db, done.model_steps[2].model_step_id).expect("trial").expect("owned trial");
     assert_eq!(success_trial.candidate_windows, [128000, 64000]);

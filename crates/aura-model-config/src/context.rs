@@ -148,10 +148,15 @@ pub fn set_historical_snapshot_max_tokens(
         .models
         .get_mut(&model_profile_id)
         .ok_or(ModelConfigError::ProfileNotFound(model_profile_id))?;
-    if model.context.historical_snapshot_max_tokens == max_tokens {
+    if model.context.historical_snapshot_max_tokens == max_tokens
+        && model.context.summary_length_mode
+            == (max_tokens == 1_024).then_some(aura_model_domain::SummaryLengthMode::Custom)
+    {
         return Ok(update_result(model));
     }
     model.context.historical_snapshot_max_tokens = max_tokens;
+    model.context.summary_length_mode =
+        (max_tokens == 1_024).then_some(aura_model_domain::SummaryLengthMode::Custom);
     model.updated_at = updated_at;
     Ok(update_result(model))
 }

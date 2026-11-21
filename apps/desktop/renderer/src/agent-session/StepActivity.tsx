@@ -86,8 +86,7 @@ export function StepActivity({ item }: { item: AgentTurnView }) {
   if (compacting)
     return (
       <p className="agent-step-activity" role="status">
-        正在压缩上下文 · {quiet} 秒
-        {compacting.finished_parts > 0 ? ` · 已完成 ${compacting.finished_parts} 段` : ''}
+        正在压缩上下文 · 累计 {quiet} 秒
       </p>
     );
   if (writing)

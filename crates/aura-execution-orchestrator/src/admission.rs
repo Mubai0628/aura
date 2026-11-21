@@ -133,20 +133,40 @@ pub fn rejection_results(
                         .into_iter()
                         .find(|entry| &entry.code == code)
                         .ok_or(BatchPreparationError::UnregisteredErrorCode)?;
-                    Ok::<_, BatchPreparationError>(
-                        ErrorEnvelope::new(
-                            entry.code,
-                            entry.category,
-                            rejection_message(rejection),
-                            entry.retry_class == ToolErrorRetryClassV1::Retryable,
-                            correlation,
-                            causation,
-                        )
-                        .with_detail(
-                            "safe_message_key",
-                            serde_json::Value::String(entry.safe_message_key),
-                        ),
+                    let mut error = ErrorEnvelope::new(
+                        entry.code,
+                        entry.category,
+                        rejection_message(rejection),
+                        entry.retry_class == ToolErrorRetryClassV1::Retryable,
+                        correlation,
+                        causation,
                     )
+                    .with_detail("safe_message_key", entry.safe_message_key.into());
+                    if let Some(report) = &rejection.schema_validation {
+                        let hints = report
+                            .errors
+                            .iter()
+                            .filter_map(|issue| {
+                                let (kind, hint) = issue.issue_kind.split_once(": ")?;
+                                if !matches!(kind, "format" | "additionalproperties") {
+                                    return None;
+                                }
+                                // Only diagnostics produced by the validator, never arguments or backend text.
+                                let path: String = issue.instance_path.chars().take(128).collect();
+                                let hint: String = hint.chars().take(256).collect();
+                                Some(if path.is_empty() {
+                                    hint
+                                } else {
+                                    format!("{path}　{hint}")
+                                })
+                            })
+                            .take(4)
+                            .collect::<Vec<_>>();
+                        if !hints.is_empty() {
+                            error = error.with_detail("argument_hints", serde_json::json!(hints));
+                        }
+                    }
+                    Ok::<_, BatchPreparationError>(error)
                 })
                 .transpose()?;
             preflight_rejection_result_v1(rejection, at, error).map_err(BatchPreparationError::from)

@@ -166,6 +166,9 @@ async fn a_compacted_addition_continues_and_completes_after_its_text_is_removed(
     let runtime = host.start().await;
     let provider = Provider::scenario(provider_fixture::Scenario::CompactedAddition).await;
     let model = profile(&runtime, &provider.url).await;
+    // The complete 200k admission plus this fixture's tool declarations fits the summary
+    // window, with the next step inside the early-compaction reserve.
+    super::waiting::l10_19_compaction::resize(&runtime, model, 348_000, 4096).await;
     let root = host.root.path().join("agent-compacted-addition");
     std::fs::create_dir(&root).expect("compacted addition workspace");
     let created = crate::r03_tests::success(
@@ -228,7 +231,7 @@ async fn a_compacted_addition_continues_and_completes_after_its_text_is_removed(
         panic!("Core unavailable");
     };
     let bodies = provider.requests.lock().expect("requests").clone();
-    let auxiliary = "Write the summary as one paragraph";
+    let auxiliary = "Compaction request: write the summary";
     let normal = bodies
         .iter()
         .filter(|body| !body.to_string().contains(auxiliary))

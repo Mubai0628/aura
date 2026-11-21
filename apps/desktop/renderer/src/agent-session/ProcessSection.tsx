@@ -78,7 +78,12 @@ export function ProcessSection({
                     <ToolCallRun key={group.key} group={group} calls={calls} />
                   ) : (
                     group.callIds.map((callId) => (
-                      <ToolActivity key={callId} entry={calls.get(callId)} ended={terminal} />
+                      <ToolActivity
+                        key={callId}
+                        callId={callId}
+                        entry={calls.get(callId)}
+                        ended={terminal}
+                      />
                     ))
                   ),
                 )

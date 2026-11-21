@@ -6,6 +6,7 @@ export function writeProvider(options: {
   observeRequest?: ((request: { authorization: string | undefined; body: unknown }) => void) | null;
   planAction?: ((request: ProviderRequest, action: ProviderAction) => ProviderAction) | null;
   maintenanceOutput?: import('@aura/contracts/generated').MemoryMaintenanceOutput;
+  auxiliaryJsonOutput?: Record<string, unknown>;
   streamArguments?: { chunks: number; every: number } | null;
   finalText?: string;
 }): Promise<{

@@ -42,6 +42,7 @@ fn a_current_execution_store_is_copied_before_replacing_a_version_that_refuses_i
         true,
         "a launcher that does not say what it replaces may be replacing any older version"
     );
+    assert_eq!(answer(data_root.path(), Some("0.3.2"))[EXECUTION], true);
     let readable = aura_persistence_v2::RECORDS_READABLE_SINCE;
     assert_eq!(answer(data_root.path(), Some(readable))[EXECUTION], false);
     assert_eq!(answer(data_root.path(), Some("0.1.7"))[LEGACY], false, "there is no legacy store");
@@ -68,6 +69,7 @@ fn a_current_legacy_store_is_copied_before_replacing_a_version_that_refuses_its_
 
     assert_eq!(answer(data_root.path(), Some("0.1.12"))[LEGACY], true);
     assert_eq!(answer(data_root.path(), None)[LEGACY], true);
+    assert_eq!(answer(data_root.path(), Some("0.3.2"))[LEGACY], true);
     let readable = aura_persistence::RECORDS_READABLE_SINCE;
     assert_eq!(answer(data_root.path(), Some(readable))[LEGACY], false);
 }

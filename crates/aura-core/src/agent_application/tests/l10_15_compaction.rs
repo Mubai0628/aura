@@ -104,7 +104,7 @@ pub(super) fn compactions(runtime: &crate::RuntimeState, session: SessionId) -> 
 }
 
 #[tokio::test]
-async fn a_request_that_fits_is_sent_without_compaction_however_full_the_window() {
+async fn a_request_nearing_the_window_compacts_before_it_overflows() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::Plain).await;
     let (runtime, session, model) =
@@ -124,8 +124,12 @@ async fn a_request_that_fits_is_sent_without_compaction_however_full_the_window(
     })
     .await;
     assert!(matches!(done.turn.state, TurnTaskState::Completed { .. }));
-    assert!(request_tokens(&runtime, session, 1).await * 100 > window * 80);
-    assert_eq!(compactions(&runtime, session), 0, "it fits, so nothing is compacted");
+    assert!(request_tokens(&runtime, session, 1).await < window);
+    assert_eq!(
+        compactions(&runtime, session),
+        1,
+        "the reserved growth fits a single early request"
+    );
 }
 
 /// A comparable usage report reduces the estimate for repeated instructions and tools.
@@ -196,7 +200,7 @@ async fn a_refused_step_does_not_lose_the_providers_rate() {
     let refused = start(&runtime, session, model, "AURA-L1015-REFUSED: answer again").await;
     waiting::wait(&runtime, &refused, |v| v.turn.state.terminal()).await;
     // After the reserves, this window would reject the uncalibrated request.
-    shrink(&runtime, model, uncalibrated + 1_024).await;
+    shrink(&runtime, model, uncalibrated + 1_024 + 2_500).await;
 
     let third = start(&runtime, session, model, "AURA-L1015-THIRD: and once more").await;
     waiting::wait(&runtime, &third, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))

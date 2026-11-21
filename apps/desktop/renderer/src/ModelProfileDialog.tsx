@@ -64,6 +64,13 @@ export function ModelProfileDialog({
   const [historicalTokens, setHistoricalTokens] = useState(
     profile?.context.historical_snapshot_max_tokens ?? 1024,
   );
+  const [summaryMode, setSummaryMode] = useState<'auto' | 'custom'>(
+    profile?.context.summary_length_mode ?? (historicalTokens === 1024 ? 'auto' : 'custom'),
+  );
+  const suggestedTokens = Math.min(
+    12_000,
+    Math.max(3_000, Math.floor((Number(contextWindow) * 3) / 100)),
+  );
   const [temperature, setTemperature] = useState<number | ''>(
     profile?.request_defaults.temperature ?? '',
   );
@@ -116,7 +123,7 @@ export function ModelProfileDialog({
   const issues = profileFieldIssues({
     contextWindow,
     displayName,
-    historicalTokens,
+    historicalTokens: summaryMode === 'auto' ? suggestedTokens : historicalTokens,
     maxOutputTokens,
     providerModelName,
   });
@@ -168,7 +175,8 @@ export function ModelProfileDialog({
             display_name: displayName,
             enabled,
             expected_revision: settings.models_revision,
-            historical_snapshot_max_tokens: historicalTokens,
+            summary_length_mode: summaryMode,
+            historical_snapshot_max_tokens: summaryMode === 'auto' ? 1024 : historicalTokens,
             model_profile_id: profile.id,
             notes: notes === '' ? null : notes,
             request_defaults: {
@@ -336,7 +344,7 @@ export function ModelProfileDialog({
           </label>
           {profile === undefined ? (
             <p className="span-two settings-form-hint">
-              创建后可继续配置最大输出、采样参数和历史快照上限；这些字段不会在创建阶段被静默忽略。
+              创建后可继续配置最大输出、采样参数和压缩摘要建议长度；这些字段不会在创建阶段被静默忽略。
             </p>
           ) : (
             <>
@@ -352,16 +360,33 @@ export function ModelProfileDialog({
                 {fieldIssue('max_output_tokens')}
               </label>
               <label>
-                <span>历史快照 Tokens</span>
-                <input
-                  {...fieldProps('historical_tokens', '历史快照 Tokens')}
-                  min={0}
-                  onChange={(event) => setHistoricalTokens(Number(event.target.value))}
-                  type="number"
-                  value={historicalTokens}
-                />
-                {fieldIssue('historical_tokens')}
+                <span>压缩摘要建议长度</span>
+                <select
+                  aria-label="压缩摘要建议长度"
+                  value={summaryMode}
+                  onChange={(event) =>
+                    setSummaryMode(event.target.value === 'custom' ? 'custom' : 'auto')
+                  }
+                >
+                  <option value="auto">
+                    随窗口自动计算（{suggestedTokens.toLocaleString()} tokens）
+                  </option>
+                  <option value="custom">自定义</option>
+                </select>
               </label>
+              {summaryMode === 'custom' && (
+                <label>
+                  <span>自定义建议长度（tokens）</span>
+                  <input
+                    {...fieldProps('historical_tokens', '自定义建议长度（tokens）')}
+                    min={1}
+                    onChange={(event) => setHistoricalTokens(Number(event.target.value))}
+                    type="number"
+                    value={historicalTokens}
+                  />
+                  {fieldIssue('historical_tokens')}
+                </label>
+              )}
               <label>
                 <span>Temperature（可选）</span>
                 <input

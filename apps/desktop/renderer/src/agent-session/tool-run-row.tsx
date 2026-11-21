@@ -51,7 +51,7 @@ export function ToolCallRun({
       </summary>
       <div className="agent-tool-group-members">
         {group.callIds.map((id) => (
-          <ToolActivity key={id} entry={calls.get(id)} />
+          <ToolActivity key={id} callId={id} entry={calls.get(id)} />
         ))}
       </div>
     </details>

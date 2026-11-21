@@ -12,6 +12,7 @@ use thiserror::Error;
 
 use aura_domain_common::jcs::{CanonicalHashV1, canonical_sha256, canonicalize_json_value};
 
+mod builtin_formats;
 mod document_policy;
 mod policy_cache;
 mod validation;

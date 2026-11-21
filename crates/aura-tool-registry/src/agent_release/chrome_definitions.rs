@@ -120,7 +120,7 @@ pub(super) fn entries(
             100,
             H::ChromeWait,
             "Wait for text or time in a shared tab",
-            &format!("Wait until text appears (text), disappears (text_gone), or for time_ms; at most timeout_ms (default 10000). {TAB} {PAGE}"),
+            &format!("Wait for text to appear (text) or disappear (text_gone). time_ms adds an initial delay. timeout_ms limits the subsequent text wait. {TAB} {PAGE}"),
             read,
             false,
             at,

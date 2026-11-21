@@ -35,7 +35,7 @@ pub(super) fn asks_compaction(request: &Value) -> bool {
         messages.iter().any(|message| {
             message["content"]
                 .as_str()
-                .is_some_and(|text| text.contains("Write the summary as one paragraph"))
+                .is_some_and(|text| text.contains("Compaction request: write the summary"))
         })
     })
 }
@@ -148,22 +148,18 @@ async fn a_compaction_is_asked_on_the_request_the_step_would_have_sent() {
 async fn a_tool_call_in_a_compaction_answer_never_runs() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::CompactToolOnPrefix).await;
-    let (runtime, session) = just_over_the_line(&host, &provider, 64_000).await;
-    assert_eq!(compactions(&runtime, session), 1, "the third attempt summarized");
+    let (runtime, session) =
+        super::compaction_retries::wait_for_first_attempt(&host, &provider).await;
+    assert_eq!(super::l12_4_compaction::completed(&runtime, session), 0);
     let written =
         host.root.path().join("waiting-workspace").join(provider_fixture::COMPACTION_TOOL_FILE);
-    assert!(!written.exists(), "the writes compaction answers asked for never ran");
-    let requests = provider.requests.lock().expect("provider requests").clone();
-    let asked = requests.iter().filter(|request| asks_compaction(request)).collect::<Vec<_>>();
-    assert_eq!(asked.len(), 3);
-    let tools = |request: &Value| request["tools"].as_array().map_or(0, Vec::len);
-    assert!(tools(asked[0]) > 0, "first on the step's prefix, its tools included");
-    assert_eq!(tools(asked[1]), tools(asked[0]), "then on it again with the call answered");
-    assert_eq!(tools(asked[2]), 0, "then, called again, the isolated way, without tools");
+    assert!(!written.exists());
+    let requests = provider.requests.lock().expect("provider requests");
+    assert_eq!(requests.iter().filter(|r| asks_compaction(r)).count(), 1);
 }
 
 /// The model's window and output limit, set through the routes the settings page uses.
-pub(super) async fn resize(
+pub(in crate::agent_application::tests) async fn resize(
     runtime: &crate::RuntimeState,
     model: ModelProfileId,
     window: u64,
@@ -421,9 +417,9 @@ async fn all_steps(
 #[tokio::test]
 async fn a_model_whose_output_limit_passes_its_window_still_compacts() {
     let host = crate::r03_tests::Fixture::new();
-    let provider = Provider::scenario(Scenario::CompactToolOnPrefix).await;
+    let provider = Provider::scenario(Scenario::CompactOnPrefix).await;
     let (runtime, session) = just_over_the_line(&host, &provider, 400_000).await;
-    assert_eq!(compactions(&runtime, session), 1, "compacted the isolated way after the tool call");
+    assert_eq!(compactions(&runtime, session), 1, "a single compaction fits the actual window");
     let requests = provider.requests.lock().expect("provider requests").clone();
     let isolated = requests.iter().rfind(|request| asks_compaction(request)).expect("an ask");
     let last = requests.last().map(requested_output).expect("a request");

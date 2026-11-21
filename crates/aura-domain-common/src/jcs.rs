@@ -212,9 +212,7 @@ impl JsonSchema for CanonicalBlake3HashV1 {
 pub type CanonicalHashV1 = CanonicalSha256HashV1;
 
 fn validate_digest(hex: &str) -> Result<(), CanonicalJsonError> {
-    if hex.len() != 64
-        || !hex.bytes().all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-    {
+    if !crate::ContentHash::is_valid_hex(hex) {
         return Err(CanonicalJsonError::InvalidDigest);
     }
     Ok(())

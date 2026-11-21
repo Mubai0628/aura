@@ -398,6 +398,7 @@
                   "user_override_revision": 1
                 },
                 "runtime_effective_window_tokens": 1,
+                "summary_length_mode": "auto",
                 "user_override_revision": 1,
                 "user_override_window_tokens": 1
               },
@@ -757,6 +758,7 @@
                 "user_override_revision": 1
               },
               "runtime_effective_window_tokens": 1,
+              "summary_length_mode": "auto",
               "user_override_revision": 1,
               "user_override_window_tokens": 1
             },
@@ -1019,6 +1021,7 @@
                 "user_override_revision": 1
               },
               "runtime_effective_window_tokens": 1,
+              "summary_length_mode": "auto",
               "user_override_revision": 1,
               "user_override_window_tokens": 1
             },
@@ -1313,6 +1316,7 @@
               "user_override_revision": 1
             },
             "runtime_effective_window_tokens": 1,
+            "summary_length_mode": "auto",
             "user_override_revision": 1,
             "user_override_window_tokens": 1
           },
@@ -1581,6 +1585,7 @@
               "user_override_revision": 1
             },
             "runtime_effective_window_tokens": 1,
+            "summary_length_mode": "auto",
             "user_override_revision": 1,
             "user_override_window_tokens": 1
           },
@@ -1831,6 +1836,7 @@
               "user_override_revision": 1
             },
             "runtime_effective_window_tokens": 1,
+            "summary_length_mode": "auto",
             "user_override_revision": 1,
             "user_override_window_tokens": 1
           },
@@ -2251,7 +2257,12 @@
         "reduction": {
           "cleared_tool_results": 1,
           "compacted": true,
-          "input_tokens_before": 1
+          "input_tokens_before": 1,
+          "summary_cache": {
+            "reported_cached_tokens": 1,
+            "reported_input_tokens": 1,
+            "reusable_prefix_tokens": 1
+          }
         },
         "revision": "1",
         "sections": [

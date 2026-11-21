@@ -181,6 +181,7 @@ pub(super) fn configure_startup(
             runtime_corrected_window_tokens: None,
             runtime_correction_basis: None,
             runtime_effective_window_tokens: 256000,
+            summary_length_mode: None,
             historical_snapshot_max_tokens: 1024,
         },
         request_defaults: ModelRequestDefaults {

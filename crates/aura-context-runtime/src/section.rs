@@ -1,4 +1,5 @@
-use std::{borrow::Cow, collections::BTreeMap, fmt::Write as _};
+pub(crate) use aura_context_domain::printable_context_text;
+use std::collections::BTreeMap;
 
 use aura_context_domain::{
     ContextCompressibility, ContextPrivacyClass, ContextSectionKind, ContextSourceRef,
@@ -175,31 +176,6 @@ fn serialize_non_instruction_section(
             .join("\n")
     };
     Ok(format!("<{tag}>\n{body}\n</{tag}>"))
-}
-
-/// The printable form used by both the context envelope and the model request.
-/// The source itself stays untouched for display, verification and egress authorization.
-pub(crate) fn printable_context_text(value: &str) -> Cow<'_, str> {
-    let value = value.trim_start_matches('\u{feff}');
-    let needs_escape = |character: char| {
-        (character.is_control() || character == '\u{feff}') && !matches!(character, '\n' | '\t')
-    };
-    if !value.chars().any(needs_escape) {
-        return Cow::Borrowed(value);
-    }
-    let mut text = String::with_capacity(value.len());
-    let mut chars = value.chars().peekable();
-    while let Some(character) = chars.next() {
-        if character == '\r' {
-            chars.next_if_eq(&'\n');
-            text.push('\n');
-        } else if needs_escape(character) {
-            write!(&mut text, "\\u{:04x}", u32::from(character)).expect("writing to String");
-        } else {
-            text.push(character);
-        }
-    }
-    Cow::Owned(text)
 }
 
 pub(crate) fn printable_conversation_item(item: &mut LogicalConversationItem) {

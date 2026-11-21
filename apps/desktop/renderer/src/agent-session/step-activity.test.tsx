@@ -126,7 +126,7 @@ test('a step waiting on a compaction says so, how long its part has run, and the
     },
   ]);
   render(<StepActivity item={compacting} />);
-  expect(screen.getByRole('status').textContent).toBe('正在压缩上下文 · 109 秒 · 已完成 2 段');
+  expect(screen.getByRole('status').textContent).toBe('正在压缩上下文 · 累计 109 秒');
   expect(turnStatus(compacting, new Map(), false)).toBe('正在压缩上下文');
 });
 
@@ -156,7 +156,7 @@ test('a view that saw the step before its compaction starts the count again afte
   view.rerender(
     <StepActivity item={turn('running', [{ ...step, context_compacting: compacting }])} />,
   );
-  expect(screen.getByRole('status').textContent).toBe('正在压缩上下文 · 540 秒');
+  expect(screen.getByRole('status').textContent).toBe('正在压缩上下文 · 累计 540 秒');
   const prepared = { ...step, compacted_until: '2026-10-31T11:59:50Z' };
   view.rerender(<StepActivity item={turn('running', [prepared])} />);
   expect(screen.getByRole('status').textContent).toBe('正在思考下一步 · 10 秒');

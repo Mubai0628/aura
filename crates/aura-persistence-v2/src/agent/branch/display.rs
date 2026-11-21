@@ -124,23 +124,38 @@ pub(crate) fn carried_activity(
     db: &Connection,
     session: SessionId,
     calls: &[ToolCallId],
+    unreadable: &mut Vec<ToolCallId>,
 ) -> StoreResult<Vec<(ToolCallId, AgentToolActivityEntry)>> {
     let Some(branch) = record::load(db, session)? else { return Ok(Vec::new()) };
     let index: CarriedIndex = record::read_json(db, session, branch.index_artifact_id)?;
-    let mut turns = std::collections::BTreeSet::new();
-    for call in calls {
-        if let Some((_, turn)) = index.calls.iter().find(|(id, _)| id == call) {
-            turns.insert(*turn);
+    let mut by_turn = std::collections::BTreeMap::<_, Vec<_>>::new();
+    for (call, turn) in index.calls {
+        if calls.contains(&call) {
+            by_turn.entry(turn).or_default().push(call);
         }
     }
     let mut found = Vec::new();
-    for turn in turns {
-        let carried = branch.turn_at(turn).ok_or(Error::Conflict)?;
-        let display: CarriedDisplay = record::read_json(db, session, carried.display_artifact_id)?;
-        for entry in display.activity {
-            if calls.contains(&entry.summary.tool_call_id) {
-                found.push((entry.summary.tool_call_id, entry));
+    for (turn, requested) in by_turn {
+        let display = branch.turn_at(turn).ok_or(Error::Conflict).and_then(|turn| {
+            record::read_json::<CarriedDisplay>(db, session, turn.display_artifact_id)
+        });
+        match display {
+            Ok(display) => {
+                // An indexed call existed in the source even if its display could not be copied.
+                unreadable.extend(requested.iter().copied().filter(|id| {
+                    !display.activity.iter().any(|entry| entry.summary.tool_call_id == *id)
+                }));
+                for entry in display.activity {
+                    let id = entry.summary.tool_call_id;
+                    if requested.contains(&id) {
+                        found.push((id, entry));
+                    }
+                }
             }
+            Err(error) if crate::tool::activity::row_data_error(&error) => {
+                unreadable.extend(requested)
+            }
+            Err(error) => return Err(error),
         }
     }
     Ok(found)

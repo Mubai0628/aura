@@ -1,7 +1,4 @@
 //! The forms a compaction request may take, and what each must satisfy before it is sent.
-use std::collections::BTreeSet;
-
-use aura_domain_common::{ContextProjectionSnapshotId, ModelStepId};
 use aura_model_domain::ModelOutputFormat;
 
 use super::{
@@ -23,28 +20,23 @@ pub enum CompactionRequestShape {
 pub(super) fn validate_prepared_compaction_attempt(
     operation: &ContextCompactionOperationSpec,
     attempt: &PreparedCompactionModelAttempt,
-    expected_ordinal: u8,
-    context_snapshot_ids: &mut BTreeSet<ContextProjectionSnapshotId>,
-    model_step_ids: &mut BTreeSet<ModelStepId>,
 ) -> Result<(), CompactionExecutionFailure> {
     let logical = &attempt.logical_request;
     let execution = &attempt.execution_snapshot;
     let isolated = attempt.shape == CompactionRequestShape::Isolated;
-    let invalid = attempt.attempt_ordinal != expected_ordinal
+    let invalid = attempt.attempt_ordinal != 1
         || logical.validate_contract_shape().is_err()
         || (isolated
             && (!logical.tool_schema_set.tools.is_empty() || !logical.attachments.is_empty()))
         || isolated == logical.closing_question.is_some()
-        || logical.provider_continuation.is_some()
+        || (isolated && logical.provider_continuation.is_some())
         || !matches!(logical.output_request.format, ModelOutputFormat::Text)
         || logical.model_step_id != execution.model_step_id
         || logical.execution_snapshot_id != execution.id
         || logical.context_snapshot_id != execution.context_snapshot_id
         || execution.model_profile_id != operation.model_profile_id
         || execution.context_snapshot_id == operation.source_context_snapshot_id
-        || attempt.egress_manifest.context_snapshot_id != execution.context_snapshot_id
-        || !context_snapshot_ids.insert(execution.context_snapshot_id)
-        || !model_step_ids.insert(execution.model_step_id);
+        || attempt.egress_manifest.context_snapshot_id != execution.context_snapshot_id;
     if invalid {
         return Err(CompactionExecutionFailure {
             code: "context.compaction.attempt_invalid".to_owned(),

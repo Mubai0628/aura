@@ -43,7 +43,7 @@ pub struct BrowserNavigateInput {
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrowserSnapshotInput {
-    /// Longest snapshot to return, in characters (default 12000, at most 60000).
+    /// Snapshot length in characters. Default 12000, clamped to 2000–60000.
     #[serde(default)]
     pub max_chars: Option<u32>,
     /// A page the user handed you with @ (p1, p2…); without it, this session's own page.

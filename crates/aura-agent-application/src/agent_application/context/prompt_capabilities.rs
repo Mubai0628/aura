@@ -37,9 +37,8 @@ mod tests {
     use aura_prompt_runtime::ValidatedPromptBundle;
     use std::collections::BTreeSet;
 
-    /// Modules no tool brings: tool drafting has no tool (UNWIRED), and the compaction command
-    /// module follows the run's purpose instead.
-    const NOT_BROUGHT_BY_A_TOOL: [&str; 2] = ["tool_authoring", "compaction_command"];
+    /// Tool drafting has no tool to activate its module.
+    const NOT_BROUGHT_BY_A_TOOL: [&str; 1] = ["tool_authoring"];
 
     #[test]
     fn every_capability_module_has_a_tool_that_brings_it() {

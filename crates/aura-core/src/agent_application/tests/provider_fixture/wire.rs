@@ -179,7 +179,7 @@ pub(super) fn json_object(body: &Value, key: &str) -> Value {
 }
 
 /// What every compaction request says about the summary it asks for.
-pub(crate) const COMPACTION_FORMAT: &str = "Write the summary as one paragraph";
+pub(crate) const COMPACTION_FORMAT: &str = "Compaction request: write the summary";
 
 /// The message that asks for a compaction — the last one carrying the summary's format. On the
 /// step's prefix it is the user message after the task state; asked the isolated way it is the
@@ -240,16 +240,15 @@ pub(crate) fn flat_call(purpose: &str, fields: Value) -> String {
     Value::Object(call).to_string()
 }
 
-/// A compaction answer whose paragraph runs past four times the length the ask set for it, so it
-/// is refused.
+/// A complete background longer than the requested length.
 pub(super) fn long_compaction_answer(ask: &str) -> String {
     let target = ask
-        .split("of plain prose of at most ")
+        .split("Aim for about ")
         .nth(1)
         .and_then(|rest| rest.split(' ').next())
         .and_then(|number| number.parse::<usize>().ok())
         .expect("the ask names the summary's length");
-    "Everything that happened, retold at length. ".repeat(target * 4 / 40 + 50)
+    "Everything that happened, retold at length. ".repeat(target.div_ceil(40) + 30)
 }
 
 /// The paragraph a fixture compaction answers with.

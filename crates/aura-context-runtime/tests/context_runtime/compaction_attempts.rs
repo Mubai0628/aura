@@ -160,18 +160,7 @@ fn attempt(
     }
 }
 
-/// Attempts on the step's request, its question closing it; `again` answers `asks_again`.
-struct Factory {
-    shape: CompactionRequestShape,
-    again: Option<bool>,
-    asked: Mutex<Vec<FailedCompactionAttempt>>,
-}
-
-impl Factory {
-    fn new(shape: CompactionRequestShape, again: Option<bool>) -> Self {
-        Self { shape, again, asked: Mutex::new(Vec::new()) }
-    }
-}
+struct Factory(CompactionRequestShape);
 
 impl CompactionAttemptFactory for Factory {
     fn prepare_attempt<'a>(
@@ -185,45 +174,9 @@ impl CompactionAttemptFactory for Factory {
                 + 'a,
         >,
     > {
-        let question = (self.shape == CompactionRequestShape::SessionPrefix)
+        let question = (self.0 == CompactionRequestShape::SessionPrefix)
             .then_some("Compaction request: write the summary.");
-        Box::pin(async move { Ok(attempt(operation, ordinal, self.shape, question)) })
-    }
-
-    fn asks_again(
-        &self,
-        failed: &PreparedCompactionModelAttempt,
-        how: FailedCompactionAttempt,
-    ) -> bool {
-        let mut asked = self.asked.lock().expect("asked");
-        assert_eq!(usize::from(failed.attempt_ordinal), asked.len() + 1);
-        asked.push(how);
-        match (self.again, how) {
-            (Some(again), _) => again,
-            (None, FailedCompactionAttempt::UnusableAnswer { .. }) => true,
-            (None, FailedCompactionAttempt::NoAnswer { retryable }) => retryable,
-        }
-    }
-}
-
-/// Attempts asked the isolated way that leave `asks_again` to the trait.
-struct ByDefault;
-
-impl CompactionAttemptFactory for ByDefault {
-    fn prepare_attempt<'a>(
-        &'a self,
-        operation: &'a ContextCompactionOperationSpec,
-        ordinal: u8,
-    ) -> Pin<
-        Box<
-            dyn Future<Output = Result<PreparedCompactionModelAttempt, CompactionExecutionFailure>>
-                + Send
-                + 'a,
-        >,
-    > {
-        Box::pin(
-            async move { Ok(attempt(operation, ordinal, CompactionRequestShape::Isolated, None)) },
-        )
+        Box::pin(async move { Ok(attempt(operation, ordinal, self.0, question)) })
     }
 }
 
@@ -329,7 +282,6 @@ impl CompactionModelCaller for Caller {
 
 #[derive(Default)]
 struct Sink {
-    retried: Mutex<Vec<String>>,
     ended: Mutex<Vec<(CompactionModelAttemptState, String)>>,
     completed: Mutex<Vec<u8>>,
     summaries: Mutex<Vec<String>>,
@@ -341,14 +293,6 @@ impl CompactionLifecycleSink for Sink {
         _: &'a ContextCompactionOperationSpec,
         _: &'a PreparedCompactionModelAttempt,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
-        Box::pin(async { Ok(()) })
-    }
-
-    fn finish_retryable_attempt<'a>(
-        &'a self,
-        failure: &'a CompactionAttemptFailureCommit,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
-        self.retried.lock().expect("retried").push(failure.error_code.clone());
         Box::pin(async { Ok(()) })
     }
 
@@ -420,56 +364,37 @@ fn calling(text: &str) -> NormalizedModelOutput {
 }
 
 #[tokio::test]
-async fn an_answer_the_step_request_cannot_give_is_not_asked_for_again_when_the_factory_declines() {
-    let factory = Factory::new(CompactionRequestShape::SessionPrefix, Some(false));
-    let caller = Caller::new(vec![answered(calling(""))]);
-    let sink = Sink::default();
-    let outcome = execute_context_compaction(operation(), &factory, &caller, &sink, &Facts).await;
-    assert_eq!(failure_code(&outcome), "context.compaction.model_output_invalid.tool_calls");
-    assert_eq!(caller.calls.load(Ordering::SeqCst), 1, "asked once");
-    assert_eq!(
-        *factory.asked.lock().expect("asked"),
-        [FailedCompactionAttempt::UnusableAnswer { why: UnusableAnswer::ToolCalls }]
-    );
-    assert!(sink.retried.lock().expect("retried").is_empty());
-    assert_eq!(sink.ended.lock().expect("ended").len(), 1);
-}
-
-/// The factory is told what kind of answer it was - one that called tools, or another it cannot
-/// use - so it can ask the next attempt to suit.
-#[tokio::test]
-async fn an_unusable_answer_names_why_and_what_kind_it_was() {
+async fn an_invalid_response_or_retryable_failure_never_triggers_another_request() {
     let mut refused = answer(PARAGRAPH, NormalizedStopReason::EndTurn);
-    refused.refusal = Some(ModelRefusal { message: "no".to_owned(), provider_code: None });
-    for (output, code, why) in [
-        (refused, "context.compaction.model_output_invalid.refusal", UnusableAnswer::Other),
+    refused.refusal = Some(ModelRefusal { message: "unavailable".into(), provider_code: None });
+    for (terminal, reason) in [
+        (answered(refused), "refusal"),
+        (answered(calling("")), "tool_calls"),
         (
-            answer(PARAGRAPH, NormalizedStopReason::MaxOutputTokens),
-            "context.compaction.model_output_invalid.stop_reason.max_output_tokens",
-            UnusableAnswer::Other,
+            answered(answer("<summary>unfinished", NormalizedStopReason::EndTurn)),
+            "incomplete_summary",
         ),
         (
-            answer("", NormalizedStopReason::EndTurn),
-            "context.compaction.model_output_invalid.no_text",
-            UnusableAnswer::Other,
+            answered(answer(PARAGRAPH, NormalizedStopReason::MaxOutputTokens)),
+            "stop_reason.max_output_tokens",
         ),
-        (
-            calling("Let me read the file first."),
-            "context.compaction.model_output_invalid.tool_calls",
-            UnusableAnswer::ToolCalls,
-        ),
+        (failed(true), "transport.request_timeout"),
+        (failed(false), "transport.request_timeout"),
     ] {
-        let factory = Factory::new(CompactionRequestShape::SessionPrefix, Some(false));
-        let caller = Caller::new(vec![answered(output)]);
-        let outcome =
-            execute_context_compaction(operation(), &factory, &caller, &Sink::default(), &Facts)
-                .await;
-        assert_eq!(failure_code(&outcome), code);
-        assert_eq!(
-            *factory.asked.lock().expect("asked"),
-            [FailedCompactionAttempt::UnusableAnswer { why }],
-            "{code}"
-        );
+        let caller = Caller::new(vec![terminal]);
+        let sink = Sink::default();
+        let outcome = execute_context_compaction(
+            operation(),
+            &Factory(CompactionRequestShape::SessionPrefix),
+            &caller,
+            &sink,
+            &Facts,
+        )
+        .await;
+        assert!(failure_code(&outcome).ends_with(reason));
+        assert_eq!(caller.calls.load(Ordering::SeqCst), 1);
+        assert!(sink.completed.lock().expect("valid compaction fixture and receipt").is_empty());
+        assert_eq!(sink.ended.lock().expect("valid compaction fixture and receipt").len(), 1);
     }
 }
 
@@ -482,7 +407,7 @@ async fn a_summary_between_its_tags_is_used_beside_a_tool_call_or_a_cut_off_end(
         calling(&tagged),
         answer(&format!("{tagged} And then"), NormalizedStopReason::MaxOutputTokens),
     ] {
-        let factory = Factory::new(CompactionRequestShape::SessionPrefix, Some(false));
+        let factory = Factory(CompactionRequestShape::SessionPrefix);
         let caller = Caller::new(vec![answered(output)]);
         let sink = Sink::default();
         let outcome =
@@ -495,66 +420,6 @@ async fn a_summary_between_its_tags_is_used_beside_a_tool_call_or_a_cut_off_end(
             "{outcome:?}"
         );
         assert_eq!(*sink.summaries.lock().expect("summaries"), [PARAGRAPH]);
-    }
-}
-
-/// A factory may ask again after each failure, up to the limit of attempts one compaction has.
-#[tokio::test]
-async fn a_factory_may_ask_again_until_the_attempt_limit() {
-    let factory = Factory::new(CompactionRequestShape::SessionPrefix, Some(true));
-    let limit = usize::from(aura_context_domain::MAX_COMPACTION_ATTEMPTS);
-    let caller = Caller::new((0..limit).map(|_| failed(true)).collect());
-    let sink = Sink::default();
-    let outcome = execute_context_compaction(operation(), &factory, &caller, &sink, &Facts).await;
-    assert!(
-        matches!(
-            &outcome,
-            ContextCompactionExecutionOutcome::Failed { completed_attempts, .. }
-                if usize::from(*completed_attempts) == limit
-        ),
-        "{outcome:?}"
-    );
-    assert_eq!(caller.calls.load(Ordering::SeqCst) as usize, limit);
-    assert_eq!(factory.asked.lock().expect("asked").len(), limit - 1, "not after the last");
-    assert_eq!(sink.retried.lock().expect("retried").len(), limit - 1);
-}
-
-/// A factory that leaves the decision to the trait asks again once, as before attempts could
-/// follow one another.
-#[tokio::test]
-async fn by_default_a_compaction_is_asked_again_once() {
-    let caller = Caller::new(vec![failed(true), failed(true), failed(true)]);
-    let outcome =
-        execute_context_compaction(operation(), &ByDefault, &caller, &Sink::default(), &Facts)
-            .await;
-    assert_eq!(failure_code(&outcome), "transport.request_timeout");
-    assert_eq!(caller.calls.load(Ordering::SeqCst), 2);
-}
-
-#[tokio::test]
-async fn by_default_an_unusable_answer_and_a_retryable_failure_are_asked_again_once() {
-    for (first, retried) in [
-        (answered(answer("", NormalizedStopReason::EndTurn)), true),
-        (failed(true), true),
-        (failed(false), false),
-    ] {
-        let factory = Factory::new(CompactionRequestShape::SessionPrefix, None);
-        let caller =
-            Caller::new(vec![first, answered(answer(PARAGRAPH, NormalizedStopReason::EndTurn))]);
-        let sink = Sink::default();
-        let outcome =
-            execute_context_compaction(operation(), &factory, &caller, &sink, &Facts).await;
-        let calls = caller.calls.load(Ordering::SeqCst);
-        if retried {
-            assert!(matches!(
-                outcome,
-                ContextCompactionExecutionOutcome::Completed { attempt_ordinal: 2, .. }
-            ));
-            assert_eq!((calls, sink.completed.lock().expect("completed").clone()), (2, vec![2]));
-        } else {
-            assert_eq!(failure_code(&outcome), "transport.request_timeout");
-            assert_eq!(calls, 1);
-        }
     }
 }
 

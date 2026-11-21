@@ -17,16 +17,19 @@ fn default_max_side() -> u32 {
 #[serde(deny_unknown_fields)]
 pub struct MediaFramesInput {
     pub path: String,
-    /// Exact requested seconds, in [0,duration); choose this or count, never both.
+    /// Frame times in seconds, from zero up to but excluding the duration. Use times or count.
     #[serde(default)]
+    #[schemars(length(min = 1, max = 12))]
     pub times: Option<Vec<f64>>,
-    /// Uniform interior samples: duration*(i+0.5)/count, 1..12.
+    /// Number of evenly spaced frames. Use count or times.
     #[serde(default)]
+    #[schemars(range(min = 1, max = 12))]
     pub count: Option<u32>,
     #[serde(default)]
     pub sheet: bool,
-    /// Longest side of each image, or the complete contact sheet: 64..2048, default 1024.
+    /// Longest side in pixels, including a contact sheet. Default 1024.
     #[serde(default = "default_max_side")]
+    #[schemars(range(min = 64, max = 2048))]
     pub max_side: u32,
 }
 

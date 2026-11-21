@@ -1,6 +1,4 @@
-//! Old tool results give their room back before history
-//! is summarized ([`aura_context_runtime::next_clearing_batch`]). This applies it to a step's
-//! history and to the section the request is built from.
+//! Preserve previously projected tool results and shorten completed tool inputs.
 use super::*;
 use std::collections::BTreeSet;
 
@@ -12,18 +10,6 @@ pub(super) fn keep_cleared(input: &mut ContextPreparationInput) -> anyhow::Resul
         .map(|snapshot| cleared_tool_results(&snapshot.conversation_items))
         .unwrap_or_default();
     apply(input, &kept)
-}
-
-/// Clears the next batch of a request that did not fit; how many results it held (0: none).
-/// `oversized`: a compaction pass has not made it fit, so a seen oversized result may go too.
-pub(super) fn clear_next(
-    input: &mut ContextPreparationInput,
-    budget: &ContextBudgetSnapshot,
-    oversized: bool,
-) -> anyhow::Result<usize> {
-    let batch = next_clearing_batch(&input.recent_history_items, planning_rate(budget), oversized);
-    apply(input, &batch)?;
-    Ok(batch.len())
 }
 
 /// A call's long text is not repeated once it has run
@@ -52,15 +38,4 @@ fn rebuild(input: &mut ContextPreparationInput) -> anyhow::Result<()> {
     history.fragments =
         input.recent_history_items.iter().map(history_fragment).collect::<anyhow::Result<_>>()?;
     Ok(())
-}
-
-/// The rate the request's estimate counted its bytes at, as compaction plans with it: one token a
-/// byte, or the provider's rate for the parts it was sent before.
-fn planning_rate(budget: &ContextBudgetSnapshot) -> (u64, u64) {
-    let bytes = budget.item_estimates.iter().map(|item| item.byte_length).sum::<u64>();
-    if bytes == 0 || budget.estimated_input_tokens >= bytes {
-        (1, 1)
-    } else {
-        (budget.estimated_input_tokens, bytes)
-    }
 }

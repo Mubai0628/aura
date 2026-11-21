@@ -13,6 +13,16 @@ use serde::{Deserialize, Serialize};
 /// deletion takes it along. A plugin reads the conversation's compactions from it in order.
 pub const COMPACTION_STATE: &str = "context.compaction_state";
 
+/// Mutable evidence visible to the summarizer. No source text is copied into these bindings.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum BackgroundSource {
+    Memory { global: bool, path: WorkspacePath, version: String },
+    File { path: WorkspacePath, version: ContentHash },
+    TeamReceipts { hash: ContentHash },
+    PrivateActivity { data_class: aura_security_contract::NetworkDataClass, hash: ContentHash },
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Compaction {
     pub id: ContextProjectionSnapshotId,
@@ -27,6 +37,8 @@ pub struct Compaction {
     pub source_artifact_id: ArtifactId,
     pub source_hash: ContentHash,
     pub excluded_event_ids: Vec<EventId>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub background_sources: Vec<BackgroundSource>,
     pub retained_recent_tokens: u64,
     pub retention_exceptions: Vec<ContextRetentionException>,
     pub attempts: Vec<CompactionModelAttemptRecord>,
@@ -71,13 +83,23 @@ pub fn latest(db: &Connection, session: SessionId) -> StoreResult<Option<Compact
     let raw: Option<String> = db.query_row("SELECT payload FROM context_compactions WHERE session_id=?1 AND state='completed' ORDER BY json_extract(payload,'$.sequence') DESC LIMIT 1", [session.to_string()], |r| r.get(0)).optional()?;
     raw.map(|s| record::decode(&s)).transpose()
 }
+pub fn existing_for_step(
+    db: &Connection,
+    session: SessionId,
+    step: ModelStepId,
+) -> StoreResult<Option<Compaction>> {
+    let raw: Option<String> = db.query_row("SELECT payload FROM context_compactions WHERE session_id=?1 AND json_extract(payload,'$.source_step_id')=?2 ORDER BY rowid DESC LIMIT 1", params![session.to_string(), step.to_string()], |row| row.get(0)).optional()?;
+    raw.as_deref().map(record::decode).transpose()
+}
+
 pub fn next_sequence(db: &Connection, session: SessionId) -> StoreResult<u32> {
     let value: i64 = db.query_row("SELECT COALESCE(MAX(json_extract(payload,'$.sequence')),0)+1 FROM context_compactions WHERE session_id=?1", [session.to_string()], |r| r.get(0))?;
     value.try_into().map_err(|_| Error::Conflict)
 }
 pub fn begin(tx: &Transaction<'_>, value: &Compaction, sources: &[u8]) -> StoreResult<()> {
     validate_owner(tx, value)?;
-    if value.sequence != next_sequence(tx, value.session_id)?
+    if existing_for_step(tx, value.session_id, value.source_step_id)?.is_some()
+        || value.sequence != next_sequence(tx, value.session_id)?
         || value.revision != Revision::INITIAL
         || value.state != "running"
         || !value.attempts.is_empty()
@@ -275,10 +297,6 @@ pub fn usage(db: &Connection, run: AgentRunId) -> StoreResult<(u64, u64)> {
     }
     Ok((tokens, turns))
 }
-#[expect(
-    clippy::too_many_arguments,
-    reason = "Explicit terminal evidence and retry disposition update one exact compaction attempt atomically"
-)]
 pub fn finish_attempt(
     tx: &Transaction<'_>,
     id: ContextProjectionSnapshotId,
@@ -286,7 +304,6 @@ pub fn finish_attempt(
     state: CompactionModelAttemptState,
     transport: Option<TransportAttemptId>,
     error: Option<String>,
-    retry: bool,
     at: UtcTimestamp,
 ) -> StoreResult<()> {
     let old = load(tx, id)?;
@@ -303,24 +320,21 @@ pub fn finish_attempt(
     a.transport_attempt_id = transport;
     a.error_code = error;
     a.terminal_at = Some(at);
-    if !retry {
-        next.state =
-            if state == CompactionModelAttemptState::Cancelled { "cancelled" } else { "failed" }
-                .into();
-        super::manual_compaction::finish_linked(
-            tx,
-            &old,
-            if state == CompactionModelAttemptState::Cancelled {
-                ManualCompactionRequestState::Cancelled
-            } else {
-                ManualCompactionRequestState::Failed
-            },
-            a.error_code.clone(),
-            at,
-        )?;
-    }
+    next.state =
+        if state == CompactionModelAttemptState::Cancelled { "cancelled" } else { "failed" }.into();
+    super::manual_compaction::finish_linked(
+        tx,
+        &old,
+        if state == CompactionModelAttemptState::Cancelled {
+            ManualCompactionRequestState::Cancelled
+        } else {
+            ManualCompactionRequestState::Failed
+        },
+        a.error_code.clone(),
+        at,
+    )?;
     save(tx, &old, &mut next)?;
-    if retry { Ok(()) } else { told(tx, &next, at) }
+    told(tx, &next, at)
 }
 pub fn complete(
     tx: &Transaction<'_>,
@@ -377,46 +391,6 @@ pub fn complete(
     compacted(tx, &old, at)
 }
 
-/// Core's own summary for a compaction whose model attempts all failed: the history still leaves
-/// the request, and the failed attempts stay recorded. Only Core's own compaction falls back; one
-/// the user asked for reports its failure instead.
-pub fn complete_by_core(
-    tx: &Transaction<'_>,
-    id: ContextProjectionSnapshotId,
-    result: ContextReadCompactionResult,
-    at: UtcTimestamp,
-) -> StoreResult<()> {
-    let old = load(tx, id)?;
-    validate_owner(tx, &old)?;
-    if old.state != "failed"
-        || old.attempts.is_empty()
-        || old.attempts.iter().any(|a| a.state == CompactionModelAttemptState::Running)
-        || result.source_context_snapshot_id != id
-        || result.sequence != old.sequence
-        || result.source_span != old.source_span
-        || result.anchor_manifest != old.anchors
-        || super::manual_compaction::linked(tx, &old)?
-    {
-        return Err(Error::Conflict);
-    }
-    let artifact_id = ArtifactId::new();
-    artifact::put(
-        tx,
-        artifact_id,
-        &id.to_string(),
-        "application/vnd.aura.compaction+json",
-        &serde_json::to_vec(&result)?,
-        at,
-    )?;
-    let mut next = old.clone();
-    next.result = Some(result);
-    next.result_artifact_id = Some(artifact_id);
-    next.state = "completed".into();
-    save(tx, &old, &mut next)?;
-    told(tx, &next, at)?;
-    compacted(tx, &old, at)
-}
-
 /// The turn's lineage learns its history was compacted.
 fn compacted(tx: &Transaction<'_>, old: &Compaction, at: UtcTimestamp) -> StoreResult<()> {
     let run = crate::agent::turns::load_run(tx, old.agent_run_id)?;
@@ -438,14 +412,28 @@ fn compacted(tx: &Transaction<'_>, old: &Compaction, at: UtcTimestamp) -> StoreR
     }
     Ok(())
 }
-pub fn interrupt_run(tx: &Transaction<'_>, run: AgentRunId, at: UtcTimestamp) -> StoreResult<()> {
-    super::manual_compaction::cancel_run(tx, run, "context.compaction_interrupted", at)?;
+mod recovery;
+pub use recovery::recover_received;
+
+pub fn interrupt_run(
+    tx: &Transaction<'_>,
+    run: AgentRunId,
+    recover_settled: bool,
+    at: UtcTimestamp,
+) -> StoreResult<()> {
     let mut q=tx.prepare("SELECT id FROM context_compactions WHERE state='running' AND json_extract(payload,'$.agent_run_id')=?1")?;
     let ids = q
         .query_map([run.to_string()], |r| r.get::<_, String>(0))?
         .collect::<Result<Vec<_>, _>>()?;
     for id in ids {
         let old = load(tx, id.parse().map_err(|_| Error::Conflict)?)?;
+        if recover_settled
+            && old.background_sources.is_empty()
+            && validate_owner(tx, &old).is_ok()
+            && recover_received(tx, &old, at)?
+        {
+            continue;
+        }
         let mut next = old.clone();
         next.state = "interrupted".into();
         if let Some(a) =
@@ -458,5 +446,6 @@ pub fn interrupt_run(tx: &Transaction<'_>, run: AgentRunId, at: UtcTimestamp) ->
         save(tx, &old, &mut next)?;
         told(tx, &next, at)?;
     }
+    super::manual_compaction::cancel_run(tx, run, "context.compaction_interrupted", at)?;
     Ok(())
 }

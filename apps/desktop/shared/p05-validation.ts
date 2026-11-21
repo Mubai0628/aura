@@ -435,12 +435,16 @@ const isProfileUpdateRequest = (value: unknown): boolean =>
       'model_profile_id',
       'request_defaults',
     ],
-    ['notes'],
+    ['notes', 'summary_length_mode'],
   ) &&
   typeof value.display_name === 'string' &&
   typeof value.enabled === 'boolean' &&
   isRevision(value.expected_revision) &&
   isSafeUnsigned(value.historical_snapshot_max_tokens) &&
+  (value.summary_length_mode === undefined ||
+    value.summary_length_mode === null ||
+    value.summary_length_mode === 'auto' ||
+    value.summary_length_mode === 'custom') &&
   isAuraId(value.model_profile_id, 'mdl') &&
   isOptionalNullableString(value.notes) &&
   isRequestDefaults(value.request_defaults);

@@ -1,7 +1,4 @@
-//! A compaction the model cannot answer never ends the turn: when both attempts fail, Core's own
-//! short summary takes the history's place, so the request still makes room and the turn goes on.
-//! Every compaction here is answered far past the length it was asked for, as a real model did
-//! twice in a row.
+//! A complete background can be longer than its suggestion, including in a running tool loop.
 use super::l10_15_compaction::{compactions, start};
 use super::l10_19_compaction::{
     PARKED_WITHIN, asks_compaction, before_the_third, last_two_steps, resize,
@@ -24,7 +21,7 @@ pub(super) fn completed(runtime: &crate::RuntimeState, session: SessionId) -> us
 }
 
 #[tokio::test]
-async fn a_compaction_the_model_cannot_answer_leaves_cores_summary_and_the_turn_goes_on() {
+async fn a_long_model_summary_replaces_history_without_a_second_request() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario_with_long_compactions(Scenario::CompactOnPrefix).await;
     let (runtime, session, model) = before_the_third(&host, &provider, 64_000).await;
@@ -32,20 +29,23 @@ async fn a_compaction_the_model_cannot_answer_leaves_cores_summary_and_the_turn_
     waiting::wait(&runtime, &third, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
     assert_eq!(compactions(&runtime, session), 1, "one pass was recorded");
-    assert_eq!(completed(&runtime, session), 1, "and Core's summary completed it");
+    assert_eq!(completed(&runtime, session), 1, "the full model background was committed");
     let requests = provider.requests.lock().expect("provider requests").clone();
-    assert_eq!(requests.iter().filter(|request| asks_compaction(request)).count(), 2);
+    assert_eq!(requests.iter().filter(|request| asks_compaction(request)).count(), 1);
     let after = requests
         .iter()
         .rfind(|request| !asks_compaction(request))
         .expect("the step's request after the compaction")
         .to_string();
-    assert!(after.contains("moved out of the context without a new summary"), "{after}");
-    assert!(after.contains("history.search"), "where the history went: {after}");
+    assert!(!after.contains("moved out of the context without a new summary"));
+    assert!(
+        after.contains("Everything that happened, retold at length."),
+        "the provider summary is used in the next request"
+    );
 }
 
 #[tokio::test]
-async fn a_compaction_the_model_cannot_answer_in_a_long_turn_still_lets_it_finish() {
+async fn a_long_model_background_keeps_the_tool_loop_running() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario_with_long_compactions(Scenario::ClearOldResults).await;
     let (runtime, session, model) =
@@ -73,7 +73,7 @@ async fn a_compaction_the_model_cannot_answer_in_a_long_turn_still_lets_it_finis
     waiting::wait(&runtime, &run, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
         .await;
     assert_eq!(compactions(&runtime, session), 1, "one pass was recorded");
-    assert_eq!(completed(&runtime, session), 1, "Core's summary completed it");
+    assert_eq!(completed(&runtime, session), 1, "the model background was committed");
     let requests = provider.requests.lock().expect("provider requests").clone();
-    assert_eq!(requests.iter().filter(|request| asks_compaction(request)).count(), 2);
+    assert_eq!(requests.iter().filter(|request| asks_compaction(request)).count(), 1);
 }

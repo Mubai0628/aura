@@ -61,26 +61,7 @@ macro_rules! define_id {
             type Err = IdParseError;
 
             fn from_str(value: &str) -> Result<Self, Self::Err> {
-                let body = value.strip_prefix(concat!($prefix, "_")).ok_or(
-                    IdParseError::InvalidPrefix { expected_prefix: $prefix },
-                )?;
-
-                if body.len() != 26
-                    || !body.bytes().all(|byte| {
-                        byte.is_ascii_digit()
-                            || matches!(byte, b'A'..=b'H' | b'J'..=b'N' | b'P'..=b'T' | b'V'..=b'Z')
-                    })
-                {
-                    return Err(IdParseError::InvalidBody);
-                }
-
-                let parsed = body.parse::<Ulid>().map_err(|error| IdParseError::InvalidUlid {
-                    message: error.to_string(),
-                })?;
-                if parsed.to_string() != body {
-                    return Err(IdParseError::InvalidBody);
-                }
-                Ok(Self(parsed))
+                crate::parse_typed_ulid(value, $prefix).map(Self)
             }
         }
 

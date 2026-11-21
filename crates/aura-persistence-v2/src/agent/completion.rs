@@ -11,6 +11,9 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult};
 use aura_tool_contract::*;
 use rusqlite::{Connection, Transaction};
 
+mod compaction_command;
+pub use compaction_command::finish_compaction_command;
+
 /// A Normal turn ended by the model's own final response.
 ///
 /// Every precondition is read and re-checked inside the caller's transaction and

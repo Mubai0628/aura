@@ -134,3 +134,19 @@ test('a window that could not be saved keeps the dialog open and says the rest w
   expect(onNotify.mock.calls.at(-1)![0].message).toContain('其他设置已保存');
   expect(onClose).not.toHaveBeenCalled();
 });
+
+test('the migrated default follows the window; explicitly choosing 1024 saves a custom target', async () => {
+  const user = userEvent.setup();
+  dialog({ effective: 128_000 });
+  const mode = screen.getByRole('combobox', { name: '压缩摘要建议长度' });
+  expect((mode as HTMLSelectElement).value).toBe('auto');
+  expect(mode.textContent).toMatch(/3,?840/);
+  await user.selectOptions(mode, 'custom');
+  await save(user);
+  expect(update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      historical_snapshot_max_tokens: 1024,
+      summary_length_mode: 'custom',
+    }),
+  );
+});

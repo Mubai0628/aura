@@ -177,6 +177,7 @@ impl Fixture {
                 runtime_corrected_window_tokens: None,
                 runtime_correction_basis: None,
                 runtime_effective_window_tokens: DEFAULT_MODEL_CONTEXT_WINDOW_TOKENS,
+                summary_length_mode: None,
                 historical_snapshot_max_tokens: DEFAULT_HISTORICAL_SNAPSHOT_MAX_TOKENS,
             },
             request_defaults: ModelRequestDefaults {

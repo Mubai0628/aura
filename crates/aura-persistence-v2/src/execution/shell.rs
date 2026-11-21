@@ -120,14 +120,16 @@ pub fn query(
         operation_for_call(db, session, input.tool_call_id).map_err(not_a_shell_call)?;
     let call = crate::tool::execution::call(db, input.tool_call_id)?;
     let reference = call.call.definition_ref.as_ref().ok_or(Error::Conflict)?;
-    let aura_tool_contract::NormalizedToolCallInputStateV1::Ready { arguments, .. } =
-        &call.call.input
-    else {
-        return Err(Error::Invalid("invalid original shell input"));
+    let original = || -> StoreResult<ShellExecuteInput> {
+        let aura_tool_contract::NormalizedToolCallInputStateV1::Ready { arguments, .. } =
+            &call.call.input
+        else {
+            return Err(Error::Invalid("invalid original shell input"));
+        };
+        Ok(serde_json::from_value(arguments.clone())?)
     };
-    let original_input: ShellExecuteInput = serde_json::from_value(arguments.clone())?;
-    let command: ManagedShellCommand = if let Some(operation) = &operation {
-        serde_json::from_value(operation.content.action.clone())?
+    let (original_input, command): (_, ManagedShellCommand) = if let Some(operation) = &operation {
+        (original()?, serde_json::from_value(operation.content.action.clone())?)
     } else {
         let registry =
             crate::tool::registry(db, reference.registry_snapshot_ref.tool_registry_snapshot_id)?
@@ -142,7 +144,22 @@ pub fn query(
             "shell.cmd" => ManagedShell::Cmd,
             _ => return Err(Error::Invalid(NOT_A_SHELL_CALL)),
         };
-        original_input.clone().command(shell).map_err(|_| Error::Invalid("original shell input"))?
+        if call.result.as_ref().is_some_and(|r| {
+            matches!(
+                r.outcome,
+                aura_tool_contract::ToolResultOutcomeV1::NotExecuted {
+                    reason: aura_tool_contract::ToolNotExecutedReasonV1::SchemaValidationFailed,
+                    ..
+                }
+            )
+        }) {
+            return Err(Error::Invalid(
+                "shell.tool_call_id: the Shell arguments were rejected before execution. No process or output exists for this call.",
+            ));
+        }
+        let input = original()?;
+        let command = input.command(shell).map_err(|_| Error::Invalid("original shell input"))?;
+        (input, command)
     };
     let mut view = ShellExecutionView {
         tool_call_id: input.tool_call_id,

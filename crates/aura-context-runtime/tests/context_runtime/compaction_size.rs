@@ -1,8 +1,7 @@
-//! A compaction answer is measured by its summary text and refused only well past its target.
+//! Legacy structured backgrounds retain anchor validation and accept any complete narrative length.
 use aura_context_domain::{CompactionAnchorKind, CompactionAnchorManifest, ContextSourceRef};
 use aura_context_runtime::{
-    CompactionSourceDraft, CompactionValidationError, build_anchor_manifest,
-    compaction_output_too_large, compaction_summary_characters,
+    CompactionSourceDraft, build_anchor_manifest, compaction_summary_characters,
     parse_and_validate_compaction_output,
 };
 use aura_domain_common::{ContentHash, EventId};
@@ -44,13 +43,6 @@ fn the_headings_and_the_truth_index_do_not_count() {
     assert!(text.chars().count() > 2_000 + 62 * 9, "the whole answer is longer");
 }
 
-#[test]
-fn an_answer_is_refused_only_past_four_times_its_target() {
-    assert!(!compaction_output_too_large(&answer(62, 16_384), TARGET));
-    assert!(compaction_output_too_large(&answer(62, 16_385), TARGET));
-    assert!(!compaction_output_too_large(&answer(0, 100), TARGET));
-}
-
 /// The four answers a real session refused (summary text 3,222–5,579 characters, Truth-Index up to
 /// 730) are accepted, through the same validation a compaction runs.
 #[test]
@@ -64,6 +56,6 @@ fn the_answers_a_real_session_refused_are_accepted() {
     assert_eq!(
         parse_and_validate_compaction_output(&far_too_long, TARGET, &manifest(10), true)
             .map(|_| ()),
-        Err(CompactionValidationError::OutputTooLarge)
+        Ok(())
     );
 }

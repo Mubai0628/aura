@@ -502,7 +502,15 @@ impl AgentApplication {
             agent_run_id: turn.agent_run_id,
         };
         let previous = exposure::load(db, &scope)?;
-        let purpose = aura_persistence_v2::agent::application::purpose(db, turn.agent_run_id)?;
+        let actual_purpose =
+            aura_persistence_v2::agent::application::purpose(db, turn.agent_run_id)?;
+        // A standalone summary uses this session's ordinary, permission-filtered declarations
+        // so the provider can reuse its prefix. The summary executor never dispatches a tool.
+        let purpose = if actual_purpose == AgentTaskPurpose::Compaction {
+            AgentTaskPurpose::Conversation
+        } else {
+            actual_purpose
+        };
         let dynamic = session_tools::load(db, turn.session_id)?;
         let (settings, mut fixed) = self.tool_configuration()?;
         let release = aura_tool_registry::agent_release::release()?;

@@ -19,6 +19,7 @@ pub struct TransportRetryPolicy {
     /// False while another connection waits for this request; a temporary failure goes
     /// there at once instead of being retried here.
     retry_temporary: bool,
+    max_attempts: u32,
 }
 
 impl TransportRetryPolicy {
@@ -28,7 +29,13 @@ impl TransportRetryPolicy {
         max_backoff: Duration,
         max_retry_after: Duration,
     ) -> Self {
-        Self { base_backoff, max_backoff, max_retry_after, retry_temporary: true }
+        Self {
+            base_backoff,
+            max_backoff,
+            max_retry_after,
+            retry_temporary: true,
+            max_attempts: MAX_TRANSPORT_ATTEMPTS,
+        }
     }
 
     /// The request has a backup connection, so a
@@ -36,6 +43,11 @@ impl TransportRetryPolicy {
     #[must_use]
     pub const fn without_temporary_retries(self) -> Self {
         Self { retry_temporary: false, ..self }
+    }
+
+    #[must_use]
+    pub const fn single_request(self) -> Self {
+        Self { max_attempts: 1, ..self }
     }
 
     #[must_use]
@@ -53,7 +65,7 @@ impl TransportRetryPolicy {
         endpoint_fingerprint_changed: bool,
         jitter: Duration,
     ) -> RetryDecision {
-        if attempt_number >= MAX_TRANSPORT_ATTEMPTS
+        if attempt_number >= self.max_attempts
             || emitted_valid_event
             || cancelled
             || endpoint_fingerprint_changed

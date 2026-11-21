@@ -991,6 +991,11 @@ export type ModelDiscoveryStage = 'requesting' | 'parsing' | 'enriching_catalog'
 export type CatalogMatchState = 'matched' | 'unmatched' | 'ambiguous';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "SummaryLengthMode".
+ */
+export type SummaryLengthMode = 'auto' | 'custom';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ModelProfileOrigin".
  */
 export type ModelProfileOrigin = 'discovered' | 'manual';
@@ -10718,6 +10723,19 @@ export interface PromptInspectorReductionView {
   cleared_tool_results: number;
   compacted: boolean;
   input_tokens_before: number;
+  summary_cache?: CompactionCacheUsage | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "CompactionCacheUsage".
+ */
+export interface CompactionCacheUsage {
+  reported_cached_tokens?: number | null;
+  reported_input_tokens?: number | null;
+  /**
+   * Estimated input shared with the normal request frozen for this step.
+   */
+  reusable_prefix_tokens: number;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -11705,6 +11723,7 @@ export interface ModelContextWindowConfig {
   runtime_corrected_window_tokens?: number | null;
   runtime_correction_basis?: RuntimeWindowCorrectionBasis | null;
   runtime_effective_window_tokens: number;
+  summary_length_mode?: SummaryLengthMode | null;
   user_override_revision: number;
   user_override_window_tokens?: number | null;
 }
@@ -12148,6 +12167,7 @@ export interface ModelProfileUpdateRequest {
   model_profile_id: ModelProfileId;
   notes?: string | null;
   request_defaults: ModelRequestDefaults;
+  summary_length_mode?: SummaryLengthMode | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -20109,6 +20129,10 @@ export interface AgentToolActivityPage {
   calls: AgentToolActivityEntry[];
   next_before_call_id?: ToolCallId | null;
   session_id: SessionId;
+  /**
+   * Session-owned calls found in storage whose activity could not be read.
+   */
+  unreadable_call_ids?: ToolCallId[];
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -21450,7 +21474,7 @@ export interface BrowserSettingsUpdate {
  */
 export interface BrowserSnapshotInput {
   /**
-   * Longest snapshot to return, in characters (default 12000, at most 60000).
+   * Snapshot length in characters. Default 12000, clamped to 2000–60000.
    */
   max_chars?: number | null;
   /**
@@ -21794,7 +21818,7 @@ export interface ChromeConsoleInput {
    */
   level?: ChromeConsoleLevel | null;
   /**
-   * The latest this many entries (default 50, at most 200).
+   * Number of recent entries. Default 50, clamped to 1–500.
    */
   max_entries?: number | null;
   /**
@@ -21936,7 +21960,7 @@ export interface ChromePairingCode {
  */
 export interface ChromePressInput {
   /**
-   * Keep it held this long, in milliseconds, as a game expects (at most 3000).
+   * Key hold in milliseconds. Default 0, capped at 5000.
    */
   hold_ms?: number | null;
   /**
@@ -21944,7 +21968,7 @@ export interface ChromePressInput {
    */
   key: string;
   /**
-   * Press it this many times (default 1, at most 20).
+   * Key presses. Default 1, clamped to 1–50.
    */
   repeat?: number | null;
   /**
@@ -22014,7 +22038,7 @@ export interface ChromeScreenshotResult {
  */
 export interface ChromeScrollInput {
   /**
-   * How far, in CSS pixels (default 600).
+   * Scroll distance in viewport widths or heights. Default 1, clamped to 1–20.
    */
   amount?: number | null;
   direction: ChromeScrollDirection;
@@ -22104,7 +22128,7 @@ export interface ChromeSetEnabledRequest {
  */
 export interface ChromeSnapshotInput {
   /**
-   * Longest snapshot to return, in characters (default 12000, at most 60000).
+   * Snapshot length in characters. Default 12000, clamped to 2000–60000.
    */
   max_chars?: number | null;
   /**
@@ -22232,11 +22256,11 @@ export interface ChromeWaitInput {
    */
   text_gone?: string | null;
   /**
-   * Or simply wait this long, in milliseconds (at most 10000).
+   * Initial delay in milliseconds, capped at 60000.
    */
   time_ms?: number | null;
   /**
-   * Give up after this long, in milliseconds (default 10000, at most 30000).
+   * Text wait in milliseconds. Default 10000, clamped to 100–60000.
    */
   timeout_ms?: number | null;
 }
@@ -24470,19 +24494,48 @@ export interface MediaFrameResult {
  */
 export interface MediaFramesInput {
   /**
-   * Uniform interior samples: duration*(i+0.5)/count, 1..12.
+   * Number of evenly spaced frames. Use count or times.
    */
   count?: number | null;
   /**
-   * Longest side of each image, or the complete contact sheet: 64..2048, default 1024.
+   * Longest side in pixels, including a contact sheet. Default 1024.
    */
   max_side?: number;
   path: string;
   sheet?: boolean;
   /**
-   * Exact requested seconds, in [0,duration); choose this or count, never both.
+   * Frame times in seconds, from zero up to but excluding the duration. Use times or count.
+   *
+   * @minItems 1
+   * @maxItems 12
    */
-  times?: number[] | null;
+  times?:
+    | [number]
+    | [number, number]
+    | [number, number, number]
+    | [number, number, number, number]
+    | [number, number, number, number, number]
+    | [number, number, number, number, number, number]
+    | [number, number, number, number, number, number, number]
+    | [number, number, number, number, number, number, number, number]
+    | [number, number, number, number, number, number, number, number, number]
+    | [number, number, number, number, number, number, number, number, number, number]
+    | [number, number, number, number, number, number, number, number, number, number, number]
+    | [
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+        number,
+      ]
+    | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -26938,9 +26991,7 @@ export interface SessionReplyReceipt {
  */
 export interface ShellExecuteInput {
   /**
-   * Default 65536. Bytes of stdout and of stderr kept, up to 1048576. A command that writes
-   * more is stopped then, and its result says so (stop_reason output_limit) with the output
-   * kept; send large output to a file and read that instead.
+   * Default 65536. Byte limit per stream (stdout and stderr). Exceeding it stops the command.
    */
   max_output_bytes?: number;
   /**
@@ -26965,9 +27016,7 @@ export interface ShellExecuteInput {
    */
   stdin?: string;
   /**
-   * Default 120000. After this many milliseconds Aura stops the whole process tree.
-   * The tool time limit in Tool settings (default 10 minutes, at most 30 minutes) also
-   * ends the call, so a value above that limit does not help. At most 86400000.
+   * Default 120000. Process-tree timeout in milliseconds. The tool time limit also applies.
    */
   timeout_ms?: number;
   /**
@@ -27012,7 +27061,7 @@ export interface ShellExecutionView {
  */
 export interface ShellQueryInput {
   /**
-   * Bytes per page. Default 65536.
+   * Bytes to read per stream. Default 65536.
    */
   max_bytes?: number;
   /**

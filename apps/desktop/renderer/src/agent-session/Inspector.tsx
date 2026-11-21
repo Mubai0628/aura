@@ -53,6 +53,7 @@ export function Inspector({
   // reported their cache use, together.
   const total =
     view.session_cache && view.session_cache.input_tokens > 0 ? view.session_cache : undefined;
+  const summary = projection.reduction?.summary_cache;
   const thisStep = hit ? share(hit.cached, hit.input) : input == null ? '未完成' : '未报告';
   // Without the conversation's figures (an older Core), the step's own.
   const shownCache = total ? { cached: total.cached_input_tokens, input: total.input_tokens } : hit;
@@ -98,6 +99,16 @@ export function Inspector({
           </>
         ) : null}
         {total ? <p className="pixel-caption">本步 {thisStep}</p> : null}
+        {summary && (
+          <p className="pixel-caption">
+            与普通请求共享的前缀约 {amount(summary.reusable_prefix_tokens)} tokens
+            {' · '}摘要缓存{' '}
+            {summary.reported_cached_tokens == null || !summary.reported_input_tokens
+              ? '未报告'
+              : `${amount(summary.reported_cached_tokens)} / ${amount(summary.reported_input_tokens)}（${share(summary.reported_cached_tokens, summary.reported_input_tokens)}）`}
+            {' · '}压缩后首步 {thisStep}
+          </p>
+        )}
       </PixelCard>
       {projection.sections.length ? (
         <PixelCard title="模块">

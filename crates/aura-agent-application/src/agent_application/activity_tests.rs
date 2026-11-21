@@ -1,5 +1,5 @@
 //! Directed tests: the dynamic activity fragment, its freeze-once contract, and
-//! the summary-source exclusion.
+//! the scope of private activity included during compaction.
 //!
 //! These tests drive the real compilation and compaction-selection code paths. Where a test
 //! needs an assembled request it uses the same `ContextPreparationInput` shape the production
@@ -11,18 +11,15 @@ use aura_activity_domain::{
 };
 use aura_activity_runtime::{ActivitySummary, ActivitySummaryRow};
 use aura_context_domain::ContextSourceRef;
-use aura_context_domain::{
-    ContextCompressibility, ContextPrivacyClass, ContextSectionKind, ModelEgressSourceKind,
-    PromptInspectorActivityView,
-};
-use aura_context_runtime::{ContextFragment, ContextSectionInput};
+use aura_context_domain::{ContextSectionKind, ModelEgressSourceKind, PromptInspectorActivityView};
+use aura_context_runtime::ContextFragment;
 use aura_domain_common::{
-    ContentHash, ModelStepId, Revision, RuntimeInstanceId, SessionId, ToolId, UtcTimestamp,
+    ModelStepId, Revision, RuntimeInstanceId, SessionId, ToolId, UtcTimestamp,
 };
 use aura_security_contract::NetworkDataClass;
 
 /// The state kind the activity fragment uses. It is asserted literally so a rename cannot
-/// silently break the exclusion rule without failing a test.
+/// silently change the source classification.
 const ACTIVITY_STATE_KIND: &str = "agent.activity_index.v1";
 /// The substring that proves a body really contains dynamic activity. It is the header the
 /// fragment renders, which no control fact contains.
@@ -52,15 +49,6 @@ fn control_fragment(body: &str) -> ContextFragment {
         data_class: NetworkDataClass::PublicContent,
         authorization_basis: aura_context_domain::ModelEgressAuthorizationBasis::ModelChannelPolicy,
         content: body.to_owned(),
-    }
-}
-
-fn task_state_section(fragments: Vec<ContextFragment>) -> ContextSectionInput {
-    ContextSectionInput {
-        kind: ContextSectionKind::CurrentTaskState,
-        fragments,
-        compressibility: ContextCompressibility::NeverCompress,
-        privacy_class: ContextPrivacyClass::ModelVisible,
     }
 }
 
@@ -118,98 +106,27 @@ fn the_section_kind_count_is_unchanged_at_twelve() {
 }
 
 // ---------------------------------------------------------------------------
-// C-2: the summary excludes the dynamic source before concat, hash and manifest
-// ---------------------------------------------------------------------------
-
+// Private activity shown to a full-context summary must remain authorized to reuse it.
 #[test]
-fn compaction_excludes_the_activity_source_before_concatenation() {
-    use super::compaction::is_dynamic_runtime_source;
-
-    let control = control_fragment(r#"{"state_revision":"2"}"#);
-    let activity = activity_fragment("sampled_at=T runtime=run_x revision=3 coverage=complete");
-    assert!(
-        !is_dynamic_runtime_source(&control),
-        "the control fact is kept: the summary legitimately needs it"
-    );
-    assert!(
-        is_dynamic_runtime_source(&activity),
-        "the activity fragment is the dynamic source compaction must exclude"
-    );
-
-    // The concatenation the compaction instruction envelope performs, with the real filter.
-    let section = task_state_section(vec![control, activity]);
-    let concatenated = section
-        .fragments
-        .iter()
-        .filter(|fragment| !is_dynamic_runtime_source(fragment))
-        .map(|fragment| fragment.content.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        concatenated.contains("state_revision"),
-        "the control fact reaches the summary request"
-    );
-    assert!(
-        !concatenated.contains(ACTIVITY_MARKER),
-        "the dynamic marker is absent from the concatenated summary sources"
-    );
-    // The hash is taken over the concatenation, so excluding before hashing is what makes the
-    // hash and everything derived from it clean.
-    let hash = ContentHash::sha256(concatenated.as_bytes());
-    let unfiltered_hash = ContentHash::sha256(
-        section
-            .fragments
-            .iter()
-            .map(|fragment| fragment.content.as_str())
-            .collect::<Vec<_>>()
-            .join("\n")
-            .as_bytes(),
-    );
-    assert_ne!(
-        hash, unfiltered_hash,
-        "the filtered hash differs from the unfiltered one, so the exclusion really happened before hashing"
-    );
-}
-
-#[test]
-fn a_relabelled_fragment_cannot_smuggle_the_activity_into_the_summary() {
-    use super::compaction::is_dynamic_runtime_source;
-
-    // Counterexample: a fragment that carries the dynamic body but claims to be Core-owned.
-    let mut disguised =
-        activity_fragment("sampled_at=T runtime=run_x revision=3 coverage=complete");
-    disguised.source_kind = ModelEgressSourceKind::AuraCore;
-    assert!(
-        is_dynamic_runtime_source(&disguised),
-        "the known runtime identity keeps a relabelled activity out of compaction"
-    );
-
-    // And the real one is still excluded, so the disguise does not disable the rule itself.
-    let genuine = activity_fragment("sampled_at=T runtime=run_x revision=3 coverage=complete");
-    assert!(is_dynamic_runtime_source(&genuine));
-    let published = activity_fragment("body");
-    assert_eq!(published.source_kind, ModelEgressSourceKind::ActivityIndex);
-}
-
-#[test]
-fn an_activity_kind_cannot_enter_compaction_with_an_event_reference() {
-    use super::compaction::is_dynamic_runtime_source;
-    let mut fragment = activity_fragment("volatile activity");
-    fragment.source_ref = ContextSourceRef::Event { event_id: aura_domain_common::EventId::new() };
-    assert!(is_dynamic_runtime_source(&fragment));
-    assert!(!is_dynamic_runtime_source(&control_fragment("stable control")));
-}
-
-#[test]
-fn a_control_only_section_is_still_fully_included() {
-    use super::compaction::is_dynamic_runtime_source;
-
-    // The exclusion must not be a blanket removal of the whole section: a runtime with no
-    // activity still sends its control facts.
-    let section = task_state_section(vec![control_fragment(r#"{"state_revision":"5"}"#)]);
-    let kept =
-        section.fragments.iter().filter(|fragment| !is_dynamic_runtime_source(fragment)).count();
-    assert_eq!(kept, 1, "the control fact survives when there is no activity fragment");
+fn compaction_binds_private_activity_even_if_one_of_its_source_labels_changes() {
+    use super::compaction::dependencies::scoped_activity;
+    let mut f = activity_fragment("private case 1");
+    assert!(scoped_activity(&f).is_none(), "public timestamps do not invalidate every step");
+    let personal = ContextSourceRef::RuntimeState {
+        state_kind: "agent.activity_index.personal.v1".into(),
+        state_revision: Revision::new(1),
+    };
+    f.source_ref = personal;
+    let previous = scoped_activity(&f).expect("classified by source");
+    f.source_kind = ModelEgressSourceKind::AuraCore;
+    assert_eq!(scoped_activity(&f), Some(previous.clone()));
+    f.content = "private case 2".into();
+    assert_ne!(scoped_activity(&f), Some(previous));
+    f.source_ref = ContextSourceRef::Event { event_id: aura_domain_common::EventId::new() };
+    f.source_kind = ModelEgressSourceKind::ActivityIndex;
+    f.data_class = NetworkDataClass::PersonalData;
+    assert!(scoped_activity(&f).is_some(), "classified by the publisher and data class");
+    assert!(scoped_activity(&control_fragment("control")).is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -434,11 +351,11 @@ fn activity_private_sources_remain_classified_and_the_real_render_is_bounded() {
             .find(|fragment| fragment.data_class == class)
             .expect("the two actual source classes stay distinct");
         assert!(private.content.contains("private-canary"));
-        assert!(super::compaction::is_dynamic_runtime_source(private));
+        assert!(super::compaction::dependencies::scoped_activity(private).is_some());
         let mut relabelled = private.clone();
         relabelled.source_kind = ModelEgressSourceKind::AuraCore;
         assert!(
-            super::compaction::is_dynamic_runtime_source(&relabelled),
+            super::compaction::dependencies::scoped_activity(&relabelled).is_some(),
             "the private runtime identity cannot smuggle dynamic data into compaction"
         );
     }

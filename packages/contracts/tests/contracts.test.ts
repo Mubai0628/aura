@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import type { AnySchema } from 'ajv';
-import { describe, expect, test } from 'vitest';
+import type { AnySchema, ValidateFunction } from 'ajv';
+import { beforeAll, describe, expect, test } from 'vitest';
 
 import { ensureContractCompatibility } from '../src/compatibility.js';
 import type {
@@ -20,12 +20,16 @@ const loadJson = async <Value = unknown>(relativePath: string): Promise<Value> =
   JSON.parse(await readFile(resolve(workspaceRoot, relativePath), 'utf8')) as Value;
 
 describe('canonical contracts', () => {
-  test('validates and round-trips the Rust fixture', async () => {
+  let validate: ValidateFunction<AuraContractCatalog>;
+  beforeAll(async () => {
     const schema = await loadJson<AnySchema>('resources/schemas/aura-contracts.schema.json');
+    validate = createContractValidator<AuraContractCatalog>(schema);
+  });
+
+  test('validates and round-trips the Rust fixture', async () => {
     const fixture = await loadJson<AuraContractCatalog>(
       'fixtures/contracts/canonical-contracts.json',
     );
-    const validate = createContractValidator<AuraContractCatalog>(schema);
 
     expect(validate(fixture), JSON.stringify(validate.errors)).toBe(true);
     expect(JSON.parse(JSON.stringify(fixture))).toEqual(fixture);
@@ -38,11 +42,9 @@ describe('canonical contracts', () => {
   });
 
   test('rejects unknown contract fields at runtime', async () => {
-    const schema = await loadJson<AnySchema>('resources/schemas/aura-contracts.schema.json');
     const fixture = await loadJson<AuraContractCatalog>(
       'fixtures/contracts/canonical-contracts.json',
     );
-    const validate = createContractValidator<AuraContractCatalog>(schema);
     const invalid = { ...fixture, unknown: true };
 
     expect(validate(invalid)).toBe(false);
@@ -50,11 +52,9 @@ describe('canonical contracts', () => {
   });
 
   test('rejects unknown fields inside P05 model contracts', async () => {
-    const schema = await loadJson<AnySchema>('resources/schemas/aura-contracts.schema.json');
     const fixture = await loadJson<AuraContractCatalog>(
       'fixtures/contracts/canonical-contracts.json',
     );
-    const validate = createContractValidator<AuraContractCatalog>(schema);
     const invalid = structuredClone(fixture);
     const registry = invalid.models.registry;
     if (!registry) {
@@ -71,11 +71,9 @@ describe('canonical contracts', () => {
   });
 
   test('rejects every illegal projection kind and scope pairing at runtime', async () => {
-    const schema = await loadJson<AnySchema>('resources/schemas/aura-contracts.schema.json');
     const fixture = await loadJson<AuraContractCatalog>(
       'fixtures/contracts/canonical-contracts.json',
     );
-    const validate = createContractValidator<AuraContractCatalog>(schema);
     type ProjectionContractFixture = {
       projection_contract: Record<
         | 'projection_key'
@@ -99,11 +97,9 @@ describe('canonical contracts', () => {
   });
 
   test('rejects unsigned integers that JavaScript cannot represent safely', async () => {
-    const schema = await loadJson<AnySchema>('resources/schemas/aura-contracts.schema.json');
     const fixture = await loadJson<AuraContractCatalog>(
       'fixtures/contracts/canonical-contracts.json',
     );
-    const validate = createContractValidator<AuraContractCatalog>(schema);
     const unsafeSequence = structuredClone(fixture);
     unsafeSequence.runtime.heartbeat.sequence = Number.MAX_SAFE_INTEGER + 1;
     expect(validate(unsafeSequence)).toBe(false);
@@ -151,11 +147,9 @@ describe('canonical contracts', () => {
   });
 
   test('validates the registered P05 identities and opaque provider tool call IDs', async () => {
-    const schema = await loadJson<AnySchema>('resources/schemas/aura-contracts.schema.json');
     const fixture = await loadJson<AuraContractCatalog>(
       'fixtures/contracts/canonical-contracts.json',
     );
-    const validate = createContractValidator<AuraContractCatalog>(schema);
 
     expect(parseAuraId(fixture.ids.model_execution_snapshot_id).prefix).toBe('mex');
     expect(parseAuraId(fixture.ids.transport_attempt_id).prefix).toBe('tat');

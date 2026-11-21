@@ -32,6 +32,7 @@ function SessionAgentToolActivity({
   currentMode: PermissionMode | undefined;
 }) {
   const [calls, setCalls] = useState<AgentToolActivityEntry[]>([]);
+  const [unreadable, setUnreadable] = useState<ReadonlySet<string>>(() => new Set());
   const [before, setBefore] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,16 +58,18 @@ function SessionAgentToolActivity({
         if (result.value.session_id !== sessionId) return;
         setCalls((previous) => {
           const incoming = new Map(result.value.calls.map((v) => [v.summary.tool_call_id, v]));
+          const unavailable = new Set(result.value.unreadable_call_ids);
+          const known = previous.filter((v) => !unavailable.has(v.summary.tool_call_id));
           if (cursor)
             return [
-              ...previous,
+              ...known,
               ...result.value.calls.filter(
-                (v) => !previous.some((p) => p.summary.tool_call_id === v.summary.tool_call_id),
+                (v) => !known.some((p) => p.summary.tool_call_id === v.summary.tool_call_id),
               ),
             ];
           return [
             ...result.value.calls,
-            ...previous.filter((v) => !incoming.has(v.summary.tool_call_id)),
+            ...known.filter((v) => !incoming.has(v.summary.tool_call_id)),
           ];
         });
         setBefore((previous) =>
@@ -74,6 +77,14 @@ function SessionAgentToolActivity({
             ? (result.value.next_before_call_id ?? null)
             : previous,
         );
+        setUnreadable((previous) => {
+          const unavailable = result.value.unreadable_call_ids ?? [];
+          if (!previous.size && !unavailable.length) return previous;
+          const next = new Set(previous);
+          for (const call of result.value.calls) next.delete(call.summary.tool_call_id);
+          for (const id of unavailable) next.add(id);
+          return next;
+        });
         setError(null);
       } catch {
         if (alive.current) setError('暂时无法读取工具活动。');
@@ -94,7 +105,7 @@ function SessionAgentToolActivity({
       window.clearInterval(timer);
     };
   }, [read]);
-  if (!calls.length && !error) return null;
+  if (!calls.length && !unreadable.size && !error) return null;
   return (
     <section className="session-tool-activity-card agent-tool-activity" aria-label="当前工具活动">
       <header>
@@ -147,6 +158,7 @@ function SessionAgentToolActivity({
           </li>
         ))}
       </ol>
+      {unreadable.size > 0 && <p role="status">{unreadable.size} 条工具记录暂时无法读取。</p>}
       {before ? (
         <button type="button" disabled={busy} onClick={() => void read(before)}>
           加载更早调用

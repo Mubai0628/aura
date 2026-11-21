@@ -40,6 +40,7 @@ mod s10_argument_followups;
 mod s10_completion_defaults;
 mod s10_failure_causes;
 mod stage_log;
+mod tool_input_formats;
 // A call its backend refused before it started still gets a result.
 mod l10_14_refused_before_dispatch;
 

@@ -143,15 +143,16 @@ pub(super) fn validate_call_input(
             None,
         ));
     }
-    let compiled = CompiledToolSchemaV1::compile(&definition.input_schema.clone().into_document())
-        .map_err(|_| {
-            rejection(
-                call,
-                ToolNotExecutedReasonV1::SchemaValidationFailed,
-                Some(ToolSchemaErrorCode::ValidatorCompilationFailed.error_code()),
-                None,
-            )
-        })?;
+    let compiled =
+        CompiledToolSchemaV1::for_tool_input(&definition.input_schema, definition.source_kind)
+            .map_err(|_| {
+                rejection(
+                    call,
+                    ToolNotExecutedReasonV1::SchemaValidationFailed,
+                    Some(ToolSchemaErrorCode::ValidatorCompilationFailed.error_code()),
+                    None,
+                )
+            })?;
     let report = compiled.validate(arguments);
     if !report.valid {
         return Err(rejection(

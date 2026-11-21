@@ -245,3 +245,36 @@ describe('Inspector', () => {
     expect(container.querySelector('.snapshot-json')).toBeNull();
   });
 });
+
+test.each([
+  [0, '0 / 10,000（0.00%）'],
+  [9000, '9,000 / 10,000（90.00%）'],
+  [null, '未报告'],
+] as const)(
+  'keeps the summary cache receipt distinct from the next normal step (%s)',
+  (cached, display) => {
+    const view = inspection(
+      {
+        stable_prefix_estimate_tokens: 10,
+        actual_input_tokens: 2000,
+        actual_cached_input_tokens: 1000,
+      },
+      {
+        reduction: {
+          compacted: true,
+          cleared_tool_results: 0,
+          input_tokens_before: 10000,
+          summary_cache: {
+            reusable_prefix_tokens: 9900,
+            reported_input_tokens: 10000,
+            reported_cached_tokens: cached,
+          },
+        },
+      },
+    );
+    render(<Inspector view={view} error={undefined} />);
+    const message = screen.getByText(/与普通请求共享的前缀/);
+    expect(message.textContent).toContain(display);
+    expect(message.textContent).toContain('压缩后首步 50.00%');
+  },
+);

@@ -344,15 +344,7 @@ data: {overloaded}
                         "a compaction with Tools is asked on the step's prefix"
                     );
                     assert!(body.get("tool_choice").is_none(), "no tool choice: {body}");
-                    // A call answered after the ask: the request's last message is its result.
-                    let answered = body["messages"]
-                        .as_array()
-                        .and_then(|messages| messages.last())
-                        .is_some_and(|message| message["role"] == "tool");
-                    if tools
-                        && (matches!(scenario, Scenario::CompactToolOnPrefix)
-                            || matches!(scenario, Scenario::CompactToolOnceOnPrefix) && !answered)
-                    {
+                    if tools && matches!(scenario, Scenario::CompactToolOnPrefix) {
                         compaction_ordinal += 1;
                         send(&mut stream, ordinal, compaction_tool_call(&body)).await;
                         continue;
@@ -366,19 +358,6 @@ data: {overloaded}
                     }
                     let content = if long_compactions {
                         super::wire::long_compaction_answer(&asked)
-                    } else if compaction_ordinal == 0
-                        && !matches!(
-                            scenario,
-                            Scenario::CompactedAddition
-                                | Scenario::Plain
-                                | Scenario::PlainMeasured
-                                | Scenario::PlainMeasuredRefusingSecond
-                                | Scenario::CompactOnPrefix
-                                | Scenario::ClearOldResults
-                        )
-                    {
-                        // An empty answer is refused, which exercises the single bounded retry.
-                        String::new()
                     } else {
                         super::wire::COMPACTION_PARAGRAPH.to_owned()
                     };

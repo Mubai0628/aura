@@ -13,7 +13,9 @@ const CACHE_SIZE: usize = 16;
 pub(in crate::agent_application) const RELATED_SOURCES: &str = "agent.related_sources";
 pub(in crate::agent_application) const DOCUMENT_READS: &str = "agent.document_reads";
 
-pub(super) fn latest_input(input: &ContextPreparationInput) -> Option<(EventId, &str)> {
+pub(in crate::agent_application) fn latest_input(
+    input: &ContextPreparationInput,
+) -> Option<(EventId, &str)> {
     // Initial submissions and answers enter the working set separately from history.
     if let Some(current) = input
         .section_inputs
@@ -182,7 +184,7 @@ impl AgentApplication {
     }
 }
 
-fn explicit_global_memory(text: &str) -> bool {
+pub(in crate::agent_application) fn explicit_global_memory(text: &str) -> bool {
     let text = text.to_ascii_lowercase();
     [
         "使用全局记忆",
@@ -197,7 +199,7 @@ fn explicit_global_memory(text: &str) -> bool {
     .any(|prefix| text.starts_with(prefix))
 }
 
-fn open_vaults(
+pub(in crate::agent_application) fn open_vaults(
     execution: &aura_agent_execution::agent_execution::AgentExecution,
     workspace: WorkspaceId,
     global: bool,

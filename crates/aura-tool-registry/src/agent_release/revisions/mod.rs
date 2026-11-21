@@ -1,6 +1,7 @@
 //! Immutable release identities and compatibility checks.
 mod integrity;
 mod published;
+mod published_arguments;
 mod published_browser;
 mod published_handover;
 mod published_later;
@@ -28,6 +29,7 @@ pub fn all() -> impl Iterator<Item = &'static PublishedRevision> {
         .chain(PUBLISHED_HANDOVER)
         .chain(PUBLISHED_SHARED)
         .chain(published_browser::PUBLISHED_BROWSER_RECEIPTS)
+        .chain(published_arguments::PUBLISHED_ARGUMENTS)
 }
 #[cfg(test)]
 mod tests;

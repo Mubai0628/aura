@@ -255,6 +255,7 @@ pub(super) fn carry(
     for entry in &captured.display.activity {
         index.calls.push((entry.summary.tool_call_id, place));
     }
+    index.calls.extend(captured.unreadable_call_ids.iter().map(|&id| (id, place)));
     let carried = CarriedTurn {
         turn_task_id: turn.turn_task_id,
         root_user_event_id: turn.root_user_event_id,

@@ -244,46 +244,8 @@ fn switched_off(message: &str) -> Option<&'static str> {
     })
 }
 
-/// The bounded diagnostic lines a reader may expand for a terminal result of tool `name`.
-///
-/// The short line in `summary` is what the row shows; this is where the stored
-/// explanation goes, so a truncated template is no longer the only thing the session
-/// has. The first line says in Chinese what happened, what it changed and what comes next; the
-/// code and the message written for the model follow as debugging lines, and each line is
-/// bounded, because a Tool error is consumed by a person reading a row, not by a log viewer.
-fn error_detail(name: &str, result: &ToolResultV1) -> Vec<String> {
-    let error = match &result.outcome {
-        ToolResultOutcomeV1::Failed { error }
-        | ToolResultOutcomeV1::OperationRejected { error }
-        | ToolResultOutcomeV1::Indeterminate { error, .. } => Some(error),
-        ToolResultOutcomeV1::NotExecuted { error, .. } => error.as_ref(),
-        ToolResultOutcomeV1::Cancelled { reason } => {
-            return vec![cancelled_detail(*reason, result)];
-        }
-        ToolResultOutcomeV1::Succeeded => None,
-    };
-    let Some(error) = error else {
-        return vec![];
-    };
-    let mut details: Vec<String> = super::user_text::line(name, result).into_iter().collect();
-    details.push(format!("{}{}", super::user_text::CODE_LINE, error.code));
-    let message = error.message.trim();
-    if !message.is_empty() {
-        details.push(format!("{}{}", super::user_text::MODEL_LINE, clipped(message, 400)));
-    }
-    if let Some(fields) = error.details.get("fields").and_then(Value::as_array) {
-        let names = fields
-            .iter()
-            .filter_map(Value::as_str)
-            .take(8)
-            .map(|name| clipped(name, 64))
-            .collect::<Vec<_>>();
-        if !names.is_empty() {
-            details.push(format!("相关字段：{}", names.join(", ")));
-        }
-    }
-    details
-}
+mod error_detail;
+use error_detail::error_detail;
 
 /// What the user can do about a call that did not run, offered from its row: a page-debugging
 /// call stopped because 允许模型调试网页 is off offers the switch; the decision stays the

@@ -29,7 +29,7 @@ import { PendingAdditions } from './PendingAdditions';
 import { SendingMessage } from './SendingMessage';
 import { endSending, shownIn, useSending } from './sending';
 import { useConversationScroll } from './useConversationScroll';
-import { ToolCallsUnreadable, useToolCallDirectory } from './useToolCallDirectory';
+import { ToolRecordReads, useToolCallDirectory } from './useToolCallDirectory';
 import { latestToolCompletion } from './tool-completion';
 import { TurnSummary } from './TurnSummary';
 import { AppIcon } from '../app-icons';
@@ -97,15 +97,14 @@ export function Conversation({
   const visibleCallIds = (projection?.turns ?? []).flatMap((item) =>
     item.assistant_messages.flatMap((message) => message.tool_call_ids),
   );
-  const [callsUnreadable, setCallsUnreadable] = useState(false);
-  const toolCalls = useToolCallDirectory(
+  const toolDirectory = useToolCallDirectory(
     projection?.session_id,
     projection?.runtime_instance_id,
     visibleCallIds,
     `${last?.turn.turn_task_id ?? ''}:${last?.turn.revision ?? ''}:${last?.turn.state.state ?? ''}`,
     !projection?.active,
-    setCallsUnreadable,
   );
+  const toolCalls = toolDirectory.calls;
   const completed = useMemo(() => latestToolCompletion(toolCalls), [toolCalls]);
   useEffect(() => {
     if (completed) onToolCompleted?.(completed);
@@ -156,7 +155,7 @@ export function Conversation({
           root={viewportRef}
         />
       ) : null}
-      <ToolCallsUnreadable.Provider value={callsUnreadable}>
+      <ToolRecordReads.Provider value={toolDirectory}>
         {projection?.turns.map((item, index) => (
           <Fragment key={item.turn.turn_task_id}>
             <Turn
@@ -182,7 +181,7 @@ export function Conversation({
             ) : null}
           </Fragment>
         ))}
-      </ToolCallsUnreadable.Provider>
+      </ToolRecordReads.Provider>
       {sending && !arrived ? <SendingMessage sending={sending} /> : null}
       {branchTurn && projection && onBranched ? (
         <BranchDialog

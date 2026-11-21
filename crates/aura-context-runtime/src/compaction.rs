@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, future::Future, pin::Pin};
 use aura_context_domain::{
     CompactionAnchor, CompactionAnchorKind, CompactionAnchorManifest, CompactionModelAttemptState,
     CompactionSourceSpan, ContextRetentionException, ContextSourceRef,
-    MANUAL_COMPACTION_FOCUS_MAX_CHARS, MAX_COMPACTION_ATTEMPTS, ModelEgressManifestV1,
+    MANUAL_COMPACTION_FOCUS_MAX_CHARS, ModelEgressManifestV1,
 };
 use aura_domain_common::{
     AgentRunId, ContentHash, ContextProjectionSnapshotId, ModelProfileId, SessionId,
@@ -16,7 +16,6 @@ mod answer;
 mod attempt;
 mod execution;
 mod paragraph;
-pub use answer::{FailedCompactionAttempt, UnusableAnswer};
 pub use attempt::CompactionRequestShape;
 use attempt::validate_prepared_compaction_attempt;
 pub use execution::execute_context_compaction;
@@ -59,8 +58,6 @@ pub enum CompactionValidationError {
     AnchorManifestInvalid,
     #[error("context.compaction.output_empty")]
     OutputEmpty,
-    #[error("context.compaction.output_too_large")]
-    OutputTooLarge,
     #[error("context.compaction.heading_invalid")]
     HeadingInvalid,
     #[error("context.compaction.historical_snapshot_empty")]
@@ -120,15 +117,12 @@ pub fn build_anchor_manifest(
 
 pub fn parse_and_validate_compaction_output(
     output: &str,
-    output_character_limit: u64,
+    _suggested_length: u64,
     manifest: &CompactionAnchorManifest,
     has_compressible_sources: bool,
 ) -> Result<ParsedCompactionOutput, CompactionValidationError> {
     if output.is_empty() {
         return Err(CompactionValidationError::OutputEmpty);
-    }
-    if crate::compaction_size::compaction_output_too_large(output, output_character_limit) {
-        return Err(CompactionValidationError::OutputTooLarge);
     }
     let normalized = output.replace("\r\n", "\n").replace('\r', "\n");
     let heading_lines = normalized.lines().filter(|line| line.starts_with('#')).collect::<Vec<_>>();
@@ -180,12 +174,6 @@ pub fn parse_and_validate_compaction_output(
         referenced_anchors,
         full_markdown: normalized,
     })
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CompactionAttemptDisposition {
-    RetryOnce,
-    Interrupt,
 }
 
 #[derive(Clone, Debug)]
@@ -270,21 +258,6 @@ pub trait CompactionAttemptFactory: Send + Sync {
                 + 'a,
         >,
     >;
-
-    /// Whether another attempt follows a failed one, up to [`MAX_COMPACTION_ATTEMPTS`] in all; the
-    /// factory prepares it with what this told it. By default only the first is asked again,
-    /// after an answer Core cannot use or a failure the transport judged retryable.
-    fn asks_again(
-        &self,
-        failed: &PreparedCompactionModelAttempt,
-        how: FailedCompactionAttempt,
-    ) -> bool {
-        failed.attempt_ordinal == 1
-            && match how {
-                FailedCompactionAttempt::UnusableAnswer { .. } => true,
-                FailedCompactionAttempt::NoAnswer { retryable } => retryable,
-            }
-    }
 }
 
 pub trait CompactionModelCaller: Send + Sync {
@@ -301,11 +274,6 @@ pub trait CompactionLifecycleSink: Send + Sync {
         attempt: &'a PreparedCompactionModelAttempt,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
 
-    fn finish_retryable_attempt<'a>(
-        &'a self,
-        failure: &'a CompactionAttemptFailureCommit,
-    ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
-
     fn commit_completed<'a>(
         &'a self,
         completed: &'a ValidatedCompactionCommit,
@@ -315,15 +283,6 @@ pub trait CompactionLifecycleSink: Send + Sync {
         &'a self,
         failure: &'a CompactionAttemptFailureCommit,
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
-}
-
-#[must_use]
-pub const fn disposition_after_failure(completed_attempts: u8) -> CompactionAttemptDisposition {
-    if completed_attempts < 2 {
-        CompactionAttemptDisposition::RetryOnce
-    } else {
-        CompactionAttemptDisposition::Interrupt
-    }
 }
 
 fn body_between(text: &str, start: usize, heading: &str, end: usize) -> String {
@@ -621,7 +580,6 @@ mod tests {
     #[derive(Default)]
     struct SinkState {
         running: Vec<u8>,
-        retry_failures: Vec<CompactionModelAttemptState>,
         completed: Vec<u8>,
         terminal: Vec<CompactionModelAttemptState>,
     }
@@ -639,16 +597,6 @@ mod tests {
         ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
             Box::pin(async move {
                 self.state.lock().expect("sink state").running.push(attempt.attempt_ordinal);
-                Ok(())
-            })
-        }
-
-        fn finish_retryable_attempt<'a>(
-            &'a self,
-            failure: &'a CompactionAttemptFailureCommit,
-        ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>> {
-            Box::pin(async move {
-                self.state.lock().expect("sink state").retry_failures.push(failure.state);
                 Ok(())
             })
         }
@@ -750,40 +698,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn invalid_first_output_retries_once_with_a_new_attempt_then_commits() {
+    async fn an_empty_response_is_terminal_without_changing_the_background() {
         let operation = operation();
         let first = prepared_attempt(&operation, 1);
-        let second = prepared_attempt(&operation, 2);
-        let caller = Caller::new(vec![
-            CompactionModelCallTerminal::Completed {
-                output: Box::new(completed_output(
-                    &first,
-                    " 
-# 
-"
-                    .to_owned(),
-                )),
-                transport_attempt_id: TransportAttemptId::new(),
-            },
-            CompactionModelCallTerminal::Completed {
-                output: Box::new(completed_output(&second, valid_output())),
-                transport_attempt_id: TransportAttemptId::new(),
-            },
-        ]);
+        let caller = Caller::new(vec![CompactionModelCallTerminal::Completed {
+            output: Box::new(completed_output(&first, "  ".to_owned())),
+            transport_attempt_id: TransportAttemptId::new(),
+        }]);
         let sink = Sink::default();
-
         let outcome = execute_context_compaction(operation, &Factory, &caller, &sink, &Facts).await;
-
         assert!(matches!(
             outcome,
-            ContextCompactionExecutionOutcome::Completed { attempt_ordinal: 2, .. }
+            ContextCompactionExecutionOutcome::Failed { completed_attempts: 1, .. }
         ));
-        assert_eq!(caller.calls.load(Ordering::SeqCst), 2);
+        assert_eq!(caller.calls.load(Ordering::SeqCst), 1);
         let state = sink.state.lock().expect("sink state");
-        assert_eq!(state.running, vec![1, 2]);
-        assert_eq!(state.retry_failures, vec![CompactionModelAttemptState::Failed]);
-        assert_eq!(state.completed, vec![2]);
-        assert!(state.terminal.is_empty());
+        assert_eq!(state.running, [1]);
+        assert!(state.completed.is_empty());
+        assert_eq!(state.terminal, [CompactionModelAttemptState::Failed]);
     }
 
     #[tokio::test]
@@ -806,7 +738,6 @@ mod tests {
         ));
         assert_eq!(caller.calls.load(Ordering::SeqCst), 1);
         let state = sink.state.lock().expect("sink state");
-        assert!(state.retry_failures.is_empty());
         assert_eq!(state.terminal, vec![CompactionModelAttemptState::UnknownSideEffect]);
     }
 

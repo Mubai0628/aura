@@ -12,7 +12,7 @@ import { ConfirmationDialog } from './ConfirmationDialog';
 import { CustomProviderDialog } from './CustomProviderDialog';
 import { ModelProfileCard } from './ModelProfileCard';
 import { ModelSectionToolbar } from './ModelSectionToolbar';
-import { isProfileReady, profileMatches } from './model-profile-status';
+import { isProfileReady, modelNameOrder, profileMatches } from './model-profile-status';
 import { ModelProfileDialog } from './ModelProfileDialog';
 import { NetworkProxySection } from './network-proxy/NetworkProxySection';
 import type { ProviderCatalogItem, ProviderConfigurationView } from './model-settings-types';
@@ -89,9 +89,9 @@ export function ModelSettings({ onNotify, onWithdrawNotice }: ModelSettingsProps
   const [modelQuery, setModelQuery] = useState('');
   const query = modelQuery.trim().toLowerCase();
   const filtering = onlyReady || query !== '';
-  const shownModels = targetModels.filter(
-    (model) => (!onlyReady || isProfileReady(model)) && profileMatches(model, query),
-  );
+  const shownModels = targetModels
+    .filter((model) => (!onlyReady || isProfileReady(model)) && profileMatches(model, query))
+    .sort((a, b) => modelNameOrder.compare(a.display_name, b.display_name));
 
   useEffect(() => {
     if (modelControl.error === undefined) {

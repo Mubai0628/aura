@@ -65,5 +65,8 @@ pub enum AgentToolOffer {
 pub struct AgentToolActivityPage {
     pub session_id: SessionId,
     pub calls: Vec<AgentToolActivityEntry>,
+    /// Session-owned calls found in storage whose activity could not be read.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unreadable_call_ids: Vec<ToolCallId>,
     pub next_before_call_id: Option<ToolCallId>,
 }

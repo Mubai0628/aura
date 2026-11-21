@@ -44,8 +44,11 @@ impl ProviderTools {
                 "name": binding.provider_wire_name,
                 "description": tool.description,
             });
-            if tool.strict && strict_schema_compatible(&schema) {
-                definition["strict"] = Value::Bool(true);
+            // Responses can normalize an omitted flag to strict. Chat Completions and
+            // Messages opt into strict tool use, so their default needs no wire field.
+            let strict = tool.strict && strict_schema_compatible(&schema);
+            if strict || format == ModelApiFormat::OpenAiResponses {
+                definition["strict"] = Value::Bool(strict);
             }
             match format {
                 ModelApiFormat::OpenAiResponses => {

@@ -24,12 +24,12 @@ test('coming back, every finished call already read is named at once', async () 
   });
   const first = renderHook(() => useToolCallDirectory('ses', 'run', ['a', 'b'], 'token'));
   await act(async () => undefined);
-  expect(first.result.current.get('a')?.summary.display_name).toBe('列出目录');
+  expect(first.result.current.calls.get('a')?.summary.display_name).toBe('列出目录');
   first.unmount();
 
   read.mockReturnValue(new Promise(() => undefined));
   const again = renderHook(() => useToolCallDirectory('ses', 'run', ['a', 'b'], 'token'));
-  expect(again.result.current.get('b')?.summary.display_name).toBe('读取文件');
+  expect(again.result.current.calls.get('b')?.summary.display_name).toBe('读取文件');
   // Nothing finished is asked for again.
   expect(read).toHaveBeenCalledTimes(1);
 });
@@ -44,7 +44,7 @@ test('a Core that started again is asked afresh', async () => {
   first.unmount();
   read.mockReturnValue(new Promise(() => undefined));
   const restarted = renderHook(() => useToolCallDirectory('ses2', 'run-2', ['a'], 'token'));
-  expect(restarted.result.current.size).toBe(0);
+  expect(restarted.result.current.calls.size).toBe(0);
 });
 
 // A call Core has no
@@ -61,7 +61,7 @@ test('a call that never ran stops being asked for once its turn has ended', asyn
       { initialProps: { settled: false } },
     );
     await act(async () => undefined);
-    expect(running.result.current.get('a')?.summary.display_name).toBe('读取文件');
+    expect(running.result.current.calls.get('a')?.summary.display_name).toBe('读取文件');
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1600);
     });
@@ -96,17 +96,44 @@ test('a failed read is said, and asked for again after the turn ended', async ()
         ok: true,
         value: { session_id: 'ses4', calls: [call('a', '读取文件')] },
       });
-    const unreadable = vi.fn();
-    const hook = renderHook(() =>
-      useToolCallDirectory('ses4', 'run', ['a'], 'token', true, unreadable),
-    );
+    const hook = renderHook(() => useToolCallDirectory('ses4', 'run', ['a'], 'token', true));
     await act(async () => undefined);
-    expect(unreadable).toHaveBeenLastCalledWith(true);
+    expect(hook.result.current.unreadable.has('a')).toBe(true);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_000);
     });
-    expect(hook.result.current.get('a')?.summary.display_name).toBe('读取文件');
-    expect(unreadable).toHaveBeenLastCalledWith(false);
+    expect(hook.result.current.calls.get('a')?.summary.display_name).toBe('读取文件');
+    expect(hook.result.current.unreadable.size).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('only unreadable identities retry after a mixed page in a finished turn', async () => {
+  vi.useFakeTimers();
+  try {
+    read
+      .mockResolvedValueOnce({
+        ok: true,
+        value: {
+          session_id: 'mixed',
+          calls: [call('ok', '读取文件')],
+          unreadable_call_ids: ['bad'],
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        value: { session_id: 'mixed', calls: [call('bad', '运行命令')] },
+      });
+    renderHook(() => useToolCallDirectory('mixed', 'run', ['ok', 'never', 'bad'], 'step', true));
+    await act(async () => undefined);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5100);
+    });
+    expect(read.mock.calls.map(([request]) => request.call_ids)).toEqual([
+      ['ok', 'never', 'bad'],
+      ['bad'],
+    ]);
   } finally {
     vi.useRealTimers();
   }

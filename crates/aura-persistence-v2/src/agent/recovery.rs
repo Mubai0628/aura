@@ -204,7 +204,7 @@ pub fn interrupt_with_diagnostic(
         return Ok(());
     }
     crate::model::recovery::interrupt_run(tx, run_id, at)?;
-    crate::context::compaction::interrupt_run(tx, run_id, at)?;
+    crate::context::compaction::interrupt_run(tx, run_id, !cancelled, at)?;
     crate::context::remediation::clear(tx, run_id, true, at)?;
     crate::model::context_window::finish(tx, run_id, None, true, at)?;
     let mut unresolved = vec![];

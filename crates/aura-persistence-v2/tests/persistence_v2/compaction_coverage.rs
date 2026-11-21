@@ -234,6 +234,7 @@ fn record(
         id: result.source_context_snapshot_id,
         session_id,
         agent_run_id: f.turn.agent_run_id,
+        background_sources: vec![],
         source_step_id: f.step.model_step_id,
         sequence: result.sequence,
         revision: Revision::INITIAL,

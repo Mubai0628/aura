@@ -6,6 +6,9 @@ pub use anchor::*;
 pub use broker::*;
 pub use coverage::*;
 
+mod background;
+pub use background::*;
+
 mod budget;
 mod compaction;
 mod egress;

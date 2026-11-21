@@ -5259,6 +5259,13 @@
         },
         "session_id": {
           "$ref": "#/$defs/SessionId"
+        },
+        "unreadable_call_ids": {
+          "description": "Session-owned calls found in storage whose activity could not be read.",
+          "items": {
+            "$ref": "#/$defs/ToolCallId"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -9994,7 +10001,7 @@
       "properties": {
         "max_chars": {
           "default": null,
-          "description": "Longest snapshot to return, in characters (default 12000, at most 60000).",
+          "description": "Snapshot length in characters. Default 12000, clamped to 2000–60000.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -11617,7 +11624,7 @@
         },
         "max_entries": {
           "default": null,
-          "description": "The latest this many entries (default 50, at most 200).",
+          "description": "Number of recent entries. Default 50, clamped to 1–500.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -11953,7 +11960,7 @@
       "properties": {
         "hold_ms": {
           "default": null,
-          "description": "Keep it held this long, in milliseconds, as a game expects (at most 3000).",
+          "description": "Key hold in milliseconds. Default 0, capped at 5000.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -11967,7 +11974,7 @@
         },
         "repeat": {
           "default": null,
-          "description": "Press it this many times (default 1, at most 20).",
+          "description": "Key presses. Default 1, clamped to 1–50.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -12107,7 +12114,7 @@
       "properties": {
         "amount": {
           "default": null,
-          "description": "How far, in CSS pixels (default 600).",
+          "description": "Scroll distance in viewport widths or heights. Default 1, clamped to 1–20.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -12318,7 +12325,7 @@
       "properties": {
         "max_chars": {
           "default": null,
-          "description": "Longest snapshot to return, in characters (default 12000, at most 60000).",
+          "description": "Snapshot length in characters. Default 12000, clamped to 2000–60000.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -12570,7 +12577,7 @@
         },
         "time_ms": {
           "default": null,
-          "description": "Or simply wait this long, in milliseconds (at most 10000).",
+          "description": "Initial delay in milliseconds, capped at 60000.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -12580,7 +12587,7 @@
         },
         "timeout_ms": {
           "default": null,
-          "description": "Give up after this long, in milliseconds (default 10000, at most 30000).",
+          "description": "Text wait in milliseconds. Default 10000, clamped to 100–60000.",
           "format": "uint32",
           "minimum": 0,
           "type": [
@@ -13463,6 +13470,37 @@
       "required": [
         "anchors",
         "manifest_hash"
+      ],
+      "type": "object"
+    },
+    "CompactionCacheUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "reported_cached_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "reported_input_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "reusable_prefix_tokens": {
+          "description": "Estimated input shared with the normal request frozen for this step.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reusable_prefix_tokens"
       ],
       "type": "object"
     },
@@ -27534,9 +27572,10 @@
       "properties": {
         "count": {
           "default": null,
-          "description": "Uniform interior samples: duration*(i+0.5)/count, 1..12.",
+          "description": "Number of evenly spaced frames. Use count or times.",
           "format": "uint32",
-          "minimum": 0,
+          "maximum": 12,
+          "minimum": 1,
           "type": [
             "integer",
             "null"
@@ -27544,9 +27583,10 @@
         },
         "max_side": {
           "default": 1024,
-          "description": "Longest side of each image, or the complete contact sheet: 64..2048, default 1024.",
+          "description": "Longest side in pixels, including a contact sheet. Default 1024.",
           "format": "uint32",
-          "minimum": 0,
+          "maximum": 2048,
+          "minimum": 64,
           "type": "integer"
         },
         "path": {
@@ -27558,11 +27598,13 @@
         },
         "times": {
           "default": null,
-          "description": "Exact requested seconds, in [0,duration); choose this or count, never both.",
+          "description": "Frame times in seconds, from zero up to but excluding the duration. Use times or count.",
           "items": {
             "format": "double",
             "type": "number"
           },
+          "maxItems": 12,
+          "minItems": 1,
           "type": [
             "array",
             "null"
@@ -30755,6 +30797,16 @@
           "minimum": 0,
           "type": "integer"
         },
+        "summary_length_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SummaryLengthMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "user_override_revision": {
           "format": "uint64",
           "minimum": 0,
@@ -33305,6 +33357,16 @@
         },
         "request_defaults": {
           "$ref": "#/$defs/ModelRequestDefaults"
+        },
+        "summary_length_mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SummaryLengthMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -48552,6 +48614,16 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "summary_cache": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompactionCacheUsage"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -56828,9 +56900,10 @@
       "properties": {
         "max_output_bytes": {
           "default": 65536,
-          "description": "Default 65536. Bytes of stdout and of stderr kept, up to 1048576. A command that writes\nmore is stopped then, and its result says so (stop_reason output_limit) with the output\nkept; send large output to a file and read that instead.",
+          "description": "Default 65536. Byte limit per stream (stdout and stderr). Exceeding it stops the command.",
           "format": "uint64",
-          "minimum": 0,
+          "maximum": 1048576,
+          "minimum": 1,
           "type": "integer"
         },
         "requires_network": {
@@ -56856,9 +56929,10 @@
         },
         "timeout_ms": {
           "default": 120000,
-          "description": "Default 120000. After this many milliseconds Aura stops the whole process tree.\nThe tool time limit in Tool settings (default 10 minutes, at most 30 minutes) also\nends the call, so a value above that limit does not help. At most 86400000.",
+          "description": "Default 120000. Process-tree timeout in milliseconds. The tool time limit also applies.",
           "format": "uint64",
-          "minimum": 0,
+          "maximum": 86400000,
+          "minimum": 1,
           "type": "integer"
         },
         "working_directory": {
@@ -57043,9 +57117,10 @@
       "properties": {
         "max_bytes": {
           "default": 65536,
-          "description": "Bytes per page. Default 65536.",
+          "description": "Bytes to read per stream. Default 65536.",
           "format": "uint32",
-          "minimum": 0,
+          "maximum": 65536,
+          "minimum": 1,
           "type": "integer"
         },
         "stderr_offset": {
@@ -58758,6 +58833,13 @@
         "retention_exceptions"
       ],
       "type": "object"
+    },
+    "SummaryLengthMode": {
+      "enum": [
+        "auto",
+        "custom"
+      ],
+      "type": "string"
     },
     "SystemNetworkProxyV1": {
       "additionalProperties": false,

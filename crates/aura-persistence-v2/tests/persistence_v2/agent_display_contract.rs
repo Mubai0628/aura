@@ -225,7 +225,7 @@ fn projection_owns_the_single_assistant_view_definition() {
 /// While the context is compacted before a step, the step says so instead of looking like the
 /// model thinking: since when the part running now began, and how many parts are done.
 #[test]
-fn a_step_waiting_on_a_compaction_says_since_when_and_how_many_parts_are_done() {
+fn a_step_waiting_on_a_compaction_counts_elapsed_from_its_first_legacy_part() {
     let root = tempfile::tempdir().expect("directory");
     let mut store = V2Store::create(&root.path().join("v2")).expect("store");
     let f = support::Fixture::preflight(&mut store, AgentTaskMode::Normal);
@@ -248,7 +248,7 @@ fn a_step_waiting_on_a_compaction_says_since_when_and_how_many_parts_are_done() 
     let assistant = view.turns[0].assistant_messages.last().expect("the step being prepared");
     assert!(assistant.partial);
     let compacting = assistant.context_compacting.as_ref().expect("the compaction under way");
-    assert_eq!(compacting.since, "2026-09-07T00:01:00Z".parse().unwrap());
+    assert_eq!(compacting.since, "2026-09-07T00:00:01Z".parse().unwrap());
     assert_eq!(compacting.finished_parts, 1);
     let wire: Value = serde_json::to_value(assistant).expect("assistant wire");
     assert_eq!(wire["context_compacting"]["finished_parts"], json!(1));

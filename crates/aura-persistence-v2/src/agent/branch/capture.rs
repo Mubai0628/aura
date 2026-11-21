@@ -24,6 +24,7 @@ pub(super) struct CapturedText {
 pub(super) struct Captured {
     pub model: CarriedModel,
     pub display: CarriedDisplay,
+    pub unreadable_call_ids: Vec<ToolCallId>,
     pub texts: Vec<CapturedText>,
     pub results: Vec<(ToolCallId, String)>,
 }
@@ -119,11 +120,12 @@ pub(super) fn capture(
         .collect();
     timing.calls += calls.len();
     let mut activity = Vec::new();
+    let mut unreadable_call_ids = Vec::new();
     let mut results = Vec::new();
     for call in calls {
         let started = std::time::Instant::now();
         // A call the model wrote that never ran has no record, here or in the source.
-        let Ok(page) = crate::tool::activity::page(
+        let page = crate::tool::activity::page(
             db,
             &AgentToolActivityRequest {
                 session_id: session,
@@ -131,12 +133,11 @@ pub(super) fn capture(
                 limit: 1,
                 call_ids: Some(vec![call]),
             },
-        ) else {
-            continue;
-        };
-        if page.calls.is_empty() {
+        )?;
+        if page.calls.is_empty() && page.unreadable_call_ids.is_empty() {
             continue;
         }
+        unreadable_call_ids.extend(page.unreadable_call_ids);
         for mut entry in page.calls {
             // A carried call has no live process or shell output to read.
             entry.shell_query_available = false;
@@ -147,7 +148,13 @@ pub(super) fn capture(
             results.push((call, text));
         }
     }
-    Ok(Captured { model, display: CarriedDisplay { view, activity }, texts, results })
+    Ok(Captured {
+        model,
+        display: CarriedDisplay { view, activity },
+        unreadable_call_ids,
+        texts,
+        results,
+    })
 }
 
 fn sequence(db: &Connection, event: EventId) -> StoreResult<u64> {

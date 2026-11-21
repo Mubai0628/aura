@@ -89,10 +89,53 @@ fn flat_envelope(package: &Value) -> Result<CompiledEnvelope, Error> {
         return Err(Error::ProviderArgumentsEnvelopeInvalid);
     }
     required.insert(0, Value::String(PURPOSE.to_owned()));
+    allow_purpose_in_alternatives(&mut root)?;
     let wrapped = Value::Object(root);
     let hash = aura_domain_common::jcs::canonical_sha256(&wrapped)
         .map_err(|_| Error::ProviderArgumentsEnvelopeInvalid)?;
     Ok((wrapped, hash))
+}
+
+// Composition branches validate the same top-level object. Closed branches must also admit
+// the purpose that the envelope requires. A schema inside a tool argument sees no metadata.
+fn allow_purpose_in_alternatives(root: &mut Map<String, Value>) -> Result<(), Error> {
+    fn visit(schema: &mut Value) -> Result<(), Error> {
+        let Some(branch) = schema.as_object_mut() else { return Ok(()) };
+        if branch.contains_key("additionalProperties")
+            || branch.contains_key("unevaluatedProperties")
+        {
+            let fields = branch.entry("properties").or_insert_with(|| Value::Object(Map::new()));
+            let fields = fields.as_object_mut().ok_or(Error::ProviderArgumentsEnvelopeInvalid)?;
+            if fields
+                .insert(
+                    aura_tool_contract::PROVIDER_PURPOSE_FIELD.into(),
+                    serde_json::json!({"type":"string"}),
+                )
+                .is_some()
+            {
+                return Err(Error::ProviderArgumentsEnvelopeInvalid);
+            }
+        }
+        allow_purpose_in_alternatives(branch)
+    }
+    for key in ["allOf", "anyOf", "oneOf"] {
+        if let Some(branches) = root.get_mut(key).and_then(Value::as_array_mut) {
+            for branch in branches {
+                visit(branch)?;
+            }
+        }
+    }
+    for key in ["if", "then", "else", "not"] {
+        if let Some(branch) = root.get_mut(key) {
+            visit(branch)?;
+        }
+    }
+    if let Some(branches) = root.get_mut("dependentSchemas").and_then(Value::as_object_mut) {
+        for branch in branches.values_mut() {
+            visit(branch)?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn inline_local_refs(schema: &Value) -> Result<Value, Error> {
@@ -156,6 +199,30 @@ pub(crate) fn inline_local_refs(schema: &Value) -> Result<Value, Error> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn flat_wire_accepts_tagged_arguments_without_adding_purpose_inside_them() {
+        use aura_tool_contract::{CanonicalJsonSchemaDocumentV1, CompiledToolSchemaV1};
+        let nested = json!({"type":"object","properties":{"name":{"type":"string"}},
+            "required":["name"],"additionalProperties":false});
+        let package = json!({"type":"object","oneOf":[
+            {"allOf":[{"additionalProperties":false,"properties":{"target":nested},
+                "required":["target"]}]},
+            {"additionalProperties":false,"properties":{"branch":{"type":"string"}},
+                "required":["branch"]}]});
+        let (wire, _) = super::flat_envelope(&package).expect("wire schema");
+        let validator = CompiledToolSchemaV1::compile(
+            &CanonicalJsonSchemaDocumentV1::new(wire).expect("canonical schema"),
+        )
+        .expect("validator");
+        let mut args = json!({"target":{"name":"a"}});
+        assert!(!validator.validate(&args).valid);
+        args["aura_purpose"] = json!("read");
+        assert!(validator.validate(&args).valid);
+        args["target"]["aura_purpose"] = json!("extra");
+        assert!(!validator.validate(&args).valid);
+    }
+
     #[test]
     fn compiled_definitions_are_reused_and_changed_constraints_miss_the_cache() {
         let schema = json!({"type":"object", "properties":{"count":{

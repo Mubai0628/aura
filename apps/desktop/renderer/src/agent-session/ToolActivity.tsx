@@ -11,19 +11,21 @@ import { DetailLine, TargetLabel } from './ToolFileLinks';
 import { shownDetails } from './tool-activity-details';
 import { useUiSettings } from '../ui-settings-store';
 import { useContext } from 'react';
-import { ToolCallsUnreadable } from './useToolCallDirectory';
+import { ToolRecordReads } from './useToolCallDirectory';
 
 export function ToolActivity({
   entry,
+  callId,
   ended = false,
 }: {
   entry: AgentToolActivityEntry | undefined;
+  callId?: string;
   /** The turn is over: a call with no record by then never ran. */
   ended?: boolean;
 }) {
   const debug = useUiSettings().settings.show_debug_information;
   // A call Core has not recorded yet (its batch not admitted) is shown with its state.
-  if (!entry) return <UnrecordedCall ended={ended} />;
+  if (!entry) return <UnrecordedCall callId={callId} ended={ended} />;
   if (entry.display.internal) return null;
   const details = shownDetails(entry.display.details, debug);
   return (
@@ -141,18 +143,20 @@ function ExpandableToolActivity({
 
 /** A call the model wrote that Core has no record of: being prepared, never run, or of unknown
  *  state when its record could not be read. */
-function UnrecordedCall({ ended }: { ended: boolean }) {
-  const unreadable = useContext(ToolCallsUnreadable);
+function UnrecordedCall({ callId, ended }: { callId: string | undefined; ended: boolean }) {
+  const reads = useContext(ToolRecordReads);
+  const unreadable = callId !== undefined && reads.unreadable.has(callId);
+  const absent = ended && callId !== undefined && reads.missing.has(callId);
   const [state, brief] = unreadable
     ? ['状态未知', '读不到这个调用的记录，状态未知；稍后会自动再试。']
-    : ended
+    : absent
       ? ['未执行', '这个调用在开始前随这一步结束了，没有执行，什么都没改。']
-      : ['准备中', undefined];
-  const tone = ended || unreadable ? 'unknown' : 'running';
+      : [ended ? '正在读取记录' : '准备中', undefined];
+  const tone = absent || unreadable ? 'unknown' : 'running';
   return (
     <div
       className="agent-tool-activity"
-      data-outcome={tone === 'unknown' ? 'not_executed' : 'queued'}
+      data-outcome={unreadable ? 'unknown' : absent ? 'not_executed' : 'queued'}
     >
       <div className="agent-tool-row" data-running={tone === 'running' ? true : undefined}>
         <LeadingSlot kind={toolTypeIcon('')} />

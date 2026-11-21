@@ -1,15 +1,12 @@
 //! Whether a compiled tool schema may be sent with `strict: true`.
 //!
-//! Strict function calling asks the Provider to decode against the schema, and the Providers
-//! that implement it accept only a narrow subset: every object lists all of its properties as
-//! required and forbids any others, and length, count and pattern constraints are unsupported.
-//! A schema outside that subset is refused by some Providers and silently not enforced by others
-//!. Aura therefore sends `strict` only for a
-//! schema inside the subset; Core validates every call against the full schema either way.
+//! The adapters opt in only for the common subset of strict function schemas.
+//! Provider support for numeric bounds, length and pattern constraints varies.
+//! Core validates calls against the original tool schema independently.
 use serde_json::Value;
 
 /// Keywords every strict implementation Aura targets understands.
-const STRICT_KEYWORDS: [&str; 12] = [
+const STRICT_KEYWORDS: [&str; 10] = [
     "type",
     "properties",
     "required",
@@ -20,14 +17,14 @@ const STRICT_KEYWORDS: [&str; 12] = [
     "anyOf",
     "description",
     "title",
-    "minimum",
-    "maximum",
 ];
 
 /// True when `schema` uses only the strict subset described above.
 #[must_use]
 pub fn strict_schema_compatible(schema: &Value) -> bool {
-    compatible(schema, 0)
+    schema.get("type").and_then(Value::as_str) == Some("object")
+        && schema.get("anyOf").is_none()
+        && compatible(schema, 0)
 }
 
 fn compatible(node: &Value, depth: usize) -> bool {
@@ -77,7 +74,7 @@ mod tests {
         let schema = json!({"type": "object", "additionalProperties": false,
             "properties": {"id": {"type": "string", "description": "x"},
                            "mode": {"anyOf": [{"type": "string", "enum": ["a"]}, {"type": "null"}]},
-                           "count": {"type": "integer", "minimum": 0, "maximum": 9}},
+                           "count": {"type": "integer"}},
             "required": ["id", "mode", "count"]});
         assert!(strict_schema_compatible(&schema));
         assert!(strict_schema_compatible(
@@ -110,5 +107,19 @@ mod tests {
         ] {
             assert!(!strict_schema_compatible(&schema), "{schema}");
         }
+    }
+
+    #[test]
+    fn provider_specific_numeric_limits_and_root_alternatives_are_not_portable() {
+        for limit in [json!({"minimum": 0}), json!({"maximum": 9})] {
+            let mut count = limit;
+            count["type"] = json!("integer");
+            let schema = json!({"type": "object", "additionalProperties": false,
+                "properties": {"count": count}, "required": ["count"]});
+            assert!(!strict_schema_compatible(&schema), "{schema}");
+        }
+        let root_alternative = json!({"type": "object", "additionalProperties": false,
+            "anyOf": [{"type": "object", "additionalProperties": false}]});
+        assert!(!strict_schema_compatible(&root_alternative));
     }
 }

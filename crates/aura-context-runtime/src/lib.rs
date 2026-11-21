@@ -29,6 +29,6 @@ pub use measured::MeasuredRequest;
 pub use output_reserve::*;
 pub use preparation::*;
 pub use prompt::*;
-pub use request_prefix::RequestPrefix;
+pub use request_prefix::{RequestPrefix, prefix_egress_sources};
 pub use section::*;
 pub use tool_result_clearing::*;

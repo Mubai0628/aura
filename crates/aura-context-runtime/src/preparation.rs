@@ -595,7 +595,7 @@ impl<'a> ContextPreparationCompiler<'a> {
                     &assembly.instruction_envelope,
                     conversation_items,
                     &input,
-                    provider_continuation.is_some(),
+                    provider_continuation,
                     &model_egress_manifest,
                     budget.estimated_input_tokens,
                 ));

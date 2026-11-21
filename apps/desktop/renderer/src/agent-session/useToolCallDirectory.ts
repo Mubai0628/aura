@@ -1,14 +1,18 @@
 import type { AgentToolActivityEntry } from '@aura/contracts/generated';
-import { createContext, useEffect, useRef, useState } from 'react';
+import { createContext, useEffect, useState } from 'react';
 
 const EMPTY: ReadonlyMap<string, AgentToolActivityEntry> = new Map();
 /** A read that failed is tried again after this long, after the turn as well. */
 const UNREADABLE_RETRY_MS = 5_000;
 
-/** Whether the conversation's call records could not be read the last time they were asked for:
- *  a call without a record is then of unknown state, not one that never ran. */
-export const ToolCallsUnreadable = createContext(false);
-interface Directory {
+interface ReadStatus {
+  unreadable: ReadonlySet<string>;
+  missing: ReadonlySet<string>;
+}
+
+const EMPTY_STATUS: ReadStatus = { unreadable: new Set(), missing: new Set() };
+export const ToolRecordReads = createContext<ReadStatus>(EMPTY_STATUS);
+interface Directory extends ReadStatus {
   key: string;
   calls: ReadonlyMap<string, AgentToolActivityEntry>;
 }
@@ -40,60 +44,60 @@ export function useToolCallDirectory(
   visibleCallIds: readonly string[],
   stateToken: string | undefined,
   settled = false,
-  onUnreadable?: (unreadable: boolean) => void,
 ) {
-  const told = useRef(onUnreadable);
-  useEffect(() => {
-    told.current = onUnreadable;
-  });
   const key = `${runtimeInstanceId ?? ''}:${sessionId ?? ''}`;
   const visible = [...new Set(visibleCallIds)].join(',');
-  const cache = useRef<Directory>({ key, calls: directories.get(key) ?? new Map() });
   const [directory, setDirectory] = useState<Directory>();
   useEffect(() => {
     if (!sessionId || !visible) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    if (cache.current.key !== key)
-      cache.current = { key, calls: directories.get(key) ?? new Map() };
-    const ids = visible.split(',');
+    let calls = directories.get(key) ?? EMPTY;
+    let pending = visible.split(',').filter((id) => !calls.get(id)?.summary.outcome);
+    const missing = new Set<string>();
     const refresh = async () => {
-      const pending = ids.filter((id) => !cache.current.calls.get(id)?.summary.outcome);
-      let failed = false;
-      try {
-        for (let index = 0; index < pending.length; index += 100) {
+      if (!pending.length) return;
+      const unreadable = new Set<string>();
+      const updated = new Map(calls);
+      for (let index = 0; index < pending.length; index += 100) {
+        const ids = pending.slice(index, index + 100);
+        try {
           const result = await window.aura.v1.readAgentToolActivity({
             session_id: sessionId,
             before_call_id: null,
-            call_ids: pending.slice(index, index + 100),
+            call_ids: ids,
             limit: 100,
           });
           if (!alive) return;
-          if (!result.ok) {
-            failed = true;
-            break;
+          if (result.ok && result.value.session_id === sessionId) {
+            for (const entry of result.value.calls) updated.set(entry.summary.tool_call_id, entry);
+            for (const id of result.value.unreadable_call_ids ?? []) unreadable.add(id);
+            const returned = new Set(result.value.calls.map((entry) => entry.summary.tool_call_id));
+            for (const id of ids) {
+              if (!returned.has(id)) updated.delete(id);
+              if (returned.has(id) || unreadable.has(id)) missing.delete(id);
+              else missing.add(id);
+            }
+            continue;
           }
-          if (result.value.session_id !== sessionId) break;
-          const calls = new Map(cache.current.calls);
-          for (const entry of result.value.calls) calls.set(entry.summary.tool_call_id, entry);
-          cache.current = { key, calls };
-          keep(key, calls);
-          setDirectory(cache.current);
+        } catch {
+          if (!alive) return;
         }
-      } catch {
-        // Do not invent a name or success state when the projection is unavailable.
-        failed = true;
+        for (const id of ids) {
+          unreadable.add(id);
+          updated.delete(id);
+          missing.delete(id);
+        }
       }
-      if (!alive) return;
-      told.current?.(failed);
-      // Unfinished calls are asked for again; once the turn is over, a call with no record at all
-      // is not waited for any longer, unless the records could not be read.
-      const waiting = ids.filter((id) => {
-        const known = cache.current.calls.get(id);
-        return known ? !known.summary.outcome : !settled || failed;
-      });
-      if (waiting.length) {
-        timer = setTimeout(() => void refresh(), failed ? UNREADABLE_RETRY_MS : 1500);
+      calls = updated;
+      keep(key, calls);
+      setDirectory({ key, calls, unreadable, missing: new Set(missing) });
+      pending = pending.filter(
+        (id) =>
+          unreadable.has(id) || (!calls.get(id)?.summary.outcome && !(settled && missing.has(id))),
+      );
+      if (pending.length) {
+        timer = setTimeout(() => void refresh(), unreadable.size ? UNREADABLE_RETRY_MS : 1500);
       }
     };
     void refresh();
@@ -102,5 +106,7 @@ export function useToolCallDirectory(
       clearTimeout(timer);
     };
   }, [sessionId, key, visible, stateToken, settled]);
-  return directory?.key === key ? directory.calls : (directories.get(key) ?? EMPTY);
+  return directory?.key === key
+    ? directory
+    : { key, calls: directories.get(key) ?? EMPTY, ...EMPTY_STATUS };
 }

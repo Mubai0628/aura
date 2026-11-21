@@ -167,6 +167,27 @@ describe('a profile update naming a thinking level', () => {
     notes: null,
     request_defaults: { max_output_tokens: null, temperature: null, top_p: null, reasoning_effort },
   });
+  it('accepts current and legacy summary length choices and rejects unknown values', () => {
+    const request = update(null);
+    expect(isP05MainParams('models.profile.update', request)).toBe(true);
+    for (const mode of ['auto', 'custom', null]) {
+      expect(
+        isP05MainParams('models.profile.update', { ...request, summary_length_mode: mode }),
+      ).toBe(true);
+    }
+    for (const mode of ['automatic', '', 1, {}, ['custom']]) {
+      expect(
+        isP05MainParams('models.profile.update', { ...request, summary_length_mode: mode }),
+      ).toBe(false);
+    }
+    expect(
+      isP05MainParams('models.profile.update', {
+        ...request,
+        summary_length_mode: 'auto',
+        extra: true,
+      }),
+    ).toBe(false);
+  });
   it('passes a known level or none', () => {
     for (const level of ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', null, undefined])
       expect(isP05MainParams('models.profile.update', update(level))).toBe(true);

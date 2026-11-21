@@ -23,6 +23,21 @@ pub struct UpdateModelProfileInput {
     pub enabled: bool,
     pub request_defaults: ModelRequestDefaults,
     pub historical_snapshot_max_tokens: u64,
+    pub summary_length_mode: Option<aura_model_domain::SummaryLengthMode>,
+}
+
+impl From<aura_model_domain::ModelProfileUpdateRequest> for UpdateModelProfileInput {
+    fn from(request: aura_model_domain::ModelProfileUpdateRequest) -> Self {
+        Self {
+            model_profile_id: request.model_profile_id,
+            display_name: request.display_name,
+            notes: request.notes,
+            enabled: request.enabled,
+            request_defaults: request.request_defaults,
+            historical_snapshot_max_tokens: request.historical_snapshot_max_tokens,
+            summary_length_mode: request.summary_length_mode,
+        }
+    }
 }
 
 pub fn learn_chat_output_token_field_alias(
@@ -316,7 +331,19 @@ pub fn update_model_profile(
     model.notes = normalize_model_notes(input.notes)?;
     model.enabled = input.enabled;
     model.request_defaults = input.request_defaults;
-    model.context.historical_snapshot_max_tokens = input.historical_snapshot_max_tokens;
+    if let Some(mode) = input.summary_length_mode {
+        model.context.historical_snapshot_max_tokens = match mode {
+            aura_model_domain::SummaryLengthMode::Auto => 1_024,
+            aura_model_domain::SummaryLengthMode::Custom => input.historical_snapshot_max_tokens,
+        };
+        // Legacy profiles already express auto and non-default custom targets without an override.
+        model.context.summary_length_mode = (mode == aura_model_domain::SummaryLengthMode::Custom
+            && input.historical_snapshot_max_tokens == 1_024)
+            .then_some(mode);
+    } else if model.context.historical_snapshot_max_tokens != input.historical_snapshot_max_tokens {
+        model.context.historical_snapshot_max_tokens = input.historical_snapshot_max_tokens;
+        model.context.summary_length_mode = None;
+    }
     model.updated_at = updated_at;
     if configured_output_token_field_changed {
         let endpoint = registry

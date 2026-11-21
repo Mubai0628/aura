@@ -71,6 +71,7 @@ fn compacting(store: &mut V2Store, f: &support::Fixture) -> TransportAttemptId {
                 id: ContextProjectionSnapshotId::new(),
                 session_id: f.turn.session_id,
                 agent_run_id: f.turn.agent_run_id,
+                background_sources: vec![],
                 source_step_id: step.model_step_id,
                 sequence: 1,
                 revision: Revision::INITIAL,
@@ -186,4 +187,74 @@ fn a_stop_closes_its_compactions_request_and_leaves_another_runs_alone() {
     let own = compacting(&mut store, &stopped);
     let others = compacting(&mut store, &other);
     stop_and_check(&mut store, &stopped, own, others);
+}
+
+/// A process may stop after the provider's terminal receipt and before the history update.
+#[test]
+fn compaction_recovers_only_the_answer_bound_to_its_own_completed_transport() {
+    for mismatched_receipt in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let mut store = V2Store::create(&root.path().join("v2")).unwrap();
+        let f = support::Fixture::new(&mut store, AgentTaskMode::Normal);
+        let transport = compacting(&mut store, &f);
+        store
+            .database
+            .unit_of_work(|tx| -> StoreResult<()> {
+                let mut call = model::agent_transport::attempt(tx, transport)?;
+                let TransportOperationContext::AgentModelAttempt {
+                    model_execution_snapshot_id,
+                    ..
+                } = call.request_evidence.operation_context
+                else {
+                    panic!("agent snapshot")
+                };
+                let snapshot = model::snapshot(tx, model_execution_snapshot_id)?.unwrap();
+                use TransportAttemptState::*;
+                for state in [
+                    AcquiringPermit,
+                    PreparingRequest,
+                    AuthorizingNetwork,
+                    Connecting,
+                    ResponseStarted,
+                    ResponseCompleted,
+                    Completed,
+                ] {
+                    call.state = state;
+                    if state == Completed {
+                        call.finished_at = Some(call.started_at);
+                    }
+                    model::agent_transport::record_attempt(tx, &snapshot, &call)?;
+                }
+                let mut output = f.template.clone();
+                output.model_step_id = snapshot.model_step_id;
+                output.stop_reason = NormalizedStopReason::EndTurn;
+                output.tool_calls.clear();
+                output.refusal = None;
+                output.assistant_blocks = vec![AssistantContentBlock {
+                    block_id: ModelContentBlockId::new(),
+                    text: "Verified background".into(),
+                    provider_reference: None,
+                }];
+                let bound = if mismatched_receipt { TransportAttemptId::new() } else { transport };
+                compaction::record_output(tx, &snapshot, bound, &output, f.at)?;
+                recovery::interrupt(tx, f.turn.agent_run_id, "agent.core_restarted", false, f.at)?;
+                let committed = compaction::latest(tx, f.turn.session_id)?;
+                if mismatched_receipt {
+                    assert!(committed.is_none());
+                } else {
+                    let restored = committed.unwrap();
+                    assert_eq!(restored.result.unwrap().historical_snapshot, "Verified background");
+                    assert_eq!(restored.attempts.len(), 1);
+                    assert_eq!(restored.attempts[0].transport_attempt_id, Some(transport));
+                }
+                let count: u32 = tx.query_row(
+                    "SELECT COUNT(*) FROM transport_attempts WHERE snapshot_id=?1",
+                    [snapshot.id.to_string()],
+                    |r| r.get(0),
+                )?;
+                assert_eq!(count, 1);
+                Ok(())
+            })
+            .unwrap();
+    }
 }

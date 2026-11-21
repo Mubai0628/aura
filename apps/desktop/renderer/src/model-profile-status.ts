@@ -1,5 +1,7 @@
 import type { ModelProfileConfig } from '@aura/contracts/generated';
 
+export const modelNameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
 /** What a model card says about whether its model can be used as it is. */
 export const profileStatusLabel = (profile: ModelProfileConfig): string => {
   if (!profile.enabled) return '已停用';

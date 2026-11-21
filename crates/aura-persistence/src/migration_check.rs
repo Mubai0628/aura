@@ -8,9 +8,9 @@ use crate::PersistenceError;
 use crate::migration::{LATEST_SCHEMA_VERSION, current_schema_version};
 
 /// The oldest version that reads every record this build writes into the store. 0.1.12 and
-/// earlier refuse a model profile whose request defaults allow speed modes. Raised to a new
-/// version whenever it starts storing a field or an enum value its predecessor refuses.
-pub const RECORDS_READABLE_SINCE: &str = "0.2.0";
+/// earlier refuse a model profile whose request defaults allow speed modes. Model profiles with
+/// an explicit summary length mode require 0.3.3.
+pub const RECORDS_READABLE_SINCE: &str = "0.3.3";
 
 /// Whether the store at `database_path` needs a copy before this build first starts in place of
 /// `replacing` (unknown: any older version): this build migrates it, or `replacing` would refuse

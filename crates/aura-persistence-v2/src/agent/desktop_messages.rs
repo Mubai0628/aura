@@ -272,7 +272,7 @@ fn compacting_before(
     let row: Option<(String, u32)> = db
         .query_row(
             concat!(
-                "SELECT json_extract(c.payload,'$.created_at'), ",
+                "SELECT (SELECT MIN(json_extract(first.payload,'$.created_at')) FROM context_compactions first WHERE first.session_id=?2 AND json_extract(first.payload,'$.source_step_id')=?1), ",
                 "(SELECT COUNT(*) FROM context_compactions d WHERE d.session_id=?2 ",
                 "AND d.state='completed' AND json_extract(d.payload,'$.source_step_id')=?1) ",
                 "FROM context_compactions c WHERE c.session_id=?2 AND c.state='running' ",

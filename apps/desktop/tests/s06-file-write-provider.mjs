@@ -54,6 +54,7 @@ export async function writeProvider({
   observeRequest = null,
   planAction = null,
   maintenanceOutput = { schema_version: 1, candidates: [], events: [] },
+  auxiliaryJsonOutput,
   // The tool call's arguments arrive in `chunks` pieces `every` ms apart, as a model
   // writing a whole file into one call does; the final answer can be given.
   streamArguments = null,
@@ -89,21 +90,23 @@ export async function writeProvider({
       const body = JSON.parse(raw);
       // Auxiliary requests have no tools/current-turn state. Keep them out of
       // the task's request counters and answer with a scripted Schema contract.
-      if (
-        !body.tools?.length &&
+      const asksFor = (instruction) =>
         body.messages?.some(
-          (message) =>
-            typeof message.content === 'string' &&
-            message.content.includes('Return only JSON conforming to this schema (version 1)'),
-        )
-      ) {
+          (message) => typeof message.content === 'string' && message.content.includes(instruction),
+        );
+      const auxiliary = asksFor('Return only JSON conforming to this schema (version 1)')
+        ? maintenanceOutput
+        : asksFor('Return only JSON matching:')
+          ? auxiliaryJsonOutput
+          : undefined;
+      if (!body.tools?.length && auxiliary !== undefined) {
         maintenanceRequests.push(body);
         response.writeHead(200, {
           'content-type': 'text/event-stream',
           'cache-control': 'no-cache',
         });
         response.end(
-          `data: ${JSON.stringify({ id: 'l05-maintenance', choices: [{ index: 0, delta: { role: 'assistant', content: JSON.stringify(maintenanceOutput) }, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } })}\n\ndata: [DONE]\n\n`,
+          `data: ${JSON.stringify({ id: 'l05-maintenance', choices: [{ index: 0, delta: { role: 'assistant', content: JSON.stringify(auxiliary) }, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } })}\n\ndata: [DONE]\n\n`,
         );
         return;
       }

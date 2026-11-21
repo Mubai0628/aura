@@ -262,11 +262,10 @@ async fn l17_a_panel_is_told_of_a_compaction_among_the_conversations_events() {
 }
 
 #[tokio::test]
-async fn l17_a_compaction_aura_completes_with_its_own_summary_is_told_failed_then_completed() {
-    // Every compaction is answered far past its length, so both attempts fail.
+async fn l17_a_long_compaction_emits_a_single_success() {
     let provider = Provider::scenario_with_long_compactions(Scenario::CompactOnPrefix).await;
     let events = compacted_turn(&provider).await;
-    assert_eq!(compaction_told(&events, 2), [json!("failed"), json!("completed")]);
+    assert_eq!(compaction_told(&events, 1), [json!("completed")]);
 }
 
 /// Runs the plugin's command in `SESSION`, tries to set its secret setting, then sets its text

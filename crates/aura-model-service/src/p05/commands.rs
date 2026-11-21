@@ -11,7 +11,7 @@ use aura_domain_common::{
     ModelAvailabilityTestId, ModelDiscoveryRunId, Revision, UtcTimestamp,
 };
 use aura_model_config::{
-    ModelConfigError, UpdateModelProfileInput, add_manual_model, create_endpoint, create_provider,
+    ModelConfigError, add_manual_model, create_endpoint, create_provider,
     credential_binding_fingerprint, credential_ref_for_credential, endpoint_fingerprint,
     model_credential_final_target, normalize_base_url, rename_provider,
     reset_endpoint_compatibility, set_model_subagent_availability,
@@ -1023,6 +1023,7 @@ impl P05Services {
             }
             model_ipc_method::PROFILE_UPDATE => {
                 let request: ModelProfileUpdateRequest = decode(params, correlation_id)?;
+                let model_profile_id = request.model_profile_id;
                 let command_invocation_id =
                     require_command_id(command_invocation_id, correlation_id)?;
                 let completion = self
@@ -1032,34 +1033,22 @@ impl P05Services {
                             journal_id.to_string(),
                             request.expected_revision.value(),
                             |registry| {
-                                update_model_profile(
-                                    registry,
-                                    UpdateModelProfileInput {
-                                        model_profile_id: request.model_profile_id,
-                                        display_name: request.display_name,
-                                        notes: request.notes,
-                                        enabled: request.enabled,
-                                        request_defaults: request.request_defaults,
-                                        historical_snapshot_max_tokens: request
-                                            .historical_snapshot_max_tokens,
-                                    },
-                                    UtcTimestamp::now(),
-                                )
+                                update_model_profile(registry, request.into(), UtcTimestamp::now())
                             },
                         )?;
                         let previous = prepared
                             .previous
                             .registry
                             .models
-                            .get(&request.model_profile_id)
+                            .get(&model_profile_id)
                             .cloned()
-                            .ok_or(ModelConfigError::ProfileNotFound(request.model_profile_id))?;
+                            .ok_or(ModelConfigError::ProfileNotFound(model_profile_id))?;
                         let profile = prepared
                             .candidate_registry
                             .models
-                            .get(&request.model_profile_id)
+                            .get(&model_profile_id)
                             .cloned()
-                            .ok_or(ModelConfigError::ProfileNotFound(request.model_profile_id))?;
+                            .ok_or(ModelConfigError::ProfileNotFound(model_profile_id))?;
                         let result = ModelProfileMutationResult {
                             changed: prepared.changed,
                             revision: prepared.candidate_revision,
@@ -3100,6 +3089,7 @@ mod tests {
                     max_output_tokens: Some(4_096),
                     ..ModelRequestDefaults::default()
                 },
+                summary_length_mode: None,
                 historical_snapshot_max_tokens: 2_048,
             },
         );
@@ -3116,6 +3106,7 @@ mod tests {
                 notes: updated.value.notes.clone(),
                 enabled: updated.value.enabled,
                 request_defaults: updated.value.request_defaults.clone(),
+                summary_length_mode: None,
                 historical_snapshot_max_tokens: updated
                     .value
                     .context
@@ -3288,6 +3279,7 @@ mod tests {
                     max_output_tokens: Some(512),
                     ..ModelRequestDefaults::default()
                 },
+                summary_length_mode: None,
                 historical_snapshot_max_tokens: profile
                     .value
                     .context
@@ -3665,6 +3657,7 @@ mod tests {
                     max_output_tokens: Some(1_024),
                     ..ModelRequestDefaults::default()
                 },
+                summary_length_mode: None,
                 historical_snapshot_max_tokens: profile
                     .value
                     .context
@@ -3786,6 +3779,7 @@ mod tests {
                     max_output_tokens: Some(1_024),
                     ..ModelRequestDefaults::default()
                 },
+                summary_length_mode: None,
                 historical_snapshot_max_tokens: profile
                     .value
                     .context

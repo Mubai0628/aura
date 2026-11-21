@@ -210,7 +210,7 @@ async fn compaction_keeps_what_a_hook_asks_and_reports_when_it_is_done() {
     let requests = provider.requests.lock().expect("requests").clone();
     let compactions = requests
         .iter()
-        .filter(|body| body.to_string().contains("Write the summary as one paragraph"))
+        .filter(|body| body.to_string().contains("Compaction request: write the summary"))
         .collect::<Vec<_>>();
     assert!(!compactions.is_empty(), "the scenario compacts");
     assert!(

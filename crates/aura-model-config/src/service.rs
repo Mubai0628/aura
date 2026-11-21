@@ -500,7 +500,7 @@ impl ModelConfigService {
             endpoint_config_revision: endpoint.revision.value(),
             model_config_revision: config.revision,
             runtime_effective_window_tokens: model.context.runtime_effective_window_tokens,
-            historical_snapshot_max_tokens: model.context.historical_snapshot_max_tokens,
+            historical_snapshot_max_tokens: model.context.summary_target_tokens(),
             request_options: crate::request_options::resolve(
                 model,
                 endpoint.api_format,
