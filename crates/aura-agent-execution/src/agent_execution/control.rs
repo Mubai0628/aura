@@ -47,12 +47,13 @@ impl AgentExecution {
             )
             .await?
         };
-        if let Some(path) =
-            self.unverified_delivery_path(admitted.snapshot.workspace_id, exact_values).await?
+        if let Some(value) =
+            self.unverified_delivery_value(admitted.snapshot.workspace_id, exact_values).await?
         {
             anyhow::bail!(
-                "normal.complete: 未核对到交付文件「{}」中用户要求逐字保留的内容，本次没有完成任务。请核对当前文件和用户最新原值。",
-                path.as_str()
+                "normal.complete: 未核对到交付文件「{}」中用户要求逐字保留的内容。{}",
+                value.path.as_str(),
+                value.formatting_hint()
             );
         }
         let executable: Vec<_> = prepared.executed_call_ids().collect();

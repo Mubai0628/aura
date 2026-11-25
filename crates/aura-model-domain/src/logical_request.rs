@@ -19,6 +19,9 @@ pub const PROVIDER_ARGUMENTS_ENVELOPE_VERSION_V2: u32 = 2;
 /// The tool's own fields at the top level beside `aura_purpose`; every new binding uses it.
 pub const PROVIDER_ARGUMENTS_ENVELOPE_VERSION_V3: u32 = 3;
 
+/// Instructions whose task state is part of the frozen request prefix.
+pub const CHECKPOINT_INSTRUCTION_SERIALIZER_VERSION: u32 = 2;
+
 #[derive(
     Clone, Copy, Debug, Deserialize, Eq, JsonSchema, Ord, PartialEq, PartialOrd, Serialize,
 )]
@@ -50,6 +53,9 @@ pub struct CompiledInstructionEnvelope {
     pub ordered_blocks: Vec<LogicalInstructionBlock>,
     pub canonical_text: String,
     pub instruction_hash: ContentHash,
+    /// A route-specific representation of the same current task state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_state_replay: Option<crate::TaskStateReplay>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -89,6 +95,17 @@ pub enum LogicalConversationItem {
         content_hash: ContentHash,
         is_error: bool,
     },
+}
+
+impl LogicalConversationItem {
+    #[must_use]
+    pub const fn source_event_id(&self) -> EventId {
+        match self {
+            Self::User { source_event_id, .. }
+            | Self::Assistant { source_event_id, .. }
+            | Self::ToolResult { source_event_id, .. } => *source_event_id,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
@@ -184,6 +201,10 @@ pub enum LogicalModelRequestError {
     InvalidAttachmentMetadata,
     #[error("compiled instruction envelope is not canonical or its hash does not match")]
     InvalidInstructionEnvelope,
+    #[error(
+        "task state replay must follow complete conversation exchanges and carry the current state"
+    )]
+    InvalidTaskStateReplay,
     #[error("a closing question must be canonical, non-empty instruction text")]
     InvalidClosingQuestion,
     #[error("model output request requires a non-zero resolved output token limit")]
@@ -199,6 +220,16 @@ pub enum LogicalModelRequestError {
 impl LogicalModelRequest {
     pub fn validate_contract_shape(&self) -> Result<(), LogicalModelRequestError> {
         self.instruction_envelope.validate_contract_shape()?;
+        if self.instruction_envelope.task_state_replay.as_ref().is_some_and(|replay| {
+            !replay.fits(&self.conversation_items)
+                || self
+                    .instruction_envelope
+                    .ordered_blocks
+                    .last()
+                    .is_none_or(|state| state.content != replay.current())
+        }) {
+            return Err(LogicalModelRequestError::InvalidTaskStateReplay);
+        }
         self.tool_schema_set.validate().map_err(|_| LogicalModelRequestError::InvalidSchema)?;
         if !self.fixed_tool_ids.windows(2).all(|p| p[0] < p[1])
             || self
@@ -266,8 +297,13 @@ impl CompiledInstructionEnvelope {
         canonical_text: String,
     ) -> Result<Self, LogicalModelRequestError> {
         let instruction_hash = ContentHash::sha256(canonical_text.as_bytes());
-        let envelope =
-            Self { serializer_version, ordered_blocks, canonical_text, instruction_hash };
+        let envelope = Self {
+            serializer_version,
+            ordered_blocks,
+            canonical_text,
+            instruction_hash,
+            task_state_replay: None,
+        };
         envelope.validate_contract_shape()?;
         Ok(envelope)
     }
@@ -308,7 +344,7 @@ impl CompiledInstructionEnvelope {
     }
 }
 
-fn is_canonical_instruction_text(value: &str) -> bool {
+pub(crate) fn is_canonical_instruction_text(value: &str) -> bool {
     !value.is_empty()
         && !value.starts_with('\u{feff}')
         && !value.contains('\r')

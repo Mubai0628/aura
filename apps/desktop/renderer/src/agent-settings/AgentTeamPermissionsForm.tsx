@@ -113,10 +113,6 @@ export function AgentTeamPermissionsForm({
       </section>
       <section aria-label="主 Agent 代批" className="settings-surface agent-team-settings-group">
         {toggle('main_agent_approves', '主 Agent 代批')}
-        <p>
-          主 Agent 可在当前任务内委派已授权路径的只读操作，也可代批子 Agent
-          工作副本内符合条件的操作。涉及敏感路径的审批仍由你决定。
-        </p>
       </section>
       {permissions !== undefined &&
       defaults !== undefined &&

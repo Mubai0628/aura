@@ -259,6 +259,9 @@ pub struct PromptInspectorReductionView {
     pub input_tokens_before: u64,
     pub cleared_tool_results: u32,
     pub compacted: bool,
+    /// The current request uses a bounded view; omitted originals remain readable in the session.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub history_on_demand: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary_cache: Option<CompactionCacheUsage>,
 }

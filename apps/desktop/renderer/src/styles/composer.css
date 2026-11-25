@@ -49,6 +49,7 @@
 
 .composer {
   position: relative;
+  container-type: inline-size;
   padding: 10px 11px 9px;
   border-radius: var(--radius-lg);
 }
@@ -125,6 +126,12 @@
   align-items: center;
   min-width: 0;
   gap: 6px;
+}
+
+@container (max-width: 340px) {
+  .composer-controls:not([data-measuring='true']) {
+    flex-wrap: wrap;
+  }
 }
 
 .composer-controls-leading {

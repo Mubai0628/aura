@@ -563,6 +563,13 @@ pub const PUBLISHED: &[PublishedRevision] = &[
         fingerprint: "f43e5ba37b91ca6a8517b5d4ac641bbf55bfb25864aed98bbe128af86397be71",
     },
     PublishedRevision {
+        name: "memory.read",
+        revision: 2,
+        tool: "tol_01M2DG020980080021AN94201E",
+        instance: "tin_01M2DG020980080021AN94205A",
+        fingerprint: "fc5b60a7fc5e3f8c813d60cb31adde380b2390e966bd104bb91c93284346f666",
+    },
+    PublishedRevision {
         name: "memory.list_recent",
         revision: 1,
         tool: "tol_01M2DG020980080021AN94201F",

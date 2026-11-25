@@ -8,6 +8,7 @@ rust-version.workspace = true
 aura-memory-domain = { path = "../aura-memory-domain" }
 aura-agent-domain = { path = "../aura-agent-domain" }
 aura-agent-team-contract = { path = "../aura-agent-team-contract" }
+aura-agent-collaboration-contract = { path = "../aura-agent-collaboration-contract" }
 aura-activity-domain = { path = "../aura-activity-domain" }
 aura-workspace-domain = { path = "../aura-workspace-domain" }
 aura-context-domain = { path = "../aura-context-domain" }

@@ -2257,6 +2257,7 @@
         "reduction": {
           "cleared_tool_results": 1,
           "compacted": true,
+          "history_on_demand": true,
           "input_tokens_before": 1,
           "summary_cache": {
             "reported_cached_tokens": 1,

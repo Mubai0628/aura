@@ -14,9 +14,16 @@ const value = (session_id: string, agent_run_id: string, state = 'awaiting') => 
   agent_run_id,
   remediation: {
     model_step_id: `step:${agent_run_id}`,
+    created_at: '2026-11-22T06:00:55Z',
     revision: 3,
     state,
-    budget: { estimated_input_tokens: 18000, request_input_budget_tokens: 16000 },
+    budget: {
+      estimated_input_tokens: 18000,
+      request_input_budget_tokens: 16000,
+      runtime_effective_window_tokens: 24000,
+      output_reserve_tokens: 4000,
+      safety_reserve_tokens: 4000,
+    },
     plan: {
       overflow: { non_compressible_tokens: 15000, user_reducible_tokens: 3000 },
       actions: ['reduce_user_managed_context'],
@@ -99,6 +106,65 @@ test('a request counted past the budget does not claim a provider refusal', asyn
   render(<ContextRemediation {...props} />);
   await screen.findByText(/预计输入 18,000/);
   expect(screen.queryByText(/模型服务商拒绝了这次请求/)).toBeNull();
+});
+
+test('identifies the pending request and explains a summary whose sources became unavailable', async () => {
+  const outcome = value('s', 'r');
+  Object.assign(outcome.remediation.plan.overflow, {
+    error_code: 'context.compaction_window_insufficient_after_summary_invalidated',
+    user_reducible_tokens: 0,
+  });
+  outcome.remediation.plan.actions = ['compact_sealed_history'];
+  read.mockResolvedValue({ ok: true, value: outcome });
+  render(<ContextRemediation {...props} />);
+  await screen.findByText(/本次请求预计输入 18,000/);
+  expect(screen.getByText(/^预检 /).getAttribute('datetime')).toBe(outcome.remediation.created_at);
+  screen.getByText(/窗口 24,000.*输出预留 4,000.*安全预留 4,000/);
+  screen.getByText(/上次摘要的来源.*历史原文/);
+  screen.getByText(/生成新摘要.*超出/);
+  expect(screen.queryByText('压缩可处理的历史内容')).toBeNull();
+});
+
+test('refresh gives pending and completed feedback, coalesces clicks and only reads status', async () => {
+  const onChanged = vi.fn();
+  render(<ContextRemediation {...props} onChanged={onChanged} />);
+  await screen.findByText(/预计输入/);
+  let finish!: (result: unknown) => void;
+  read.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const button = screen.getByRole('button', { name: '刷新状态' });
+  fireEvent.click(button);
+  fireEvent.click(button);
+  await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+  expect(button.getAttribute('aria-busy')).toBe('true');
+  expect((button as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => finish({ ok: true, value: value('s', 'r') }));
+  await screen.findByText('已刷新，任务仍在等待处理。');
+  expect((button as HTMLButtonElement).disabled).toBe(false);
+  expect(onChanged).toHaveBeenCalledTimes(1);
+  expect(recheck).not.toHaveBeenCalled();
+  expect(submit).not.toHaveBeenCalled();
+});
+
+test('a failed refresh can be retried and a cleared diagnosis stops showing the old estimate', async () => {
+  render(<ContextRemediation {...props} />);
+  await screen.findByText(/预计输入 18,000/);
+  read.mockResolvedValueOnce({ ok: false, error: { code: 'ipc.request_timeout' } });
+  fireEvent.click(screen.getByRole('button', { name: '刷新状态' }));
+  await screen.findByRole('alert');
+  expect(screen.queryByText(/已刷新/)).toBeNull();
+  read.mockResolvedValueOnce({
+    ok: true,
+    value: { session_id: 's', agent_run_id: 'r', remediation: null, provider_correction: null },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '刷新状态' }));
+  await screen.findByText('已刷新，当前没有待处理的上下文问题。');
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.queryByText(/预计输入|正在读取诊断/)).toBeNull();
 });
 
 test('uncertain result prevents another submission across a remount', async () => {

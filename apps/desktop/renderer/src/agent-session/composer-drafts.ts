@@ -13,6 +13,7 @@ export interface ComposerDraft {
   serverSessionId?: string;
   modelId?: string;
   permissionMode?: PermissionMode;
+  allowSubagents?: boolean;
   /** Passages of the conversation replied to with 回复, sent before the words. */
   quotes?: QuoteBlock[];
   extraKinds?: ExtraDraftKind[];
@@ -37,6 +38,7 @@ function read(): ComposerDraft[] {
             (item.modelId === undefined || typeof item.modelId === 'string') &&
             (item.permissionMode === undefined ||
               ['read_only', 'workspace_read_write', 'full_access'].includes(item.permissionMode)) &&
+            (item.allowSubagents === undefined || typeof item.allowSubagents === 'boolean') &&
             (item.quotes === undefined || isQuoteBlocks(item.quotes)) &&
             (item.extraKinds === undefined ||
               (Array.isArray(item.extraKinds) &&
@@ -55,6 +57,7 @@ const touched = (item: ComposerDraft) =>
     item.quotes?.length ||
     item.needsReview ||
     item.serverSessionId ||
+    item.allowSubagents ||
     item.extraKinds?.length,
   );
 const subscribe = (listener: () => void) => {

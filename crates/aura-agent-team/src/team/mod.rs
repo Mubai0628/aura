@@ -79,6 +79,19 @@ impl<'h, H: TeamHost> Team<'h, H> {
         chosen.pop().ok_or_else(|| unknown_agent(handle, &[]).into())
     }
 
+    async fn allow_new_work(&self, parent: SessionId) -> anyhow::Result<()> {
+        if let Some(reason) =
+            self.host
+                .read("agents.new_work", move |db| {
+                    Ok(H::new_work_block(db, parent)?.map(str::to_owned))
+                })
+                .await?
+        {
+            return Err(Refusal::new("agents.work_paused", reason).into());
+        }
+        Ok(())
+    }
+
     /// Refuses a sub-agent's call of a main agent's tool.
     async fn refuse_subagent(&self, session: SessionId) -> anyhow::Result<()> {
         let member =
@@ -114,22 +127,28 @@ impl<'h, H: TeamHost> Team<'h, H> {
             .await
     }
 
-    /// Refuses one more sub-agent of `parent` at work when the user's limit is reached. One
-    /// waiting for an approval holds no slot.
     async fn take_slot(&self, parent: SessionId) -> anyhow::Result<()> {
         let (limits, _) = self.host.read("agents.limits", crate::limits::limits).await?;
-        let members =
-            self.host.read("agents.slots", move |db| store::members_of(db, parent)).await?;
-        let mut working = 0_u32;
-        for member in members.iter().filter(|member| member.state == MemberState::Running) {
-            if self.host.progress(member.child_session_id).await?.approvals.is_empty() {
-                working += 1;
-            }
-        }
-        if working >= limits.max_running {
+        if self.available_slots(parent, limits.max_running).await? == 0 {
             return Err(no_slot(limits.max_running).into());
         }
         Ok(())
+    }
+
+    /// A child waiting for the user's approval holds no slot.
+    pub async fn available_slots(&self, parent: SessionId, limit: u32) -> anyhow::Result<u32> {
+        let members =
+            self.host.read("agents.slots", move |db| store::members_of(db, parent)).await?;
+        let mut remaining = limit;
+        for member in members.iter().filter(|member| member.state == MemberState::Running) {
+            if self.host.progress(member.child_session_id).await?.approvals.is_empty() {
+                remaining = remaining.saturating_sub(1);
+                if remaining == 0 {
+                    break;
+                }
+            }
+        }
+        Ok(remaining)
     }
 }
 

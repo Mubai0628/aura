@@ -1,5 +1,5 @@
 //! Ephemeral, bounded maintenance lanes. A completed turn is never reopened.
-mod facts;
+pub(super) mod facts;
 mod model;
 use super::*;
 use aura_core_base::append_core_log;
@@ -238,6 +238,15 @@ impl AgentApplication {
         let actor = WriteActor {
             kind: "automatic_maintenance".into(),
             session_id: Some(session),
+            session_name: self
+                .execution
+                .persistence
+                .workspace_session_projection()
+                .ok()
+                .and_then(|projection| {
+                    projection.sessions.into_iter().find(|s| s.session_id == session)
+                })
+                .map(|s| s.title),
             turn_id: Some(pending.turn.turn_task_id.to_string()),
         };
         let persistence = self.execution.persistence.clone();

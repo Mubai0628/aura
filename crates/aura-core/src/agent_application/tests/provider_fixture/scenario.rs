@@ -96,6 +96,10 @@ pub enum Scenario {
     ReasoningLoopThenText,
     /// Plain answers, and a compaction answered the first time it is asked.
     CompactOnPrefix,
+    /// A large real file read with a configurable auxiliary summary result.
+    HistoryReadPressure {
+        summary: bool,
+    },
     /// Plain answers; every compaction asked on the step's request, which carries its tools, is
     /// answered with a write that must never run, and one asked the isolated way with a summary.
     CompactToolOnPrefix,
@@ -233,6 +237,9 @@ pub enum Scenario {
     /// `PlainMeasured`, except that the second request is refused outright, so that
     /// step ends with no count.
     PlainMeasuredRefusingSecond,
+    PeerDispatch {
+        disconnect: bool,
+    },
     /// A conversation that starts sub-agent A1 and follows the plan, and A1's own requests.
     Team {
         plan: TeamPlan,

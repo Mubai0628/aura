@@ -15,6 +15,23 @@
   color: var(--ink);
   font-size: 12.5px;
   animation: context-menu-in 120ms var(--ease-out) both;
+  overflow: visible;
+}
+
+.context-submenu {
+  position: absolute;
+  animation: none;
+}
+.context-menu-items {
+  max-height: calc(100vh - 30px);
+  overflow: auto;
+}
+.context-menu [aria-haspopup='menu'] {
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+}
+.context-menu-chevron {
+  font-size: 16px;
+  line-height: 1;
 }
 
 .context-menu [role='menuitem'] {

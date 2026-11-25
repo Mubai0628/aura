@@ -16,13 +16,19 @@ fn every_turn_hears_how_to_work_efficiently_as_suggestions() {
     assert_eq!(module.activation, PromptActivationCondition::Always, "sent with every turn");
     let text = &module.normalized_content;
     for suggestion in [
-        "Every step sends the whole conversation to the model again",
+        "Every step sends the assembled conversation context to the model",
+        "Aura has just checked the current file",
+        "A verbatim user message in the conversation already supplies the original wording",
+        "complete_file_verified_this_step",
         "take a command's output from the call that runs it",
         "check the facts it rests on",
         "Keep doing independent authorized work.",
         "Ask when a missing decision, access, or prerequisite blocks the work",
         "offer a one-time setup that ends the repetition",
         "read a large file in ranges",
+        "Check the scope before choosing how to parallelize",
+        "delegate a substantial independent part early if its report saves work or adds an independent check",
+        "Batch short independent reads directly",
         "The user's own way still comes first",
     ] {
         assert!(text.contains(suggestion), "{suggestion}: {text}");

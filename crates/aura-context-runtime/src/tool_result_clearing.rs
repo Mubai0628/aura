@@ -31,7 +31,7 @@ pub fn cleared_tool_result(tool_name: &str, characters: usize, tool_call_id: Too
 
 #[must_use]
 pub fn is_cleared_tool_result(content: &str) -> bool {
-    content.starts_with(MARK)
+    aura_context_domain::is_tool_result_reference(content)
 }
 
 /// The results these items show cleared — those of the previous request, which stay cleared.

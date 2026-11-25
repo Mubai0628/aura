@@ -39,7 +39,8 @@ export function AppSidebar({
   workspaces,
 }: AppSidebarProps) {
   const activity = useSessionActivity();
-  const unseen = useUnseenSessions();
+  const mainUnseen = useUnseenSessions();
+  const unseen = mainUnseen;
   // What the user left open or closed wins over the selection, including a closed selected one.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set(readExpandedWorkspaces() ?? [selectedWorkspaceId].filter(Boolean)),

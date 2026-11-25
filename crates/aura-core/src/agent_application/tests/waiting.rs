@@ -168,6 +168,8 @@ mod compaction_parts;
 #[path = "compaction_retries.rs"]
 mod compaction_retries;
 // The conversation by round: the history tools and what a compaction leaves.
+#[path = "context_admission.rs"]
+mod context_admission;
 #[path = "history_rounds.rs"]
 mod history_rounds;
 // The task state does not repeat the to-do the conversation shows.

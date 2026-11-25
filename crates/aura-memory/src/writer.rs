@@ -18,6 +18,7 @@ pub struct MemoryWrite {
 pub struct WriteActor {
     pub kind: String,
     pub session_id: Option<SessionId>,
+    pub session_name: Option<String>,
     pub turn_id: Option<String>,
 }
 

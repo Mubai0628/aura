@@ -2,10 +2,29 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
+import {
+  DEVELOPMENT_RENDERER_HEADER,
+  isDevelopmentRendererInstance,
+} from './shared/development-renderer.js';
+
+const developmentInstance = process.env.AURA_DEV_RENDERER_INSTANCE;
 
 export default defineConfig({
   base: './',
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    {
+      name: 'aura-development-renderer',
+      configureServer(server) {
+        if (!isDevelopmentRendererInstance(developmentInstance)) return;
+        server.middlewares.use((_, response, next) => {
+          response.setHeader(DEVELOPMENT_RENDERER_HEADER, developmentInstance);
+          next();
+        });
+      },
+    },
+  ],
   root: resolve(import.meta.dirname, 'renderer'),
   server: {
     host: '127.0.0.1',

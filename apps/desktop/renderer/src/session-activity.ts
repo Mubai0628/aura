@@ -12,8 +12,7 @@ const same = (known: SessionActivity, sessions: readonly AgentSessionActivity[])
   known.size === sessions.length &&
   sessions.every((entry) => known.get(entry.session_id) === entry.state);
 
-// One read every 1.5 s for every part of the window that shows it (the sidebar's rows, the
-// 近期活动 card), while any of them is shown.
+// One poll for every part of the window that shows activity.
 let known: SessionActivity = NOTHING;
 const listeners = new Set<() => void>();
 let stop: (() => void) | undefined;
@@ -27,9 +26,14 @@ function start(): () => void {
     if (!document.hidden) {
       try {
         const result = await read({});
-        if (alive && result.ok && !same(known, result.value.sessions)) {
-          known = new Map(result.value.sessions.map((entry) => [entry.session_id, entry.state]));
-          for (const listener of listeners) listener();
+        if (alive && result.ok) {
+          const next = new Map(
+            result.value.sessions.map((entry) => [entry.session_id, entry.state]),
+          );
+          if (!same(known, result.value.sessions)) {
+            known = next;
+            for (const listener of listeners) listener();
+          }
         }
       } catch {
         // The next look tries again; the dots keep what they showed.

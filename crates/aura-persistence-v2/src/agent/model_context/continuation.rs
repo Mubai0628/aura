@@ -1,10 +1,43 @@
 //! Resolve only continuation artifacts owned by the exact producing ModelStep.
-use aura_domain_common::ModelStepId;
+use aura_domain_common::{ContentHash, EventId, ModelStepId};
 use aura_model_domain::*;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+
+pub(super) fn native_prefixes(
+    db: &Connection,
+    items: &[LogicalConversationItem],
+) -> StoreResult<BTreeMap<EventId, ContentHash>> {
+    let mut query = db.prepare(
+        "SELECT b.payload FROM events e JOIN events b
+         ON b.owner=json_extract(e.payload,'$.model_step_id') AND b.kind='agent.request_boundary'
+         WHERE e.event_id=?1 AND e.kind='agent.assistant_response'
+         ORDER BY b.sequence DESC LIMIT 1",
+    )?;
+    let mut prefixes = BTreeMap::new();
+    for item in items {
+        let LogicalConversationItem::Assistant {
+            source_event_id, provider_history: Some(_), ..
+        } = item
+        else {
+            continue;
+        };
+        let raw: Option<String> =
+            query.query_row([source_event_id.to_string()], |row| row.get(0)).optional()?;
+        if let Some(prefix) = raw
+            .and_then(|value| {
+                serde_json::from_str::<super::super::request_boundary::RequestBoundary>(&value).ok()
+            })
+            .filter(|boundary| boundary.closing_question.is_none())
+            .and_then(|boundary| boundary.native_prefix)
+        {
+            prefixes.insert(*source_event_id, prefix);
+        }
+    }
+    Ok(prefixes)
+}
 
 pub(super) fn read(
     db: &Connection,

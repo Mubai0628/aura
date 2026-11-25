@@ -71,13 +71,13 @@ pub(crate) async fn run_tool_settings_maintenance(
     sync: &sync_boundary::SyncBoundary,
     settings: Arc<SettingsFacade>,
     persistence: Arc<PersistenceCoordinator>,
-    configuration_rejected: bool,
+    rejection: Option<String>,
 ) -> ConfigMaintenanceOutcome {
     let admission = sync
         .run_owned(
             sync_boundary::SyncSection::Projection,
             sync_boundary::SyncSubject::new().method("config.tools.publish"),
-            move || publish_current_tool_settings(&settings, &persistence, configuration_rejected),
+            move || publish_current_tool_settings(&settings, &persistence, rejection.as_deref()),
         )
         .await;
     match admission {
@@ -185,8 +185,12 @@ pub(crate) fn spawn_p07_maintenance(
     // so moving startup onto the boundary would add a refusal path to work that must happen
     // exactly once and would not make any running consumer more responsive. The *event callback*
     // below is the path that runs while the Core is serving, and that one is a bounded section.
-    publish_current_tool_settings(&settings, &persistence, startup_recovered)
-        .context("failed to initialize P07 Tool Settings projection")?;
+    publish_current_tool_settings(
+        &settings,
+        &persistence,
+        startup_recovered.then_some("启动时恢复了最近一次有效配置。"),
+    )
+    .context("failed to initialize P07 Tool Settings projection")?;
     let list_changes = persistence
         .commit_current_tool_global_list_projections()
         .context("failed to initialize P07 Tool Package/Draft list projections")?;
@@ -202,7 +206,7 @@ pub(crate) fn spawn_p07_maintenance(
         // drained event decides the publication state, so the projection always reflects the
         // newest last-known-good configuration and can never flow backwards.
         let mut tool_change_pending = false;
-        let mut configuration_rejected = false;
+        let mut rejection = None;
         loop {
             poll.tick().await;
             loop {
@@ -215,16 +219,18 @@ pub(crate) fn spawn_p07_maintenance(
                     continue;
                 }
                 tool_change_pending = true;
-                configuration_rejected =
-                    matches!(event.kind, ConfigEventKind::Rejected | ConfigEventKind::Recovered);
+                rejection = match event.kind {
+                    ConfigEventKind::Rejected => Some(event.message),
+                    ConfigEventKind::Recovered => Some("已恢复最近一次有效配置。".into()),
+                    ConfigEventKind::Changed => None,
+                };
             }
             if tool_change_pending {
-                let rejected = configuration_rejected;
                 match run_tool_settings_maintenance(
                     &sync,
                     Arc::clone(&settings),
                     Arc::clone(&persistence),
-                    rejected,
+                    rejection.clone(),
                 )
                 .await
                 {
@@ -248,13 +254,13 @@ pub(crate) fn spawn_p07_maintenance(
 pub(crate) fn publish_current_tool_settings(
     settings: &SettingsFacade,
     persistence: &PersistenceCoordinator,
-    configuration_rejected: bool,
+    rejection: Option<&str>,
 ) -> Result<()> {
     let snapshot = settings
         .stored_tool_settings_snapshot()
         .context("failed to read last-known-good Tool Settings")?;
     let published = p07_registry::ToolRegistryControlServiceV1
-        .publish_settings(persistence, snapshot, configuration_rejected)
+        .publish_settings(persistence, snapshot, rejection)
         .context("failed to commit Tool Settings projection")?;
     if let Some(error) = published.projection_publish_error {
         append_core_log(

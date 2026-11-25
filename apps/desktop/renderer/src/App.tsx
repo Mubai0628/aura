@@ -361,6 +361,16 @@ export function App() {
     setWorkspaceLayout(next);
     if (persist) writeWorkspaceLayoutPreferences(next);
   };
+  const setSessionRightPanel = (session: string, open: boolean) =>
+    updateWorkspaceLayout(
+      {
+        rightPanelBySession: { ...workspaceLayoutRef.current.rightPanelBySession, [session]: open },
+      },
+      true,
+    );
+  const ownRightPanel = selectedSession
+    ? workspaceLayout.rightPanelBySession?.[selectedSession.id]
+    : undefined;
 
   return (
     <div className="app-shell" data-core-state={health.loading ? undefined : coreState}>
@@ -418,6 +428,7 @@ export function App() {
               }
               onOpenSettings={openSettings}
               onAccepted={(localId, sessionId) => {
+                setSessionRightPanel(sessionId, false);
                 removeComposerDraft(localId);
                 setSelectedSessionId((current) =>
                   current === localId || current === '' ? sessionId : current,
@@ -432,6 +443,7 @@ export function App() {
                     needsReview: true,
                   });
                   removeComposerDraft(draft.id);
+                  setSessionRightPanel(sessionId, false);
                   setSelectedSessionId((current) =>
                     current === draft.id || current === '' ? sessionId : current,
                   );
@@ -452,13 +464,12 @@ export function App() {
               onOpenSecuritySettings={() => setGrantsOpen(true)}
               permissionMode={security.permission?.mode}
               permissionTransition={security.permission?.transition}
-              rightPanelOpen={workspaceLayout.rightPanelOpen}
+              rightPanelOpen={ownRightPanel ?? workspaceLayout.rightPanelOpen}
+              rightPanelExplicit={ownRightPanel !== undefined}
               rightPanelWidth={workspaceLayout.rightPanelWidth}
               runtimeNotice={runtimeNotice}
               selectedSession={selectedSession}
-              setRightPanelOpen={(rightPanelOpen) =>
-                updateWorkspaceLayout({ rightPanelOpen }, true)
-              }
+              setRightPanelOpen={(open) => setSessionRightPanel(selectedSession.id, open)}
               setRightPanelWidth={(rightPanelWidth) =>
                 updateWorkspaceLayout({ rightPanelWidth }, false)
               }

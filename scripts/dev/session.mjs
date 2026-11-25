@@ -22,7 +22,7 @@ export function runDevSession({
   signals = process,
   quitTimeoutMs = QUIT_TIMEOUT_MS,
 }) {
-  const renderer = spawnRenderer();
+  const renderer = spawnRenderer?.();
   const electron = spawnElectron();
   const electronEnded = new Promise((resolve) => {
     if (electron.exitCode !== null) resolve(electron.exitCode);
@@ -36,7 +36,7 @@ export function runDevSession({
     // (Electron is still building) means nothing to close and nothing to record.
     const asked = closeAuraWindows();
     // The renderer server is not needed to quit: the window has already loaded.
-    killTree(renderer.pid);
+    if (renderer) killTree(renderer.pid);
     const ended = asked
       ? await Promise.race([
           electronEnded.then(() => true),
@@ -47,7 +47,7 @@ export function runDevSession({
     onExit(code);
   };
   electronEnded.then((code) => stop(code));
-  renderer.once('exit', (code) => stop(code || 1));
+  renderer?.once('exit', (code) => stop(code || 1));
   for (const signal of ['SIGINT', 'SIGBREAK', 'SIGHUP']) signals.on(signal, () => stop(130));
 }
 

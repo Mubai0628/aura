@@ -1,5 +1,5 @@
 use super::*;
-use crate::agent_application::compaction::{Compacted, CompactionRequest};
+use crate::agent_application::compaction::{BackgroundUse, Compacted, CompactionRequest};
 use aura_core_base::append_core_log;
 
 pub(super) struct CompilationInput<'a> {
@@ -13,20 +13,32 @@ pub(super) struct CompilationInput<'a> {
     pub endpoint: &'a ModelEndpointConfig,
     pub window_trial: &'a Option<model::context_window::WindowCorrection>,
     pub force_rebuild: bool,
+    pub history_read_pressure: bool,
+    pub selected_history_bytes: u64,
+    pub missing_adopted: std::collections::BTreeSet<EventId>,
     pub cancel: &'a ModelCancellationToken,
     pub estimators: ContextEstimatorRegistry,
     /// The tools the step always loads, which a compaction on its prefix sends too.
     pub fixed_tool_ids: &'a [aura_domain_common::ToolId],
+    pub native_prefixes: &'a std::collections::BTreeMap<EventId, ContentHash>,
     /// The screenshots the request may carry, attached anew on each pass.
     pub screenshots: &'a super::preparation::screenshots::Screenshots,
     pub memory_available: bool,
+    pub source_access: super::compaction::dependencies::Access,
+    pub background: BackgroundUse,
+}
+
+pub(super) struct CompiledStep {
+    pub prepared: Box<PreparedContextDraft>,
+    pub state: serde_json::Value,
+    pub referenced_results: Vec<(ToolCallId, String)>,
 }
 
 impl AgentApplication {
     pub(super) async fn compile_context(
         self: &Arc<Self>,
         pass: CompilationInput<'_>,
-    ) -> anyhow::Result<Option<(Box<PreparedContextDraft>, serde_json::Value)>> {
+    ) -> anyhow::Result<Option<CompiledStep>> {
         let CompilationInput {
             run_id,
             turn,
@@ -38,43 +50,30 @@ impl AgentApplication {
             endpoint,
             window_trial,
             force_rebuild,
+            mut history_read_pressure,
+            mut selected_history_bytes,
+            mut missing_adopted,
             cancel,
             estimators,
             fixed_tool_ids,
+            native_prefixes,
             screenshots,
             memory_available,
+            source_access,
+            background,
         } = pass;
         let mut attempted = false;
+        let mut deferred_images = std::collections::BTreeSet::new();
         // What this preparation gave back, for the line the conversation shows -
         // the request's estimate when it first did not fit, results cleared, history compacted.
         let mut reduction: Option<PromptInspectorReductionView> = None;
-        let replay_task_states =
-            |envelope: &aura_model_domain::CompiledInstructionEnvelope,
-             conversation: &[LogicalConversationItem],
-             attachments: &[aura_model_domain::ModelAttachmentSnapshot]| {
-                if snapshot.api_format != aura_model_domain::ModelApiFormat::OpenAiResponses
-                    || !aura_model_transport::state_before_conversation(snapshot)
-                {
-                    return Ok(Vec::new());
-                }
-                let resolved = screenshots.resolved(attachments).map_err(|_| {
-                    aura_context_runtime::ContextPreparationError::AttachmentSourceInvalid
-                })?;
-                aura_model_adapter_openai_responses::replayed_task_states(
-                    turn.session_id,
-                    snapshot,
-                    envelope,
-                    conversation,
-                    &resolved,
-                )
-                .map_err(aura_context_runtime::ContextPreparationError::from)
-            };
+        let mut referenced_results = Vec::new();
         let mut prepared = loop {
             // Apply recall after the effective history range is known, including each new
             // compaction pass. Visible sources remain in their original messages.
             self.refresh_recalled_sources(turn, &mut input, memory_available).await;
             // Only the screenshots whose results this pass still carries as they were.
-            let unread_pictures = screenshots.attach(&mut input);
+            let unread_pictures = screenshots.attach(&mut input, &deferred_images);
             // Boundary: the manual-compaction request read, one bounded section per pass.
             let record = {
                 let journal = Arc::clone(&self.execution.journal);
@@ -130,9 +129,45 @@ impl AgentApplication {
             // `over` is the request that does not fit, with its reasons; `None` when it fits.
             // `prefix` is what that request is made of, for a compaction asked on it.
             let compiled = ContextPreparationCompiler::new(&estimators)
-                .for_request(snapshot, closing_question, Some(&replay_task_states))
+                .for_request(snapshot, closing_question, fixed_tool_ids, native_prefixes)
                 .compile(input.clone())?;
-            let (budget, non_history_tokens, over, mut prefix) = match compiled {
+            let overflow = match &compiled {
+                ContextPreparationCompilationOutcome::CompactionRequired { budget, .. }
+                | ContextPreparationCompilationOutcome::AwaitingRemediation { budget, .. } => {
+                    Some(budget)
+                }
+                ContextPreparationCompilationOutcome::Prepared(_) => None,
+            };
+            if manual.is_none()
+                && let Some(budget) = overflow
+            {
+                let needed = budget
+                    .estimated_input_tokens
+                    .saturating_sub(budget.request_input_budget_tokens);
+                let shortened = super::new_results::shorten(&mut input, budget, needed)?;
+                if !shortened.originals.is_empty() {
+                    reduction
+                        .get_or_insert(PromptInspectorReductionView {
+                            input_tokens_before: budget.estimated_input_tokens,
+                            cleared_tool_results: 0,
+                            compacted: false,
+                            history_on_demand: false,
+                            summary_cache: None,
+                        })
+                        .cleared_tool_results += shortened.originals.len() as u32;
+                    referenced_results.extend(shortened.originals);
+                    selected_history_bytes =
+                        selected_history_bytes.saturating_sub(shortened.bytes_released);
+                    if missing_adopted.is_empty()
+                        && selected_history_bytes
+                            < budget.request_input_budget_tokens.saturating_mul(4)
+                    {
+                        history_read_pressure = false;
+                    }
+                    continue;
+                }
+            }
+            let (budget, non_history_tokens, mut over, mut prefix) = match compiled {
                 ContextPreparationCompilationOutcome::Prepared(prepared) => {
                     let b = &prepared.context.snapshot.budget;
                     let window = b.runtime_effective_window_tokens;
@@ -140,18 +175,27 @@ impl AgentApplication {
                         snapshot.request_options.effective_max_output_tokens,
                     );
                     // Leave space for the closing instruction and the next normal tool exchange.
-                    let growth = (window / 20).clamp(2_048, 16_384);
+                    let growth = context_growth_reserve(window);
                     let near = b
                         .estimated_input_tokens
                         .saturating_add(b.safety_reserve_tokens)
                         .saturating_add(reserve)
                         .saturating_add(growth)
                         >= window;
-                    if manual.is_none() && (attempted || (!force_rebuild && !near)) {
-                        if let Some(plan) = window_rebuild::no_progress(
-                            window_trial.as_ref(),
-                            &prepared.context.snapshot,
-                        ) {
+                    if manual.is_none()
+                        && missing_adopted.is_empty()
+                        && (attempted || (!force_rebuild && !near && !history_read_pressure))
+                    {
+                        if let Some(plan) =
+                            recovery::no_progress(window_trial.as_ref(), &prepared.context.snapshot)
+                        {
+                            if recovery::fit(
+                                &mut input,
+                                &prepared.context.snapshot.budget,
+                                &mut deferred_images,
+                            )? {
+                                continue;
+                            }
                             // Boundary: recording the no-progress remediation is one
                             // bounded write.
                             let journal = Arc::clone(&self.execution.journal);
@@ -205,6 +249,9 @@ impl AgentApplication {
                     prefix,
                 ),
                 ContextPreparationCompilationOutcome::AwaitingRemediation { plan, budget } => {
+                    if recovery::fit(&mut input, &budget, &mut deferred_images)? {
+                        continue;
+                    }
                     self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
                     return Ok(None);
                 }
@@ -213,10 +260,14 @@ impl AgentApplication {
                 input_tokens_before: budget.estimated_input_tokens,
                 cleared_tool_results: 0,
                 compacted: false,
+                history_on_demand: false,
                 summary_cache: None,
             });
             if attempted {
                 if let Some((plan, budget)) = over {
+                    if recovery::fit(&mut input, &budget, &mut deferred_images)? {
+                        continue;
+                    }
                     self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
                     return Ok(None);
                 }
@@ -224,25 +275,23 @@ impl AgentApplication {
             }
             attempted = true;
             prefix.closing_question = closing_question.map(str::to_owned);
-            let source_access =
-                super::compaction::dependencies::Access::for_turn(turn, &input, memory_available);
-            let compacted = self
-                .compact(
-                    &input,
-                    snapshot,
-                    endpoint,
-                    CompactionRequest {
-                        budget: &budget,
-                        non_history_tokens,
-                        manual: manual.as_ref(),
-                        prefix: &prefix,
-                        source_access: source_access.clone(),
-                        fixed_tool_ids,
-                        resolved_attachments: screenshots.resolved(&prefix.attachments)?.into(),
-                    },
-                    cancel,
-                )
-                .await;
+            let compacted = Box::pin(self.compact(
+                &input,
+                snapshot,
+                endpoint,
+                CompactionRequest {
+                    budget: &budget,
+                    non_history_tokens,
+                    manual: manual.as_ref(),
+                    prefix: &prefix,
+                    source_access: source_access.clone(),
+                    missing_adopted: &missing_adopted,
+                    fixed_tool_ids,
+                    resolved_attachments: screenshots.resolved(&prefix.attachments)?.into(),
+                },
+                cancel,
+            ))
+            .await;
             let error = match compacted {
                 Ok(Compacted::Done(stats)) => {
                     if let Some(reduced) = reduction.as_mut() {
@@ -252,10 +301,37 @@ impl AgentApplication {
                     None
                 }
                 Ok(Compacted::FellShort { code }) if manual.is_some() => {
+                    if code == "context.compaction_window_insufficient"
+                        && recovery::fit(&mut input, &budget, &mut deferred_images)?
+                    {
+                        // Admission failed locally; the command has yet to issue a model request.
+                        attempted = false;
+                        continue;
+                    }
                     Some(anyhow::anyhow!("context.compaction_failed: {code}"))
                 }
                 outcome @ (Ok(Compacted::FellShort { .. }) | Ok(Compacted::NothingEligible)) => {
+                    if !missing_adopted.is_empty() {
+                        let plan =
+                            recovery::adopted_prefix_unavailable(&budget, non_history_tokens);
+                        self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
+                        return Ok(None);
+                    }
                     if let Ok(Compacted::FellShort { code }) = outcome {
+                        if code == "context.compaction_window_insufficient"
+                            && let Some((plan, _)) = &mut over
+                        {
+                            plan.overflow.error_code = match background {
+                                BackgroundUse::SourcesUnavailable => {
+                                    "context.compaction_window_insufficient_after_summary_invalidated".to_owned()
+                                }
+                                BackgroundUse::Absent | BackgroundUse::Applied => code.clone(),
+                            };
+                            plan.actions.retain(|action| action != "compact_sealed_history");
+                            plan.overflow
+                                .remediation
+                                .retain(|action| action != "compact_sealed_history");
+                        }
                         append_core_log(
                             "context.compaction_fell_short",
                             serde_json::json!({
@@ -264,6 +340,9 @@ impl AgentApplication {
                         );
                     }
                     if let Some((plan, budget)) = over {
+                        if recovery::fit(&mut input, &budget, &mut deferred_images)? {
+                            continue;
+                        }
                         self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
                         return Ok(None);
                     }
@@ -298,7 +377,25 @@ impl AgentApplication {
                 }
                 return Err(error);
             }
-            super::compaction::apply(self, &mut input, source_access).await?;
+            let access = source_access.clone();
+            let session = turn.session_id;
+            let checkpoint = self
+                .store
+                .read(StoreStep::run(run_id, "agent.context.compaction_checkpoint"), move |db| {
+                    super::compaction::authorized_checkpoint(db, session, run_id, &access)
+                })
+                .await?;
+            if !missing_adopted.is_empty() {
+                if !checkpoint.record.as_ref().is_some_and(|record| {
+                    missing_adopted.iter().all(|id| record.excluded_event_ids.contains(id))
+                }) {
+                    let plan = recovery::adopted_prefix_unavailable(&budget, non_history_tokens);
+                    self.require_remediation(run_id, step.model_step_id, plan, budget).await?;
+                    return Ok(None);
+                }
+                missing_adopted.clear();
+            }
+            super::compaction::apply(self, &mut input, checkpoint).await?;
             // Boundary: the post-compaction state refresh. Its reads were eleven direct
             // locks inside the loop body; they are now two bounded sections over the same
             // statements, and the JSON they feed is still built from exactly the same rows.
@@ -365,9 +462,21 @@ impl AgentApplication {
             state["mode_episode"] = refreshed.4;
             state["guard"] = refreshed.5;
         };
-        prepared.prompt_inspector.reduction =
-            reduction.filter(|reduced| reduced.compacted || reduced.cleared_tool_results > 0);
-        Ok(Some((prepared, state)))
+        if recovery::has_gap(&input) {
+            reduction
+                .get_or_insert(PromptInspectorReductionView {
+                    input_tokens_before: prepared.context.snapshot.budget.estimated_input_tokens,
+                    cleared_tool_results: 0,
+                    compacted: false,
+                    history_on_demand: true,
+                    summary_cache: None,
+                })
+                .history_on_demand = true;
+        }
+        prepared.prompt_inspector.reduction = reduction.filter(|reduced| {
+            reduced.compacted || reduced.cleared_tool_results > 0 || reduced.history_on_demand
+        });
+        Ok(Some(CompiledStep { prepared, state, referenced_results }))
     }
 
     /// The request cannot be made to fit: the step waits for the user with its reasons and the

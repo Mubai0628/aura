@@ -106,6 +106,11 @@ impl FakeHost {
     pub fn with_models(models: Vec<ModelOffer>) -> Self {
         let root = tempfile::tempdir().unwrap();
         let store = V2Store::create(&root.path().join("v2")).unwrap();
+        store
+            .database
+            .connection()
+            .execute_batch("CREATE TEMP TABLE test_agent_team_blocked_parent(id TEXT PRIMARY KEY)")
+            .unwrap();
         Self {
             store: Mutex::new(store),
             models,
@@ -184,6 +189,15 @@ impl FakeHost {
 }
 
 impl TeamHost for FakeHost {
+    fn new_work_block(db: &Connection, parent: SessionId) -> StoreResult<Option<&'static str>> {
+        let blocked: bool = db.query_row(
+            "SELECT EXISTS(SELECT 1 FROM test_agent_team_blocked_parent WHERE id=?1)",
+            [parent.to_string()],
+            |row| row.get(0),
+        )?;
+        Ok(blocked.then_some("parent session does not allow new temporary work"))
+    }
+
     fn read<T, F>(
         &self,
         _step: &'static str,

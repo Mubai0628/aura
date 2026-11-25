@@ -11,7 +11,9 @@ type Boxed<T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send>>;
 
 /// Whether `action_kind` is a team tool.
 pub(super) fn is_team_tool(action_kind: &str) -> bool {
-    action_kind.starts_with("agents.") || action_kind == policy::REPORT_TOOL
+    action_kind.starts_with("agents.")
+        || action_kind.starts_with("peers.")
+        || action_kind == policy::REPORT_TOOL
 }
 
 impl AgentExecution {
@@ -169,7 +171,9 @@ async fn invoke_unboxed(
     // A Git write whose end was not seen, or whose process was not seen to stop, may have
     // changed the workspace.
     let unknown = error.as_deref().is_some_and(|error| {
-        error.contains("git.outcome_unknown") || error.contains("git.stop_unconfirmed")
+        error.contains("git.outcome_unknown")
+            || error.contains("git.stop_unconfirmed")
+            || error.starts_with("peers.outcome_unknown:")
     });
     let rejection = error.as_deref().filter(|_| !unknown).and_then(refusal);
     let evidence = BrokerEvidence {
@@ -178,7 +182,11 @@ async fn invoke_unboxed(
         // A refusal is answered before the team writes anything; reading writes nothing.
         side_effect: match (success, request.operation.content.action_kind.as_str()) {
             _ if unknown => SideEffectStateV1::Unknown,
-            (false, _) | (true, "agents.status" | "agents.result") => SideEffectStateV1::NoEffect,
+            (false, _)
+            | (
+                true,
+                "agents.status" | "agents.result" | "peers.list" | "peers.status" | "peers.result",
+            ) => SideEffectStateV1::NoEffect,
             (true, _) => SideEffectStateV1::FullyApplied,
         },
         before: request.plan.prepared.preparation["domain"].clone(),

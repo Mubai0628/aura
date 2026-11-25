@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { AppIcon } from '../app-icons';
 import { AgentTeamAttention } from './AgentTeamAttention';
+import { AgentProfileDialog } from './AgentProfileEditor';
 import { AgentTeamList } from './AgentTeamList';
 import { AgentTeamCanvas } from './canvas/AgentTeamCanvas';
 import { readTeamView, writeTeamView, type TeamView } from './canvas/places';
+import { AgentGraphPanel } from './graph/AgentGraphPanel';
 import { focusAgent, useFocusedAgent } from './team-focus';
 import { useAgentTeam, useAgentTeamUnread } from './team-store';
 import './agent-team.css';
@@ -19,16 +21,22 @@ export function AgentTeamPanel({
   visible,
   expanded = false,
   onToggleExpanded,
+  onOpenSession,
+  activeSessions,
 }: {
   sessionId: string;
   visible: boolean;
   expanded?: boolean;
   onToggleExpanded?: (() => void) | undefined;
+  onOpenSession?: ((sessionId: string) => boolean) | undefined;
+  activeSessions?: ReadonlySet<string> | undefined;
 }) {
   const view = useAgentTeam(sessionId, visible);
   const unread = useAgentTeamUnread(sessionId);
   const focused = useFocusedAgent(sessionId);
   const [shown, setShown] = useState<TeamView>(readTeamView);
+  const [profileSession, setProfileSession] = useState<string>();
+  const supportsGraph = typeof window.aura?.v1?.readAgentGraph === 'function';
   const members = view?.members ?? [];
   const chosen = members.some((member) => member.agent === focused) ? focused : undefined;
   // Filling the main area, the page goes back to the sidebar so the pick shows there.
@@ -41,6 +49,19 @@ export function AgentTeamPanel({
     writeTeamView(next);
   };
   const attention = <AgentTeamAttention sessionId={sessionId} members={members} onPick={pick} />;
+  const legacy =
+    shown === 'canvas' ? (
+      <div className="agent-team-stage">
+        <AgentTeamCanvas sessionId={sessionId} view={view} chosen={chosen} onPick={pick} />
+        {attention}
+      </div>
+    ) : (
+      <>
+        {attention}
+        <AgentTeamList lead={view?.lead} members={members} chosen={chosen} onPick={pick} />
+        {view && !members.length ? <p className="agent-team-empty">没有子 Agent</p> : null}
+      </>
+    );
   return (
     <section
       aria-label="多 Agent"
@@ -68,6 +89,16 @@ export function AgentTeamPanel({
           >
             <AppIcon name="list" size={16} />
           </button>
+          {!supportsGraph && typeof window.aura?.v1?.readAgentProfile === 'function' ? (
+            <button
+              aria-label="编辑简介"
+              title="编辑简介"
+              onClick={() => setProfileSession(sessionId)}
+              type="button"
+            >
+              <AppIcon name="review" />
+            </button>
+          ) : null}
         </div>
         {onToggleExpanded ? (
           <button
@@ -84,21 +115,34 @@ export function AgentTeamPanel({
       </div>
       {unread ? (
         <p className="agent-team-problem" role="status">
-          子 Agent 列表暂时读不到（Aura Core 没有回应），这里显示的可能不是最新状态；会自动重试。
+          子 Agent 列表暂时读不到，正在重试。
         </p>
       ) : null}
-      {shown === 'canvas' ? (
-        <div className="agent-team-stage">
-          <AgentTeamCanvas sessionId={sessionId} view={view} chosen={chosen} onPick={pick} />
-          {attention}
-        </div>
+      {supportsGraph ? (
+        <AgentGraphPanel
+          key={`graph:${sessionId}`}
+          sessionId={sessionId}
+          visible={visible}
+          shown={shown}
+          chosen={chosen}
+          fallback={legacy}
+          activeSessions={activeSessions}
+          onEditProfile={setProfileSession}
+          onOpenSession={onOpenSession}
+          onPicked={() => {
+            if (expanded) onToggleExpanded?.();
+          }}
+        />
       ) : (
-        <>
-          {attention}
-          <AgentTeamList lead={view?.lead} members={members} chosen={chosen} onPick={pick} />
-          {view && !members.length ? <p className="agent-team-empty">没有子 Agent</p> : null}
-        </>
+        legacy
       )}
+      {visible && profileSession ? (
+        <AgentProfileDialog
+          key={profileSession}
+          sessionId={profileSession}
+          onClose={() => setProfileSession(undefined)}
+        />
+      ) : null}
     </section>
   );
 }

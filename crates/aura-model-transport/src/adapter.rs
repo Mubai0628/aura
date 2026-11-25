@@ -296,6 +296,18 @@ pub fn validate_model_compilation_input(
             format!("logical model request violates its frozen contract: {error}"),
         )
     })?;
+    if input.request.instruction_envelope.task_state_replay.is_some()
+        && !crate::supports_task_state_replay(
+            input.snapshot,
+            &input.request.instruction_envelope,
+            &input.request.tool_schema_set,
+        )
+    {
+        return Err(ModelAdapterError::invalid_request(
+            "model_request.task_state_replay_unsupported",
+            "this route does not support ordered task state replay",
+        ));
+    }
     validate_resolved_attachments(input.request, input.resolved_attachments).map_err(|error| {
         let code = match error {
             aura_model_domain::LogicalModelRequestError::AttachmentsNotResolved => {

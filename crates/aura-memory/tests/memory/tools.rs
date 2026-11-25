@@ -50,6 +50,7 @@ fn model_tools_write_then_another_session_reads_and_updates_with_hash_conflict_p
     let actor = WriteActor {
         kind: "model_tool".into(),
         session_id: Some(SessionId::new()),
+        session_name: Some("Same title".into()),
         turn_id: Some("turn-fixture-1".into()),
     };
     let result=service.invoke("memory.create",&json!({"scope":"project","items":[{"path":"commands/build.md","category":"commands","body":"# 构建命令\ncargo test --offline\n"}]}),&workspace,&actor).expect("create");
@@ -127,8 +128,11 @@ fn repair_is_readonly_until_apply_preserves_body_and_rejects_stale_or_stolen_pre
         original
     );
     assert!(!vaultroot.join("README.md").exists());
-    let thief =
-        WriteActor { kind: "model_tool".into(), session_id: Some(SessionId::new()), turn_id: None };
+    let thief = WriteActor {
+        kind: "model_tool".into(),
+        session_id: Some(SessionId::new()),
+        ..Default::default()
+    };
     assert!(service.invoke("memory.repair",&json!({"scope":"project","phase":"apply","preview_token":preview.preview.preview_token}),&workspace,&thief).is_err());
     let preview: MemoryRepairResult = serde_json::from_value(
         service

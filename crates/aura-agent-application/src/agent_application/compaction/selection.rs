@@ -5,6 +5,12 @@ pub(super) struct Sources {
     pub content: String,
 }
 
+pub(super) struct AdoptedHistory {
+    pub cutoff: SessionSequence,
+    pub events: BTreeSet<EventId>,
+    pub items_for_read_gap: Option<Vec<LogicalConversationItem>>,
+}
+
 /// The rate the request's own estimate counts its bytes at: one token a byte, or the provider's
 /// rate for the parts it was sent before. History units are measured in bytes, so they
 /// are planned at the same rate as the budget they are planned against.
@@ -16,7 +22,7 @@ fn planning_rate(budget: &ContextBudgetSnapshot) -> (u64, u64) {
         (budget.estimated_input_tokens, bytes)
     }
 }
-pub(super) fn event_id(item: &LogicalConversationItem) -> EventId {
+pub(in crate::agent_application) fn event_id(item: &LogicalConversationItem) -> EventId {
     match item {
         LogicalConversationItem::User { source_event_id, .. }
         | LogicalConversationItem::Assistant { source_event_id, .. }
@@ -37,7 +43,8 @@ pub(super) async fn select(
     non_history_tokens: u64,
     budget: ContextBudgetSnapshot,
     automatic: bool,
-    admitted: Option<(BTreeSet<EventId>, SessionSequence)>,
+    admitted: Option<AdoptedHistory>,
+    must_cover: BTreeSet<EventId>,
 ) -> anyhow::Result<Option<Sources>> {
     let run_id = input.request.agent_run_id;
     let store = Arc::clone(&app.store);
@@ -57,12 +64,15 @@ pub(super) async fn select(
     // may no longer exist to ask.
     let carried =
         aura_persistence_v2::agent::branch::history_sequences(db, input.request.session_id)?;
+    let cutoff = admitted.as_ref().map_or(input.request.history_cutoff, |history| history.cutoff);
+    let frozen = admitted.as_ref().and_then(|history| history.items_for_read_gap.as_ref());
+    let history = frozen.unwrap_or(&input.recent_history_items);
     let mut units = vec![];
     let mut members: Vec<Vec<EventId>> = vec![];
     let (rate_tokens, rate_bytes) = planning_rate(&budget);
     let mut index = 0;
-    while index < input.recent_history_items.len() {
-        let item = &input.recent_history_items[index];
+    while index < history.len() {
+        let item = &history[index];
         let event = event_id(item);
         let group = groups.iter().find(|g| g.assistant_response_event_id == event);
         let count = match item {
@@ -70,10 +80,10 @@ pub(super) async fn select(
             _ => 1,
         };
         anyhow::ensure!(
-            index + count <= input.recent_history_items.len(),
+            index + count <= history.len(),
             "context.compaction_incomplete_group"
         );
-        let values = &input.recent_history_items[index..index + count];
+        let values = &history[index..index + count];
         if let LogicalConversationItem::Assistant { tool_calls, .. } = item {
             for (call, result) in tool_calls.iter().zip(&values[1..]) {
                 anyhow::ensure!(
@@ -101,8 +111,8 @@ pub(super) async fn select(
         };
         // A sealed assistant + all tool results is one indivisible planner unit.
         // Root user and latest continuation remain verbatim protocol facts.
-        let sealed =
-            event != turn.root_user_event_id && index + count < input.recent_history_items.len();
+        let sealed = event != turn.root_user_event_id
+            && (index + count < history.len() || frozen.is_some());
         let unit_bytes = serde_json::to_vec(values)?.len() as u64;
         units.push(HistoryEventUnit {
             event_id: event,
@@ -124,11 +134,14 @@ pub(super) async fn select(
     // The latest assistant/tool group is the continuation this request still
     // has to validate. A trailing addition is its own unsealed unit and must
     // not make that group eligible to compact.
-    retain_current_continuation(&mut units);
-    let cutoff = if let Some((sent, cutoff)) = &admitted {
-        (units, members) = units.into_iter().zip(members).filter(|(_, ids)| ids.iter().all(|id| sent.contains(id))).unzip();
-        *cutoff
-    } else { input.request.history_cutoff };
+    if frozen.is_none() {
+        retain_current_continuation(&mut units);
+        if let Some(admitted) = &admitted {
+            (units, members) = units.into_iter().zip(members)
+                .filter(|(_, ids)| ids.iter().all(|id| admitted.events.contains(id)))
+                .unzip();
+        }
+    }
     // What no compaction removes — the fixed content and the unsealed current groups. When
     // that alone does not fit, Core does not compact: the user decides.
     let unsealed = units.iter().filter(|u| !u.sealed).map(|u| u.estimated_tokens).sum::<u64>();
@@ -142,21 +155,24 @@ pub(super) async fn select(
         non_history_tokens, &units,
     )?;
     let earlier = previous.as_ref().and_then(|p| p.result.as_ref()).map(super::summary::text);
-    let taken: BTreeSet<_> = plan.compact_event_ids.iter().copied().collect();
+    let mut taken: BTreeSet<_> = plan.compact_event_ids.iter().copied().collect();
+    taken.extend(units.iter().zip(&members).filter_map(|(unit, ids)| {
+        (unit.sealed && ids.iter().any(|id| must_cover.contains(id))).then_some(unit.event_id)
+    }));
     let selected = units
         .iter()
         .zip(&members)
         .filter(|(u, _)| taken.contains(&u.event_id))
         .flat_map(|(_, m)| m.iter().copied())
         .collect::<BTreeSet<_>>();
-    if selected.is_empty() {
+    if selected.is_empty() || !must_cover.is_subset(&selected) {
         return Ok(None);
     }
     // Core keeps every source it replaces; the model is given the earlier summary and the
     // history itself.
     let mut drafts = vec![];
     let mut contents = vec![];
-    for item in &input.recent_history_items {
+    for item in history {
         if selected.contains(&event_id(item)) {
             let source_ref = ContextSourceRef::Event { event_id: event_id(item) };
             let content = serde_json::to_string(item)?;

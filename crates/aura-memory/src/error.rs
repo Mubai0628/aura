@@ -26,3 +26,20 @@ pub enum MemoryError {
     RolledBack { cause: String },
 }
 pub type MemoryResult<T> = Result<T, MemoryError>;
+
+impl MemoryError {
+    /// The file is authoritative; a later metadata/index failure cannot prove
+    /// the write did not occur. Only these cases preclude a surviving write.
+    pub fn write_may_have_committed(&self) -> bool {
+        !matches!(
+            self,
+            Self::Format(_)
+                | Self::Secret { .. }
+                | Self::Conflict { .. }
+                | Self::Invalid(_)
+                | Self::NotFound
+                | Self::RolledBack { .. }
+                | Self::File(aura_fs_tools::vault::VaultFileError::Conflict { .. })
+        )
+    }
+}

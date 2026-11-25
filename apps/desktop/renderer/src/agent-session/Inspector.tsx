@@ -65,6 +65,7 @@ export function Inspector({
   return (
     <div className="agent-inspector pixel-stack">
       <PromptInspectorShell
+        snapshotTime={view.execution.created_at}
         projection={projection}
         chips={
           <span className="pixel-chips">
@@ -77,6 +78,11 @@ export function Inspector({
           </span>
         }
       />
+      {projection.reduction?.history_on_demand && (
+        <p className="pixel-caption">
+          本步已按当前窗口恢复上下文，较早的原文和工具结果可按需回读。
+        </p>
+      )}
       <PixelCard
         title="缓存"
         figure={shownCache ? share(shownCache.cached, shownCache.input) : '未报告'}

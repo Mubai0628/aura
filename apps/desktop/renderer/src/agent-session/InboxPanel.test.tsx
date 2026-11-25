@@ -162,7 +162,7 @@ test('a queue action refused for another reason, or whose answer did not come, s
   );
 });
 
-test('the queue is a compact tray: one line per message, icons for actions, opened to read', async () => {
+test('queued messages keep visible action labels and open in place to read', async () => {
   const user = userEvent.setup();
   render(
     <InboxPanel
@@ -180,7 +180,8 @@ test('the queue is a compact tray: one line per message, icons for actions, open
   // The queue's pause, and three for each message.
   expect(actions).toHaveLength(7);
   for (const action of actions) {
-    expect(action.textContent).toBe('');
+    expect(action.textContent).toBe(action.getAttribute('aria-label'));
+    expect(action.querySelector('svg')?.getAttribute('width')).toBe('16');
     expect(action.getAttribute('title')).toBeTruthy();
   }
   // 删除 is a bin, no longer the × of closing.

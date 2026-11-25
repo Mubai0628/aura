@@ -1,13 +1,14 @@
 /* A message appended to the running task that the model has not taken yet: the user's
    bubble, dimmed, its dots pulsing until the model's next step takes it. */
-.agent-pending-addition > :not(.agent-user-actions) {
+.agent-pending-addition > .agent-message-text {
   opacity: 0.7;
 }
 
 .agent-pending-dots {
-  display: inline-flex;
+  display: flex;
   gap: 3px;
-  margin-left: 6px;
+  justify-content: flex-end;
+  margin-bottom: 4px;
   vertical-align: middle;
 }
 

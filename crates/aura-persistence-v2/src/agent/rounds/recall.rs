@@ -33,15 +33,17 @@ pub fn recall_user_sources(
     if query.is_empty() {
         return Ok(Vec::new());
     }
-    let rounds = super::rounds(db, session)?;
+    let rounds = super::context_index::recent(db, session, MAX_ROUNDS, None, 4096)?;
     let mut found = Vec::new();
-    let mut consider = |entry, at, text: &str| {
+    let mut consider = |entry, at, text: &str, version: Option<&ContentHash>| {
         if let Some(hit) = query.passage("", text, 420) {
             found.push((
                 hit.score,
                 RecallHistoryHit {
                     entry,
-                    version: ContentHash::sha256(text.as_bytes()),
+                    version: version
+                        .cloned()
+                        .unwrap_or_else(|| ContentHash::sha256(text.as_bytes())),
                     at,
                     quote: hit.excerpt,
                 },
@@ -50,16 +52,23 @@ pub fn recall_user_sources(
     };
     let mut reader = Reader::new(db, session).without_tool_results();
     let started = Instant::now();
-    for (age, round) in rounds.iter().rev().take(MAX_ROUNDS).enumerate() {
+    for (age, head) in rounds.iter().rev().enumerate() {
+        let round = &head.round;
         // Opening messages can be searched even after the detailed scan has reached its budget.
-        consider(format!("T{}.1", round.number), round.sent_at, &round.first_message);
-        if age < MAX_DETAILED_ROUNDS
+        consider(
+            format!("T{}.1", round.number),
+            round.sent_at,
+            &round.first_message,
+            Some(&head.hash),
+        );
+        if head.more_users
+            && age < MAX_DETAILED_ROUNDS
             && started.elapsed() < DETAIL_BUDGET
             && let Ok(rows) = reader.rows(round)
         {
             for entry in entries::of(&rows) {
                 if entry.number > 1 && entry.kind == HistoryEntryKind::UserMessage {
-                    consider(entry.id(round.number), entry.at, &entry.text);
+                    consider(entry.id(round.number), entry.at, &entry.text, None);
                 }
             }
         }

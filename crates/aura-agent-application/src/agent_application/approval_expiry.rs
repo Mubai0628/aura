@@ -156,6 +156,7 @@ impl AgentApplication {
             }
             self.schedule_expiry(run).await?;
         }
+        self.wake_peer_queues().await?;
         Ok(())
     }
 

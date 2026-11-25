@@ -109,6 +109,21 @@ export function AboutUpdates() {
           </div>
         </section>
       ) : null}
+      {state?.cleanup_pending ? (
+        <section aria-label="更新缓存" className="settings-card update-notice">
+          <h3>更新缓存未清理完</h3>
+          <p role="status">更新已经安装。可以照常重启；重试只清理这次更新留下的缓存。</p>
+          <div className="settings-card-actions">
+            <button
+              disabled={blocked}
+              type="button"
+              onClick={() => void send({ command: 'retry_cleanup' })}
+            >
+              {pending === 'retry_cleanup' ? '正在清理…' : '重试清理更新缓存'}
+            </button>
+          </div>
+        </section>
+      ) : null}
       <section aria-label="Aura 版本" className="settings-card">
         <div className="settings-card-heading">
           <h3>Aura</h3>

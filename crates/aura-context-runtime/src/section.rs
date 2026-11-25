@@ -7,7 +7,8 @@ use aura_context_domain::{
 };
 use aura_domain_common::{ContentHash, EventId};
 use aura_model_domain::{
-    CompiledInstructionEnvelope, LogicalConversationItem, LogicalInstructionKind,
+    CHECKPOINT_INSTRUCTION_SERIALIZER_VERSION, CompiledInstructionEnvelope,
+    LogicalConversationItem, LogicalInstructionKind,
 };
 use aura_prompt_runtime::{
     CanonicalInstructionSource, PromptCompilerFault, compile_instruction_envelope,
@@ -96,8 +97,13 @@ pub fn assemble_context_sections(
                 .collect(),
         );
     }
-    let instruction_envelope =
-        compile_instruction_envelope(instruction_sources).map_err(map_prompt_error)?;
+    let envelope = compile_instruction_envelope(instruction_sources).map_err(map_prompt_error)?;
+    let instruction_envelope = CompiledInstructionEnvelope::new(
+        CHECKPOINT_INSTRUCTION_SERIALIZER_VERSION,
+        envelope.ordered_blocks,
+        envelope.canonical_text,
+    )
+    .map_err(|_| ContextSectionError::Serializer)?;
     let instruction_blocks = instruction_envelope
         .ordered_blocks
         .iter()
@@ -319,6 +325,7 @@ const fn source_kind_order(kind: ModelEgressSourceKind) -> u8 {
         // the section's own physical ordinal.
         ModelEgressSourceKind::ActivityIndex => 18,
         ModelEgressSourceKind::MemoryMaintenance => 19,
+        ModelEgressSourceKind::PeerTask => 20,
     }
 }
 

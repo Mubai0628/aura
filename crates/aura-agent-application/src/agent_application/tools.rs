@@ -583,18 +583,29 @@ impl AgentApplication {
         let git_available = git::runtime::available();
         git::runtime::constrain_candidates(&mut candidates, git_available);
         let member = super::team::member_of(db, turn.session_id)?;
-        let offered =
-            member.is_none() && purpose == AgentTaskPurpose::Conversation && self.team_offered();
+        let peer_management = member.is_none()
+            && (purpose.is_conversation() || purpose == AgentTaskPurpose::PeerDispatch);
+        let (peer_dispatch, peer_ask) = if peer_management {
+            super::collaboration::directions(db, turn)?
+        } else {
+            (false, false)
+        };
+        let availability = self.team_availability(
+            db,
+            turn.session_id,
+            member.is_none() && purpose == AgentTaskPurpose::Conversation,
+        )?;
         // The main agent answers its sub-agents' questions first only where the settings say so.
-        let approves = offered && aura_agent_team::limits::settings(db)?.1.main_agent_approves;
-        if offered {
+        if availability.conversation {
             fixed.extend(
                 release
                     .manifest()
                     .entries
                     .iter()
                     .filter(|entry| entry.handler.name().starts_with("agents."))
-                    .filter(|entry| approves || entry.handler.name() != aura_agent_team::APPROVE)
+                    .filter(|entry| {
+                        availability.approves || entry.handler.name() != aura_agent_team::APPROVE
+                    })
                     .map(|entry| entry.definition.tool_id),
             );
             fixed.sort();
@@ -602,6 +613,20 @@ impl AgentApplication {
         }
         for candidate in &mut candidates {
             let name = candidate.definition.canonical_name.as_str();
+            if name.starts_with("peers.") {
+                let exposed = match name {
+                    "peers.list" | "peers.ask" => peer_ask,
+                    "peers.dispatch" => peer_dispatch,
+                    "peers.status" | "peers.result" | "peers.read_source" => peer_management,
+                    _ => false,
+                };
+                if !exposed {
+                    candidate.instance.runtime_health =
+                        aura_tool_domain::ToolRuntimeHealthV1::Unavailable;
+                } else if peer_ask {
+                    fixed.push(candidate.definition.tool_id);
+                }
+            }
             if (!chrome_offered && name.starts_with("chrome."))
                 || (!computer && computer_tool(name))
             {
@@ -610,6 +635,8 @@ impl AgentApplication {
             }
         }
         // Installed, trusted, enabled package tools. Like every non-built-in tool
+        fixed.sort();
+        fixed.dedup();
         // they are discoverable and loaded per session; a tool whose declared credential
         // is not bound stays a visible exclusion.
         let installed = package_tools::installed_tools(db)?;
@@ -626,7 +653,7 @@ impl AgentApplication {
         // the list it was narrowed to; a conversation of the user's starts sub-agents while a
         // model is allowed for them.
         let member_tools =
-            super::team::restrict_candidates(member.as_ref(), offered, approves, &mut candidates);
+            super::team::restrict_candidates(member.as_ref(), availability, &mut candidates);
         let mcp_state = mcp_tools
             .iter()
             .map(|tool| tool.definition.definition_fingerprint.clone())

@@ -254,6 +254,7 @@ impl<H: TeamHost> Team<'_, H> {
                 approvals,
                 reviewing,
                 tokens: progress.tokens,
+                activity_at: Some(member.updated_at),
                 last_report: latest.map(|report| report.report.status),
                 summary,
                 question,

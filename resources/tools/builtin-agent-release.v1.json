@@ -3536,14 +3536,14 @@
         "tool_id": "tol_01M2DG020980080021AN942002",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "11"
+          "definition_revision": "12"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "fs.search",
         "display_name": "Search text in the current session's logical workspace view",
-        "model_description": "Search file contents for literal text or a single-line regular expression, including unsaved editor changes; matching is case-insensitive by default. root defaults to the workspace root and limit to 100. Ignored and generated files are skipped unless requested. A partial result says why it stopped; files it did not reach may hold matches, so search a smaller root or path_glob. The result is one line of JSON with how the search went, then for each file a line of JSON with its path and logical_hash, followed by its matching lines, each after its line number (from 1) and a tab. context_lines (up to 10) adds that many lines before and after each match in workspace files, in their place among the matching lines, each after its line number, a '-' and a tab.",
+        "model_description": "Search text or a single-line regex, including unsaved edits. Set root to a directory and path_glob to a file name or glob. For one file, use its directory as root and its name as path_glob. Default root is the workspace and limit is 100. Ignored and generated files are skipped by default. A partial result may miss matches. Results include a status, file paths, logical hashes and one-based line numbers. context_lines adds up to 10 lines around each match.",
         "model_summary": "Search text in the current session's logical workspace view",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -4023,17 +4023,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "89331b312e42d2f1e6aace8b0743fef34792280264cdf04dc6ecbad1665ddc44"
+          "hex": "226adfb2fccb89bd664a0852346ca1f1bf5968a26884f97978f643eebb4c4f11"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94SF1H",
+        "tool_instance_id": "tin_2WN2C49P6FBDGP7A7FMQ7WT8DV",
         "tool_id": "tol_01M2DG020980080021AN942002",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "11"
+          "definition_revision": "12"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -4041,7 +4041,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "437dfd907b321e07d284b58742e09d3845003cc60f889178646044833a28653d"
+            "hex": "45da9b0b9787742ff7eb3205d189f9b65140f36c9a7ab295af607593e66f1318"
           }
         },
         "enabled": true,
@@ -4800,14 +4800,14 @@
         "tool_id": "tol_01M2DG020980080021AN942005",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "11"
+          "definition_revision": "12"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "shell.powershell",
         "display_name": "Run managed PowerShell",
-        "model_description": "Run a PowerShell 7 script as the current Windows user. Only script is required. max_output_bytes caps each stream. Exceeding it stops the command. Redirect larger output to a file. For long commands set a larger timeout_ms within the tool time limit (default 10 minutes). Declare network use with requires_network and needed credentials by name in secret_environment. Check exit_code and stop_reason. Use tool_call_id with shell.query for retained output or shell.stop for a background process.",
+        "model_description": "Run a PowerShell 7 script. Only script is required. max_output_bytes is the optional byte cap per stream and stops the command when exceeded. Long saved output is shown as a head and tail. Use shell.query with tool_call_id for the gap. Set timeout_ms for process time, requires_network for network access, and secret_environment for credential names. Check exit_code and stop_reason.",
         "model_summary": "Run managed PowerShell",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -5038,17 +5038,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "d8627479b5b0f444867106328c11fc16ba5287db4a5b59a49c028d357097fb22"
+          "hex": "abe6d4cb7cd35089af2652819e6c96a18edcc4a695444298d526bcd06a26a66a"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_1KC7EWF9RW7QNASR49MMN1JX97",
+        "tool_instance_id": "tin_6Y29J0F1863X48PSRPHTWBCBWN",
         "tool_id": "tol_01M2DG020980080021AN942005",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "11"
+          "definition_revision": "12"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -5056,7 +5056,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "0c1aee7c728878982fdb8cd437c4f650ac3fcd10c3df7d57c71fed0b13cecf58"
+            "hex": "7ca10972b8fc77cc92281d3662697a557b532c858fca6957ddaf87a320b8a011"
           }
         },
         "enabled": true,
@@ -5080,14 +5080,14 @@
         "tool_id": "tol_01M2DG020980080021AN942006",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "9"
+          "definition_revision": "10"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "shell.cmd",
         "display_name": "Run Windows CMD",
-        "model_description": "Run a cmd.exe script with AutoRun disabled. Only script is required. max_output_bytes caps each stream. Exceeding it stops the command. timeout_ms limits runtime. Uses the same permissions as shell.powershell. Use tool_call_id with shell.query or shell.stop.",
+        "model_description": "Run a cmd.exe script with AutoRun disabled. Only script is required. max_output_bytes is the optional byte cap per stream and stops the command when exceeded. Use shell.query by tool_call_id for gaps in saved output. Set timeout_ms for process time. Uses the same permissions as shell.powershell.",
         "model_summary": "Run Windows CMD",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -5318,17 +5318,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "a07740530fc3a78f47023a26c5b784446728666b826f5a5cc48cbd902bb21da1"
+          "hex": "6546f5c5c428b0f0db7dec3058473f870125277a88b201cca3a416c317f82364"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_27HREBJZ88Q6GS1BDXRXB4R9P7",
+        "tool_instance_id": "tin_11V77TNQ25ZC30V1JQTNFPGMRD",
         "tool_id": "tol_01M2DG020980080021AN942006",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "9"
+          "definition_revision": "10"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -5336,7 +5336,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "99c62f889d0a1e52b9f7ed489150746ea5baee6634127264f8dad837ff23afc6"
+            "hex": "d2724988f4955440ef2303ddf063366d64ed58da58036de04a35139f97e82f67"
           }
         },
         "enabled": true,
@@ -6349,14 +6349,14 @@
         "tool_id": "tol_01M2DG020980080021AN94200B",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "2"
+          "definition_revision": "3"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "context.read_tool_result",
         "display_name": "Read a durable tool result",
-        "model_description": "Read a persisted Tool result from the current task's accessible history. Foreign Artifact/Tool IDs cannot be used to cross session boundaries. Unknown execution remains Unknown.",
+        "model_description": "Read the saved result named by a tool_call_id from this conversation, including a result shown as a short receipt. Use offset_bytes and max_bytes (4 to 65,536) for a bounded UTF-8 range. Supply next_cursor with the same options to continue a page. Conversation history search and read can locate text across past results. A recorded Unknown outcome remains Unknown.",
         "model_summary": "Read a durable tool result",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -6380,6 +6380,24 @@
                 "description": "Also return the call's input. Default false.",
                 "type": "boolean"
               },
+              "max_bytes": {
+                "description": "Maximum bytes per page when a byte range is requested, from 4 to 65,536.",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "offset_bytes": {
+                "description": "Seek within the model-readable result by UTF-8 byte offset. Offsets inside a character\nare rounded down. Optional; omit to start at the beginning.",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
               "tool_call_id": {
                 "$ref": "#/$defs/ToolCallId"
               }
@@ -6392,7 +6410,7 @@
           "schema_hash": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "3b0f10b0dfb973e33f22f57b9e303e00c845c5ae827170293be1585b2828d055"
+            "hex": "7c92d75baa70adf1669cf7866951f33c516391f8e33b4fbd1f441f2e9ce25172"
           }
         },
         "strict": true,
@@ -6512,17 +6530,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "e7cfcb5104a4f85a2edc51da14abffc47b621b0bfa4e10f0cfd8c2c195b04945"
+          "hex": "bdc12fd6435df69d1871044115fa0a64d17ac1223d0920edc041ade3d070fda6"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94S90B",
+        "tool_instance_id": "tin_01M2DG020980080021AN94000B",
         "tool_id": "tol_01M2DG020980080021AN94200B",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "2"
+          "definition_revision": "3"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -6530,7 +6548,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "4bf0d4354d14baae1949542f4e7ee7eb3e00ef4f4982bdc7974ac314ab9990d5"
+            "hex": "11bf04481006795dbb5d44f1b0aececf9130b0ce8704f0ce4affdc2173cb6e48"
           }
         },
         "enabled": true,
@@ -11400,14 +11418,14 @@
         "tool_id": "tol_01M2DG020980080021AN94200T",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "7"
+          "definition_revision": "8"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "shell.query",
         "display_name": "Read Shell execution and output",
-        "model_description": "Read the state and retained output of a Shell call in this session. Use its tool_call_id (tcl_…). Resume at stdout_next and stderr_next using stdout_offset and stderr_offset in bytes. max_bytes limits each stream on this read.",
+        "model_description": "Read saved output by tool_call_id. For a gap between the shown head and tail, use its starting byte as stdout_offset or stderr_offset and its byte length as max_bytes. For continued output use stdout_next or stderr_next. max_bytes limits each stream on this read.",
         "model_summary": "Read Shell execution and output",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -11630,17 +11648,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "e2351f42b092cd3eb4cc5d5ad180894102c53ccd10ee87134917d71a5328fffb"
+          "hex": "62c1ea0f71f8d80a3c87fa6bb4875507eeeacb5dbee76bd29dc76e83b95b2897"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_0M9C8W8KJZFQPM956DFAY48J81",
+        "tool_instance_id": "tin_12E2STR13XGYTZFZNEV7RBT2B3",
         "tool_id": "tol_01M2DG020980080021AN94200T",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "7"
+          "definition_revision": "8"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -11648,7 +11666,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "e579ce73a5eed61befb78ed904f3cbe4cd84cb014562ee058e246f3d9c483997"
+            "hex": "d38a73e5adb9fb333c91b704b13a1066746f5618ff2fbe551748a3b39a9de8b8"
           }
         },
         "enabled": true,
@@ -17310,7 +17328,7 @@
         "tool_id": "tol_01M2DG020980080021AN94201E",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "1"
+          "definition_revision": "2"
         },
         "tool_package_id": null,
         "package_key": null,
@@ -17403,6 +17421,38 @@
             "schema_policy_version": 1,
             "document": {
               "$defs": {
+                "MemoryAuthorStamp": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "actor": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "$ref": "#/$defs/UtcTimestamp"
+                    },
+                    "session_id": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/SessionId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "session_name_at_write": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "actor",
+                    "at"
+                  ],
+                  "type": "object"
+                },
                 "MemoryDocument": {
                   "additionalProperties": false,
                   "properties": {
@@ -17592,6 +17642,33 @@
                   ],
                   "type": "object"
                 },
+                "MemoryProvenance": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "creator": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/MemoryAuthorStamp"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "None means there is no reliable creation record. Source sessions alone are not proof."
+                    },
+                    "modifiers": {
+                      "description": "New authorship stamps plus recent known events, most recent last.",
+                      "items": {
+                        "$ref": "#/$defs/MemoryAuthorStamp"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "modifiers"
+                  ],
+                  "type": "object"
+                },
                 "MemoryScope": {
                   "enum": [
                     "global",
@@ -17633,6 +17710,16 @@
                 },
                 "path": {
                   "type": "string"
+                },
+                "provenance": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MemoryProvenance"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
@@ -17646,7 +17733,7 @@
             "schema_hash": {
               "algorithm": "sha256",
               "canonicalization_version": "rfc8785_jcs_v1",
-              "hex": "94311e89a820fd8778254e5b5685a433af567b925ab8ccce15df2f193a010682"
+              "hex": "f45d374e5a37ab251fc06b115d1567e3401a88b4eec9bf097a54325bf09ac775"
             }
           }
         },
@@ -17673,17 +17760,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "f43e5ba37b91ca6a8517b5d4ac641bbf55bfb25864aed98bbe128af86397be71"
+          "hex": "fc5b60a7fc5e3f8c813d60cb31adde380b2390e966bd104bb91c93284346f666"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94201E",
+        "tool_instance_id": "tin_01M2DG020980080021AN94205A",
         "tool_id": "tol_01M2DG020980080021AN94201E",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "1"
+          "definition_revision": "2"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -17691,7 +17778,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "8bb82fe53158acfb842b122d5145b1fd1f3ec2c061be0626637a043713f5ef54"
+            "hex": "a01399ccccbbf006a04410ef754e408daf978f55901ddfa52ee7c9a44771c7a8"
           }
         },
         "enabled": true,
@@ -32343,14 +32430,14 @@
         "tool_id": "tol_01M2DG020980080021AN94203N",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "9"
+          "definition_revision": "10"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "agents.spawn",
         "display_name": "Start a sub-agent",
-        "model_description": "Start a sub-agent on one task, in a conversation of its own. It returns at once; the sub-agent works in the background. Write everything it needs in task, a JSON object: it sees nothing of this conversation, only the task sheet, the project's AGENTS.md, the project memory and the user's Skills, which it finds and loads itself. It has this conversation's tools except agents.*, computer.*, chrome.*, the tools that ask the user and those that end or plan this turn; tools narrows that to the ones it names, and skills.search and skills.load always come with them. It starts in the permission mode the user set for sub-agents (by default read-only when it shares this workspace, workspace read-write in a worktree), and the user may switch it while it works. Without worktree it works in this workspace, on the user's own files. With worktree: true, in a Git repository only, it works in a Git worktree of its own: a separate copy of the repository on a new branch aura/agent/..., made from the workspace's current commit with its uncommitted changes (ignored files stay out), where its commands run too; its changes stay in its copy until agents.merge brings them in, and browser.open with agent opens a file of its copy before that. model picks one the user allowed for sub-agents. As many work at once as the user allows (3 by default); one waiting for an approval does not count. Each may use the tokens, and the minutes per task, the user allows: near its token budget you get a report, and past its budget or its time, or long without progress, Aura stops it and its report says why. Its approvals appear in this conversation for the user, unless agents.wait gives one to you to answer first. With main Agent approval enabled, put the minimum needed absolute files or directories in read_paths and in the task sheet. Core requires a verified user workspace or read grant under your current authority. A task sheet that names another conversation is refused. Its final answer is its report. Follow it with agents.wait, agents.status and agents.result.",
+        "model_description": "Start a temporary sub-agent on a self-contained task with name, goal and done_when. Requires this conversation's opt-in, a free slot and an eligible model. The child receives the task sheet, so include its scope and needed facts. Specify allowed tools, an eligible model, or a separate Git worktree if needed. read_paths lists minimum absolute paths within verified user read authority. Returns a handle for agents.status, agents.wait and agents.result.",
         "model_summary": "Start a sub-agent",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -32578,17 +32665,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "6c6f0cbe7ae77748bfbc6d85754eaaa044a71986dfea34c78395a8fac66a55e3"
+          "hex": "290d0c12b5c5e983864e2b3de1c93bdd5bfeecfdc247c30f1dbc435db56edc4c"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_0KWYB3KGZM56H4K8NFRZ3HWNFR",
+        "tool_instance_id": "tin_01M2DG020980080021AN94206B",
         "tool_id": "tol_01M2DG020980080021AN94203N",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "9"
+          "definition_revision": "10"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -32596,7 +32683,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "841444e5094cfee2faae725235ffb04de6e3f223dae0a431fe668249f5a905ea"
+            "hex": "ad0ef2c9d5e06b950adfdcbb97eb8ece6164f4bd88326e16927d1d8b887b91cd"
           }
         },
         "enabled": true,
@@ -33541,14 +33628,14 @@
         "tool_id": "tol_01M2DG020980080021AN94203R",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "3"
+          "definition_revision": "4"
         },
         "tool_package_id": null,
         "package_key": null,
         "tool_key": null,
         "canonical_name": "agents.send",
         "display_name": "Send a sub-agent more",
-        "model_description": "Send a sub-agent facts it needs, the answer to its question, or the next piece of its work. It is added to the turn it is working on, or starts a new turn when it has reported; it works on in the same conversation with the same tools. A stopped sub-agent, or one whose token budget is used up, takes nothing more.",
+        "model_description": "Send a message to this conversation's sub-agent by handle. Requires the conversation's temporary-work opt-in, positive concurrency and an eligible model. A running child receives an addition; a reported child needs a free slot for a new turn. Stopped or exhausted children cannot receive more work.",
         "model_summary": "Send a sub-agent more",
         "input_schema": {
           "schema_dialect": "json_schema_draft_2020_12",
@@ -33669,17 +33756,17 @@
         "definition_fingerprint": {
           "algorithm": "sha256",
           "canonicalization_version": "rfc8785_jcs_v1",
-          "hex": "2b672842defbb6d44b66e11b3bb75c78fadb15ab3dcd90245fd1de0103966f2d"
+          "hex": "28b2aa7652ecb63a76fc405483bca692422657dd53cca32629144e5a6df6bbe1"
         },
         "entity_revision": "1",
         "created_at": "2026-09-09T00:00:00Z"
       },
       "instance": {
-        "tool_instance_id": "tin_01M2DG020980080021AN94SY19",
+        "tool_instance_id": "tin_01M2DG020980080021AN94206C",
         "tool_id": "tol_01M2DG020980080021AN94203R",
         "tool_version": {
           "semantic_version": null,
-          "definition_revision": "3"
+          "definition_revision": "4"
         },
         "source_kind": "built_in",
         "source_contract_fingerprint": {
@@ -33687,7 +33774,7 @@
           "signed_builtin_tool_contract_fingerprint": {
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
-            "hex": "89e912a32a61d6634cf043f65bbf7cf2433280264b95bfce0b4a1c54ddf35e58"
+            "hex": "410be1258bae3366d789b0c3d6325da217d6b66e01d055a796c4be74f4071bcc"
           }
         },
         "enabled": true,
@@ -34925,6 +35012,1882 @@
             "algorithm": "sha256",
             "canonicalization_version": "rfc8785_jcs_v1",
             "hex": "07a4ad1bfc9e559db7f48bbe13c504e7e13311f1897a08f9cf6ba65026ab5219"
+          }
+        },
+        "enabled": true,
+        "runtime_health": "healthy",
+        "overrides": {
+          "timeout_ms": null,
+          "max_retries": null,
+          "max_concurrent_attempts": null,
+          "subagent_enabled": null
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z",
+        "updated_at": "2026-09-09T00:00:00Z"
+      }
+    },
+    {
+      "handler": {
+        "handler": "peers_list"
+      },
+      "definition": {
+        "tool_id": "tol_01M2DG020980080021AN942051",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "3"
+        },
+        "tool_package_id": null,
+        "package_key": null,
+        "tool_key": null,
+        "canonical_name": "peers.list",
+        "display_name": "Find linked peer conversations",
+        "model_description": "List directly linked peers with their roles, availability, review preference and direction. Ask either direction; dispatch requires can_dispatch=true. This read starts no work.",
+        "model_summary": "Find linked peer conversations",
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "0315fc123cf5b3495e854ac63c47aaff76b34851a87baa07a783533f93acfe57"
+          }
+        },
+        "strict": true,
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "AgentCollaborationGraphId": {
+                  "type": "string"
+                },
+                "PeerAvailability": {
+                  "enum": [
+                    "ready",
+                    "busy",
+                    "paused",
+                    "disabled",
+                    "model_unavailable"
+                  ],
+                  "type": "string"
+                },
+                "PeerDirectoryEntry": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "availability": {
+                      "$ref": "#/$defs/PeerAvailability"
+                    },
+                    "availability_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "can_dispatch": {
+                      "description": "A direct incoming edge allows a question but does not allow dispatch.",
+                      "type": "boolean"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "profile_revision": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "requires_confirmation": {
+                      "type": "boolean"
+                    },
+                    "session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    }
+                  },
+                  "required": [
+                    "session_id",
+                    "name",
+                    "description",
+                    "profile_revision",
+                    "availability",
+                    "can_dispatch"
+                  ],
+                  "type": "object"
+                },
+                "SessionId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "graph_id": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/AgentCollaborationGraphId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "graph_revision": {
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "peers": {
+                  "items": {
+                    "$ref": "#/$defs/PeerDirectoryEntry"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "graph_revision",
+                "peers"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "59b04703f570ab5445746573df5f7078ecaafb6af36a336b37523e6c06413855"
+            }
+          }
+        },
+        "runtime": {
+          "type": "external_source",
+          "source_contract_key": "aura.builtin.peers.list.v1"
+        },
+        "capabilities": [
+          "agent_task_read"
+        ],
+        "resource_claims": [],
+        "audience": "parent_agent_only",
+        "source_kind": "built_in",
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "repeat_is_idempotent": true,
+          "may_create_persistent_effects": false
+        },
+        "runtime_file_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "e8a313a6e74bfb27670e11ce8e02f969107aa9df0a940c8d5e7c158183379252"
+        },
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "40d2255481e600733b8e29908ce5e2d5f88465082bcc37ec1cb5aef8c1520308"
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z"
+      },
+      "instance": {
+        "tool_instance_id": "tin_01M2DG020980080021AN942065",
+        "tool_id": "tol_01M2DG020980080021AN942051",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "3"
+        },
+        "source_kind": "built_in",
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "220581f7718b93918550e597ab59c9de5029a7159195f965a3c0a5ea79b7b1f3"
+          }
+        },
+        "enabled": true,
+        "runtime_health": "healthy",
+        "overrides": {
+          "timeout_ms": null,
+          "max_retries": null,
+          "max_concurrent_attempts": null,
+          "subagent_enabled": null
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z",
+        "updated_at": "2026-09-09T00:00:00Z"
+      }
+    },
+    {
+      "handler": {
+        "handler": "peers_dispatch"
+      },
+      "definition": {
+        "tool_id": "tol_01M2DG020980080021AN942052",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "5"
+        },
+        "tool_package_id": null,
+        "package_key": null,
+        "tool_key": null,
+        "canonical_name": "peers.dispatch",
+        "display_name": "Dispatch a task to linked peers",
+        "model_description": "Send a bounded task to targets with can_dispatch=true using the graph ID and revision from peers.list. Include scope, non-secret facts and the expected result. Each accepted target uses one unit. The receiver uses its own permissions and approvals. Reconcile uncertain acceptance by the original tool_call_id.",
+        "model_summary": "Dispatch a task to linked peers",
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "AgentCollaborationGraphId": {
+                "type": "string"
+              },
+              "SessionId": {
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "description": "No actor, permissions, source references or idempotency key are model-supplied.",
+            "properties": {
+              "graph_id": {
+                "$ref": "#/$defs/AgentCollaborationGraphId"
+              },
+              "graph_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "targets": {
+                "items": {
+                  "$ref": "#/$defs/SessionId"
+                },
+                "maxItems": 32,
+                "minItems": 1,
+                "type": "array"
+              },
+              "task": {
+                "maxLength": 8000,
+                "minLength": 1,
+                "pattern": "\\S",
+                "type": "string"
+              }
+            },
+            "required": [
+              "graph_id",
+              "graph_revision",
+              "targets",
+              "task"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "e91f22be1a5aac986d2e1702feedd02050e50b4f70f9f6a86112a464c6c8a84e"
+          }
+        },
+        "strict": true,
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "AgentRunId": {
+                  "type": "string"
+                },
+                "ContentHash": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "$ref": "#/$defs/ContentHashAlgorithm"
+                    },
+                    "hex": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "algorithm",
+                    "hex"
+                  ],
+                  "type": "object"
+                },
+                "ContentHashAlgorithm": {
+                  "enum": [
+                    "blake3",
+                    "sha256"
+                  ],
+                  "type": "string"
+                },
+                "EventId": {
+                  "type": "string"
+                },
+                "PeerDeliveryKind": {
+                  "enum": [
+                    "dispatch",
+                    "question"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryState": {
+                  "enum": [
+                    "queued",
+                    "started",
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryView": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "kind": {
+                      "$ref": "#/$defs/PeerDeliveryKind"
+                    },
+                    "next_source_cursor": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCursor"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "result": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "source_catalog_issue": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCatalogIssue"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Source access can change independently of the durable delivery receipt."
+                    },
+                    "source_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    },
+                    "sources": {
+                      "description": "One bounded page of currently authorized source metadata, without text.",
+                      "items": {
+                        "$ref": "#/$defs/PeerSourceEntry"
+                      },
+                      "type": "array"
+                    },
+                    "state": {
+                      "$ref": "#/$defs/PeerDeliveryState"
+                    },
+                    "target_run_id": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/AgentRunId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "target_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "kind",
+                    "source_session_id",
+                    "target_session_id",
+                    "state"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceCatalogIssue": {
+                  "enum": [
+                    "unavailable",
+                    "restart_from_first_page"
+                  ],
+                  "type": "string"
+                },
+                "PeerSourceCursor": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "lineage_revision": {
+                      "$ref": "#/$defs/Revision"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "lineage_revision",
+                    "after_sequence"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceEntry": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/ContentHash"
+                    },
+                    "event_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "source_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "total_chars": {
+                      "description": "Unicode scalar count of the same authorized text that peers.read_source pages.",
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "event_id",
+                    "source_sequence",
+                    "content_hash",
+                    "total_chars"
+                  ],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "SessionId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "deliveries": {
+                  "items": {
+                    "$ref": "#/$defs/PeerDeliveryView"
+                  },
+                  "type": "array"
+                },
+                "limit": {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "nearing_limit": {
+                  "type": "boolean"
+                },
+                "used": {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "deliveries",
+                "used",
+                "limit",
+                "nearing_limit"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "1eb1214cf0d64d3571cba07e77b73583084cadf255de6abf27041478ec64b16a"
+            }
+          }
+        },
+        "runtime": {
+          "type": "external_source",
+          "source_contract_key": "aura.builtin.peers.dispatch.v1"
+        },
+        "capabilities": [
+          "agent_task_write"
+        ],
+        "resource_claims": [],
+        "audience": "parent_agent_only",
+        "source_kind": "built_in",
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "repeat_is_idempotent": false,
+          "may_create_persistent_effects": true
+        },
+        "runtime_file_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "6d87b57f8b7f14886c7f1016a6f70e168fd9675fae81e7b6755b965558eb2146"
+        },
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "c951e2dc1b45b57999b94368ea2425582a144e2cfb9f89def08299bef92c1dd2"
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z"
+      },
+      "instance": {
+        "tool_instance_id": "tin_01M2DG020980080021AN942066",
+        "tool_id": "tol_01M2DG020980080021AN942052",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "5"
+        },
+        "source_kind": "built_in",
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "a53b02a4e8f8d89e197694354ea76ca2c2e5853a5b2d273d518eecdb36ec9241"
+          }
+        },
+        "enabled": true,
+        "runtime_health": "healthy",
+        "overrides": {
+          "timeout_ms": null,
+          "max_retries": null,
+          "max_concurrent_attempts": null,
+          "subagent_enabled": null
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z",
+        "updated_at": "2026-09-09T00:00:00Z"
+      }
+    },
+    {
+      "handler": {
+        "handler": "peers_status"
+      },
+      "definition": {
+        "tool_id": "tol_01M2DG020980080021AN942053",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "5"
+        },
+        "tool_package_id": null,
+        "package_key": null,
+        "tool_key": null,
+        "canonical_name": "peers.status",
+        "display_name": "Read peer delivery status and discover sources",
+        "model_description": "Get status and its reason by delivery_id, or reconcile an original tool_call_id. To discover authorized sources, use delivery_id and page with next_source_cursor as source_cursor. Restart without a cursor if the catalog asks. An unknown or empty lookup does not authorize replay.",
+        "model_summary": "Read peer delivery status and discover sources",
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "EventId": {
+                "type": "string"
+              },
+              "PeerSourceCursor": {
+                "additionalProperties": false,
+                "properties": {
+                  "after_sequence": {
+                    "maximum": 4294967295,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "delivery_id": {
+                    "$ref": "#/$defs/EventId"
+                  },
+                  "lineage_revision": {
+                    "$ref": "#/$defs/Revision"
+                  }
+                },
+                "required": [
+                  "delivery_id",
+                  "lineage_revision",
+                  "after_sequence"
+                ],
+                "type": "object"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "ToolCallId": {
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "delivery_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EventId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_cursor": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PeerSourceCursor"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Copy next_source_cursor from a lookup of this same delivery ID. Omit for the first page."
+              },
+              "tool_call_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ToolCallId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The original dispatch call, even if no delivery receipt reached the caller."
+              }
+            },
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "964a3a39c61cf5389b981f4b57e18b6e02566a9cd9906973efe4fe2719ee403f"
+          }
+        },
+        "strict": true,
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "AgentRunId": {
+                  "type": "string"
+                },
+                "ContentHash": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "$ref": "#/$defs/ContentHashAlgorithm"
+                    },
+                    "hex": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "algorithm",
+                    "hex"
+                  ],
+                  "type": "object"
+                },
+                "ContentHashAlgorithm": {
+                  "enum": [
+                    "blake3",
+                    "sha256"
+                  ],
+                  "type": "string"
+                },
+                "EventId": {
+                  "type": "string"
+                },
+                "PeerDeliveryKind": {
+                  "enum": [
+                    "dispatch",
+                    "question"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryState": {
+                  "enum": [
+                    "queued",
+                    "started",
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryView": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "kind": {
+                      "$ref": "#/$defs/PeerDeliveryKind"
+                    },
+                    "next_source_cursor": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCursor"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "result": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "source_catalog_issue": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCatalogIssue"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Source access can change independently of the durable delivery receipt."
+                    },
+                    "source_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    },
+                    "sources": {
+                      "description": "One bounded page of currently authorized source metadata, without text.",
+                      "items": {
+                        "$ref": "#/$defs/PeerSourceEntry"
+                      },
+                      "type": "array"
+                    },
+                    "state": {
+                      "$ref": "#/$defs/PeerDeliveryState"
+                    },
+                    "target_run_id": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/AgentRunId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "target_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "kind",
+                    "source_session_id",
+                    "target_session_id",
+                    "state"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceCatalogIssue": {
+                  "enum": [
+                    "unavailable",
+                    "restart_from_first_page"
+                  ],
+                  "type": "string"
+                },
+                "PeerSourceCursor": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "lineage_revision": {
+                      "$ref": "#/$defs/Revision"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "lineage_revision",
+                    "after_sequence"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceEntry": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/ContentHash"
+                    },
+                    "event_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "source_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "total_chars": {
+                      "description": "Unicode scalar count of the same authorized text that peers.read_source pages.",
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "event_id",
+                    "source_sequence",
+                    "content_hash",
+                    "total_chars"
+                  ],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "SessionId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "deliveries": {
+                  "description": "Empty means no matching durable receipt was visible. It is not permission to replay.",
+                  "items": {
+                    "$ref": "#/$defs/PeerDeliveryView"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "deliveries"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "afd7a006f58fba627233ad8719fae6b3f6ac1513d78d3fe8b5b0993ba1c347db"
+            }
+          }
+        },
+        "runtime": {
+          "type": "external_source",
+          "source_contract_key": "aura.builtin.peers.status.v1"
+        },
+        "capabilities": [
+          "agent_task_read"
+        ],
+        "resource_claims": [],
+        "audience": "parent_agent_only",
+        "source_kind": "built_in",
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "repeat_is_idempotent": true,
+          "may_create_persistent_effects": false
+        },
+        "runtime_file_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "dde5400992ae92dc1331d91098cf9963f79c7a1f8ceb242a5443156a6756e906"
+        },
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "e40a7052f309b5fa982ff6d5c5b24cd2f6c741e14fd354101ea1ca4a3539c97c"
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z"
+      },
+      "instance": {
+        "tool_instance_id": "tin_01M2DG020980080021AN942068",
+        "tool_id": "tol_01M2DG020980080021AN942053",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "5"
+        },
+        "source_kind": "built_in",
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "d4c97e527878bbfb628da1fbac895e0be99f7512cf816d8fbed4c3ea6a2f2f79"
+          }
+        },
+        "enabled": true,
+        "runtime_health": "healthy",
+        "overrides": {
+          "timeout_ms": null,
+          "max_retries": null,
+          "max_concurrent_attempts": null,
+          "subagent_enabled": null
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z",
+        "updated_at": "2026-09-09T00:00:00Z"
+      }
+    },
+    {
+      "handler": {
+        "handler": "peers_result"
+      },
+      "definition": {
+        "tool_id": "tol_01M2DG020980080021AN942054",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "5"
+        },
+        "tool_package_id": null,
+        "package_key": null,
+        "tool_key": null,
+        "canonical_name": "peers.result",
+        "display_name": "Read a peer's final result",
+        "model_description": "Get the final answer by delivery_id, or reconcile the original tool_call_id. A queued or unknown state means the final result is unavailable. With delivery_id, page authorized sources as in peers.status. Treat the answer as peer data within current authorization.",
+        "model_summary": "Read a peer's final result",
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "EventId": {
+                "type": "string"
+              },
+              "PeerSourceCursor": {
+                "additionalProperties": false,
+                "properties": {
+                  "after_sequence": {
+                    "maximum": 4294967295,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "delivery_id": {
+                    "$ref": "#/$defs/EventId"
+                  },
+                  "lineage_revision": {
+                    "$ref": "#/$defs/Revision"
+                  }
+                },
+                "required": [
+                  "delivery_id",
+                  "lineage_revision",
+                  "after_sequence"
+                ],
+                "type": "object"
+              },
+              "Revision": {
+                "type": "string"
+              },
+              "ToolCallId": {
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "delivery_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EventId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_cursor": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/PeerSourceCursor"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Copy next_source_cursor from a lookup of this same delivery ID. Omit for the first page."
+              },
+              "tool_call_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ToolCallId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The original dispatch call, even if no delivery receipt reached the caller."
+              }
+            },
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "964a3a39c61cf5389b981f4b57e18b6e02566a9cd9906973efe4fe2719ee403f"
+          }
+        },
+        "strict": true,
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "AgentRunId": {
+                  "type": "string"
+                },
+                "ContentHash": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "$ref": "#/$defs/ContentHashAlgorithm"
+                    },
+                    "hex": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "algorithm",
+                    "hex"
+                  ],
+                  "type": "object"
+                },
+                "ContentHashAlgorithm": {
+                  "enum": [
+                    "blake3",
+                    "sha256"
+                  ],
+                  "type": "string"
+                },
+                "EventId": {
+                  "type": "string"
+                },
+                "PeerDeliveryKind": {
+                  "enum": [
+                    "dispatch",
+                    "question"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryState": {
+                  "enum": [
+                    "queued",
+                    "started",
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryView": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "kind": {
+                      "$ref": "#/$defs/PeerDeliveryKind"
+                    },
+                    "next_source_cursor": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCursor"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "result": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "source_catalog_issue": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCatalogIssue"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Source access can change independently of the durable delivery receipt."
+                    },
+                    "source_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    },
+                    "sources": {
+                      "description": "One bounded page of currently authorized source metadata, without text.",
+                      "items": {
+                        "$ref": "#/$defs/PeerSourceEntry"
+                      },
+                      "type": "array"
+                    },
+                    "state": {
+                      "$ref": "#/$defs/PeerDeliveryState"
+                    },
+                    "target_run_id": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/AgentRunId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "target_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "kind",
+                    "source_session_id",
+                    "target_session_id",
+                    "state"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceCatalogIssue": {
+                  "enum": [
+                    "unavailable",
+                    "restart_from_first_page"
+                  ],
+                  "type": "string"
+                },
+                "PeerSourceCursor": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "lineage_revision": {
+                      "$ref": "#/$defs/Revision"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "lineage_revision",
+                    "after_sequence"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceEntry": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/ContentHash"
+                    },
+                    "event_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "source_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "total_chars": {
+                      "description": "Unicode scalar count of the same authorized text that peers.read_source pages.",
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "event_id",
+                    "source_sequence",
+                    "content_hash",
+                    "total_chars"
+                  ],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "SessionId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "deliveries": {
+                  "description": "Empty means no matching durable receipt was visible. It is not permission to replay.",
+                  "items": {
+                    "$ref": "#/$defs/PeerDeliveryView"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "deliveries"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "afd7a006f58fba627233ad8719fae6b3f6ac1513d78d3fe8b5b0993ba1c347db"
+            }
+          }
+        },
+        "runtime": {
+          "type": "external_source",
+          "source_contract_key": "aura.builtin.peers.result.v1"
+        },
+        "capabilities": [
+          "agent_task_read"
+        ],
+        "resource_claims": [],
+        "audience": "parent_agent_only",
+        "source_kind": "built_in",
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "repeat_is_idempotent": true,
+          "may_create_persistent_effects": false
+        },
+        "runtime_file_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "b0f8a9f5c72d9b884d222e4c6159c6cf98fa322f7ba724d6a8175caff38e9ed5"
+        },
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "deadb899100b98855c7c3c4e458ceed2f9a39c9cfae5a1ce46bfd3151cc7fdea"
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z"
+      },
+      "instance": {
+        "tool_instance_id": "tin_01M2DG020980080021AN942069",
+        "tool_id": "tol_01M2DG020980080021AN942054",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "5"
+        },
+        "source_kind": "built_in",
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "e66c4a0c6893e358f26e57cbefd7c6beec74604fdb65cb27c109051afa8caf42"
+          }
+        },
+        "enabled": true,
+        "runtime_health": "healthy",
+        "overrides": {
+          "timeout_ms": null,
+          "max_retries": null,
+          "max_concurrent_attempts": null,
+          "subagent_enabled": null
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z",
+        "updated_at": "2026-09-09T00:00:00Z"
+      }
+    },
+    {
+      "handler": {
+        "handler": "peers_ask"
+      },
+      "definition": {
+        "tool_id": "tol_01M2DG020980080021AN942055",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "4"
+        },
+        "tool_package_id": null,
+        "package_key": null,
+        "tool_key": null,
+        "canonical_name": "peers.ask",
+        "display_name": "Ask a linked conversation asynchronously",
+        "model_description": "Ask one linked neighbor a bounded, non-secret question with the graph ID and revision from peers.list. Returns a delivery ID without waiting. Read the answer with peers.result; reconcile uncertain acceptance by the original tool_call_id.",
+        "model_summary": "Ask a linked conversation asynchronously",
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "AgentCollaborationGraphId": {
+                "type": "string"
+              },
+              "SessionId": {
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "graph_id": {
+                "$ref": "#/$defs/AgentCollaborationGraphId"
+              },
+              "graph_revision": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "question": {
+                "maxLength": 8000,
+                "minLength": 1,
+                "pattern": "\\S",
+                "type": "string"
+              },
+              "target": {
+                "$ref": "#/$defs/SessionId"
+              }
+            },
+            "required": [
+              "graph_id",
+              "graph_revision",
+              "target",
+              "question"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "7f798bea527a5d85af7a101847364e633eba7a7806fbce954ec1c373de473dcc"
+          }
+        },
+        "strict": true,
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "AgentRunId": {
+                  "type": "string"
+                },
+                "ContentHash": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "$ref": "#/$defs/ContentHashAlgorithm"
+                    },
+                    "hex": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "algorithm",
+                    "hex"
+                  ],
+                  "type": "object"
+                },
+                "ContentHashAlgorithm": {
+                  "enum": [
+                    "blake3",
+                    "sha256"
+                  ],
+                  "type": "string"
+                },
+                "EventId": {
+                  "type": "string"
+                },
+                "PeerDeliveryKind": {
+                  "enum": [
+                    "dispatch",
+                    "question"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryState": {
+                  "enum": [
+                    "queued",
+                    "started",
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "PeerDeliveryView": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "kind": {
+                      "$ref": "#/$defs/PeerDeliveryKind"
+                    },
+                    "next_source_cursor": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCursor"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "result": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "source_catalog_issue": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/PeerSourceCatalogIssue"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Source access can change independently of the durable delivery receipt."
+                    },
+                    "source_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    },
+                    "sources": {
+                      "description": "One bounded page of currently authorized source metadata, without text.",
+                      "items": {
+                        "$ref": "#/$defs/PeerSourceEntry"
+                      },
+                      "type": "array"
+                    },
+                    "state": {
+                      "$ref": "#/$defs/PeerDeliveryState"
+                    },
+                    "target_run_id": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/$defs/AgentRunId"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "target_session_id": {
+                      "$ref": "#/$defs/SessionId"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "kind",
+                    "source_session_id",
+                    "target_session_id",
+                    "state"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceCatalogIssue": {
+                  "enum": [
+                    "unavailable",
+                    "restart_from_first_page"
+                  ],
+                  "type": "string"
+                },
+                "PeerSourceCursor": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "delivery_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "lineage_revision": {
+                      "$ref": "#/$defs/Revision"
+                    }
+                  },
+                  "required": [
+                    "delivery_id",
+                    "lineage_revision",
+                    "after_sequence"
+                  ],
+                  "type": "object"
+                },
+                "PeerSourceEntry": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "content_hash": {
+                      "$ref": "#/$defs/ContentHash"
+                    },
+                    "event_id": {
+                      "$ref": "#/$defs/EventId"
+                    },
+                    "source_sequence": {
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "total_chars": {
+                      "description": "Unicode scalar count of the same authorized text that peers.read_source pages.",
+                      "maximum": 4294967295,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "event_id",
+                    "source_sequence",
+                    "content_hash",
+                    "total_chars"
+                  ],
+                  "type": "object"
+                },
+                "Revision": {
+                  "type": "string"
+                },
+                "SessionId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "deliveries": {
+                  "items": {
+                    "$ref": "#/$defs/PeerDeliveryView"
+                  },
+                  "type": "array"
+                },
+                "limit": {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "nearing_limit": {
+                  "type": "boolean"
+                },
+                "used": {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "deliveries",
+                "used",
+                "limit",
+                "nearing_limit"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "1eb1214cf0d64d3571cba07e77b73583084cadf255de6abf27041478ec64b16a"
+            }
+          }
+        },
+        "runtime": {
+          "type": "external_source",
+          "source_contract_key": "aura.builtin.peers.ask.v1"
+        },
+        "capabilities": [
+          "agent_task_write"
+        ],
+        "resource_claims": [],
+        "audience": "parent_agent_only",
+        "source_kind": "built_in",
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "repeat_is_idempotent": false,
+          "may_create_persistent_effects": true
+        },
+        "runtime_file_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "20ead335379ecb73de92d11551dd4cfd715aa7a8d3c391a9983f9fd52aaaf368"
+        },
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "585e2012cc64c54a0d4c4ba5cbbe662ed0d2fc13269d81c07fb07c0b71cc1531"
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z"
+      },
+      "instance": {
+        "tool_instance_id": "tin_01M2DG020980080021AN942067",
+        "tool_id": "tol_01M2DG020980080021AN942055",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "4"
+        },
+        "source_kind": "built_in",
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "8fd040c7da4bf6a27947c6aa33041e488e45dc2f10c83ff556d824e6927ae816"
+          }
+        },
+        "enabled": true,
+        "runtime_health": "healthy",
+        "overrides": {
+          "timeout_ms": null,
+          "max_retries": null,
+          "max_concurrent_attempts": null,
+          "subagent_enabled": null
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z",
+        "updated_at": "2026-09-09T00:00:00Z"
+      }
+    },
+    {
+      "handler": {
+        "handler": "peers_read_source"
+      },
+      "definition": {
+        "tool_id": "tol_01M2DG020980080021AN942056",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "3"
+        },
+        "tool_package_id": null,
+        "package_key": null,
+        "tool_key": null,
+        "canonical_name": "peers.read_source",
+        "display_name": "Read an authorized peer source",
+        "model_description": "Read a source from peers.status using its delivery_id and event_id. Start at offset 0 and follow next_offset. Each call returns at most 8000 authorized characters. Attachments and withdrawn text are excluded.",
+        "model_summary": "Read an authorized peer source",
+        "input_schema": {
+          "schema_dialect": "json_schema_draft_2020_12",
+          "schema_policy_version": 1,
+          "document": {
+            "$defs": {
+              "EventId": {
+                "type": "string"
+              }
+            },
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "description": "Read one original user source already authorized for this delivery. The\ndelivery and event ID are the identity; no path, title or actor is accepted.",
+            "properties": {
+              "delivery_id": {
+                "$ref": "#/$defs/EventId"
+              },
+              "event_id": {
+                "$ref": "#/$defs/EventId"
+              },
+              "max_chars": {
+                "maximum": 8000,
+                "minimum": 1,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "offset": {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "delivery_id",
+              "event_id"
+            ],
+            "type": "object"
+          },
+          "schema_hash": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "8246dca6f9f528afa310f5c1a27ae571a14958d75135dc9e9d068fba1aa158d0"
+          }
+        },
+        "strict": true,
+        "result_contract": {
+          "type": "structured_json",
+          "result_schema": {
+            "schema_dialect": "json_schema_draft_2020_12",
+            "schema_policy_version": 1,
+            "document": {
+              "$defs": {
+                "ContentHash": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "algorithm": {
+                      "$ref": "#/$defs/ContentHashAlgorithm"
+                    },
+                    "hex": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "algorithm",
+                    "hex"
+                  ],
+                  "type": "object"
+                },
+                "ContentHashAlgorithm": {
+                  "enum": [
+                    "blake3",
+                    "sha256"
+                  ],
+                  "type": "string"
+                },
+                "EventId": {
+                  "type": "string"
+                }
+              },
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "complete": {
+                  "type": "boolean"
+                },
+                "content_hash": {
+                  "$ref": "#/$defs/ContentHash"
+                },
+                "delivery_id": {
+                  "$ref": "#/$defs/EventId"
+                },
+                "event_id": {
+                  "$ref": "#/$defs/EventId"
+                },
+                "next_offset": {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "offset": {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "total_chars": {
+                  "maximum": 4294967295,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "delivery_id",
+                "event_id",
+                "content_hash",
+                "offset",
+                "total_chars",
+                "text",
+                "complete"
+              ],
+              "type": "object"
+            },
+            "schema_hash": {
+              "algorithm": "sha256",
+              "canonicalization_version": "rfc8785_jcs_v1",
+              "hex": "4a2b9e76f0dc7f2cee72d46d5a9a2bc71ac25b38341802eb94c2f13254923024"
+            }
+          }
+        },
+        "runtime": {
+          "type": "external_source",
+          "source_contract_key": "aura.builtin.peers.read_source.v1"
+        },
+        "capabilities": [
+          "agent_task_read"
+        ],
+        "resource_claims": [],
+        "audience": "parent_agent_only",
+        "source_kind": "built_in",
+        "execution_semantics": {
+          "automatic_retry_allowed": false,
+          "repeat_is_idempotent": true,
+          "may_create_persistent_effects": false
+        },
+        "runtime_file_closure_hash": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "4ce958cc0823ddb161e2ba0b1024a0d328c507f64a9ed50a0bd9a819f52f1fb2"
+        },
+        "definition_fingerprint": {
+          "algorithm": "sha256",
+          "canonicalization_version": "rfc8785_jcs_v1",
+          "hex": "ab6065616469651e48a17348d990d1f2afd0e564408713233dc3553481b6cee0"
+        },
+        "entity_revision": "1",
+        "created_at": "2026-09-09T00:00:00Z"
+      },
+      "instance": {
+        "tool_instance_id": "tin_01M2DG020980080021AN94206A",
+        "tool_id": "tol_01M2DG020980080021AN942056",
+        "tool_version": {
+          "semantic_version": null,
+          "definition_revision": "3"
+        },
+        "source_kind": "built_in",
+        "source_contract_fingerprint": {
+          "source_kind": "built_in",
+          "signed_builtin_tool_contract_fingerprint": {
+            "algorithm": "sha256",
+            "canonicalization_version": "rfc8785_jcs_v1",
+            "hex": "11fec7d0dd8cae99dc16d04fe79e9f96e5e1c88aefcafcd4200cfaeddb8aa226"
           }
         },
         "enabled": true,

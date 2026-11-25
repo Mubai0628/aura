@@ -277,6 +277,9 @@ test('L19.3 the 多 Agent page shows, decides and stops sub-agents', async ({}, 
     const stopped = area.getByRole('region', { name: `子 Agent 记录：${SECOND.name}` });
     await expect(stopped).toContainText(SECOND.file);
     await stopped.getByRole('button', { name: '停止', exact: true }).click();
+    await expect(secondCard).toHaveCount(0);
+    await leadCard.click({ button: 'right' });
+    await agentsPage.getByRole('menuitem', { name: '展开全部已停止（1）' }).click();
     // What Aura tells the main agent about the stop runs up the line as the stop.
     await expect(board.locator('.agent-canvas-flow[data-agent="A2"]')).toHaveAttribute(
       'data-kind',

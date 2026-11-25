@@ -6,6 +6,7 @@ mod published_browser;
 mod published_handover;
 mod published_later;
 mod published_media;
+mod published_peers;
 mod published_shared;
 mod published_team;
 pub use integrity::current;
@@ -30,6 +31,7 @@ pub fn all() -> impl Iterator<Item = &'static PublishedRevision> {
         .chain(PUBLISHED_SHARED)
         .chain(published_browser::PUBLISHED_BROWSER_RECEIPTS)
         .chain(published_arguments::PUBLISHED_ARGUMENTS)
+        .chain(published_peers::PUBLISHED_PEERS)
 }
 #[cfg(test)]
 mod tests;

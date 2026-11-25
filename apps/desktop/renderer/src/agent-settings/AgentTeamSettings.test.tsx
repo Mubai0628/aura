@@ -34,6 +34,7 @@ const api = {
   setAgentTeamSettings: vi.fn(
     async (request: {
       limits: AgentTeamLimits;
+      enabled?: boolean;
       permissions?: AgentTeamPermissions;
       expected_revision: number;
     }): Promise<ReturnType<typeof ok<AgentTeamSettingsView>> | ReturnType<typeof refusal>> => {
@@ -44,6 +45,7 @@ const api = {
       current = {
         ...current,
         limits: request.limits,
+        enabled: request.enabled ?? current.enabled,
         permissions: request.permissions ?? current.permissions,
         revision: current.revision + 1,
       };
@@ -54,9 +56,10 @@ const api = {
 
 beforeEach(() => {
   current = {
+    enabled: true,
     limits: DEFAULTS,
     defaults: DEFAULTS,
-    minimum: { max_running: 1, token_budget: 100_000, minutes_per_task: 5, cpu_percent: 10 },
+    minimum: { max_running: 0, token_budget: 100_000, minutes_per_task: 5, cpu_percent: 10 },
     maximum: {
       max_running: 8,
       token_budget: 100_000_000,
@@ -76,6 +79,57 @@ const field = (name: string) => screen.findByRole('spinbutton', { name });
 const unlimited = () => screen.findByRole('checkbox', { name: '不限' });
 
 describe('设置 → 智能能力 → 多 Agent', () => {
+  it('accepts an exact integer token limit through form submission', async () => {
+    const user = userEvent.setup();
+    render(<AgentTeamSettings coreReady />);
+    await user.click(await unlimited());
+    const input = (await field('每个子 Agent 的 token 上限')) as HTMLInputElement;
+    await user.type(input, '6757756');
+    expect(input.validity.stepMismatch).toBe(false);
+    await user.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(api.setAgentTeamSettings).toHaveBeenCalledWith({
+        limits: { ...DEFAULTS, token_budget: 6757756 },
+        expected_revision: 0,
+      }),
+    );
+  });
+
+  it('does not repeat an unconfirmed limits write until the user rereads', async () => {
+    const user = userEvent.setup();
+    render(<AgentTeamSettings coreReady />);
+    const running = await field('同时运行的子 Agent');
+    await user.clear(running);
+    await user.type(running, '5');
+    api.setAgentTeamSettings.mockRejectedValueOnce(new Error('transport lost after send'));
+    const save = screen.getByRole('button', { name: /^保存$/ });
+    await user.click(save);
+    expect((await screen.findByRole('alert')).textContent).toContain('尚未确认');
+    await user.click(save);
+    expect(api.setAgentTeamSettings).toHaveBeenCalledTimes(1);
+    current = { ...current, limits: { ...DEFAULTS, max_running: 5 }, revision: 1 };
+    await user.click(screen.getByRole('button', { name: '重新读取' }));
+    await waitFor(() => expect(running).toHaveProperty('value', '5'));
+    expect(api.setAgentTeamSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('switch', { name: '允许多 Agent' })).toBeNull();
+  });
+
+  it('accepts zero temporary concurrency without turning off collaboration', async () => {
+    const user = userEvent.setup();
+    render(<AgentTeamSettings coreReady />);
+    const running = await field('同时运行的子 Agent');
+    await user.clear(running);
+    await user.type(running, '0');
+    await user.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() =>
+      expect(api.setAgentTeamSettings).toHaveBeenCalledWith({
+        limits: { ...DEFAULTS, max_running: 0 },
+        expected_revision: 0,
+      }),
+    );
+    expect(current.enabled).toBe(true);
+  });
+
   it('shows the limits and saves a changed one over the revision it read', async () => {
     const user = userEvent.setup();
     render(<AgentTeamSettings coreReady />);

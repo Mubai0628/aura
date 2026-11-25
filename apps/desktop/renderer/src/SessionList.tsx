@@ -6,6 +6,7 @@ import type { SessionActivity } from './session-activity';
 import type { UnseenSessions } from './unseen-sessions';
 import { ListSentinel } from './ui/SkeletonRows';
 import { useIncrementalList } from './ui/useIncrementalList';
+import { SESSION_DRAG } from './agent-team/graph/drag-data';
 
 /** A conversation the pointer rests on this long is read ahead (`prefetchAgentSession`). */
 const RESTING_MS = 80;
@@ -54,6 +55,11 @@ export function SessionList({
             ? 'session-row is-active'
             : 'session-row'
         }
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.setData(SESSION_DRAG, JSON.stringify({ session_id: session.id }));
+          event.dataTransfer.effectAllowed = 'copy';
+        }}
         onClick={() => onSelectSession(workspace.id, session.id)}
         onFocus={() => prefetchAgentSession(session.id)}
         onPointerEnter={() => rest(session.id)}

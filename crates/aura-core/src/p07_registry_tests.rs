@@ -38,7 +38,7 @@ mod tests {
         let service = ToolRegistryControlServiceV1;
 
         let initial = service
-            .publish_settings(&persistence, settings.clone(), false)
+            .publish_settings(&persistence, settings.clone(), None)
             .expect("initial settings projection");
         assert!(initial.projection_publish_error.is_none());
         assert!(matches!(
@@ -48,7 +48,11 @@ mod tests {
         ));
 
         let rejected = service
-            .publish_settings(&persistence, settings.clone(), true)
+            .publish_settings(
+                &persistence,
+                settings.clone(),
+                Some("default_timeout_ms：超出允许范围。"),
+            )
             .expect("rejected settings projection");
         assert!(rejected.projection_publish_error.is_none());
         let latest = persistence
@@ -63,6 +67,7 @@ mod tests {
                         issue.code.as_str() == ToolRegistryErrorCode::SettingsInvalid.as_str()
                             && issue.category == ErrorCategory::Conflict
                             && !issue.retryable
+                            && issue.message.contains("default_timeout_ms")
                     })
         ));
     }

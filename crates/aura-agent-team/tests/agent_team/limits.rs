@@ -15,6 +15,26 @@ async fn choose(host: &FakeHost, chosen: AgentTeamLimits) {
 }
 
 #[tokio::test]
+async fn session_agent_zero_stops_new_temporary_spawns_without_dropping_existing_members() {
+    let host = FakeHost::new();
+    let parent = SessionId::new();
+    let team = host.team();
+    team.call(call(parent, "agents.spawn", json!({"name":"已有任务","task":task("读代码")})))
+        .await
+        .unwrap();
+    choose(&host, AgentTeamLimits { max_running: 0, ..AgentTeamLimits::DEFAULT }).await;
+    assert_eq!(host.with_store(limits::limits).unwrap().0.max_running, 0);
+    let refused = team
+        .call(call(parent, "agents.spawn", json!({"name":"不能启动","task":task("读代码")})))
+        .await
+        .unwrap_err();
+    assert!(refused.contains("agents.no_slot"), "{refused}");
+    let view = team.list(parent).await.unwrap();
+    assert_eq!(view.members.len(), 1);
+    assert_eq!(view.members[0].session_id, host.child(0));
+}
+
+#[tokio::test]
 async fn the_users_limit_on_sub_agents_at_once_holds_and_one_waiting_for_approval_holds_no_slot() {
     let host = FakeHost::new();
     choose(&host, AgentTeamLimits { max_running: 1, ..AgentTeamLimits::DEFAULT }).await;

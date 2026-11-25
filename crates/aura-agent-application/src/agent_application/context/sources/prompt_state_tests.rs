@@ -70,6 +70,36 @@ fn the_model_reads_no_per_step_bookkeeping_and_core_keeps_it() {
 }
 
 #[test]
+fn delivering_guard_feedback_keeps_the_same_prompt_until_the_actual_constraint_changes() {
+    let mut state = serde_json::json!({"guard": {
+        "turn_task_id":"turn",
+        "revision":"4",
+        "completion_reminder_sent":false,
+        "stopped":null,
+        "corrections":[{
+            "target_key":"key",
+            "rule_id":"arguments",
+            "rule_version":1,
+            "field":"path",
+            "feedback_delivered_to_step":null,
+            "remaining_attempts":2
+        }]
+    }});
+    let before = prompt_state(&state, &[]);
+    state["guard"]["revision"] = "5".into();
+    state["guard"]["corrections"][0]["feedback_delivered_to_step"] = "new_step".into();
+    assert_eq!(before, prompt_state(&state, &[]));
+    assert_eq!(state["guard"]["corrections"][0]["feedback_delivered_to_step"], "new_step");
+
+    state["guard"]["corrections"][0]["remaining_attempts"] = 1.into();
+    let projected = prompt_state(&state, &[]);
+    assert_ne!(before, projected);
+    assert_eq!(projected["guard"]["corrections"][0]["remaining_attempts"], 1);
+    state["guard"]["stopped"] = "deterministic_correction_exhausted".into();
+    assert_ne!(projected, prompt_state(&state, &[]));
+}
+
+#[test]
 fn a_todo_no_update_has_written_is_left_out() {
     let turn = TurnTaskId::new();
     let state = state(&todo(turn, 1, &[]));

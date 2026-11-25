@@ -187,13 +187,13 @@ test('picking a sub-agent shows it in the main area, and the main agent goes bac
   // Nothing is picked at first: the main area shows the conversation.
   expect(focusedAgent('ses_main')).toBeUndefined();
   expect(rowButton('主 Agent').getAttribute('aria-current')).toBe('true');
-  fireEvent.click(rowButton('读代码'));
+  fireEvent.doubleClick(rowButton('读代码'));
   expect(focusedAgent('ses_main')).toBe('A1');
   expect(rowButton('读代码').getAttribute('aria-current')).toBe('true');
   expect(rowButton('主 Agent').getAttribute('aria-current')).toBe('false');
   expect(screen.queryByRole('region', { name: /子 Agent 记录/u })).toBeNull();
   expect(history).not.toHaveBeenCalled();
-  fireEvent.click(rowButton('主 Agent'));
+  fireEvent.doubleClick(rowButton('主 Agent'));
   expect(focusedAgent('ses_main')).toBeUndefined();
   expect(rowButton('主 Agent').getAttribute('aria-current')).toBe('true');
 });
@@ -214,7 +214,7 @@ test('the page can fill the main area and go back, and a pick there takes it bac
   list.mockResolvedValue(team([member('A1', '读代码')]));
   await shown({ expanded: true, onToggleExpanded: toggle });
   toggle.mockClear();
-  fireEvent.click(rowButton('读代码'));
+  fireEvent.doubleClick(rowButton('读代码'));
   expect(focusedAgent('ses_main')).toBe('A1');
   expect(toggle).toHaveBeenCalledTimes(1);
 });
@@ -228,7 +228,7 @@ test('the canvas shows until the list is chosen, and the choice is kept', async 
   expect(screen.getByRole('button', { name: '画布' }).getAttribute('aria-pressed')).toBe('true');
   expect(screen.queryByRole('list', { name: 'Agent 列表' })).toBeNull();
   // Picking a card shows that sub-agent in the main area, as a row does.
-  fireEvent.click(within(canvas).getByRole('button', { name: /读代码/u }));
+  fireEvent.doubleClick(within(canvas).getByRole('button', { name: /读代码/u }));
   expect(focusedAgent('ses_main')).toBe('A1');
   fireEvent.click(screen.getByRole('button', { name: '列表' }));
   expect(screen.getByRole('list', { name: 'Agent 列表' })).toBeTruthy();

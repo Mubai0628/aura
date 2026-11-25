@@ -115,6 +115,8 @@ fn assert_unknown_read_models(run: &BindingRun, call_id: ToolCallId) {
         run.session,
         run.run,
         &aura_context_domain::AgentContextReadToolResultInput {
+            offset_bytes: None,
+            max_bytes: None,
             tool_call_id: call_id,
             include_input: true,
             cursor: None,

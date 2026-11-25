@@ -11,16 +11,26 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
             ModelApiFormat::OpenAiResponses,
         )?;
         let layout = aura_model_transport::instruction_layout(input.request);
+        let archive_old = aura_model_transport::uses_deepseek_history_archive(
+            input.snapshot,
+            &input.request.instruction_envelope,
+            &input.request.tool_schema_set,
+        );
         let message = |role: &str, text: &str| json!({"role":role,"content":[{"type":"input_text","text":text}]});
-        let compile = |items: &[LogicalConversationItem]| {
+        let compile = |items: &[LogicalConversationItem], updates: &[_]| {
             history::compile_responses_history(
                 &input.request.conversation_items,
                 items,
                 input.snapshot,
                 input.resolved_attachments,
+                archive_old,
+                updates.iter(),
             )
         };
-        let conversation = compile(&input.request.conversation_items)?;
+        let replay = input.request.instruction_envelope.task_state_replay.as_ref();
+        let mut conversation =
+            compile(&input.request.conversation_items, replay.map_or(&[], |r| &r.updates))?;
+        prepend_background(&mut conversation, layout.background.as_deref());
         // A message after the step's request - a compaction's question or a retry's note - is a
         // user message of its own after the step's input, and what followed a question when the
         // model called tools comes next, so all before them is the step's input as it was sent.
@@ -30,7 +40,7 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
             .as_deref()
             .map(|question| message("user", question))
             .into_iter()
-            .chain(compile(&input.request.closing_exchange)?);
+            .chain(compile(&input.request.closing_exchange, &[])?);
         // Where the request's profile asks for it - at OpenAI's cache - the task's state goes before
         // the conversation: OpenAI kept a turn's steps only as far as the instructions while a few
         // hundred tokens or more followed the conversation, and as far as the last step once
@@ -39,37 +49,45 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         // stays in front and each change is added where it happened instead of replacing it.
         // Elsewhere the state stays after the conversation, where DeepSeek cached nearly every
         // step.
-        let history = match (
-            aura_model_transport::state_before_conversation(input.snapshot),
-            input.session_id,
-        ) {
-            (true, Some(session)) => {
-                let placement = aura_model_transport::place_state(
-                    session,
-                    &layout.stable,
-                    &conversation,
-                    &layout.current,
-                );
-                let mut history = vec![message("developer", &placement.leading)];
-                let mut from = 0;
-                for (at, state) in &placement.changes {
-                    history.extend(conversation.get(from..*at).unwrap_or_default().iter().cloned());
-                    history.push(message("developer", state));
-                    from = from.max(*at);
-                }
-                history.extend(conversation.get(from..).unwrap_or_default().iter().cloned());
-                history.extend(closing);
-                history
-            }
-            (true, None) => std::iter::once(message("developer", &layout.current))
+        let leading = aura_model_transport::state_before_conversation(input.snapshot);
+        let history = if let Some(replay) = replay {
+            std::iter::once(message("developer", &replay.leading))
                 .chain(conversation)
                 .chain(closing)
-                .collect(),
-            (false, _) => conversation
-                .into_iter()
-                .chain(std::iter::once(message("developer", &layout.current)))
-                .chain(closing)
-                .collect(),
+                .collect()
+        } else {
+            match (layout.checkpoint, leading, input.session_id) {
+                (true, false, _) => conversation.into_iter().chain(closing).collect(),
+                (false, true, Some(session)) => {
+                    let placement = aura_model_transport::place_state(
+                        session,
+                        &layout.stable,
+                        &conversation,
+                        &layout.current,
+                    );
+                    let mut history = vec![message("developer", &placement.leading)];
+                    let mut from = 0;
+                    for (at, state) in &placement.changes {
+                        history.extend(
+                            conversation.get(from..*at).unwrap_or_default().iter().cloned(),
+                        );
+                        history.push(message("developer", state));
+                        from = from.max(*at);
+                    }
+                    history.extend(conversation.get(from..).unwrap_or_default().iter().cloned());
+                    history.extend(closing);
+                    history
+                }
+                (_, true, _) => std::iter::once(message("developer", &layout.current))
+                    .chain(conversation)
+                    .chain(closing)
+                    .collect(),
+                (false, false, _) => conversation
+                    .into_iter()
+                    .chain(std::iter::once(message("developer", &layout.current)))
+                    .chain(closing)
+                    .collect(),
+            }
         };
         let mut body = Map::new();
         body.insert("model".to_owned(), Value::String(input.snapshot.model_name.clone()));
@@ -78,7 +96,8 @@ impl ModelProtocolCompiler for OpenAiResponsesAdapter {
         {
             body.insert(key.name, Value::String(key.value));
         }
-        body.insert("instructions".to_owned(), Value::String(layout.stable));
+        let instructions = if leading { layout.stable } else { layout.including_checkpoint() };
+        body.insert("instructions".to_owned(), Value::String(instructions));
         body.insert("input".to_owned(), Value::Array(history));
         body.insert(
             "max_output_tokens".to_owned(),
@@ -146,7 +165,15 @@ pub fn replayed_task_states(
     resolved: &[aura_model_domain::ResolvedModelAttachment],
 ) -> Result<Vec<String>, ModelAdapterError> {
     let layout = aura_model_transport::instruction_envelope_layout(envelope);
-    let wire = history::compile_responses_history(conversation, conversation, snapshot, resolved)?;
+    let mut wire = history::compile_responses_history(
+        conversation,
+        conversation,
+        snapshot,
+        resolved,
+        false,
+        [].iter(),
+    )?;
+    prepend_background(&mut wire, layout.background.as_deref());
     let mut placement =
         aura_model_transport::preview_state(session, &layout.stable, &wire, &layout.current);
     if placement.changes.pop().is_none() {
@@ -155,6 +182,13 @@ pub fn replayed_task_states(
     Ok(std::iter::once(placement.leading)
         .chain(placement.changes.into_iter().map(|(_, state)| state))
         .collect())
+}
+
+fn prepend_background(messages: &mut Vec<Value>, background: Option<&str>) {
+    if let Some(text) = background {
+        messages
+            .insert(0, json!({"role":"assistant","content":[{"type":"output_text","text":text}]}));
+    }
 }
 
 pub(super) fn responses_output_format(format: &ModelOutputFormat) -> Value {

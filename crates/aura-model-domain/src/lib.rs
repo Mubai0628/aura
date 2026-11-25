@@ -23,6 +23,7 @@ mod request;
 mod slug;
 mod speed_modes;
 mod stream;
+mod task_state_replay;
 mod tool_call_binding;
 mod tool_call_input;
 
@@ -48,5 +49,6 @@ pub use request::*;
 pub use slug::*;
 pub use speed_modes::*;
 pub use stream::*;
+pub use task_state_replay::*;
 pub use tool_call_binding::*;
 pub use tool_call_input::*;

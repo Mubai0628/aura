@@ -6,6 +6,10 @@ const kept = new Map<string, string>();
 const reading = new Map<string, Promise<string | null | undefined>>();
 let keptLength = 0;
 
+export function cachedPicture(sessionId: string, artifactId: string): string | undefined {
+  return kept.get(`${sessionId}/${artifactId}`);
+}
+
 /**
  * A picture of a conversation's own record as a data URL: `null` when Core cannot give it, and
  * `undefined` without the bridge. An artifact is one fixed content, so a picture read once is

@@ -284,6 +284,7 @@ export function ModelProfileDialog({
       </header>
       <form
         className="provider-editor model-profile-editor"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void save();

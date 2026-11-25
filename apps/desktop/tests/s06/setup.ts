@@ -99,6 +99,14 @@ export async function armReadOnlyWrite(
           available_for_subagents: true,
         });
         if (!allowed.ok) return { error: `subagents: ${JSON.stringify(allowed)}` };
+        const policy = await api.readSessionAgentPolicy({ session_id: sessionId });
+        if (!policy.ok) return { error: 'subagent session policy unavailable' };
+        const optedIn = await api.setSessionAgentPolicy({
+          session_id: sessionId,
+          expected_revision: policy.value.revision,
+          allow_proactive_temporary_agents: true,
+        });
+        if (!optedIn.ok) return { error: 'subagent session policy was not saved' };
       }
       // A brand-new session has never been bound, so its binding revision is 0.
       const binding = await api.setSessionModelBinding({

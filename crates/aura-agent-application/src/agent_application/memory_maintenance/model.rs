@@ -23,6 +23,16 @@ impl AgentApplication {
         cancel: &ModelCancellationToken,
         record: &mut MemoryMaintenanceRun,
     ) -> anyhow::Result<NormalizedModelOutput> {
+        self.auxiliary_model(pending, cancel, record, None).await
+    }
+
+    pub(in crate::agent_application) async fn auxiliary_model(
+        &self,
+        pending: &facts::Pending,
+        cancel: &ModelCancellationToken,
+        record: &mut MemoryMaintenanceRun,
+        profile_policy: Option<&str>,
+    ) -> anyhow::Result<NormalizedModelOutput> {
         aura_network_control::SecretScanner
             .scan_text("memory.maintenance.input", &pending.input)?;
         let profile = self
@@ -107,17 +117,23 @@ impl AgentApplication {
                 }
             })
             .await?;
-        let policy = bundle
-            .modules
-            .iter()
-            .find(|m| m.module_id == "maintenance.memory-maintenance")
-            .ok_or_else(|| anyhow::anyhow!("memory.prompt_missing"))?
-            .normalized_content
-            .clone();
-        let policy = format!(
-            "{policy}\nReturn only JSON conforming to this schema (version 1):\n{}\n{RANGES}",
-            serde_json::to_string(&schemars::schema_for!(aura_memory::MemoryMaintenanceOutput))?
-        );
+        let policy = if let Some(policy) = profile_policy {
+            policy.to_owned()
+        } else {
+            let policy = bundle
+                .modules
+                .iter()
+                .find(|m| m.module_id == "maintenance.memory-maintenance")
+                .ok_or_else(|| anyhow::anyhow!("memory.prompt_missing"))?
+                .normalized_content
+                .clone();
+            format!(
+                "{policy}\nReturn only JSON conforming to this schema (version 1):\n{}\n{RANGES}",
+                serde_json::to_string(&schemars::schema_for!(
+                    aura_memory::MemoryMaintenanceOutput
+                ))?
+            )
+        };
         let instructions = aura_prompt_runtime::compile_instruction_envelope(BTreeMap::from([
             (
                 LogicalInstructionKind::Core,
@@ -181,7 +197,9 @@ impl AgentApplication {
         let step = snapshot.model_step_id;
         let call=async {
             record.usage_complete=false;
-            self.save_memory_run(&pending.workspace,record.clone()).await?;
+            if profile_policy.is_none() {
+                self.save_memory_run(&pending.workspace,record.clone()).await?;
+            }
             let drafts=instructions.ordered_blocks.iter().map(|b|{
                 let untrusted=b.kind==LogicalInstructionKind::HistoricalSnapshot;
                 aura_context_runtime::ModelEgressSourceDraft {source_ref:if untrusted{ContextSourceRef::Artifact {artifact_id:artifact}}else{ContextSourceRef::RuntimeState {state_kind:format!("memory.maintenance.policy.{:?}.v1",b.kind),state_revision:Revision::INITIAL}},source_kind:if untrusted{ModelEgressSourceKind::MemoryMaintenance}else{ModelEgressSourceKind::AuraCore},data_class:if untrusted{NetworkDataClass::WorkspaceSource}else{NetworkDataClass::PublicContent},authorization_basis:ModelEgressAuthorizationBasis::ModelChannelPolicy,content_hash:b.content_hash.clone(),byte_length:b.content.len() as u64}

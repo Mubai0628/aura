@@ -52,7 +52,9 @@ interface RightWorkspaceProps {
   promptInspector: PromptInspectorProjection | undefined;
   /** The review page, the browser or the 多 Agent page fills the main area. */
   expanded?: boolean;
-  onToggleExpanded?: () => void;
+  onToggleExpanded?: (() => void) | undefined;
+  closeOnEscape?: boolean;
+  onOpenSession?: ((sessionId: string) => boolean) | undefined;
   /** Says what went wrong with a file action. */
   onNotify?: ((problem: string) => void) | undefined;
 }
@@ -117,9 +119,21 @@ export function RightWorkspace({
   workspaces,
   onToggleSidebar,
   expanded = false,
+  closeOnEscape = false,
   onToggleExpanded,
   onNotify,
+  onOpenSession,
 }: RightWorkspaceProps) {
+  const graphSessions = useMemo(() => {
+    const workspace = workspaces?.find((item) => item.id === workspaceId);
+    return workspace
+      ? new Set(
+          workspace.sessions
+            .filter((session) => session.state !== 'draft' && session.state !== 'archived')
+            .map((session) => session.id),
+        )
+      : undefined;
+  }, [workspaces, workspaceId]);
   const menuRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useDismissablePopover(menuRef);
   const [closeError, setCloseError] = useState('');
@@ -207,6 +221,20 @@ export function RightWorkspace({
       className="right-workspace"
       data-panel={active?.kind ?? 'empty'}
       id="right-workspace"
+      onKeyDown={(event) => {
+        if (
+          closeOnEscape &&
+          event.key === 'Escape' &&
+          !event.defaultPrevented &&
+          !menuOpen &&
+          !ending &&
+          event.target instanceof Node &&
+          event.currentTarget.contains(event.target)
+        ) {
+          event.preventDefault();
+          onToggleSidebar?.();
+        }
+      }}
     >
       <div className="right-workspace-toolbar">
         <ToolTabStrip
@@ -335,9 +363,11 @@ export function RightWorkspace({
       ) : active.kind === 'agents' ? (
         sessionId ? (
           <AgentTeamPanel
+            activeSessions={graphSessions}
             expanded={expanded}
             key={sessionId}
             onToggleExpanded={onToggleExpanded}
+            onOpenSession={onOpenSession}
             sessionId={sessionId}
             visible={visible}
           />

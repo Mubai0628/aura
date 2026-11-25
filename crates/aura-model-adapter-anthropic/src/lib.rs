@@ -45,6 +45,13 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
             )
         };
         let mut history = compile(&input.request.conversation_items)?;
+        if let Some(background) = &layout.background {
+            // Messages requires a user turn first. Keep the historical account in the answer role.
+            history.splice(0..0, [
+                json!({"role":"user","content":[{"type":"text","text":"Earlier conversation history follows."}]}),
+                json!({"role":"assistant","content":[{"type":"text","text":background}]}),
+            ]);
+        }
         // Explicit, default-TTL cache breakpoints go only where the request's profile asks for
         // them - Anthropic's own endpoint: compatible Messages endpoints may reject Anthropic's
         // cache extensions.
@@ -57,14 +64,19 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
         // it, and what followed a question when the model called tools comes next, so all before
         // them is the step's request as it was sent. No `tool_choice` is sent: changing it drops
         // Anthropic's cache of the messages.
-        let mut turn = vec![json!({"type":"text","text":layout.current})];
+        let mut turn = Vec::new();
+        if !layout.checkpoint {
+            turn.push(json!({"type":"text","text":layout.current}));
+        }
         if let Some(question) = &input.request.closing_question {
             turn.push(json!({"type":"text","text":question}));
         }
-        if let Some(last) = history.last_mut().filter(|m| m["role"] == "user") {
-            last["content"].as_array_mut().expect("compiled content blocks").extend(turn);
-        } else {
-            history.push(json!({"role":"user","content":turn}));
+        if !turn.is_empty() {
+            if let Some(last) = history.last_mut().filter(|m| m["role"] == "user") {
+                last["content"].as_array_mut().expect("compiled content blocks").extend(turn);
+            } else {
+                history.push(json!({"role":"user","content":turn}));
+            }
         }
         history.extend(compile(&input.request.closing_exchange)?);
         let mut body = Map::new();
@@ -76,6 +88,12 @@ impl ModelProtocolCompiler for AnthropicMessagesAdapter {
                 "text": layout.stable,
             }]),
         );
+        if layout.checkpoint {
+            body["system"]
+                .as_array_mut()
+                .expect("system content blocks")
+                .push(json!({"type":"text","text":layout.current}));
+        }
         if native_cache {
             body["system"][0]["cache_control"] = json!({"type":"ephemeral"});
         }

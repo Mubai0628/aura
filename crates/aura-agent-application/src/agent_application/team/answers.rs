@@ -7,51 +7,16 @@ use super::*;
 use aura_agent_team::{
     Answered, AnsweredBy, ApprovalAnswer, ReviewRequest, note_review, review_seconds_left,
 };
-use aura_context_domain::{ContextSourceRef, ModelEgressAuthorizationBasis, ModelEgressSourceKind};
-use aura_context_runtime::ContextFragment;
-use aura_domain_common::Revision;
 use aura_execution_contract::{
     ExecutionApprovalRequest, ExecutionApprovalResolutionRequest, ExecutionApprovalView,
 };
-use aura_persistence_core::{Connection, StoreResult};
 use aura_persistence_v2::agent::{approval, approver, session};
-use aura_security_contract::{ApprovalDecisionKind, NetworkDataClass, ResolvedCapability};
+use aura_security_contract::{ApprovalDecisionKind, ResolvedCapability};
 
 /// What a sub-agent's settings answer is recorded with.
 const DOWNLOAD_REASON: &str = "设置里允许子 Agent 下载。";
 
 impl AgentApplication {
-    /// Points the main agent to reviews it can collect with agents.status or agents.wait.
-    pub(in crate::agent_application) async fn main_agent_review_fragment(
-        self: &Arc<Self>,
-        session: SessionId,
-        revision: Revision,
-    ) -> anyhow::Result<Option<ContextFragment>> {
-        let pending = self
-            .store
-            .read(StoreStep::operation("agents.review.unpresented"), move |db| {
-                unpresented_reviews(db, session)
-            })
-            .await?;
-        let mut handles = Vec::new();
-        for (child, handle, ids) in pending {
-            let (_, reviews) = self.split_reviews(child, ids).await?;
-            if !reviews.is_empty() {
-                handles.push(handle);
-            }
-        }
-        Ok((!handles.is_empty()).then(|| ContextFragment {
-            source_ref: ContextSourceRef::RuntimeState {
-                state_kind: "agent.main_agent_reviews.v1".into(),
-                state_revision: revision,
-            },
-            source_kind: ModelEgressSourceKind::AuraCore,
-            data_class: NetworkDataClass::PublicContent,
-            authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
-            content: serde_json::json!({"waiting_for_main_agent_review": handles}).to_string(),
-        }))
-    }
-
     /// Splits the questions sub-agent `conversation` waits on into the user's and those its main
     /// agent answers first.
     pub(in crate::agent_application) async fn split_reviews(
@@ -284,35 +249,6 @@ impl AgentApplication {
         }
         Ok(())
     }
-}
-
-fn unpresented_reviews(
-    db: &Connection,
-    parent: SessionId,
-) -> StoreResult<Vec<(SessionId, String, Vec<ApprovalRequestId>)>> {
-    if !aura_agent_team::limits::settings(db)?.1.main_agent_approves {
-        return Ok(Vec::new());
-    }
-    let mut ready = Vec::new();
-    for member in team_store::members_of(db, parent)? {
-        let child = member.child_session_id;
-        let Some(turn_id) = session::load(db, child)?.active_turn else { continue };
-        let turn = turns::load(db, turn_id)?;
-        if turn.state != TurnTaskState::AwaitingApproval {
-            continue;
-        }
-        let mut ids = approval::pending(db, turn.agent_run_id)?;
-        ids.retain(|id| {
-            !member.details.reviews.iter().any(|review| {
-                review.approval_id == *id
-                    && (review.presented_at.is_some() || review.answered.is_some())
-            })
-        });
-        if !ids.is_empty() {
-            ready.push((child, member.handle, ids));
-        }
-    }
-    Ok(ready)
 }
 
 /// Whether the question in `view` asks only for a download of a command: no risk flag, no

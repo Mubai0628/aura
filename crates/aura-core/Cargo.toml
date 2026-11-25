@@ -125,6 +125,7 @@ zip.workspace = true
 # their test builds had (`test-hooks`; see the crate's Cargo.toml).
 aura-core-base = { path = "../aura-core-base", features = ["test-hooks"] }
 aura-agent-application = { path = "../aura-agent-application", features = ["test-hooks"] }
+aura-agent-collaboration = { path = "../aura-agent-collaboration" }
 aura-agent-execution = { path = "../aura-agent-execution", features = ["test-hooks"] }
 aura-agent-team = { path = "../aura-agent-team" }
 aura-extension-service = { path = "../aura-extension-service", features = ["test-hooks"] }

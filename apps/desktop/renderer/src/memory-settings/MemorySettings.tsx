@@ -116,9 +116,10 @@ function MaintenanceForm({
     <form
       className="memory-maintenance settings-card"
       aria-label="自动整理设置"
+      noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (valid && snapshot.revision != null)
+        if (!busy && valid && snapshot.revision != null)
           void save({ automatic_maintenance: enabled, event_retention_days: number });
       }}
     >

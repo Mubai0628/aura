@@ -30,6 +30,7 @@ pub mod lineage;
 pub mod mode;
 pub mod model_context;
 mod network_proxy_notice;
+pub mod peer_input;
 pub mod plugin_session;
 pub mod query;
 pub mod reconcile;

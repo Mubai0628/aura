@@ -135,7 +135,7 @@ pub(super) fn addition_suffix(
     let mut suffix = Vec::new();
     let mut last_order = 0_u32;
     for item in &items[after..] {
-        let LogicalConversationItem::User { source_event_id, content_hash, .. } = item else {
+        let LogicalConversationItem::User { source_event_id, content_hash, content } = item else {
             anyhow::bail!("agent.addition_tail_invalid");
         };
         let Some((order, revision)) = orders.get(source_event_id) else {
@@ -148,6 +148,8 @@ pub(super) fn addition_suffix(
         suffix.push(AcceptedTurnAdditionV1 {
             user_event_id: *source_event_id,
             content_hash: content_hash.clone(),
+            excerpt_hash: user_event_excerpt(*source_event_id, content)
+                .map(|view| ContentHash::sha256(view.as_bytes())),
             session_id: turn.session_id,
             turn_task_id: turn.turn_task_id,
             revision: *revision,

@@ -29,7 +29,7 @@ pub fn start_for(
     if purpose.is_command() && (mode != AgentTaskMode::Normal || goal_budget.is_some()) {
         return Err(Error::Conflict);
     }
-    if user.origin != UserMessageOrigin::UserInput {
+    if user.origin != UserMessageOrigin::UserInput || purpose == AgentTaskPurpose::PeerDispatch {
         return Err(Error::Conflict);
     }
     let scope = crate::workspace::session(tx, user.session_id)?.ok_or(Error::Conflict)?;

@@ -197,7 +197,11 @@ async fn after_aura_was_closed_only_the_users_continue_continues_and_the_queue_w
     let continued =
         provider.requests.lock().expect("requests").last().expect("request").to_string();
     assert!(continued.contains("Aura restarted while it was running."), "{continued}");
-    assert!(!continued.contains("on its own"), "the user's 继续 is the user's: {continued}");
+    assert!(
+        !continued.contains("then continued it on its own")
+            && !continued.contains("sent by Aura, not typed by the user"),
+        "manual continuation must not carry the automatic restart marker"
+    );
     tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(turns(&runtime, session_id).await.len(), 2, "the queue waits for the user");
     let inbox = agent(&runtime).inbox(AgentSessionRequest { session_id }).await.expect("inbox");

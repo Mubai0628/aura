@@ -100,7 +100,7 @@ fn natural(
     for source in
         previous.sources.iter().filter(|source| source.membership == SourceMembership::Active)
     {
-        if !source_coverage::source_covered(tx, &snapshot, source)? {
+        if !source_coverage::source_available_to_responder(tx, &snapshot, source)? {
             return Ok(None);
         }
     }

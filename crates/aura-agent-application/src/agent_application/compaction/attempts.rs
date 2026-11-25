@@ -16,12 +16,7 @@ impl CompactionAttemptFactory for Execution {
             let built: anyhow::Result<_> = async {
                 anyhow::ensure!(!self.cancel.is_cancelled(), "context.compaction_cancelled");
                 anyhow::ensure!(
-                    dependencies::current(
-                        &self.app,
-                        &self.record.background_sources,
-                        &self.source_access
-                    )
-                    .await,
+                    dependencies::visible(&self.record.background_sources, &self.source_access),
                     "context.compaction_sources_changed"
                 );
                 let turn = self.app.turn_blocking(self.record.agent_run_id).await?;

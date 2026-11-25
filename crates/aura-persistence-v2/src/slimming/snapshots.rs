@@ -1,6 +1,5 @@
-//! The context snapshots an older version kept for every step: each conversation keeps the two a
-//! current version keeps (`context::keep_two`), and the others go with the section texts only
-//! their steps held.
+//! Retain the live, adopted and measured context snapshots. Old inspector rows have their own
+//! measurements and no longer need to keep the step's frozen section texts alive.
 use aura_domain_common::SessionId;
 use aura_persistence_core::{
     DatabaseConnection, PersistenceCoreError as Error, StoreResult, artifact,
@@ -62,17 +61,20 @@ pub(super) fn clear(
     Ok(())
 }
 
-/// The conversation's snapshots but its newest and the one behind its newest counted request,
-/// oldest first.
+/// Reclaim the same snapshots as the incremental collector, oldest first.
 fn older(db: &Connection, session: &str) -> StoreResult<Vec<String>> {
     let id: SessionId = session.parse().map_err(|_| Error::Invalid("context snapshot session"))?;
     let counted = crate::agent::counted_request::latest_counted_snapshot(db, id)?;
+    let adopted = crate::context::latest_adopted_snapshot(db, id)?;
+    let regular = crate::context::latest_regular_adopted_snapshot(db, id)?;
     let mut query = db.prepare(
         "SELECT id FROM context_snapshots WHERE session_id=?1 AND (?2 IS NULL OR id<>?2) \
+         AND (?3 IS NULL OR id<>?3) AND (?4 IS NULL OR id<>?4) \
          AND rowid < (SELECT max(rowid) FROM context_snapshots WHERE session_id=?1) \
          ORDER BY rowid",
     )?;
-    let older =
-        query.query_map(rusqlite::params![session, counted], |row| row.get::<_, String>(0))?;
+    let older = query.query_map(rusqlite::params![session, counted, adopted, regular], |row| {
+        row.get::<_, String>(0)
+    })?;
     Ok(older.collect::<Result<Vec<_>, _>>()?)
 }

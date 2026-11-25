@@ -1,5 +1,5 @@
 import type { PromptInspectorProjection } from '@aura/contracts/generated';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'vitest';
 
 import { PromptInspectorShell } from './PromptInspectorShell';
@@ -62,6 +62,9 @@ describe('PromptInspectorShell', () => {
   test('draws the context and the budget as pixel bars with their numbers, and no notes', () => {
     render(<PromptInspectorShell projection={projection} />);
     const shell = screen.getByRole('region', { name: '提示词监测' });
+    expect(within(shell).getByText('所选步骤的上下文')).toBeDefined();
+    expect(within(shell).getByText('本步输入估算')).toBeDefined();
+    expect(within(shell).queryByText(/服务商实报/)).toBeNull();
     const context = screen.getByRole('img', { name: '上下文 10,000 / 65,536' });
     expect(context.querySelectorAll('.pixel-cell')).toHaveLength(32);
     expect(context.querySelectorAll('.pixel-cell.is-system_and_rules').length).toBeGreaterThan(0);
@@ -81,5 +84,20 @@ describe('PromptInspectorShell', () => {
     render(<PromptInspectorShell projection={undefined} />);
     expect(screen.getByText('尚无已提交的上下文快照')).toBeDefined();
     expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  test('shows the selected step provider count alongside its local estimate when available', () => {
+    render(
+      <PromptInspectorShell
+        snapshotTime="2026-11-22T05:15:15Z"
+        projection={{
+          ...projection,
+          cache_usage: { ...projection.cache_usage, actual_input_tokens: 9_980 },
+        }}
+      />,
+    );
+    expect(screen.getByText(/^快照 /).getAttribute('datetime')).toBe('2026-11-22T05:15:15Z');
+    screen.getByText(/本步输入估算 · 服务商实报 9,980 Token/);
+    screen.getByText('10,000');
   });
 });

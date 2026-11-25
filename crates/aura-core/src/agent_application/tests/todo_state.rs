@@ -24,12 +24,13 @@ const STALE_REVISION: Scenario = Scenario::Sequence {
     )],
 };
 
-/// The task's current state: the request's last message.
+/// The task state that appears before ordinary conversation history.
 fn task_state(request: &Value) -> String {
-    let state = request["messages"].as_array().and_then(|messages| messages.last());
-    let text = state.and_then(|state| state["content"].as_str()).expect("the last message");
-    assert!(text.contains("Current-Task-State"), "{text}");
-    text.to_owned()
+    let messages = request["messages"].as_array().expect("messages");
+    assert!(messages[0]["role"] == "system" || messages[0]["role"] == "developer");
+    let instructions = messages[0]["content"].as_str().expect("leading instructions");
+    let (_, rest) = instructions.split_once("<Current-Task-State>").expect("checkpoint state");
+    rest.split_once("</Current-Task-State>").expect("closed checkpoint state").0.to_owned()
 }
 
 #[tokio::test]
@@ -42,6 +43,11 @@ async fn the_task_state_stays_the_same_while_the_conversation_shows_the_todo() {
     wait(&runtime, &request, |p| matches!(p.turn.state, TurnTaskState::Completed { .. })).await;
     let requests = provider.requests.lock().expect("provider requests").clone();
     assert!(requests.len() >= 3, "two to-do updates and the answer: {}", requests.len());
+    for pair in requests.windows(2) {
+        let before = pair[0]["messages"].as_array().expect("messages");
+        let after = pair[1]["messages"].as_array().expect("messages");
+        assert!(after.starts_with(before), "a tool receipt changed an adopted message prefix");
+    }
     let states = requests.iter().map(task_state).collect::<Vec<_>>();
     assert!(
         states.iter().all(|state| *state == states[0]),

@@ -68,6 +68,20 @@ pub fn previous_context(
     }
 }
 
+/// Successful context projection for the next ordinary request. An interrupted draft can
+/// still be displayed by the inspector, but never replaces this prefix.
+pub fn adopted_context(
+    db: &Connection,
+    turn: &aura_agent_domain::TurnTask,
+) -> StoreResult<Option<ContextProjectionSnapshot>> {
+    let Some(raw) = crate::context::latest_adopted_in_scope(db, turn)? else { return Ok(None) };
+    match crate::context::snapshot(db, raw.parse().map_err(|_| Error::Conflict)?) {
+        Ok(snapshot) => Ok(snapshot),
+        Err(Error::Invalid(_) | Error::Conflict | Error::Json(_)) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 pub fn freeze(
     tx: &Transaction<'_>,
     view: &PromptInspectorProjection,
@@ -87,7 +101,17 @@ pub fn freeze(
     {
         return Err(Error::Conflict);
     }
-    facts::append(tx, EventId::new(), &step.to_string(), "agent.prompt_inspector", view, at)
+    if view.reduction.as_ref().is_some_and(|reduction| reduction.history_on_demand) {
+        // Keep the version-one projection readable by older builds that reject new fields.
+        let mut frozen = view.clone();
+        if let Some(reduction) = &mut frozen.reduction {
+            reduction.history_on_demand = false;
+        }
+        facts::append(tx, EventId::new(), &step.to_string(), HISTORY_ON_DEMAND, &true, at)?;
+        facts::append(tx, EventId::new(), &step.to_string(), "agent.prompt_inspector", &frozen, at)
+    } else {
+        facts::append(tx, EventId::new(), &step.to_string(), "agent.prompt_inspector", view, at)
+    }
 }
 
 /// The sessions behind the other tasks a step's task state numbered. It is a fact of its own, so
@@ -105,6 +129,7 @@ pub fn freeze_activity_sources(
 }
 
 const ACTIVITY_SOURCES: &str = "agent.prompt_inspector.activity_sources";
+const HISTORY_ON_DEMAND: &str = "agent.prompt_inspector.history_on_demand";
 
 pub fn read(
     db: &Connection,
@@ -118,6 +143,11 @@ pub fn read(
     let mut projection: PromptInspectorProjection =
         facts::latest(db, &step.model_step_id.to_string(), "agent.prompt_inspector")?
             .ok_or(Error::Invalid("agent.inspector_not_recorded"))?;
+    if let Some(reduction) = &mut projection.reduction {
+        reduction.history_on_demand |=
+            facts::latest::<bool>(db, &step.model_step_id.to_string(), HISTORY_ON_DEMAND)?
+                .unwrap_or_default();
+    }
     let execution = crate::model::step_snapshot(db, step.model_step_id)?;
     // Only a conversation's newest full snapshots are kept; an older step shows its figures.
     let context = crate::context::snapshot(db, execution.context_snapshot_id)?;

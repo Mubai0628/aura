@@ -85,6 +85,22 @@ function inspection(
 }
 
 describe('Inspector', () => {
+  test('explains on-demand history on a recovered step even after its full snapshot expires', () => {
+    const view = inspection(
+      { stable_prefix_estimate_tokens: 100 },
+      {
+        reduction: {
+          input_tokens_before: 5000,
+          cleared_tool_results: 0,
+          compacted: false,
+          history_on_demand: true,
+        },
+      },
+    );
+    delete (view as Partial<AgentPromptInspection>).context;
+    render(<Inspector view={view} error={undefined} />);
+    expect(screen.getByText(/较早的原文和工具结果可按需回读/)).toBeTruthy();
+  });
   test("names the session behind each other task the step's task state numbered", () => {
     const view = inspection({ stable_prefix_estimate_tokens: 4_000 });
     view.activity_sources = [

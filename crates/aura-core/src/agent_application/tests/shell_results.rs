@@ -44,6 +44,20 @@ async fn the_model_reads_the_rest_of_a_long_output_with_the_id_its_result_gave()
 }
 
 #[tokio::test]
+async fn shell_exit_code_without_output_is_an_observed_exit_not_unknown_or_not_started() {
+    const EMPTY_ERROR: Scenario =
+        Scenario::Sequence { calls: &[("shell.cmd", r#"{"script":"@exit /b 37"}"#)] };
+    let results = tool_results(EMPTY_ERROR).await;
+    assert_eq!(results.len(), 1, "{results:?}");
+    let value = &results[0]["outcome"]["payload"]["value"];
+    assert_eq!(results[0]["outcome"]["type"], "succeeded", "{results:?}");
+    assert_eq!(value["exit_code"], 37, "{results:?}");
+    assert_eq!(value["state"], "completed", "{results:?}");
+    assert_eq!(value["stdout"], "", "{results:?}");
+    assert_eq!(value["stderr"], "", "{results:?}");
+}
+
+#[tokio::test]
 async fn a_command_stopped_at_its_output_limit_says_so_and_keeps_its_output() {
     const NOISY: Scenario = Scenario::Sequence {
         calls: &[(

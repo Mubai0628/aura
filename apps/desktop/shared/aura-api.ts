@@ -1,4 +1,5 @@
 import type { SessionConsentsApi } from './api/session-consents.js';
+import type { AgentCollaborationApi } from './agent-collaboration-api.js';
 import type { GitApiV1 } from './git-api.js';
 import type { AttachmentFileRequest, AttachmentFileResult } from './attachment-files.js';
 import type { MessagePictureRequest, MessagePictureResult } from './message-pictures.js';
@@ -126,7 +127,7 @@ export interface AuraBinaryStream {
   onChunk(listener: (chunk: BinaryStreamChunk) => void): () => void;
 }
 
-export interface AuraApiV1 extends SessionConsentsApi {
+export interface AuraApiV1 extends SessionConsentsApi, AgentCollaborationApi {
   mainErrors?: import('./main-errors-api.js').MainErrorsApiV1;
   git: GitApiV1;
   packages: import('./package-api.js').PackageApiV1;
@@ -580,14 +581,6 @@ export interface AuraApiV1 extends SessionConsentsApi {
   readAgentSessionsActivity(
     request: AgentMainParams['agent.sessions.activity'],
   ): Promise<ResultEnvelope<AgentMainResult['agent.sessions.activity']>>;
-  /** The sub-agents a conversation started, with the approvals they wait for. */
-  listAgentTeam(
-    request: AgentMainParams['agent.team.list'],
-  ): Promise<ResultEnvelope<AgentMainResult['agent.team.list']>>;
-  /** The user stops one sub-agent of a conversation; the list as it is then. */
-  stopAgentTeamMember(
-    request: AgentMainParams['agent.team.stop'],
-  ): Promise<ResultEnvelope<AgentMainResult['agent.team.stop']>>;
   /** Opens an active sub-agent worktree's folder in the file manager; Core names the folder. */
   openAgentTeamWorktree(
     request: AgentMainParams['agent.team.worktree.open'],

@@ -43,15 +43,8 @@ async fn waiting_window(
     view.provider_correction.expect("Provider rejection")
 }
 
-/// The candidate ladder is a rule about how much room a request has left, and the
-/// model-facing tool schemas are part of that fixed content. These tests were
-/// calibrated when an untouched configuration loaded three file tools; the
-/// recommended default set is now much larger, which leaves the smaller
-/// candidates unbuildable for reasons that have nothing to do with the ladder.
-/// They therefore pin the selection they are calibrated against: the subject is
-/// the ladder, not today's default tool list. What the larger default selection
-/// does to the same scenario is covered by
-/// `a_larger_default_selection_hands_off_to_remediation_sooner`.
+/// Pin a small file tool so the fixture's mandatory inputs fit the 64k candidate but
+/// exceed 32k. The separate default-selection case exercises the actual recommended tool set.
 async fn begin_with_pinned_tools(
     host: &crate::r03_tests::Fixture,
     provider: &Provider,
@@ -60,7 +53,7 @@ async fn begin_with_pinned_tools(
     let crate::StartupMode::Ready(services) = &runtime.startup_mode else { panic!("Core ready") };
     let view = services.agent_required().tool_settings().expect("tool settings");
     // The settings contract requires the selection to be sorted by id.
-    let mut pinned = ["fs.list", "fs.read", "fs.search"]
+    let mut pinned = ["fs.list"]
         .iter()
         .map(|name| {
             view.tools
@@ -95,7 +88,7 @@ async fn begin_with_pinned_tools(
 }
 /// What the current recommended default selection does to the same scenario.
 ///
-/// The ladder tests above pin the three file tools they were calibrated against,
+/// The ladder tests pin a small file tool to control the fixed input size,
 /// because their subject is how much room a request has left. The product question
 /// the review raised is different: with the default selection nobody edited, does
 /// the same scenario still reach something a person can act on, or does it loop?
@@ -349,7 +342,7 @@ async fn unbuildable_last_candidate_hands_off_to_remediation_and_keeps_queue() {
     assert_eq!(
         provider.requests.lock().expect("requests").len(),
         3,
-        "an unbuildable candidate is never sent to the Provider"
+        "an unbuildable candidate is never sent to the Provider: {final_wait:?}"
     );
     assert_eq!(final_wait.state, AgentContextWindowState::Preparing);
     let ContextWindowResolution::AutomaticCandidateSelected {

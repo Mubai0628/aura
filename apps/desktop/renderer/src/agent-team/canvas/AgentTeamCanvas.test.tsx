@@ -103,6 +103,23 @@ function shown(view: AgentTeamView, chosen?: string) {
   return { ...result, onPick, board, card, line, flow };
 }
 
+test('already working sub-agents show a continuous flow when the canvas opens', () => {
+  vi.useFakeTimers();
+  const { flow, rerender, onPick } = shown(team(member('A1', '读代码')));
+  expect(flow('A1')?.getAttribute('data-kind')).toBe('task');
+  act(() => vi.advanceTimersByTime(FLOW_MS * 2));
+  expect(flow('A1')?.getAttribute('data-kind')).toBe('task');
+  rerender(
+    <AgentTeamCanvas
+      sessionId="ses_main"
+      view={team(member('A1', '读代码', { working: false }))}
+      chosen={undefined}
+      onPick={onPick}
+    />,
+  );
+  expect(flow('A1')).toBeNull();
+});
+
 test('each agent is a card with its facts, joined to the main agent by a line', () => {
   const { card, line } = shown(
     team(
@@ -138,16 +155,19 @@ test('picking a card picks its agent; the picked card and its line stand out', (
   expect(line('A2')?.getAttribute('data-chosen')).toBe('true');
   expect(line('A1')?.getAttribute('data-chosen')).toBeNull();
   fireEvent.click(card('读代码'));
+  expect(card('读代码').getAttribute('aria-pressed')).toBe('true');
+  expect(onPick).not.toHaveBeenCalled();
+  fireEvent.doubleClick(card('读代码'));
   expect(onPick).toHaveBeenLastCalledWith('A1');
-  fireEvent.click(card('主 Agent'));
+  fireEvent.doubleClick(card('主 Agent'));
   expect(onPick).toHaveBeenLastCalledWith(undefined);
 });
 
-test('what passes along a line lights it the way it goes, then the light goes out', () => {
+test('working lines point toward the child and the completed report pulses back once', () => {
   vi.useFakeTimers();
   const working = team(member('A1', '读代码'));
   const view = shown(working);
-  expect(view.flow('A1')).toBeNull();
+  expect(view.flow('A1')?.getAttribute('data-kind')).toBe('task');
   // A report goes up from the sub-agent: the light runs from its end of the line.
   const reported = team(member('A1', '读代码', { state: 'reported', last_report: 'ready' }));
   view.rerender(
@@ -210,7 +230,8 @@ test('a card can be moved, and moving it does not pick it; its line follows', ()
   fireEvent.pointerDown(card('读代码'), { button: 0, clientX: 10, clientY: 10 });
   fireEvent.pointerUp(card('读代码'));
   fireEvent.click(card('读代码'));
-  expect(onPick).toHaveBeenCalledWith('A1');
+  expect(card('读代码').getAttribute('aria-pressed')).toBe('true');
+  expect(onPick).not.toHaveBeenCalled();
   // Dragging the board moves the view, not the cards.
   const left = card('读代码').style.left;
   fireEvent.pointerDown(board, { button: 0, clientX: 10, clientY: 10 });
@@ -247,7 +268,8 @@ test('a press that shakes a few pixels picks the card and leaves it where it was
   fireEvent.pointerMove(card('读代码'), { clientX: 13, clientY: 11 });
   fireEvent.pointerUp(card('读代码'));
   fireEvent.click(card('读代码'));
-  expect(onPick).toHaveBeenCalledWith('A1');
+  expect(card('读代码').getAttribute('aria-pressed')).toBe('true');
+  expect(onPick).not.toHaveBeenCalled();
   expect(card('读代码').style.left).toBe(left);
 });
 

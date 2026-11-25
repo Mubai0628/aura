@@ -85,6 +85,8 @@ pub enum ModelEgressSourceKind {
     /// Inspector and the compaction source filter. That distinction is what lets compaction
     /// exclude this fragment by name while keeping the control facts it does need.
     ActivityIndex,
+    /// A verified, recipient-scoped collaboration envelope, not a user submission.
+    PeerTask,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]

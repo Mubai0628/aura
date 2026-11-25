@@ -103,6 +103,7 @@ import { registerAppUpdates, type RegisteredAppUpdates } from './app-update/inde
 import { startNotifications, type RegisteredNotifications } from './notifications/start.js';
 import { createMainDispatch } from './main-dispatch.js';
 import { createProjectionRoutes } from './main-projection-routes.js';
+import { developmentRenderer, guardDevelopmentRenderer } from './development-renderer.js';
 
 const INVOKE_CHANNEL = 'aura:v1:invoke';
 const CORE_HEALTH_EVENT_CHANNEL = 'aura:v1:core-health';
@@ -138,10 +139,8 @@ protocol.registerSchemesAsPrivileged([
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 const rendererRoot = resolve(currentDirectory, '../renderer');
-const rendererDevelopmentUrl = process.env.AURA_RENDERER_URL;
-if (rendererDevelopmentUrl !== undefined && rendererDevelopmentUrl !== 'http://127.0.0.1:5175') {
-  throw new Error('AURA_RENDERER_URL must be exactly http://127.0.0.1:5175');
-}
+const devRenderer = developmentRenderer(process.env, app.isPackaged);
+const rendererDevelopmentUrl = devRenderer?.url;
 
 /** From the launcher, or else from this version's Core; without them Aura does not start. */
 function startupLocations(): DesktopLocations {
@@ -916,6 +915,7 @@ app.whenReady().then(async () => {
   // Electron's default window menu reloads the page and opens the developer tools.
   if (app.isPackaged) Menu.setApplicationMenu(null);
   registerProductionProtocol();
+  guardDevelopmentRenderer(session.defaultSession, devRenderer);
   registerIpc();
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);

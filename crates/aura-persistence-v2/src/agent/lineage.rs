@@ -13,16 +13,21 @@ pub fn load(db: &Connection, id: TaskLineageId) -> StoreResult<TaskLineage> {
     Ok(lineage)
 }
 pub fn insert(tx: &Transaction<'_>, lineage: &TaskLineage) -> StoreResult<()> {
-    if facts::latest::<TaskLineage>(tx, &lineage.lineage_id.to_string(), "agent.lineage_state")?
-        .is_some()
-        || lineage.revision != Revision::INITIAL
-        || lineage.state != TaskLineageState::Active
-        || lineage.sources.len() != 1
-        || lineage.sources[0].user_event_id != lineage.root_user_event_id
+    if lineage.sources.len() != 1 || lineage.sources[0].user_event_id != lineage.root_user_event_id
     {
         return Err(Error::Conflict);
     }
     check_sources(tx, lineage)?;
+    insert_for_input(tx, lineage)
+}
+pub(super) fn insert_for_input(tx: &Transaction<'_>, lineage: &TaskLineage) -> StoreResult<()> {
+    if facts::latest::<TaskLineage>(tx, &lineage.lineage_id.to_string(), "agent.lineage_state")?
+        .is_some()
+        || lineage.revision != Revision::INITIAL
+        || lineage.state != TaskLineageState::Active
+    {
+        return Err(Error::Conflict);
+    }
     facts::append(
         tx,
         EventId::new(),

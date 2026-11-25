@@ -5,7 +5,7 @@ interface PendingTitle {
 }
 let cached: PendingTitle[] | undefined;
 export const firstMessageTitle = (text: string) =>
-  Array.from(text.trim().replace(/\s+/gu, ' ')).slice(0, 5).join('');
+  Array.from(text.trim().replace(/\s+/gu, ' ')).slice(0, 7).join('');
 function read(): PendingTitle[] {
   if (cached) return cached;
   try {

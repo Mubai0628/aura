@@ -66,6 +66,27 @@ fn a_new_screenshot_changes_the_older_part_of_the_request_once_per_three() {
 }
 
 #[test]
+fn the_adopted_media_prefix_survives_append_and_keeps_compacted_images_out() {
+    let images: Vec<_> = (0..7).map(|_| ArtifactId::new()).collect();
+    let history: Vec<_> = images.iter().copied().map(acted).collect();
+    let event = |index: usize| crate::agent_application::compaction::event_id(&history[index]);
+    // The first screenshot was already left out of the adopted projection. The sixth and
+    // seventh results are new. They may join, but they cannot displace earlier visible images.
+    let prefix = MediaPrefix {
+        events: (0..5).map(event).collect(),
+        attachments: (1..5).map(|index| (event(index), images[index])).collect(),
+    };
+    let selected = |items| {
+        projected_tool_images(items, Some(&prefix))
+            .into_iter()
+            .map(|image| image.artifact_id)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(selected(history.as_slice()), images[1..]);
+    assert_eq!(selected(&history[3..]), images[3..]);
+}
+
+#[test]
 fn screenshots_the_model_did_not_see_or_that_failed_do_not_count() {
     let ids = (0..6).map(|_| ArtifactId::new()).collect::<Vec<_>>();
     let mut history = ids[..4].iter().copied().map(acted).collect::<Vec<_>>();
@@ -114,6 +135,6 @@ fn unread_pictures_of_the_carried_messages_are_named() {
         shots: Vec::new(),
         unread: vec![(message, "plan.png".to_owned()), (EventId::new(), "gone.png".to_owned())],
     };
-    assert_eq!(pictures.attach(&mut input), ["plan.png"]);
+    assert_eq!(pictures.attach(&mut input, &Default::default()), ["plan.png"]);
     assert!(input.attachments.is_empty(), "nothing unread is attached");
 }

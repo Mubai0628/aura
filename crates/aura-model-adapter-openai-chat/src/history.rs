@@ -13,10 +13,25 @@ pub(super) fn compile_chat_history(
     let images = aura_model_transport::tool_result_images(&request.conversation_items, resolved)?;
     let mut messages = Vec::with_capacity(items.len());
     let mut pending_images = Vec::new();
-    for item in items {
+    let archive_old = aura_model_transport::uses_deepseek_history_archive(
+        snapshot,
+        &request.instruction_envelope,
+        &request.tool_schema_set,
+    );
+    let mut archived_until = 0;
+    for (index, item) in items.iter().enumerate() {
         if !matches!(item, LogicalConversationItem::ToolResult { .. }) && !pending_images.is_empty()
         {
             messages.push(json!({"role": "user", "content": std::mem::take(&mut pending_images)}));
+        }
+        if archive_old
+            && index >= archived_until
+            && let Some((count, archive)) =
+                aura_model_transport::archived_deepseek_group(&items[index..], snapshot)
+        {
+            messages.push(json!({"role":"user", "content": archive}));
+            archived_until = index + count;
+            continue;
         }
         let message = match item {
             // A message's pictures follow its text; one without them is sent as before.
@@ -106,6 +121,9 @@ pub(super) fn compile_chat_history(
                     pending_images.push(json!({"type": "text", "text": label}));
                     pending_images
                         .push(json!({"type": "image_url", "image_url": {"url": image.data_url()}}));
+                }
+                if index < archived_until {
+                    continue;
                 }
                 json!({
                     "role": "tool",

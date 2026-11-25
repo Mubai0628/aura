@@ -1,3 +1,4 @@
+use aura_agent_domain::TurnTask;
 use aura_context_domain::{
     ContextProjectionSnapshot, HistoryAtomicGroupPreimageV1, PromptBundleSnapshot,
 };
@@ -23,22 +24,26 @@ pub fn insert_snapshot(
             record::encode(snapshot)?
         ],
     )?;
-    keep_two(tx, snapshot)
+    collect_inactive_snapshots(tx, snapshot)
 }
 
 /// How many older snapshots one new snapshot clears at most. A store that kept every step's
 /// snapshot is cleared as a whole before Core serves (`slimming`); here it is one at a time.
 const CLEARED_PER_SNAPSHOT: i64 = 4;
 
-/// A conversation keeps two full snapshots: the newest, and the one behind its newest counted
-/// request, which the next request is measured by (`agent::counted_request`). An older step's
-/// context details show the figures its inspector record keeps; its section texts go with it.
-fn keep_two(tx: &Transaction<'_>, newest: &ContextProjectionSnapshot) -> StoreResult<()> {
+/// A failed or uncounted request must not release the last adopted context. The context of
+/// the newest queued step and the last context with measured usage serve different callers.
+fn collect_inactive_snapshots(
+    tx: &Transaction<'_>,
+    newest: &ContextProjectionSnapshot,
+) -> StoreResult<()> {
     let counted = crate::agent::counted_request::latest_counted_snapshot(tx, newest.session_id)?;
+    let adopted = latest_adopted_snapshot(tx, newest.session_id)?;
+    let regular = latest_regular_adopted_snapshot(tx, newest.session_id)?;
     let mut query = tx.prepare(
         "SELECT id, json_extract(payload,'$.model_step_id'), json_extract(payload,'$.sections') \
          FROM context_snapshots WHERE session_id=?1 AND id<>?2 AND (?3 IS NULL OR id<>?3) \
-         ORDER BY rowid LIMIT ?4",
+         AND (?4 IS NULL OR id<>?4) AND (?5 IS NULL OR id<>?5) ORDER BY rowid LIMIT ?6",
     )?;
     let older = query
         .query_map(
@@ -46,6 +51,8 @@ fn keep_two(tx: &Transaction<'_>, newest: &ContextProjectionSnapshot) -> StoreRe
                 newest.session_id.to_string(),
                 newest.id.to_string(),
                 counted,
+                adopted,
+                regular,
                 CLEARED_PER_SNAPSHOT
             ],
             |row| {
@@ -62,6 +69,57 @@ fn keep_two(tx: &Transaction<'_>, newest: &ContextProjectionSnapshot) -> StoreRe
     }
     aura_persistence_core::artifact::collect(tx)?;
     Ok(())
+}
+
+/// Only the committed, normalized outcome adopts a projection. Provider usage is optional.
+pub(crate) fn latest_adopted_snapshot(
+    db: &Connection,
+    session: SessionId,
+) -> StoreResult<Option<String>> {
+    adopted_snapshot(db, session, None, false)
+}
+
+pub(crate) fn latest_regular_adopted_snapshot(
+    db: &Connection,
+    session: SessionId,
+) -> StoreResult<Option<String>> {
+    adopted_snapshot(db, session, None, true)
+}
+
+pub(crate) fn latest_adopted_in_scope(
+    db: &Connection,
+    turn: &TurnTask,
+) -> StoreResult<Option<String>> {
+    adopted_snapshot(db, turn.session_id, Some(turn), true)
+}
+
+fn adopted_snapshot(
+    db: &Connection,
+    session: SessionId,
+    turn: Option<&TurnTask>,
+    check_scope: bool,
+) -> StoreResult<Option<String>> {
+    Ok(db
+        .query_row(
+            "SELECT c.id FROM turn_tasks t
+         JOIN agent_runs r ON r.turn_task_id=t.id
+         JOIN model_steps s ON s.agent_run_id=r.id AND s.state='completed'
+         JOIN model_execution_snapshots e ON e.id=s.snapshot_id
+         JOIN context_snapshots c ON c.id=json_extract(e.payload,'$.context_snapshot_id')
+         WHERE t.session_id=?1 AND c.session_id=t.session_id
+           AND (?2 IS NULL OR t.rowid<=(SELECT rowid FROM turn_tasks WHERE id=?2))
+           AND (NOT ?4 OR r.id=?3 OR NOT EXISTS(
+                SELECT 1 FROM agent_collaboration_deliveries WHERE target_run_id IN (?3,r.id)))
+         ORDER BY s.rowid DESC LIMIT 1",
+            params![
+                session.to_string(),
+                turn.map(|t| t.turn_task_id.to_string()),
+                turn.map(|t| t.agent_run_id.to_string()),
+                check_scope,
+            ],
+            |row| row.get(0),
+        )
+        .optional()?)
 }
 
 /// Deletes one snapshot and gives up its step's hold on the section texts it was built from.

@@ -330,6 +330,17 @@ function Turn({
         />
       ) : null}
       {item.auto_continued ? <AutoContinuedNote view={item.auto_continued} /> : null}
+      {item.peer_input ? (
+        <article
+          aria-label="协作消息"
+          className="agent-peer-message"
+          data-delivery-id={item.peer_input.delivery_id}
+          data-source-session-id={item.peer_input.source_session_id}
+        >
+          <strong>来自 {item.peer_input.source_session_title ?? '关联会话'}</strong>
+          <div className="agent-peer-message-text">{item.peer_input.text}</div>
+        </article>
+      ) : null}
       {rootMessage ? (
         <article className="agent-user-message">
           {rootMessage.total_bytes > 0 ||
@@ -347,12 +358,8 @@ function Turn({
             sessionId={item.turn.session_id}
             attachments={rootMessage.attachments ?? []}
           />
-          <MessageReferencesLine
-            references={item.user_messages.flatMap((message) => message.references ?? [])}
-          />
-          <ChosenSkillsLine
-            skills={item.user_messages.flatMap((message) => message.skills ?? [])}
-          />
+          <MessageReferencesLine references={rootMessage.references} />
+          <ChosenSkillsLine skills={rootMessage.skills} />
           <MessageSenderLine sender={rootMessage.sender} />
           <UserCopy
             sessionId={item.turn.session_id}
@@ -368,7 +375,12 @@ function Turn({
         finalStepId={finalSource?.kind === 'assistant_step' ? finalSource.model_step_id : undefined}
       />
       {inbox ? (
-        <PendingAdditions inbox={inbox} turnTaskId={item.turn.turn_task_id} onChanged={onChanged} />
+        <PendingAdditions
+          inbox={inbox}
+          turnTaskId={item.turn.turn_task_id}
+          onChanged={onChanged}
+          adoptedIds={new Set(item.user_messages.map((message) => message.event_id))}
+        />
       ) : null}
       {item.plan ? (
         <PlanCard

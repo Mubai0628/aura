@@ -207,8 +207,19 @@ pub(super) fn output_room(
     let window = snapshot.runtime_effective_window_tokens;
     let safety = aura_context_domain::safety_reserve_v1(window)
         .map_err(|_| anyhow::anyhow!("context.compaction_output_budget"))?;
+    let rebuilt_history = aura_model_transport::uses_deepseek_history_archive(
+        snapshot,
+        &prefix.instruction_envelope,
+        &prefix.tool_schema_set,
+    ) && prefix.conversation_items.iter().any(|item| {
+        matches!(item, LogicalConversationItem::Assistant { provider_history: None, .. })
+    });
+    // A rewritten archive has no matching provider measurement. Keep the same headroom as
+    // ordinary appends before choosing a prefix for this auxiliary request.
+    let archive_reserve = if rebuilt_history { context_growth_reserve(window) } else { 0 };
     let room = window
         .saturating_sub(safety)
+        .saturating_sub(archive_reserve)
         .saturating_sub(prefix.estimated_input_tokens.saturating_add(added));
     let configured = snapshot.request_options.effective_max_output_tokens;
     let max_output = configured.min(room);

@@ -6,8 +6,9 @@ use crate::estimator::estimate_native_reasoning;
 use crate::{BudgetTextKind, CanonicalTextBudgetItem, NativeAttachmentBudgetItem};
 use aura_model_domain::LogicalInstructionKind;
 use aura_model_transport::{
-    ProviderTools, historical_tool_call_wire_bindings, provider_history_replay,
-    provider_reasoning_content, provider_tool_call,
+    ProviderTools, archived_deepseek_group, historical_tool_call_wire_bindings,
+    provider_history_replay, provider_reasoning_content, provider_tool_call,
+    uses_deepseek_history_archive,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -38,7 +39,6 @@ pub(super) struct RequestBudgetParts<'a> {
     pub(super) split_user_sections: bool,
     pub(super) provider: Option<&'a ModelExecutionSnapshot>,
     pub(super) closing_question: Option<&'a str>,
-    pub(super) replayed_task_states: Vec<String>,
 }
 
 pub(super) fn build_pending_budget_items(
@@ -51,6 +51,26 @@ pub(super) fn build_pending_budget_items(
     let mut items = Vec::new();
     for (index, block) in assembly.instruction_envelope.ordered_blocks.iter().enumerate() {
         let section = instruction_section(block.kind);
+        if block.kind == LogicalInstructionKind::TaskState
+            && let Some(replay) = &assembly.instruction_envelope.task_state_replay
+        {
+            for (index, content) in replay.messages().enumerate() {
+                push_text_budget_item(
+                    &mut items,
+                    content.to_owned(),
+                    BudgetTextKind::Text,
+                    instruction_usage(block.kind),
+                    section,
+                    if index < replay.updates.len() {
+                        ContextCompressibility::CompressibleHistory
+                    } else {
+                        ContextCompressibility::NeverCompress
+                    },
+                    None,
+                )?;
+            }
+            continue;
+        }
         let mut content = block.content.clone();
         if block.kind != LogicalInstructionKind::TaskState
             && assembly
@@ -68,17 +88,6 @@ pub(super) fn build_pending_budget_items(
             instruction_usage(block.kind),
             section,
             budget_compressibility(assembly, section)?,
-            None,
-        )?;
-    }
-    for state in request.replayed_task_states {
-        push_text_budget_item(
-            &mut items,
-            state,
-            BudgetTextKind::Text,
-            ContextUsageKind::Conversation,
-            ContextSectionKind::CurrentTaskState,
-            ContextCompressibility::NeverCompress,
             None,
         )?;
     }
@@ -103,7 +112,35 @@ pub(super) fn build_pending_budget_items(
         )?;
     }
     let bindings = request.provider.map(historical_tool_call_wire_bindings);
-    for item in request.recent_history {
+    let archive_provider = request.provider.filter(|snapshot| {
+        uses_deepseek_history_archive(snapshot, &assembly.instruction_envelope, schema_set)
+    });
+    let mut archived_until = 0;
+    for (index, item) in request.recent_history.iter().enumerate() {
+        if index < archived_until {
+            continue;
+        }
+        if let Some(snapshot) = archive_provider
+            && let Some((count, text)) =
+                archived_deepseek_group(&request.recent_history[index..], snapshot)
+        {
+            let usage = if count > 1 {
+                ContextUsageKind::ToolsAndResults
+            } else {
+                ContextUsageKind::Conversation
+            };
+            push_text_budget_item(
+                &mut items,
+                text,
+                BudgetTextKind::Text,
+                usage,
+                ContextSectionKind::RecentHistory,
+                ContextCompressibility::CompressibleHistory,
+                None,
+            )?;
+            archived_until = index + count;
+            continue;
+        }
         match item {
             LogicalConversationItem::User { content, .. } => push_text_budget_item(
                 &mut items,

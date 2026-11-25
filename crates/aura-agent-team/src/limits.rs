@@ -15,17 +15,27 @@ pub fn limits(db: &Connection) -> StoreResult<(AgentTeamLimits, u64)> {
 
 /// The limits, the permissions and the settings revision.
 pub fn settings(db: &Connection) -> StoreResult<(AgentTeamLimits, AgentTeamPermissions, u64)> {
+    let (stored, revision) = read_stored(db)?;
+    Ok((stored.within_range(), stored.permissions(), revision))
+}
+
+/// A missing field in an older row keeps collaboration enabled, without changing other settings.
+pub fn enabled(db: &Connection) -> StoreResult<bool> {
+    Ok(read_stored(db)?.0.enabled)
+}
+
+fn read_stored(db: &Connection) -> StoreResult<(Stored, u64)> {
     let row: Option<(i64, String)> = db
         .query_row("SELECT revision, payload FROM agent_team_settings WHERE id=1", [], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })
         .optional()?;
     let Some((revision, payload)) = row else {
-        return Ok((AgentTeamLimits::DEFAULT, AgentTeamPermissions::DEFAULT, 0));
+        return Ok((Stored::default(), 0));
     };
     let stored: Stored = serde_json::from_str(&payload)?;
     let revision = u64::try_from(revision).map_err(|_| Error::Invalid("limits revision"))?;
-    Ok((stored.within_range(), stored.permissions(), revision))
+    Ok((stored, revision))
 }
 
 /// Saves `limits` at the revision the caller read, keeping the permissions. Returns the new
@@ -46,13 +56,25 @@ pub fn set_settings(
     permissions: Option<&AgentTeamPermissions>,
     expected: u64,
 ) -> StoreResult<u64> {
-    let (_, kept, current) = settings(tx)?;
+    set_controls(tx, limits, permissions, None, expected)
+}
+
+/// Changes only the supplied controls at the revision the user read.
+pub fn set_controls(
+    tx: &Transaction<'_>,
+    limits: &AgentTeamLimits,
+    permissions: Option<&AgentTeamPermissions>,
+    enabled: Option<bool>,
+    expected: u64,
+) -> StoreResult<u64> {
+    let (kept, current) = read_stored(tx)?;
     if current != expected {
         return Err(Error::Conflict);
     }
-    let next = current + 1;
-    let permissions = permissions.copied().unwrap_or(kept);
+    let next = current.checked_add(1).ok_or(Error::Conflict)?;
+    let permissions = permissions.copied().unwrap_or_else(|| kept.permissions());
     let stored = Stored {
+        enabled: enabled.unwrap_or(kept.enabled),
         max_running: limits.max_running,
         token_budget: limits.token_budget,
         minutes_per_task: limits.minutes_per_task,
@@ -82,6 +104,7 @@ pub fn set_settings(
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
 struct Stored {
+    enabled: bool,
     max_running: u32,
     token_budget: Option<u64>,
     minutes_per_task: u32,
@@ -99,6 +122,7 @@ impl Default for Stored {
         let defaults = AgentTeamLimits::DEFAULT;
         let permissions = AgentTeamPermissions::DEFAULT;
         Self {
+            enabled: true,
             max_running: defaults.max_running,
             token_budget: defaults.token_budget,
             minutes_per_task: defaults.minutes_per_task,

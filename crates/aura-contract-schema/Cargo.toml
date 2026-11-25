@@ -13,6 +13,7 @@ aura-skills = { path = "../aura-skills" }
 aura-activity-domain = { path = "../aura-activity-domain" }
 aura-agent-domain = { path = "../aura-agent-domain" }
 aura-agent-team-contract = { path = "../aura-agent-team-contract" }
+aura-agent-collaboration-contract = { path = "../aura-agent-collaboration-contract" }
 aura-web-domain = { path = "../aura-web-domain" }
 aura-browser-domain = { path = "../aura-browser-domain" }
 aura-chrome-domain = { path = "../aura-chrome-domain" }

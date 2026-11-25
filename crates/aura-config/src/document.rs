@@ -63,6 +63,8 @@ pub enum ConfigValidationError {
     UnknownModuleField { module: ConfigModule, field: String },
     #[error("field {field} in {module:?} configuration must be a {expected}")]
     InvalidModuleFieldType { module: ConfigModule, field: String, expected: &'static str },
+    #[error("field {field} is outside the supported range")]
+    ModuleFieldOutOfRange { field: &'static str },
     #[error("custom system addendum contains forbidden control character U+{code_point:04X}")]
     InvalidPromptControlCharacter { code_point: u32 },
 }

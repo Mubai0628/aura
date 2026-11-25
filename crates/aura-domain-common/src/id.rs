@@ -137,6 +137,7 @@ define_id!(ModelAvailabilityTestId, "mav");
 define_id!(CredentialId, "crd");
 define_id!(WorkspaceId, "wsp");
 define_id!(SessionId, "ses");
+define_id!(AgentCollaborationGraphId, "acg");
 define_id!(TurnTaskId, "trn");
 define_id!(TaskLineageId, "lin");
 define_id!(TaskLineageRelationId, "lrl");
@@ -212,6 +213,7 @@ register_id_types!(
     CredentialId,
     WorkspaceId,
     SessionId,
+    AgentCollaborationGraphId,
     TurnTaskId,
     TaskLineageId,
     TaskLineageRelationId,

@@ -593,6 +593,7 @@ where
                     },
                     content_hash: fact.content_hash,
                     byte_length: fact.byte_length,
+                    excerpt: None,
                     model_visible: fact.model_visible,
                     explicitly_user_authored: fact.explicitly_user_authored,
                 })

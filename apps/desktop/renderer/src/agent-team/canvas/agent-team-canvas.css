@@ -37,6 +37,7 @@
 .agent-canvas-glow,
 .agent-canvas-flow {
   fill: none;
+  pointer-events: none;
   shape-rendering: crispEdges;
 }
 .agent-canvas-line-path {

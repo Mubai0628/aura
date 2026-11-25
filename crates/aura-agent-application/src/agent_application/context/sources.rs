@@ -1,7 +1,7 @@
 //! Frozen prompt material and model-visible history source classification.
 use super::*;
 mod prompt_state;
-pub(super) use prompt_state::{CONTROL_STATE, prompt_state, write_control_state};
+pub(super) use prompt_state::{CHECKPOINT_RULES, CONTROL_STATE, prompt_state, write_control_state};
 
 pub(in crate::agent_application) fn core_tool(
     name: &str,

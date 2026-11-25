@@ -11,6 +11,8 @@ use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact
 use rusqlite::Connection;
 mod continuation;
 mod cut_off;
+mod read_plan;
+pub(crate) use read_plan::ReadPlan;
 mod stop_cause;
 pub(crate) use stop_cause::STOP_NOTE;
 pub use stop_cause::{HookStop, StopCause, StopNote, stop_cause};
@@ -21,6 +23,13 @@ pub struct ModelHistory {
     pub wire_bindings: Vec<ProviderToolCallWireBinding>,
     pub groups: Vec<HistoryAtomicGroupPreimageV1>,
     pub cutoff: SessionSequence,
+    pub deferred_groups: usize,
+    pub deferred_range: Option<(i64, i64)>,
+    pub covered_events: usize,
+    pub selected_history_bytes: u64,
+    pub compaction_pressure: bool,
+    pub missing_adopted: std::collections::BTreeSet<EventId>,
+    pub native_prefixes: std::collections::BTreeMap<EventId, ContentHash>,
 }
 /// What the provider gave of how a step's answer was reached - its reasoning or thinking - as a
 /// request sends it back with that answer.
@@ -60,8 +69,32 @@ pub fn history_for_model(
     run_id: AgentRunId,
     initial: bool,
 ) -> StoreResult<ModelHistory> {
+    load_history(db, run_id, initial, None, None)
+}
+
+pub fn history_for_context(
+    db: &Connection,
+    run_id: AgentRunId,
+    initial: bool,
+    input_budget: u64,
+    checkpoint: Option<&crate::context::compaction::Compaction>,
+) -> StoreResult<ModelHistory> {
+    load_history(db, run_id, initial, Some(input_budget), checkpoint)
+}
+
+fn load_history(
+    db: &Connection,
+    run_id: AgentRunId,
+    initial: bool,
+    input_budget: Option<u64>,
+    checkpoint: Option<&crate::context::compaction::Compaction>,
+) -> StoreResult<ModelHistory> {
     let run = turns::load_run(db, run_id)?;
     let turn = turns::load(db, run.turn_task_id)?;
+    let mut selection = match input_budget {
+        Some(window) => ReadPlan::for_turn(db, &turn, window, checkpoint)?,
+        None => ReadPlan::default(),
+    };
     let mut q=db.prepare("SELECT id FROM turn_tasks WHERE session_id=?1 AND rowid<=(SELECT rowid FROM turn_tasks WHERE id=?2) ORDER BY rowid")?;
     let ids = q
         .query_map([turn.session_id.to_string(), turn.turn_task_id.to_string()], |r| {
@@ -71,22 +104,55 @@ pub fn history_for_model(
     let mut items = vec![];
     let mut wire_bindings = vec![];
     let groups = crate::context::history(db, turn.session_id)?;
+    let isolated = super::peer_input::delivery(db, &turn)?.is_some();
     // A branch begins with the turns it carried, exactly as they were sent.
-    if let Some(prefix) = super::branch::model_prefix(db, turn.session_id)? {
+    let prefix = if isolated {
+        None
+    } else if input_budget.is_some() {
+        super::branch::context_prefix(db, turn.session_id, &mut selection)?
+    } else {
+        super::branch::model_prefix(db, turn.session_id)?
+    };
+    if let Some(prefix) = prefix {
         items.extend(prefix.items);
         wire_bindings.extend(prefix.wire_bindings);
     }
     for id in ids {
         let previous = turns::load(db, id.parse().map_err(|_| Error::Conflict)?)?;
+        if previous.turn_task_id != turn.turn_task_id
+            && (isolated || super::peer_input::delivery(db, &previous)?.is_some())
+        {
+            continue;
+        }
         if initial && previous.turn_task_id == turn.turn_task_id {
             continue;
         }
-        turn_items(db, &previous, &groups, Some(run_id), &mut items, &mut wire_bindings)?;
+        turn_items(
+            db,
+            &previous,
+            &groups,
+            Some(run_id),
+            &selection,
+            &mut items,
+            &mut wire_bindings,
+        )?;
     }
     wire_bindings.sort_by_key(|b| b.tool_call_id);
     let cutoff: i64 =
         db.query_row("SELECT COALESCE(MAX(sequence),0) FROM events", [], |r| r.get(0))?;
+    let native_prefixes = if input_budget.is_some() {
+        continuation::native_prefixes(db, &items)?
+    } else {
+        std::collections::BTreeMap::new()
+    };
     Ok(ModelHistory {
+        deferred_groups: selection.deferred,
+        deferred_range: selection.deferred_range,
+        covered_events: selection.covered,
+        selected_history_bytes: selection.selected_bytes,
+        compaction_pressure: selection.compaction_pressure,
+        missing_adopted: selection.missing_adopted,
+        native_prefixes,
         items,
         wire_bindings,
         groups,
@@ -102,15 +168,40 @@ pub(crate) fn turn_items(
     previous: &TurnTask,
     groups: &[HistoryAtomicGroupPreimageV1],
     current_run: Option<AgentRunId>,
+    selection: &ReadPlan,
     items: &mut Vec<LogicalConversationItem>,
     wire_bindings: &mut Vec<ProviderToolCallWireBinding>,
 ) -> StoreResult<()> {
-    let user = session::user_message(db, previous.session_id, previous.root_user_event_id)?;
-    items.push(LogicalConversationItem::User {
-        source_event_id: user.event_id,
-        content: user.text.clone(),
-        content_hash: ContentHash::sha256(user.text.as_bytes()),
-    });
+    let user = if let Some(peer) = super::peer_input::delivery(db, previous)? {
+        if current_run != Some(previous.agent_run_id) {
+            return Ok(());
+        }
+        let lineage = super::lineage::load(db, peer.origin.lineage_id)?;
+        let valid =
+            !matches!(lineage.state, TaskLineageState::CancelledByUser | TaskLineageState::Expired)
+                && crate::workspace::session(db, peer.origin.session_id)?
+                    .is_some_and(|source| source.workspace_id == peer.origin.workspace_id)
+                && peer.origin.sources.iter().all(|source| {
+                    lineage.sources.iter().any(|current| {
+                        current.user_event_id == source.event_id
+                            && current.content_hash == source.content_hash
+                            && current.membership == SourceMembership::Active
+                    })
+                });
+        Some((peer.id, super::peer_input::working_set(db, &peer, valid.then_some(&peer.origin))?))
+    } else if selection.omits(previous.root_user_event_id) {
+        None
+    } else {
+        let user = session::user_message(db, previous.session_id, previous.root_user_event_id)?;
+        Some((user.event_id, user.text))
+    };
+    if let Some((event, text)) = user {
+        items.push(LogicalConversationItem::User {
+            source_event_id: event,
+            content_hash: ContentHash::sha256(text.as_bytes()),
+            content: text,
+        });
+    }
     let mut user_ids = super::query::events(db, previous.turn_task_id)?;
     user_ids.extend(
         super::inbox::consumed(db, previous.turn_task_id)?
@@ -118,21 +209,37 @@ pub(crate) fn turn_items(
             .flat_map(|g| g.user_event_ids)
             .filter(|id| *id != previous.root_user_event_id),
     );
-    let user_messages = session::ordered_messages(db, previous.session_id, user_ids)?;
+    let user_messages = session::ordered_message_events(
+        db,
+        previous.session_id,
+        user_ids.into_iter().filter(|id| !selection.omits(*id)),
+    )?;
     let mut answers = user_messages.into_iter().peekable();
     let mut unfinished = None;
     for step in steps(db, previous.agent_run_id)? {
-        while answers.peek().is_some_and(|u| u.at <= step.created_at) {
-            let u = answers.next().ok_or(Error::Conflict)?;
-            items.push(LogicalConversationItem::User {
-                source_event_id: u.event_id,
-                content_hash: ContentHash::sha256(u.text.as_bytes()),
-                content: u.text,
-            });
-        }
         let ModelStepState::Completed { assistant_event_id, tool_batch_id, .. } = step.state else {
             continue;
         };
+        if selection.omits(assistant_event_id) {
+            continue;
+        }
+        if answers.peek().is_some() {
+            // A step can be opened before a compaction and rebuilt after a user message.
+            // Use committed events, retaining the whole assistant/tool group as one unit.
+            let response_sequence: i64 = db.query_row(
+                "SELECT sequence FROM events WHERE event_id=?1",
+                [assistant_event_id.to_string()],
+                |row| row.get(0),
+            )?;
+            while answers.peek().is_some_and(|(sequence, _)| *sequence < response_sequence) {
+                let (_, user) = answers.next().ok_or(Error::Conflict)?;
+                items.push(LogicalConversationItem::User {
+                    source_event_id: user.event_id,
+                    content_hash: ContentHash::sha256(user.text.as_bytes()),
+                    content: user.text,
+                });
+            }
+        }
         let output = history::output(db, step.model_step_id)?;
         let snapshot = crate::model::step_snapshot(db, step.model_step_id)?;
         let evidence = crate::model::request_evidence(db, snapshot.id)?.ok_or(Error::Conflict)?;
@@ -201,43 +308,33 @@ pub(crate) fn turn_items(
                 {
                     return Err(Error::Conflict);
                 }
-                let raw = artifact::read(
-                    db,
-                    result.model_visible_result_ref.ok_or(Error::Conflict)?,
-                    &previous.agent_run_id.to_string(),
-                )?;
-                let envelope: aura_tool_contract::ModelVisibleToolResultEnvelopeV1 =
-                    serde_json::from_slice(&raw)?;
-                envelope.validate().map_err(|_| Error::Conflict)?;
+                let artifact_id = result.model_visible_result_ref.ok_or(Error::Conflict)?;
                 let succeeded =
                     matches!(result.outcome, aura_tool_contract::ToolResultOutcomeV1::Succeeded);
                 // A result is named by the tool that ran - for a call made through
                 // `tools.call`, the tool it named - so its data class, its cleared line and the
                 // way it reads stay that tool's.
                 let name = executed_name(db, call, &made[index], &evidence, &output)?;
-                // A `tool.after_call` / `tool.on_error` Hook may have replaced what
-                // the model sees; the stored result itself is unchanged.
-                let content = match crate::hooks::result_override(db, call.tool_call_id, succeeded)?
-                {
-                    Some(text) => text,
-                    // The model reads the result's view, not its stored envelope.
-                    None => result_text::model_text(&name, &envelope),
-                };
-                let content = match notes.get(&call.tool_call_id) {
-                    Some(note) => format!("{note}\n\n{content}"),
-                    None => content,
-                };
                 let event:String=db.query_row("SELECT event_id FROM events WHERE owner=?1 AND kind='tool.call_completed' AND json_extract(payload,'$.tool_call_id')=?2",[batch_id.to_string(),call.tool_call_id.to_string()],|r|r.get(0))?;
+                let content = if let Some(reference) = selection.result_reference(&event) {
+                    artifact::identity(db, artifact_id, &previous.agent_run_id.to_string())?;
+                    reference.to_owned()
+                } else {
+                    result_text::history_text(
+                        db,
+                        result,
+                        &previous.agent_run_id.to_string(),
+                        &name,
+                        notes.get(&call.tool_call_id).map(String::as_str),
+                    )?
+                };
                 results.push(LogicalConversationItem::ToolResult {
                     source_event_id: event.parse().map_err(|_| Error::Conflict)?,
                     tool_call_id: call.tool_call_id,
                     tool_name: name,
                     content_hash: ContentHash::sha256(content.as_bytes()),
                     content,
-                    is_error: !matches!(
-                        result.outcome,
-                        aura_tool_contract::ToolResultOutcomeV1::Succeeded
-                    ),
+                    is_error: !succeeded,
                 });
             }
         } else if !normalized.is_empty() {
@@ -298,14 +395,14 @@ pub(crate) fn turn_items(
         });
         items.extend(results);
     }
-    for u in answers {
+    for (_, u) in answers {
         items.push(LogicalConversationItem::User {
             source_event_id: u.event_id,
             content_hash: ContentHash::sha256(u.text.as_bytes()),
             content: u.text,
         });
     }
-    items.extend(cut_off::note(db, previous, unfinished)?);
+    items.extend(cut_off::note(db, previous, unfinished, selection)?);
     Ok(())
 }
 /// A step's visible text as later steps see it: a `model.after_call` Hook may have changed it.

@@ -4,7 +4,7 @@
 use super::{facts, session, turns};
 use aura_agent_domain::*;
 use aura_domain_common::*;
-use aura_persistence_core::StoreResult;
+use aura_persistence_core::{StoreResult, record};
 use rusqlite::{Connection, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +29,8 @@ pub enum Decision {
     Continue,
     /// The turn is no longer the session's cut-off last turn, or another turn is under way.
     Moved,
+    /// A peer send may already have committed; only the original call may be reconciled.
+    UnsettledPeerDelivery,
     /// The task was already continued twice in the last 30 minutes.
     LimitReached,
     /// The cut-off turn was itself an automatic continuation, started under two minutes ago.
@@ -39,6 +41,9 @@ pub enum Decision {
 /// restart, with nothing under way after it.
 pub fn cut_off(db: &Connection, turn: TurnTaskId) -> StoreResult<bool> {
     let value = turns::load(db, turn)?;
+    if super::peer_input::delivery(db, &value)?.is_some() {
+        return Ok(false);
+    }
     if !matches!(&value.state, TurnTaskState::RecoveryRequired { reason } if reason == "agent.core_restarted")
     {
         return Ok(false);
@@ -59,6 +64,10 @@ pub fn decide(db: &Connection, turn: TurnTaskId, now: UtcTimestamp) -> StoreResu
     if !cut_off(db, turn)? {
         return Ok(Decision::Moved);
     }
+    let source = turns::load(db, turn)?;
+    if unsettled_peer_send(db, &source)? {
+        return Ok(Decision::UnsettledPeerDelivery);
+    }
     let mut continued = 0;
     let mut current = turn;
     while let Some(record) = read(db, current)? {
@@ -77,6 +86,22 @@ pub fn decide(db: &Connection, turn: TurnTaskId, now: UtcTimestamp) -> StoreResu
         current = record.after_turn_task_id;
     }
     Ok(Decision::Continue)
+}
+
+fn unsettled_peer_send(db: &Connection, source: &TurnTask) -> StoreResult<bool> {
+    // The collaboration transaction and the sending tool's terminal receipt are not the
+    // same commit. In either crash window the operation cannot authorize a new model turn.
+    let unknown = record::encode(&aura_execution_contract::SideEffectStateV1::Unknown)?;
+    Ok(db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM tool_batches b JOIN tool_calls c ON c.batch_id=b.id
+          JOIN operations o ON o.id=c.operation_id WHERE b.session_id=?1
+          AND json_extract(b.payload,'$.batch.invocation_identity.agent_run_id')=?2
+          AND o.kind IN ('peers.dispatch','peers.ask')
+          AND (o.state IN ('prepared','running','waiting_external','cancel_requested','unknown')
+               OR EXISTS(SELECT 1 FROM execution_results r WHERE r.operation_id=o.id AND r.side_effect=?3)))",
+        [source.session_id.to_string(), source.agent_run_id.to_string(), unknown],
+        |row| row.get(0),
+    )?)
 }
 
 /// Records that Aura said "继续" by itself in `turn`, continuing `after`.

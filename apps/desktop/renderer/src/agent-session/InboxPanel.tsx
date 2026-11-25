@@ -5,8 +5,9 @@ import { referenceText } from '../composer-references/reference-text';
 import type { AgentInboxAction, AgentInboxProjection } from '@aura/contracts/generated';
 import { useState, type ReactNode } from 'react';
 import { AppIcon } from '../app-icons';
+import { MessageAttachments } from '../composer-attachments/MessageAttachments';
 import { MarkdownBlocks } from '../markdown-body';
-import { ToolIcon } from '../tool-icon';
+import { ExpandIcon, ToolIcon } from '../tool-icon';
 import { withoutQuoteMarks } from './quote-reply/quote-parts';
 import { queuePauseMessage } from './user-message';
 import { connectionCause, failedAction } from './failure-text';
@@ -25,7 +26,6 @@ const ACTION_NAMES: Record<AgentInboxAction['action'], string> = {
 /** A queued message on one line: its words with the line breaks folded away. */
 const oneLine = (text: string) => withoutQuoteMarks(text).replace(/\s+/gu, ' ').trim();
 
-/** A small action of the queue: an icon, its name for screen readers and in the tooltip. */
 function QueueAction({
   label,
   icon,
@@ -44,22 +44,22 @@ function QueueAction({
   return (
     <button
       aria-label={label}
-      className="agent-inbox-action"
+      className="button is-small agent-inbox-action"
       disabled={disabled}
       onClick={onClick}
       title={title ?? label}
       type={type}
     >
       {icon}
+      <span>{label}</span>
     </button>
   );
 }
 
 /**
  * A message sent while a task runs waits here; it can be appended to the running task at
- * once, edited or deleted. "把队列消息框做小一些 …… 小区域按钮不要采用文字的了" —
- * a compact tray over the composer, about two thirds of its width: one line per message, opened in
- * place to read it all, and every action an icon whose name is in its tooltip. A message appended to the running task waits in the conversation instead (PendingAdditions).
+ * once, edited or deleted. Its full text and materials open in place. An appended
+ * message waits in the conversation instead (PendingAdditions).
  */
 export function InboxPanel({
   inbox,
@@ -116,6 +116,7 @@ export function InboxPanel({
     }
   };
   const queued = inbox.messages.filter((message) => message.destination.lane !== 'addition');
+  const pauseMessage = inbox.pause_reason ? queuePauseMessage(inbox.pause_reason) : undefined;
   if (!queued.length && !inbox.pause_reason) return null;
   return (
     <section className="agent-inbox" aria-label="消息队列">
@@ -125,12 +126,12 @@ export function InboxPanel({
         </strong>
         <QueueAction
           disabled={busy}
-          icon={<ToolIcon name={inbox.paused ? 'play' : 'pause'} size={13} />}
+          icon={<ToolIcon name={inbox.paused ? 'play' : 'pause'} />}
           label={inbox.paused ? '继续队列' : '暂停队列'}
           onClick={() => void mutate({ action: inbox.paused ? 'resume' : 'pause' })}
         />
       </header>
-      {inbox.pause_reason ? <p role="alert">{queuePauseMessage(inbox.pause_reason)}</p> : null}
+      {pauseMessage ? <p role="alert">{pauseMessage}</p> : null}
       <ol>
         {queued.map((message) => {
           const lane = '下一轮';
@@ -138,10 +139,6 @@ export function InboxPanel({
           return (
             <li key={message.message_id} data-open={open || undefined}>
               <div className="agent-inbox-row">
-                <span className="agent-inbox-lane" title={lane}>
-                  <ToolIcon name="list-end" size={13} />
-                  <span className="sr-only">{lane}</span>
-                </span>
                 {editing === message.message_id ? (
                   <form
                     className="agent-inbox-editor"
@@ -160,12 +157,12 @@ export function InboxPanel({
                     />
                     <QueueAction
                       disabled={busy || !text.trim()}
-                      icon={<ToolIcon name="check" size={13} />}
+                      icon={<ToolIcon name="check" />}
                       label="保存"
                       type="submit"
                     />
                     <QueueAction
-                      icon={<AppIcon name="close" size={13} />}
+                      icon={<AppIcon name="close" />}
                       label="放弃编辑"
                       onClick={() => setEditing(undefined)}
                     />
@@ -179,25 +176,24 @@ export function InboxPanel({
                       title={open ? '收起' : '展开全文'}
                       type="button"
                     >
-                      <ProgramWords
-                        text={[
-                          oneLine(message.text),
-                          // The pictures and files sent with it, by name.
-                          message.attachments?.length
-                            ? `附件 ${message.attachments.map((a) => a.name).join('、')}`
-                            : '',
-                          message.references?.length
-                            ? `引用 ${message.references.map(referenceText).join('、')}`
-                            : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      />
+                      <ExpandIcon open={open} />
+                      <span className="agent-inbox-preview">
+                        <ProgramWords
+                          text={[
+                            oneLine(message.text),
+                            message.attachments?.map((attachment) => attachment.name).join('、'),
+                            message.references?.map(referenceText).join('、'),
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        />
+                      </span>
                     </button>
+                    <span className="sr-only">{lane}</span>
                     <span className="agent-inbox-actions">
                       <QueueAction
                         disabled={busy}
-                        icon={<ToolIcon name="pencil" size={13} />}
+                        icon={<ToolIcon name="pencil" />}
                         label="编辑"
                         onClick={() => {
                           setEditing(message.message_id);
@@ -208,7 +204,7 @@ export function InboxPanel({
                         // A message with chosen Skills starts a new turn; it cannot join this one.
                         <QueueAction
                           disabled={busy || Boolean(message.skills?.length)}
-                          icon={<ToolIcon name="corner-down-right" size={13} />}
+                          icon={<ToolIcon name="corner-down-right" />}
                           label="立即追加"
                           onClick={() =>
                             void mutate({
@@ -226,7 +222,7 @@ export function InboxPanel({
                       ) : null}
                       <QueueAction
                         disabled={busy}
-                        icon={<ToolIcon name="trash" size={13} />}
+                        icon={<ToolIcon name="trash" />}
                         label="删除"
                         onClick={() =>
                           void mutate({ action: 'remove', message_id: message.message_id })
@@ -239,6 +235,10 @@ export function InboxPanel({
               {open && editing !== message.message_id ? (
                 <div className="agent-inbox-full">
                   <MarkdownBlocks className="agent-message-text" programs text={message.text} />
+                  <MessageAttachments
+                    sessionId={inbox.session_id}
+                    attachments={message.attachments ?? []}
+                  />
                   <MessageReferencesLine references={message.references} />
                   <ChosenSkillsLine skills={message.skills} />
                 </div>

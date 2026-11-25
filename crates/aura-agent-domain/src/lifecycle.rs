@@ -22,6 +22,7 @@ pub enum AgentTaskPurpose {
     Conversation,
     WorkspaceInit,
     Compaction,
+    PeerDispatch,
 }
 impl AgentTaskPurpose {
     pub fn is_conversation(&self) -> bool {
@@ -61,6 +62,8 @@ pub struct TurnTask {
     pub turn_task_id: TurnTaskId,
     pub session_id: SessionId,
     pub workspace_id: WorkspaceId,
+    // Compatibility slot for the root event. PeerDispatch has an agent.peer_input event
+    // here, never an agent.user_message; auth readers must still check the event kind.
     pub root_user_event_id: EventId,
     pub lineage_id: TaskLineageId,
     pub lineage_resolution_required: bool,

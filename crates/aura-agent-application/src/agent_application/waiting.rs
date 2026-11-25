@@ -494,7 +494,7 @@ impl AgentApplication {
     /// The shutdown entry a `Drop` can call: fires every cancellation and reports every live run
     /// as residue. It never claims the work ended.
     pub fn shutdown(&self) {
-        self.memory_maintenance.stop();
+        self.stop_maintenance();
         // The background task is stopped first: a task still doing journal work while the runs
         // are cancelled would keep a worker busy for no reason.
         let stopped_backfill = self.derived_backfill.stop();

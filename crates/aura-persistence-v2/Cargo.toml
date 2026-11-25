@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aura-agent-collaboration = { path = "../aura-agent-collaboration" }
 aura-memory-domain = { path = "../aura-memory-domain" }
 aura-tool-projection = { path = "../aura-tool-projection" }
 aura-agent-domain = { path = "../aura-agent-domain" }

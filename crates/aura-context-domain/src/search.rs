@@ -104,6 +104,13 @@ pub struct AgentContextReadToolResultInput {
     /// Also return the call's input. Default false.
     #[serde(default)]
     pub include_input: bool,
+    /// Seek within the model-readable result by UTF-8 byte offset. Offsets inside a character
+    /// are rounded down. Optional; omit to start at the beginning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset_bytes: Option<u64>,
+    /// Maximum bytes per page when a byte range is requested, from 4 to 65,536.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_bytes: Option<u64>,
     pub cursor: Option<String>,
 }
 

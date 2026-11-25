@@ -4,7 +4,7 @@
     "adopted_on": "2026-10-29",
     "metric": "physical lines of production source under <crate>/src, without tests and *_tests directories or tests, *_tests and *test_support files",
     "ceilings": {
-      "crates/aura-core": 14205
+      "crates/aura-core": 14203
     }
   },
   "ceilings": {

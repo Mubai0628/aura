@@ -1,6 +1,8 @@
 //! Session-scoped desktop facts. Pagination cursors and result references must
 //! belong to this session; no frontend-retained run identity is required.
-use super::{application, desktop_messages, facts, history, inbox, session, turns, work};
+use super::{
+    application, desktop_messages, facts, history, inbox, peer_input, session, turns, work,
+};
 use aura_agent_domain::*;
 use aura_domain_common::*;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact};
@@ -193,6 +195,7 @@ fn turn_view(
         )?
         .and_then(|value| value["error"].as_str().map(|s| s.chars().take(2048).collect())),
         source: facts::latest(db, &id.to_string(), "agent.related_turn")?,
+        peer_input: peer_input::desktop_input(db, &turn)?,
         turn,
         user_messages: messages.users,
         assistant_messages: messages.assistants,

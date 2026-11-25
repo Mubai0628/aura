@@ -236,6 +236,10 @@ fn logical_request(
 fn compile(api_format: ModelApiFormat, tool_group: bool) -> (Vec<u8>, Vec<u8>) {
     let base = snapshot(api_format);
     let (request, snapshot) = logical_request(&base, tool_group);
+    (compile_frozen(&request, &snapshot), compile_frozen(&request, &snapshot))
+}
+
+fn compile_frozen(request: &LogicalModelRequest, snapshot: &ModelExecutionSnapshot) -> Vec<u8> {
     let operation_context = TransportOperationContext::AgentModelAttempt {
         model_step_id: snapshot.model_step_id,
         model_execution_snapshot_id: snapshot.id,
@@ -243,15 +247,15 @@ fn compile(api_format: ModelApiFormat, tool_group: bool) -> (Vec<u8>, Vec<u8>) {
         prompt_bundle_snapshot_id: snapshot.prompt_bundle_snapshot_id,
     };
     let input = ModelRequestCompilationInput {
-        request: &request,
-        snapshot: &snapshot,
+        request,
+        snapshot,
         resolved_attachments: &[],
         operation_context: &operation_context,
         compatibility_removals: &std::collections::BTreeSet::new(),
         applied_output_token_field_alias: None,
         session_id: None,
     };
-    let plan = match api_format {
+    match snapshot.api_format {
         ModelApiFormat::OpenAiChatCompletions => {
             aura_model_adapter_openai_chat::OpenAiChatCompletionsAdapter.compile_request(input)
         }
@@ -262,23 +266,8 @@ fn compile(api_format: ModelApiFormat, tool_group: bool) -> (Vec<u8>, Vec<u8>) {
             aura_model_adapter_anthropic::AnthropicMessagesAdapter.compile_request(input)
         }
     }
-    .expect("the adapter compiles the real request");
-    // The second compilation is the *retry*: the same frozen logical request compiled again.
-    // It must produce identical bytes, which is what "a retry reuses the frozen snapshot"
-    // means at the wire.
-    let retry = match api_format {
-        ModelApiFormat::OpenAiChatCompletions => {
-            aura_model_adapter_openai_chat::OpenAiChatCompletionsAdapter.compile_request(input)
-        }
-        ModelApiFormat::OpenAiResponses => {
-            aura_model_adapter_openai_responses::OpenAiResponsesAdapter.compile_request(input)
-        }
-        ModelApiFormat::AnthropicMessages => {
-            aura_model_adapter_anthropic::AnthropicMessagesAdapter.compile_request(input)
-        }
-    }
-    .expect("the retry compiles the same frozen request");
-    (plan.body, retry.body)
+    .expect("the adapter compiles the frozen request")
+    .body
 }
 
 /// The wire positions the dynamic fragment may occupy, per adapter.
@@ -405,6 +394,44 @@ fn stable_prefix(api_format: ModelApiFormat, body: &[u8]) -> Value {
     }
 }
 
+#[test]
+fn archived_calls_keep_frozen_arguments_even_when_the_result_does_not_echo_them() {
+    for api in [ModelApiFormat::OpenAiChatCompletions, ModelApiFormat::OpenAiResponses] {
+        let (mut request, snapshot) = logical_request(&snapshot(api), true);
+        let arguments_json = r#"{"path":"src/config.rs","start":120,"end":180}"#;
+        let LogicalConversationItem::Assistant { tool_calls, .. } =
+            &mut request.conversation_items[1]
+        else {
+            panic!("assistant tool call")
+        };
+        let call = &mut tool_calls[0];
+        call.arguments_json = arguments_json.to_owned();
+        call.arguments_hash = ContentHash::sha256(arguments_json.as_bytes());
+        let call = call.clone();
+        let LogicalConversationItem::ToolResult { content, content_hash, .. } =
+            &mut request.conversation_items[2]
+        else {
+            panic!("tool result")
+        };
+        *content = "read completed".to_owned();
+        *content_hash = ContentHash::sha256(content.as_bytes());
+        let (count, rendered) = aura_model_transport::archived_deepseek_group(
+            &request.conversation_items[1..],
+            &snapshot,
+        )
+        .expect("closed historical exchange");
+        let body: Value = serde_json::from_str(rendered.lines().nth(1).expect("archive data"))
+            .expect("valid archived data");
+        assert_eq!(count, 2);
+        let receipt = &body["completed_tool_receipts"][0];
+        assert_eq!(receipt["call_id"], call.tool_call_id.to_string());
+        assert_eq!(receipt["tool_id"], call.tool_id.expect("fixture tool identity").to_string());
+        assert_eq!(receipt["called_tool"], call.canonical_name);
+        assert_eq!(receipt["arguments_json"], arguments_json);
+        assert_eq!(receipt["result"], "read completed");
+    }
+}
+
 fn tool_schemas(api_format: ModelApiFormat, body: &[u8]) -> Value {
     let value: Value = serde_json::from_slice(body).expect("the wire body is JSON");
     let _ = api_format;
@@ -515,6 +542,103 @@ fn the_stable_prefix_and_tool_schemas_are_identical_across_all_three_adapters() 
             !schemas.to_string().contains(ACTIVITY_MARKER),
             "{api_format:?}: the dynamic activity must never reach the tools field"
         );
+    }
+}
+
+#[test]
+fn context_continuity_delivers_the_summary_as_history_before_the_user_on_each_protocol() {
+    for api in [
+        ModelApiFormat::OpenAiResponses,
+        ModelApiFormat::OpenAiChatCompletions,
+        ModelApiFormat::AnthropicMessages,
+    ] {
+        let (mut request, snapshot) = logical_request(&snapshot(api), false);
+        let envelope = request.instruction_envelope;
+        request.instruction_envelope = CompiledInstructionEnvelope::new(
+            aura_model_domain::CHECKPOINT_INSTRUCTION_SERIALIZER_VERSION,
+            envelope.ordered_blocks,
+            envelope.canonical_text,
+        )
+        .expect("current instruction envelope");
+        let body = compile_frozen(&request, &snapshot);
+        let value: Value = serde_json::from_slice(&body).expect("current wire request");
+        let messages = value
+            [if api == ModelApiFormat::OpenAiResponses { "input" } else { "messages" }]
+        .as_array()
+        .expect("wire conversation items");
+        let marker = "stable-HistoricalSnapshot";
+        assert!(
+            !stable_prefix(api, &body).to_string().contains(marker),
+            "{api:?} elevated a history summary"
+        );
+        let summary = messages
+            .iter()
+            .position(|message| {
+                message["role"] == "assistant" && message["content"].to_string().contains(marker)
+            })
+            .expect("background in conversation");
+        let user = messages
+            .iter()
+            .position(|message| {
+                message["role"] == "user"
+                    && message["content"].to_string().contains("inspect the fixture")
+            })
+            .expect("original user request");
+        assert!(summary < user);
+    }
+}
+
+#[test]
+fn legacy_frozen_requests_keep_both_summary_shapes_in_the_original_instruction_slot() {
+    for api in [
+        ModelApiFormat::OpenAiResponses,
+        ModelApiFormat::OpenAiChatCompletions,
+        ModelApiFormat::AnthropicMessages,
+    ] {
+        for summary in [
+            "<Historical-Snapshot-Summary>\n  <Empty reason=\"no-active-content\" />\n</Historical-Snapshot-Summary>",
+            "<Historical-Snapshot-Summary>\n  Source C1 is historical.\n</Historical-Snapshot-Summary>",
+        ] {
+            let (mut request, snapshot) = logical_request(&snapshot(api), true);
+            let mut blocks = request.instruction_envelope.ordered_blocks;
+            let block = blocks
+                .iter_mut()
+                .find(|block| block.kind == LogicalInstructionKind::HistoricalSnapshot)
+                .expect("fixture historical block");
+            block.content = summary.to_owned();
+            block.content_hash = ContentHash::sha256(summary.as_bytes());
+            let canonical =
+                blocks.iter().map(|block| block.content.as_str()).collect::<Vec<_>>().join("\n");
+            let old_stable = blocks
+                .iter()
+                .filter(|block| block.kind != LogicalInstructionKind::TaskState)
+                .map(|block| block.content.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            request.instruction_envelope = CompiledInstructionEnvelope::new(1, blocks, canonical)
+                .expect("legacy instruction envelope");
+            let frozen = serde_json::to_vec(&request).expect("freeze the legacy logical request");
+            let reloaded: LogicalModelRequest =
+                serde_json::from_slice(&frozen).expect("reload the legacy logical request");
+            let body = compile_frozen(&request, &snapshot);
+            assert_eq!(body, compile_frozen(&reloaded, &snapshot));
+            let prefix = stable_prefix(api, &body);
+            let prefix =
+                if api == ModelApiFormat::AnthropicMessages { &prefix[0]["text"] } else { &prefix };
+            assert_eq!(prefix, &json!(old_stable));
+            let wire: Value = serde_json::from_slice(&body).expect("legacy wire request");
+            let key = if api == ModelApiFormat::OpenAiResponses { "input" } else { "messages" };
+            assert_eq!(
+                wire[key]
+                    .as_array()
+                    .expect("wire conversation items")
+                    .iter()
+                    .filter(|m| m["role"] == "user")
+                    .count(),
+                if api == ModelApiFormat::AnthropicMessages { 2 } else { 1 }
+            );
+            assert_tool_group_intact(api, &body);
+        }
     }
 }
 

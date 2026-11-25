@@ -19,6 +19,7 @@ pub(crate) use display::{
     carried_activity, carried_result, carried_text, carried_turn_ids, carried_view,
 };
 pub use import::{BranchImport, FirstBatch, SourceSnapshot, begin, import};
+pub(crate) use model::context_prefix;
 pub use model::{ModelPrefix, carried_user_text, history_sequences, model_prefix};
 pub(crate) use model::{
     carried_compaction, carried_heads, carried_roots, carried_rows, carried_tool_result,

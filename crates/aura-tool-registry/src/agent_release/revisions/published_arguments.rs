@@ -2,6 +2,13 @@ use super::PublishedRevision;
 
 pub(super) const PUBLISHED_ARGUMENTS: &[PublishedRevision] = &[
     PublishedRevision {
+        name: "context.read_tool_result",
+        revision: 3,
+        tool: "tol_01M2DG020980080021AN94200B",
+        instance: "tin_01M2DG020980080021AN94000B",
+        fingerprint: "bdc12fd6435df69d1871044115fa0a64d17ac1223d0920edc041ade3d070fda6",
+    },
+    PublishedRevision {
         name: "shell.powershell",
         revision: 11,
         tool: "tol_01M2DG020980080021AN942005",
@@ -70,5 +77,33 @@ pub(super) const PUBLISHED_ARGUMENTS: &[PublishedRevision] = &[
         tool: "tol_01M2DG020980080021AN942035",
         instance: "tin_3ZHWT2Z2C495R42EEXDZE18A8D",
         fingerprint: "ce2c444108ac66050ee7990ebdc8f833851cb1f45af85ff408760fdf0bbd9374",
+    },
+    PublishedRevision {
+        name: "fs.search",
+        revision: 12,
+        tool: "tol_01M2DG020980080021AN942002",
+        instance: "tin_2WN2C49P6FBDGP7A7FMQ7WT8DV",
+        fingerprint: "226adfb2fccb89bd664a0852346ca1f1bf5968a26884f97978f643eebb4c4f11",
+    },
+    PublishedRevision {
+        name: "shell.powershell",
+        revision: 12,
+        tool: "tol_01M2DG020980080021AN942005",
+        instance: "tin_6Y29J0F1863X48PSRPHTWBCBWN",
+        fingerprint: "abe6d4cb7cd35089af2652819e6c96a18edcc4a695444298d526bcd06a26a66a",
+    },
+    PublishedRevision {
+        name: "shell.cmd",
+        revision: 10,
+        tool: "tol_01M2DG020980080021AN942006",
+        instance: "tin_11V77TNQ25ZC30V1JQTNFPGMRD",
+        fingerprint: "6546f5c5c428b0f0db7dec3058473f870125277a88b201cca3a416c317f82364",
+    },
+    PublishedRevision {
+        name: "shell.query",
+        revision: 8,
+        tool: "tol_01M2DG020980080021AN94200T",
+        instance: "tin_12E2STR13XGYTZFZNEV7RBT2B3",
+        fingerprint: "62c1ea0f71f8d80a3c87fa6bb4875507eeeacb5dbee76bd29dc76e83b95b2897",
     },
 ];

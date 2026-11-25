@@ -15,7 +15,7 @@ use aura_agent_domain::{
 };
 use aura_context_domain::ContextUsageSummaryView;
 use aura_domain_common::{
-    ContextProjectionSnapshotId, ModelProfileId, ModelStepId, Revision, RuntimeInstanceId,
+    ContextProjectionSnapshotId, EventId, ModelProfileId, ModelStepId, Revision, RuntimeInstanceId,
     SessionId, ToolCallId, TurnTaskId, UtcTimestamp,
 };
 use schemars::JsonSchema;
@@ -148,12 +148,23 @@ pub struct AgentToolInputView {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
+pub struct AgentPeerInputView {
+    pub delivery_id: EventId,
+    pub source_session_id: SessionId,
+    pub source_session_title: Option<String>,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct AgentTurnView {
     pub turn: TurnTask,
     /// The desktop recorded for this turn; changing the composer does not change history.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub computer_mode: Option<aura_agent_domain::ComputerMode>,
     pub user_messages: Vec<AgentUserMessageView>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer_input: Option<AgentPeerInputView>,
     pub assistant_messages: Vec<AgentAssistantView>,
     pub next_messages: Option<AgentTurnHistoryCursor>,
     pub todo: TodoState,

@@ -11,6 +11,7 @@ export interface WorkspaceLayoutPreferences {
   leftPanelWidth: number;
   rightPanelOpen: boolean;
   rightPanelWidth: number;
+  rightPanelBySession?: Record<string, boolean>;
 }
 
 export const DEFAULT_WORKSPACE_LAYOUT_PREFERENCES: WorkspaceLayoutPreferences = {
@@ -53,6 +54,15 @@ export function readWorkspaceLayoutPreferences(): WorkspaceLayoutPreferences {
       return DEFAULT_WORKSPACE_LAYOUT_PREFERENCES;
     }
     const record = parsed as Record<string, unknown>;
+    const storedSessions = record.rightPanelBySession;
+    const rightPanelBySession =
+      storedSessions && typeof storedSessions === 'object' && !Array.isArray(storedSessions)
+        ? Object.fromEntries(
+            Object.entries(storedSessions).filter(
+              ([id, open]) => id.startsWith('ses_') && typeof open === 'boolean',
+            ),
+          )
+        : undefined;
     return {
       leftPanelOpen:
         typeof record.leftPanelOpen === 'boolean'
@@ -72,6 +82,7 @@ export function readWorkspaceLayoutPreferences(): WorkspaceLayoutPreferences {
         MIN_RIGHT_PANEL_WIDTH,
         DEFAULT_RIGHT_PANEL_WIDTH,
       ),
+      ...(rightPanelBySession ? { rightPanelBySession } : {}),
     };
   } catch {
     return DEFAULT_WORKSPACE_LAYOUT_PREFERENCES;

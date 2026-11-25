@@ -11,7 +11,7 @@ pub(super) type FrozenFacts = (
     PromptBundleSnapshot,
     ValidatedPromptBundle,
     aura_config::PromptSettingsSnapshot,
-    model_context::ModelHistory,
+    Option<(EventId, String)>,
     ToolRegistrySnapshotV1,
     Vec<ToolEphemeralLoadRecordV1>,
     ToolSettingsSnapshotV1,
@@ -50,20 +50,7 @@ impl AgentApplication {
                     let (prompt, settings) = frozen_prompt(&bundle, |id| {
                         Ok(artifact::read(db, id, &bundle.id.to_string())?)
                     })?;
-                    let mut history = model_context::history_for_model(
-                        db,
-                        run_id,
-                        matches!(step.continuation, AgentContinuation::Initial { .. }),
-                    )?;
-                    if let AgentContinuation::QueryAnswered { user_event_id, .. } =
-                        step.continuation
-                    {
-                        anyhow::ensure!(
-                            matches!(history.items.last(),Some(LogicalConversationItem::User{source_event_id,..}) if *source_event_id==user_event_id),
-                            "agent.query_answer_history"
-                        );
-                        history.items.pop();
-                    }
+                    let latest_input = source_input(db, &turn, &step.continuation)?;
                     let (registry, loads, tool_settings, package_tools) =
                         app.prepare_registry(db, &turn, &permission, at, computer)?;
                     let (revision, hash) = checkpoint::current_state(db, turn.turn_task_id)?;
@@ -75,6 +62,8 @@ impl AgentApplication {
                         .collect::<Result<Vec<_>, _>>()?;
                     let mode_episode = aura_persistence_v2::agent::mode::view(db, turn.session_id)?;
                     let guard = aura_persistence_v2::agent::guard::load(db, turn.turn_task_id)?;
+                    let delivery = aura_persistence_v2::agent::peer_input::delivery(db, &turn)?;
+                    let peer = delivery.is_some();
                     let protocol_completion = match &step.continuation {
                         AgentContinuation::CompletionReminder { previous_model_step_id } => {
                             let reminder = protocol_completion_reminder(
@@ -102,15 +91,18 @@ impl AgentApplication {
                         "turn":turn,"run":run,"session":session_state,"todo":work::todo(db,turn.turn_task_id)?,
                         "query":work::query(db,turn.turn_task_id)?,"goal":if turn.mode==AgentTaskMode::Goal {Some(work::goal(db,turn.turn_task_id)?)}else{None},
                         "related_source":aura_persistence_v2::agent::related::context(db,turn.turn_task_id)?,
-                        "lineages":lineages,
+                        "lineages":lineages.into_iter().filter(|l| if peer { l.lineage_id == turn.lineage_id } else { !l.sources.is_empty() }).collect::<Vec<_>>(),
                         "mode_episode":mode_episode,
                         "mode_disposition":disposition,
-                        "current_user_root_event_id":turn.root_user_event_id,
+                        "current_user_root_event_id":(!peer).then_some(turn.root_user_event_id),
                         "background_lineages_are_not_current_obligations":true,
                         "guard":guard,
                         "protocol_completion_reminder":protocol_completion,
                         "state_revision":revision,"state_hash":hash,"registry_snapshot_ref":registry.snapshot_ref,"permission_mode":permission.mode,"continuation":step.continuation
                     });
+                    if let Some(peers) = app.peer_prompt_state(db, &turn, delivery.as_ref())? {
+                        state["peer_collaboration"] = peers;
+                    }
                     // The tools' own descriptions send a model to the command line first; in the
                     // 小窗 that opens things on the user's desktop instead.
                     if computer
@@ -123,7 +115,7 @@ impl AgentApplication {
                         });
                     }
                     Ok((
-                        turn, run, bundle, prompt, settings, history, registry, loads,
+                        turn, run, bundle, prompt, settings, latest_input, registry, loads,
                         tool_settings, package_tools, state,
                     ))
                 },
@@ -131,4 +123,88 @@ impl AgentApplication {
             .await?
         })
     }
+
+    pub(super) async fn authorized_history(
+        &self,
+        turn: &TurnTask,
+        step: &ModelStep,
+        budget: u64,
+        access: super::compaction::dependencies::Access,
+    ) -> anyhow::Result<(model_context::ModelHistory, super::compaction::AuthorizedCheckpoint)>
+    {
+        let (run, session, step_id) = (turn.agent_run_id, turn.session_id, step.model_step_id);
+        let continuation = step.continuation.clone();
+        Ok(self.store
+            .read(StoreStep::run(run, "agent.context.history"), move |db| {
+                let started = std::time::Instant::now();
+                let checkpoint = super::compaction::authorized_checkpoint(db, session, run, &access)?;
+                let mut history = model_context::history_for_context(
+                    db,
+                    run,
+                    matches!(continuation, AgentContinuation::Initial { .. }),
+                    budget,
+                        checkpoint.record.as_deref(),
+                )?;
+                aura_core_base::append_core_log("context.history_read", serde_json::json!({
+                    "model_step_id":step_id, "elapsed_ms":started.elapsed().as_millis(),
+                    "covered_events":history.covered_events, "deferred_groups":history.deferred_groups,
+                    "selected_history_bytes":history.selected_history_bytes, "loaded_items":history.items.len(),
+                    "compaction_pressure":history.compaction_pressure,
+                    "missing_adopted_groups":history.missing_adopted.len(),
+                    "checkpoint":checkpoint.record.as_ref().map(|record| record.id),
+                }));
+                if let AgentContinuation::QueryAnswered { user_event_id, .. } = continuation {
+                    if !matches!(history.items.last(),Some(LogicalConversationItem::User{source_event_id,..}) if *source_event_id==user_event_id) {
+                        return Err(aura_persistence_core::PersistenceCoreError::Invalid("agent.query_answer_history"));
+                    }
+                    history.items.pop();
+                }
+                Ok((history, checkpoint))
+            })
+            .await?)
+    }
+}
+
+/// Find the latest accepted user input for source grants without reading optional history.
+fn source_input(
+    db: &aura_persistence_core::Connection,
+    turn: &TurnTask,
+    continuation: &AgentContinuation,
+) -> anyhow::Result<Option<(EventId, String)>> {
+    let message = |id| -> anyhow::Result<_> {
+        let user = session::user_message(db, turn.session_id, id)?;
+        Ok(Some((user.event_id, user.text)))
+    };
+    if let AgentContinuation::QueryAnswered { user_event_id, .. } = continuation {
+        return message(*user_event_id);
+    }
+    let mut additions = aura_persistence_v2::agent::inbox::consumed(db, turn.turn_task_id)?
+        .into_iter()
+        .flat_map(|group| group.user_event_ids)
+        .filter(|id| *id != turn.root_user_event_id)
+        .collect::<Vec<_>>();
+    if matches!(continuation, AgentContinuation::Initial { .. }) {
+        if let Some(peer) = super::super::collaboration::peer_working_set(db, turn)? {
+            return Ok(Some(peer));
+        }
+        return message(additions.last().copied().unwrap_or(turn.root_user_event_id));
+    }
+    additions.extend(aura_persistence_v2::agent::query::events(db, turn.turn_task_id)?);
+    if !additions.is_empty() {
+        let latest = db.query_row(
+            "SELECT (SELECT e.event_id FROM events e
+             JOIN json_each(?1) a ON a.value=e.event_id
+             WHERE e.kind='agent.user_message' ORDER BY e.sequence DESC LIMIT 1)",
+            [serde_json::to_string(&additions)?],
+            |row| row.get::<_, Option<String>>(0),
+        )?;
+        return match latest {
+            Some(id) => message(id.parse()?),
+            None => Ok(None),
+        };
+    }
+    if let Some(peer) = super::super::collaboration::peer_working_set(db, turn)? {
+        return Ok(Some(peer));
+    }
+    message(turn.root_user_event_id)
 }

@@ -93,9 +93,11 @@ impl SettingsFacade {
                     module,
                     kind: ConfigEventKind::Rejected,
                     revision,
-                    message:
-                        "External configuration edit was rejected; the previous valid snapshot remains active."
-                            .to_owned(),
+                    message: if module == ConfigModule::Tools {
+                        crate::tools::public_rejection(&error)
+                    } else {
+                        "External configuration edit was rejected; the previous valid snapshot remains active.".to_owned()
+                    },
                     occurred_at: UtcTimestamp::now(),
                 })?;
                 Err(error)

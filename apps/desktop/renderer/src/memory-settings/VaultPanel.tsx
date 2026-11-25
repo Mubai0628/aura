@@ -7,25 +7,7 @@ import type {
 } from '@aura/contracts/generated';
 import type { useMemory } from './useMemory';
 import { MEMORY_FAILURE } from './memory-words';
-/** History records keep stable codes; people read what happened and who did it. */
-const ACTIONS: Record<string, string> = {
-  create: '新建',
-  update: '修改',
-  delete: '删除',
-  repair: '修复',
-  external_create: '在外部新建',
-  external_edit: '在外部修改',
-  external_delete: '在外部删除',
-  interrupted_undo: '撤回中断的写入',
-  interrupted_kept: '中断后已被改动，保留现状',
-};
-const ACTORS: Record<string, string> = {
-  model_tool: '模型',
-  automatic_maintenance: '自动整理',
-  external: '外部编辑',
-  settings_repair: '设置页',
-  recovery: 'Aura 恢复',
-};
+import { MemoryTimelineView } from './MemoryTimelineView';
 export function VaultPanel({
   vault,
   workspaceId,
@@ -192,24 +174,12 @@ export function VaultPanel({
           </button>
         </div>
       ) : null}
-      <details>
-        <summary>最近修改（{vault.recent_changes.length}）</summary>
-        {vault.recent_changes.length ? (
-          <ul>
-            {vault.recent_changes.map((change, index) => (
-              <li key={`${change.at}-${index}`}>
-                <time dateTime={change.at}>{new Date(change.at).toLocaleString()}</time> ·{' '}
-                {change.title || '（无标题）'} · {ACTIONS[change.action] ?? change.action} ·{' '}
-                {ACTORS[change.actor] ?? change.actor}
-                <br />
-                <code>{change.path}</code>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>暂无修改记录。</p>
-        )}
-      </details>
+      <MemoryTimelineView
+        key={`${vault.scope}:${workspaceId ?? ''}`}
+        vault={request}
+        call={state.call}
+        recent={vault.recent_changes}
+      />
     </section>
   );
 }

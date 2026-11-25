@@ -49,17 +49,18 @@ impl AgentApplication {
                 ))
             })
             .await?;
-        let err_path =
-            self.execution.unverified_delivery_path(turn.workspace_id, requirements).await?;
+        let mismatch =
+            self.execution.unverified_delivery_value(turn.workspace_id, requirements).await?;
         let delivery_stop =
-            err_path.is_some() && earlier.iter().any(|(gate, _)| gate == DELIVERY_REVIEW);
+            mismatch.is_some() && earlier.iter().any(|(gate, _)| gate == DELIVERY_REVIEW);
         let user_blocks = earlier.iter().filter(|(gate, _)| gate != DELIVERY_REVIEW).count();
-        let settled = if let Some(path) = err_path {
+        let settled = if let Some(value) = mismatch {
             Some((
                 DELIVERY_REVIEW.to_owned(),
                 format!(
-                    "交付文件「{}」未核对到用户明确要求逐字保留的内容。请对照本轮原始用户要求和最新修订核对实际文件，必要时修正并读回。",
-                    path.as_str()
+                    "交付文件「{}」未核对到用户明确要求逐字保留的内容。{}",
+                    value.path.as_str(),
+                    value.formatting_hint()
                 ),
             ))
         } else if self.hooks_registered()

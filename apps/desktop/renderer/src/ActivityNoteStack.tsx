@@ -295,6 +295,7 @@ export function ActivityNoteStack({
       {mode === 'goal' && editing ? (
         <form
           className="activity-mode-edit"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             saveBudget();

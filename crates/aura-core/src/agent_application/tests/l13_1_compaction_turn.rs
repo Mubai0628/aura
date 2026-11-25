@@ -116,8 +116,13 @@ async fn manual_compaction_reuses_the_sessions_tool_declarations_without_a_confi
     assert_eq!(after.len(), before.len() + 1);
     let summary = after.last().expect("valid compaction fixture and receipt");
     assert!(super::l10_19_compaction::asks_compaction(summary));
-    assert_eq!(
-        before.last().expect("valid compaction fixture and receipt")["tools"],
-        summary["tools"]
+    let prior = before.last().expect("adopted request");
+    assert_eq!(prior["tools"], summary["tools"]);
+    assert!(
+        summary["messages"]
+            .as_array()
+            .expect("compaction messages")
+            .starts_with(prior["messages"].as_array().expect("adopted messages")),
+        "manual compaction replaced a reusable adopted prefix"
     );
 }

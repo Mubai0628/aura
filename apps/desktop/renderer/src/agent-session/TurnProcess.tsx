@@ -4,6 +4,9 @@ import type { AgentToolActivityEntry, AgentTurnView } from '@aura/contracts/gene
 import { StoppingRunContext } from './stopping';
 import { MessageText } from './MessageText';
 import { MarkdownBlocks } from '../markdown-body';
+import { MessageAttachments } from '../composer-attachments/MessageAttachments';
+import { MessageReferencesLine } from '../composer-references/MessageReferences';
+import { ChosenSkillsLine } from '../composer-skills/SkillChoice';
 import { ProcessSection } from './ProcessSection';
 import { UserCopy } from './ReplyActions';
 import { StepActivity } from './StepActivity';
@@ -104,28 +107,39 @@ export function TurnProcess({
     const answered = block.message.origin.origin === 'query_answer';
     const reply = answered ? parseQueryReply(block.message.text) : undefined;
     if (reply) return <QueryReplyCard key={block.key} view={reply} />;
+    const { message } = block;
+    const label =
+      message.origin.origin === 'steer' ? '追加信息' : answered ? '你的回答' : '用户信息';
     return (
-      <article key={block.key} className="agent-user-message agent-steer-message">
-        <small>
-          {block.message.origin.origin === 'steer'
-            ? '追加信息'
-            : answered
-              ? '你的回答'
-              : '用户信息'}
-        </small>
-        <MessageText
+      <article
+        key={block.key}
+        aria-label={label}
+        className="agent-user-message agent-steer-message"
+      >
+        {answered ? <small>{label}</small> : null}
+        {message.total_bytes > 0 ? (
+          <MessageText
+            sessionId={item.turn.session_id}
+            source={{ kind: 'user', event_id: message.event_id }}
+            preview={message.text}
+            totalBytes={message.total_bytes}
+            sealedRevision={message.sealed_revision}
+            role="user"
+          />
+        ) : null}
+        <MessageAttachments
           sessionId={item.turn.session_id}
-          source={{ kind: 'user', event_id: block.message.event_id }}
-          preview={block.message.text}
-          totalBytes={block.message.total_bytes}
-          sealedRevision={block.message.sealed_revision}
-          role="user"
+          attachments={message.attachments ?? []}
         />
-        <UserCopy
-          sessionId={item.turn.session_id}
-          eventId={block.message.event_id}
-          totalBytes={block.message.total_bytes}
-        />
+        <MessageReferencesLine references={message.references} />
+        <ChosenSkillsLine skills={message.skills} />
+        {message.total_bytes > 0 ? (
+          <UserCopy
+            sessionId={item.turn.session_id}
+            eventId={message.event_id}
+            totalBytes={message.total_bytes}
+          />
+        ) : null}
       </article>
     );
   };

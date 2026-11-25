@@ -43,7 +43,11 @@ impl Provider {
                     | Scenario::BranchingThenCompact
                     | Scenario::ClearOldResults
                     | Scenario::CompactToolOnPrefix
+                    | Scenario::CompactOnPrefix
+                    | Scenario::HistoryReadPressure { .. }
                     | Scenario::ReferredHistory
+                    | Scenario::Plain
+                    | Scenario::PeerDispatch { .. }
                     | Scenario::Team { .. }
             ) {
                 16
@@ -271,6 +275,31 @@ data: {overloaded}
                     stream.write_all(response.as_bytes()).await.expect("rate limit answer");
                     continue;
                 }
+                if matches!(scenario, Scenario::PeerDispatch { disconnect: true })
+                    && super::chat_reply::peer_dispatch::receiver_after_effect(&body)
+                {
+                    entered_park.notify_one();
+                    held.spawn(async move {
+                        let _ = stream.read(&mut [0u8; 1]).await;
+                    });
+                    continue;
+                }
+                if matches!(scenario, Scenario::PeerDispatch { .. })
+                    && super::chat_reply::peer_dispatch::latest_user(&body) == "B4 neutral hold"
+                {
+                    let release = release.clone();
+                    entered_park.notify_one();
+                    held.spawn(async move {
+                        release.notified().await;
+                        send(
+                            &mut stream,
+                            ordinal,
+                            json!({"role":"assistant","content":"holding turn finished"}),
+                        )
+                        .await;
+                    });
+                    continue;
+                }
                 if matches!(scenario, Scenario::Hold)
                     || matches!(scenario, Scenario::RecoveredSession) && ordinal == 0
                     || matches!(scenario, Scenario::Team { plan } if super::scenario::team::holds(plan, &body))
@@ -328,6 +357,7 @@ data: {overloaded}
                                     | Scenario::CompactAfterTool
                                     | Scenario::BranchingCompaction
                                     | Scenario::BranchingThenCompact
+                                    | Scenario::HistoryReadPressure { .. }
                                     | Scenario::Plain
                                     | Scenario::PlainMeasured
                                     | Scenario::PlainMeasuredRefusingSecond
@@ -356,11 +386,14 @@ data: {overloaded}
                         super::wire::break_off(&mut stream, ordinal).await;
                         continue;
                     }
-                    let content = if long_compactions {
-                        super::wire::long_compaction_answer(&asked)
-                    } else {
-                        super::wire::COMPACTION_PARAGRAPH.to_owned()
-                    };
+                    let content =
+                        if matches!(scenario, Scenario::HistoryReadPressure { summary: false }) {
+                            "   ".to_owned()
+                        } else if long_compactions {
+                            super::wire::long_compaction_answer(&asked)
+                        } else {
+                            super::wire::COMPACTION_PARAGRAPH.to_owned()
+                        };
                     compaction_ordinal += 1;
                     send(&mut stream, ordinal, json!({"role":"assistant","content":content})).await;
                     continue;

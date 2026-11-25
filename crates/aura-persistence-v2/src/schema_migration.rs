@@ -100,12 +100,17 @@ fn apply_plan(
     // together create. A concurrent write, a different predecessor or a structure
     // that merely looks similar all fail before a statement runs.
     for migration in &planned.migrations {
-        let live_digest: String = transaction.query_row(
-            "SELECT digest FROM v2_schema_metadata WHERE owner=?1 AND version=1",
-            [migration.owner],
-            |row| row.get(0),
-        )?;
-        if live_digest != migration.digest {
+        use rusqlite::OptionalExtension;
+        let live_digest: Option<String> = transaction
+            .query_row(
+                "SELECT digest FROM v2_schema_metadata WHERE owner=?1 AND version=1",
+                [migration.owner],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let expected =
+            if migration.digest.is_empty() { None } else { Some(migration.digest.clone()) };
+        if live_digest != expected {
             return Err(Error::Invalid("unsupported schema digest"));
         }
     }
@@ -115,7 +120,7 @@ fn apply_plan(
     for migration in &planned.migrations {
         transaction.execute_batch(migration.statements)?;
         transaction.execute(
-            "UPDATE v2_schema_metadata SET digest=?1 WHERE owner=?2 AND version=1",
+            "INSERT INTO v2_schema_metadata(owner,version,digest) VALUES(?2,1,?1) ON CONFLICT(owner) DO UPDATE SET digest=excluded.digest",
             rusqlite::params![
                 blake3::hash(migration.current_sql.as_bytes()).to_hex().to_string(),
                 migration.owner,
@@ -167,7 +172,10 @@ fn plan_migration(path: &Path, check: Check) -> StoreResult<Option<PlannedMigrat
     }
     drop(statement);
     let expected = expected_module_digests();
-    if digests.len() != expected.len() {
+    let missing_collaboration = !digests.contains_key("collaboration");
+    if digests.keys().any(|owner| !expected.contains_key(owner.as_str()))
+        || digests.len() + usize::from(missing_collaboration) != expected.len()
+    {
         return Err(Error::Invalid("schema owner inventory"));
     }
     // Every module that changed since this database was created is one this build
@@ -180,12 +188,21 @@ fn plan_migration(path: &Path, check: Check) -> StoreResult<Option<PlannedMigrat
         .filter(|(owner, digest)| expected.get(owner.as_str()).is_none_or(|known| known != *digest))
         .map(|(owner, digest)| (owner.clone(), digest.clone()))
         .collect::<Vec<_>>();
-    if outdated.is_empty() {
+    if outdated.is_empty() && !missing_collaboration {
         return Ok(None);
     }
     let mut migrations = Vec::with_capacity(outdated.len());
     for (owner, digest) in &outdated {
         migrations.push(planned_predecessor(owner, digest)?);
+    }
+    if missing_collaboration {
+        migrations.push(PlannedMigration {
+            owner: "collaboration",
+            statements: aura_agent_collaboration::SCHEMA,
+            predecessor_sql: "",
+            current_sql: aura_agent_collaboration::SCHEMA,
+            digest: String::new(),
+        });
     }
     // The whole set is checked against the live structure before anything is
     // written, exactly as a single-module migration was.
@@ -215,6 +232,7 @@ fn planned_predecessor(owner: &str, digest: &str) -> StoreResult<PlannedMigratio
         "execution" => (EXECUTION_PREDECESSORS, include_str!("execution.sql")),
         "security" => (SECURITY_PREDECESSORS, include_str!("security.sql")),
         "tool" => (TOOL_PREDECESSORS, include_str!("tool.sql")),
+        "collaboration" => (COLLABORATION_PREDECESSORS, aura_agent_collaboration::SCHEMA),
         _ => return Err(Error::Invalid("unsupported schema digest")),
     };
     let owner: &'static str = MODULES
@@ -223,7 +241,15 @@ fn planned_predecessor(owner: &str, digest: &str) -> StoreResult<PlannedMigratio
         .map(|module| module.owner)
         .ok_or(Error::Invalid("unsupported schema digest"))?;
     for marker in predecessors {
-        let (predecessor, statements) = split_module_schema(current_sql, marker)?;
+        let (mut predecessor, statements) = split_module_schema(current_sql, marker)?;
+        if owner == "collaboration"
+            && *marker == GLOBAL_REVIEW_SETTINGS_START
+            && digest == COLLABORATION_PRE_GLOBAL_REVIEW_WITHOUT_FINAL_LF
+        {
+            // This development build stored the exact same schema bytes without the final LF.
+            // Verify that specific predecessor and its structure by the usual checks.
+            predecessor.truncate(predecessor.len() - 1);
+        }
         if blake3::hash(predecessor.as_bytes()).to_hex().as_str() != digest {
             continue;
         }
@@ -278,6 +304,21 @@ const TOOL_PREDECESSORS: &[&str] = &[
     "\nCREATE TABLE tool_package_payloads",
     "\nCREATE TABLE agent_terminals",
 ];
+
+/// Append-only collaboration predecessors, each selected by its exact module digest.
+const COLLABORATION_PREDECESSORS: &[&str] = &[
+    GLOBAL_REVIEW_SETTINGS_START,
+    "\nCREATE TABLE agent_collaboration_retry",
+    "\nCREATE TABLE agent_collaboration_result_seen",
+    "\nCREATE TABLE agent_collaboration_questions",
+    "\nCREATE TABLE agent_collaboration_runs",
+    "\nCREATE TABLE agent_collaboration_graphs",
+    "\nCREATE TABLE agent_collaboration_session_policy",
+];
+
+const GLOBAL_REVIEW_SETTINGS_START: &str = "\nCREATE TABLE agent_collaboration_review_settings";
+const COLLABORATION_PRE_GLOBAL_REVIEW_WITHOUT_FINAL_LF: &str =
+    "eebecedbf2129ebb01d8f4390dcc8ba11572f144829c8575c5e90fe38537b31e";
 
 fn live_structure(connection: &rusqlite::Connection) -> StoreResult<Vec<(String, String)>> {
     let mut query = connection.prepare(

@@ -4,7 +4,9 @@ use aura_domain_common::{
     PromptBundleSnapshotId, Revision, SessionId, SessionSequence, TaskLineageId, TurnTaskId,
     UtcTimestamp, canonical_json_v1_sha256,
 };
-use aura_model_domain::{LogicalConversationItem, ModelAttachmentSnapshot, ModelOutputRequest};
+use aura_model_domain::{
+    LogicalConversationItem, ModelAttachmentSnapshot, ModelOutputRequest, TaskStateReplay,
+};
 use aura_security_contract::ModelEgressPolicyVersion;
 use aura_tool_contract::{EffectiveToolBindingSnapshot, ToolSchemaSetSnapshotV1};
 use schemars::JsonSchema;
@@ -218,6 +220,8 @@ pub struct ContextProjectionSnapshot {
     pub tool_schema_set: ToolSchemaSetSnapshotV1,
     pub effective_tool_bindings: Vec<EffectiveToolBindingSnapshot>,
     pub conversation_items: Vec<LogicalConversationItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task_state_replay: Option<TaskStateReplay>,
     pub attachments: Vec<ModelAttachmentSnapshot>,
     pub active_task_lineage_id: Option<TaskLineageId>,
     pub instruction_envelope_artifact_id: ArtifactId,
@@ -260,6 +264,13 @@ impl ContextProjectionSnapshot {
 
     fn validate_shape_without_hash(&self) -> Result<(), ContextSnapshotError> {
         if self.snapshot_version != 2 {
+            return Err(ContextSnapshotError::SnapshotHashMismatch);
+        }
+        if self
+            .task_state_replay
+            .as_ref()
+            .is_some_and(|replay| !replay.fits(&self.conversation_items))
+        {
             return Err(ContextSnapshotError::SnapshotHashMismatch);
         }
         if !self.has_canonical_section_order() {
@@ -316,6 +327,8 @@ impl ContextProjectionSnapshot {
             tool_schema_set: &'a ToolSchemaSetSnapshotV1,
             effective_tool_bindings: &'a [EffectiveToolBindingSnapshot],
             conversation_items: &'a [LogicalConversationItem],
+            #[serde(skip_serializing_if = "Option::is_none")]
+            task_state_replay: Option<&'a TaskStateReplay>,
             attachments: &'a [ModelAttachmentSnapshot],
             active_task_lineage_id: Option<TaskLineageId>,
             instruction_envelope_artifact_id: ArtifactId,
@@ -343,6 +356,7 @@ impl ContextProjectionSnapshot {
             tool_schema_set: &self.tool_schema_set,
             effective_tool_bindings: &self.effective_tool_bindings,
             conversation_items: &self.conversation_items,
+            task_state_replay: self.task_state_replay.as_ref(),
             attachments: &self.attachments,
             active_task_lineage_id: self.active_task_lineage_id,
             instruction_envelope_artifact_id: self.instruction_envelope_artifact_id,

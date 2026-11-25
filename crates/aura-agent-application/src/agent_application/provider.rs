@@ -180,6 +180,8 @@ impl ModelEgressAuthorizationFacts for Facts<'_> {
             actor: PersistedContextEventActor::User,
             content_hash: ContentHash::sha256(text.as_bytes()),
             byte_length: text.len() as u64,
+            excerpt: aura_context_domain::user_event_excerpt(id, &text)
+                .map(|view| (ContentHash::sha256(view.as_bytes()), view.len() as u64)),
             model_visible: true,
             explicitly_user_authored: true,
         }))

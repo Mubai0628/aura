@@ -8,7 +8,6 @@ use store::BackgroundSource;
 
 #[derive(Clone)]
 pub(in crate::agent_application) struct Access {
-    workspace: WorkspaceId,
     memory: bool,
     global: bool,
     team: Option<ContentHash>,
@@ -16,24 +15,25 @@ pub(in crate::agent_application) struct Access {
 }
 
 impl Access {
-    pub(in crate::agent_application) fn for_turn(
+    pub(in crate::agent_application) fn for_step<'a>(
         turn: &TurnTask,
-        input: &ContextPreparationInput,
+        latest_input: Option<(EventId, &str)>,
         memory: bool,
+        scoped_fragments: impl IntoIterator<Item = &'a ContextFragment>,
     ) -> Self {
-        let global = recall::latest_input(input).is_some_and(|(event, text)| {
+        let global = latest_input.is_some_and(|(event, text)| {
             event == turn.root_user_event_id && recall::explicit_global_memory(text)
         });
-        let team = input.section_inputs.iter().flat_map(|section| &section.fragments)
-            .find(|f| matches!(&f.source_ref, ContextSourceRef::RuntimeState { state_kind, .. } if state_kind == "agent.team_download_receipts"))
-            .map(|f| ContentHash::sha256(f.content.as_bytes()));
-        let private_activity = input
-            .section_inputs
-            .iter()
-            .flat_map(|s| &s.fragments)
-            .filter_map(scoped_activity)
-            .collect();
-        Self { workspace: turn.workspace_id, memory, global, team, private_activity }
+        let mut team = None;
+        let mut private_activity = Vec::new();
+        for fragment in scoped_fragments {
+            if matches!(&fragment.source_ref, ContextSourceRef::RuntimeState { state_kind, .. } if state_kind == "agent.team_download_receipts")
+            {
+                team = Some(ContentHash::sha256(fragment.content.as_bytes()));
+            }
+            private_activity.extend(scoped_activity(fragment));
+        }
+        Self { memory, global, team, private_activity }
     }
 }
 
@@ -51,12 +51,29 @@ fn bind<'a>(
     fragments: impl IntoIterator<Item = &'a ContextFragment>,
     inherited: &[BackgroundSource],
 ) -> anyhow::Result<Vec<BackgroundSource>> {
-    let mut refs = inherited.to_vec();
+    let mut refs = Vec::new();
     let mut add = |source| {
-        if !refs.contains(&source) {
+        // Keep one observation per local source. Earlier revisions remain on their own
+        // checkpoints; carrying every historical file digest makes a long session grow forever.
+        let same = |r: &BackgroundSource| match (r, &source) {
+            (BackgroundSource::File { path: a, .. }, BackgroundSource::File { path: b, .. }) => {
+                a == b
+            }
+            (
+                BackgroundSource::Memory { global: g, path: a, .. },
+                BackgroundSource::Memory { global: h, path: b, .. },
+            ) => g == h && a == b,
+            _ => r == &source,
+        };
+        if let Some(index) = refs.iter().position(same) {
+            refs[index] = source;
+        } else {
             refs.push(source);
         }
     };
+    for source in inherited {
+        add(source.clone());
+    }
     for f in fragments {
         if let Some(binding) = scoped_activity(f) {
             add(binding);
@@ -98,39 +115,15 @@ fn bind<'a>(
     Ok(refs)
 }
 
-pub(super) async fn current(
-    app: &Arc<AgentApplication>,
-    sources: &[BackgroundSource],
-    access: &Access,
-) -> bool {
-    if sources.is_empty() {
-        return true;
-    }
-    let sources = sources.to_owned();
-    let access = access.clone();
-    let execution = app.execution.clone();
-    tokio::task::spawn_blocking(move || {
-        let vaults = if access.memory
-            && sources.iter().any(|s| matches!(s, BackgroundSource::Memory { .. }))
-        {
-            recall::open_vaults(&execution, access.workspace, access.global)
-        } else {
-            Vec::new()
-        };
-        sources.iter().all(|source| match source {
-            BackgroundSource::Memory { global, path, version } => vaults.iter().any(|vault| {
-                (vault.scope().scope() == MemoryScope::Global) == *global
-                    && vault.read_path(path).is_ok_and(|r| r.hash == *version)
-            }),
-            BackgroundSource::File { path, version } => {
-                execution.recorded_workspace_file_matches(access.workspace, path, version)
-            }
-            BackgroundSource::PrivateActivity { .. } => access.private_activity.contains(source),
-            BackgroundSource::TeamReceipts { hash } => access.team.as_ref() == Some(hash),
-        })
+pub(super) fn visible(sources: &[BackgroundSource], access: &Access) -> bool {
+    sources.iter().all(|source| match source {
+        // The historical observation belongs to this session. Current quotes and file use
+        // are revalidated independently by recall, prior_materials and the file tools.
+        BackgroundSource::File { .. } => true,
+        BackgroundSource::Memory { global, .. } => access.memory && (!global || access.global),
+        BackgroundSource::PrivateActivity { .. } => access.private_activity.contains(source),
+        BackgroundSource::TeamReceipts { hash } => access.team.as_ref() == Some(hash),
     })
-    .await
-    .unwrap_or(false)
 }
 
 pub(in crate::agent_application) fn scoped_activity(
@@ -164,6 +157,29 @@ pub(in crate::agent_application) fn scoped_activity(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn context_continuity_rechecks_source_scope_independently_of_project_file_revisions() {
+        let path = WorkspacePath::parse("events/recent.md").expect("fixture note path");
+        let note = |global| BackgroundSource::Memory {
+            global,
+            path: path.clone(),
+            version: "old-file-revision".into(),
+        };
+        let mut access =
+            Access { memory: true, global: false, team: None, private_activity: vec![] };
+        assert!(visible(&[note(false)], &access));
+        assert!(!visible(&[note(true)], &access));
+        access.memory = false;
+        assert!(!visible(&[note(false)], &access));
+        assert!(!visible(
+            &[BackgroundSource::PrivateActivity {
+                data_class: aura_security_contract::NetworkDataClass::PersonalData,
+                hash: ContentHash::sha256(b"old private scope")
+            }],
+            &access
+        ));
+    }
     #[test]
     fn compaction_carries_versioned_recall_and_file_references_without_quoting_them() {
         let make = |name: &str, value: Value| ContextFragment {

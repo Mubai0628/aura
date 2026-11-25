@@ -8,7 +8,21 @@ fn closed_release_has_complete_unique_stable_identities() {
     assert_eq!(&generated, embedded.manifest());
     // The count is a completeness check on the closed release, so it moves when
     // the release legitimately gains or retires a tool and the entry is named below.
-    assert_eq!(generated.entries.len(), 128);
+    assert_eq!(generated.entries.len(), 135);
+    for (name, writes) in [
+        ("peers.list", false),
+        ("peers.dispatch", true),
+        ("peers.ask", true),
+        ("peers.status", false),
+        ("peers.result", false),
+        ("peers.read_source", false),
+    ] {
+        let entry = embedded.entry(name).expect("peer tool is published");
+        let semantics = &entry.definition.execution_semantics;
+        assert_eq!(entry.definition.audience, aura_tool_contract::ToolAudienceV1::ParentAgentOnly);
+        assert_eq!(semantics.may_create_persistent_effects, writes, "{name}");
+        assert!(!semantics.automatic_retry_allowed, "{name}");
+    }
     // Sub-agents: the main agent's tools are its own; the report tool is every sub-agent's and
     // no conversation's of the user's.
     for (name, audience) in [

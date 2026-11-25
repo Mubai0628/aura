@@ -20,9 +20,14 @@ const TICK: Duration = if cfg!(any(test, feature = "test-hooks")) {
 impl AgentApplication {
     /// The limits and permissions now, their defaults and the settings revision.
     pub async fn team_settings(self: &Arc<Self>) -> anyhow::Result<AgentTeamSettingsView> {
-        let (limits, permissions, revision) =
-            self.store.read(StoreStep::operation("agents.limits"), limits::settings).await?;
+        let ((limits, permissions, revision), enabled) = self
+            .store
+            .read(StoreStep::operation("agents.limits"), |db| {
+                Ok((limits::settings(db)?, limits::enabled(db)?))
+            })
+            .await?;
         Ok(AgentTeamSettingsView {
+            enabled,
             limits,
             defaults: AgentTeamLimits::DEFAULT,
             minimum: AgentTeamLimits::MINIMUM,
@@ -41,11 +46,11 @@ impl AgentApplication {
         request: AgentTeamSettingsSetRequest,
     ) -> anyhow::Result<AgentTeamSettingsView> {
         request.limits.check()?;
-        let (chosen, permissions, expected) =
-            (request.limits, request.permissions, request.expected_revision);
+        let (chosen, permissions, expected, enabled) =
+            (request.limits, request.permissions, request.expected_revision, request.enabled);
         let host = TeamApp(Arc::clone(self));
         host.write("agents.limits.set", move |tx| {
-            limits::set_settings(tx, &chosen, permissions.as_ref(), expected)
+            limits::set_controls(tx, &chosen, permissions.as_ref(), enabled, expected)
         })
         .await
             .map_err(|error| match error.downcast_ref::<StoreError>() {
@@ -57,6 +62,7 @@ impl AgentApplication {
                 ),
                 _ => error,
             })?;
+        self.wake_temporary_queues(None).await?;
         self.team_settings().await
     }
 

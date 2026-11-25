@@ -1,6 +1,8 @@
-import type { AgentSessionProjection } from '@aura/contracts/generated';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { AgentMessageAttachment, AgentSessionProjection } from '@aura/contracts/generated';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { resetPictureReadsForTests } from '../composer-attachments/picture-reads';
+import { FileLinkContext } from '../files/file-links';
 import { Conversation } from './Conversation';
 import { openProcesses } from './process-test-helpers';
 import { forgetTurnChoices } from './turn-choices';
@@ -12,6 +14,7 @@ import { forgetToolCallDirectories } from './useToolCallDirectory';
  * replies, and its audit waits behind the status line.
  */
 const activity = vi.fn();
+const readPicture = vi.fn();
 
 const call = (id: string, title: string, outcome: string) => ({
   model_step_id: 'step-1',
@@ -36,6 +39,11 @@ const call = (id: string, title: string, outcome: string) => ({
 });
 
 beforeEach(() => {
+  resetPictureReadsForTests();
+  readPicture.mockReset().mockResolvedValue({
+    ok: true,
+    value: { media_type: 'image/png', data_base64: 'iVBORw0KGgo=' },
+  });
   activity.mockReset().mockResolvedValue({
     ok: true,
     value: {
@@ -52,6 +60,7 @@ beforeEach(() => {
     value: {
       v1: {
         readAgentToolActivity: activity,
+        browser: { readScreenshot: readPicture },
         readAgentResult: vi
           .fn()
           .mockResolvedValue({ ok: true, value: { text: '', next_offset: null } }),
@@ -138,6 +147,80 @@ const props = {
   loadOlder: vi.fn(),
   loadTurnOlder: vi.fn(),
 };
+
+test('an adopted attachment-only addition retains one thumbnail, one file card and their menus', async () => {
+  const id = 'steer-with-attachments';
+  const at = '2026-10-18T00:00:02Z';
+  const attachments: AgentMessageAttachment[] = [
+    {
+      kind: 'image',
+      name: 'sample.png',
+      media_type: 'image/png',
+      byte_length: 8,
+      artifact_id: 'art_image',
+    },
+    { kind: 'text', name: 'sample.txt', byte_length: 9, artifact_id: 'art_text' },
+  ];
+  const pending: AgentSessionProjection = {
+    ...turn('running'),
+    inbox: {
+      session_id: 'session',
+      revision: '1',
+      paused: false,
+      messages: [
+        {
+          message_id: id,
+          created_at: at,
+          text: '',
+          destination: { lane: 'addition', turn_task_id: 'turn' },
+          attachments,
+        },
+      ],
+    },
+  };
+  const show = (projection: AgentSessionProjection) => (
+    <FileLinkContext.Provider
+      value={{ session: 'session', workspace: 'workspace', root: 'D:\\Fixture', notify: vi.fn() }}
+    >
+      <Conversation {...props} projection={projection} />
+    </FileLinkContext.Provider>
+  );
+  const view = render(show(pending));
+  const picture = await screen.findByRole('img', { name: 'sample.png' });
+  expect(picture.closest('article')?.getAttribute('aria-label')).toBe('追加信息');
+  expect(screen.getByRole('button', { name: '打开 sample.txt' })).toBeTruthy();
+
+  const adopted = {
+    ...pending,
+    turns: [
+      {
+        ...pending.turns[0]!,
+        user_messages: [
+          {
+            event_id: id,
+            at,
+            origin: { origin: 'steer' as const },
+            text: '',
+            total_bytes: 0,
+            attachments,
+          },
+        ],
+      },
+    ],
+  };
+  // The history can already contain the addition before the inbox projection catches up.
+  view.rerender(show(adopted));
+  expect(screen.getAllByRole('img', { name: 'sample.png' })).toHaveLength(1);
+  expect(screen.queryByRole('status', { name: '等待模型接收' })).toBeNull();
+  expect(readPicture).toHaveBeenCalledTimes(1);
+  fireEvent.contextMenu(screen.getByRole('button', { name: '打开 sample.txt' }));
+  expect(
+    within(screen.getByRole('menu')).getByRole('menuitem', { name: '在侧边栏打开' }),
+  ).toBeTruthy();
+  fireEvent.contextMenu(screen.getByRole('button', { name: '预览 sample.png' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: '预览' }));
+  expect(screen.getByRole('dialog', { name: '图片预览' })).toBeTruthy();
+});
 
 test('what the model writes between its tools reads as a reply, between the process sections', async () => {
   render(<Conversation {...props} projection={turn('completed')} />);

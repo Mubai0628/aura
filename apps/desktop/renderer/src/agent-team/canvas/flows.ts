@@ -14,6 +14,15 @@ export interface Flow {
 /** How long a line shows what passed along it. */
 export const FLOW_MS = 2400;
 
+export function teamLineFlow(
+  member: AgentTeamMemberView,
+  recent: Flow | undefined,
+): Pick<Flow, 'kind' | 'up'> | undefined {
+  if (member.state === 'running' && member.working) return { kind: 'task', up: false };
+  if (recent?.up || member.state === 'running') return recent;
+  return undefined;
+}
+
 function reported(member: AgentTeamMemberView): Flow {
   switch (member.last_report) {
     case 'waiting':

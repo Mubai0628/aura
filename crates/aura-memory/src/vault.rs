@@ -15,7 +15,7 @@ pub struct Vault {
     root: PathBuf,
     scope: VaultScope,
     identity: String,
-    cache: PathBuf,
+    pub(crate) cache: PathBuf,
     pub(crate) rebuilding: std::sync::atomic::AtomicBool,
 }
 pub(crate) struct VaultState {
@@ -170,6 +170,9 @@ pub(crate) fn read_path(
     if note.metadata.scope != scope {
         return Err(MemoryError::Invalid("Vault scope"));
     }
-    let history = state.index.recent_history(Some(&note.metadata.id.to_string()), 10)?;
-    Ok(MemoryRead { path: path.clone(), note, hash: read.hash, history })
+    let id = note.metadata.id.to_string();
+    let history = state.index.recent_history(Some(&id), 10)?;
+    let creation = state.index.creation_history(&id)?;
+    let provenance = Some(crate::provenance::view(&note, creation.as_ref(), &history));
+    Ok(MemoryRead { path: path.clone(), note, hash: read.hash, history, provenance })
 }

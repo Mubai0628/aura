@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
@@ -110,18 +110,42 @@ test('a check whose result cannot be written keeps what it found and says the di
 test('an installed update whose old package cannot be removed still waits for the restart', async () => {
   const install = await installation({ active: '0.1.0', previous: null, pending: null });
   // A folder named like a part cannot be removed as a file.
-  await mkdir(join(install.dataRoot, 'updates', `${packageName('0.1.2')}.part`, 'inside'), {
-    recursive: true,
-  });
+  const stuck = join(install.dataRoot, 'updates', `${packageName('0.1.2')}.part`);
+  await mkdir(join(stuck, 'inside'), { recursive: true });
   const logged: string[] = [];
-  const update = updates(install, { log: (event) => logged.push(event) });
+  let installs = 0;
+  const update = updates(install, {
+    log: (event) => logged.push(event),
+    run: async (_program, args) => {
+      expect(args[0]).toBe('--apply-update');
+      installs++;
+      return '{"waiting":"0.1.1"}';
+    },
+  });
   await update.handle({ command: 'check' });
   expect(await update.handle({ command: 'download' })).toMatchObject({
     phase: 'ready',
     waiting: '0.1.1',
     error: null,
+    cleanup_pending: true,
   });
   expect(logged).toEqual(['app_update.cleanup_failed']);
+  await rm(stuck, { recursive: true }); // Only the test fixture clears its injected directory.
+  await writeFile(stuck, 'the original cache entry can now be removed');
+  const newer = join(install.dataRoot, 'updates', `${packageName('0.1.3')}.part`);
+  const backup = join(install.dataRoot, `${packageName('0.1.1')}.part`);
+  await writeFile(newer, 'a newly queued update');
+  await writeFile(backup, 'outside the update cache');
+  expect(await update.handle({ command: 'retry_cleanup' })).toMatchObject({
+    phase: 'ready',
+    waiting: '0.1.1',
+    error: null,
+    cleanup_pending: false,
+  });
+  await expect(stat(stuck)).rejects.toMatchObject({ code: 'ENOENT' });
+  expect(await readFile(newer, 'utf8')).toBe('a newly queued update');
+  expect(await readFile(backup, 'utf8')).toBe('outside the update cache');
+  expect(installs).toBe(1);
 });
 
 test('a rollback refusal the setup program names is said in words, and an English one is not shown', async () => {

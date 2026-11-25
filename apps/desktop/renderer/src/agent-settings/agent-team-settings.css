@@ -74,3 +74,25 @@
   color: var(--ink);
   background: var(--surface);
 }
+.agent-team-settings-peer {
+  display: grid;
+  gap: 12px;
+}
+.agent-team-settings-peer h3 {
+  margin: 0;
+}
+.agent-team-settings-peer .peer-budget-form {
+  justify-content: flex-end;
+}
+.agent-team-settings-peer .peer-budget-form > label {
+  margin-inline-end: auto;
+}
+.agent-team-settings-peer .peer-budget-form > :is(input, button) {
+  box-sizing: border-box;
+  height: 32px;
+}
+.agent-team-settings-peer-policy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

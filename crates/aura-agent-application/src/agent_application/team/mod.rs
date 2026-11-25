@@ -1,16 +1,20 @@
 //! Sub-agents in the application: the team's calls, the wait before an `agents.wait` call is
 //! admitted, what a sub-agent's ended turn and a stopped turn mean for the team, the limits the
 //! user sets, the watchdog's clock and what a restart leaves of the sub-agents.
+mod admission;
 mod allowance;
 mod answers;
 mod host;
 mod limits;
 mod recovery;
 mod registry;
+#[cfg(any(test, feature = "test-hooks"))]
+mod start_test_gate;
 mod worktree_host;
 mod worktrees;
 
 use super::*;
+pub(super) use admission::{can_start, is_control_pause, require_start};
 use aura_agent_team::{
     AgentTeamAllowanceRevokeRequest, AgentTeamListRequest, AgentTeamStopRequest, AgentTeamView,
     AgentTeamWorktreeFolder, AgentTeamWorktreeRequest, AgentsWaitInput, Team, TeamCall, TeamFuture,
@@ -30,6 +34,9 @@ pub(super) struct TeamApp(pub Arc<AgentApplication>);
 impl TeamTools for AgentApplication {
     fn call(self: Arc<Self>, call: TeamCall) -> TeamFuture {
         Box::pin(async move {
+            if call.tool.starts_with("peers.") {
+                return self.peer_tool(call).await;
+            }
             let sets_to_work =
                 matches!(call.tool.as_str(), aura_agent_team::SPAWN | aura_agent_team::SEND);
             let host = TeamApp(Arc::clone(&self));
@@ -60,6 +67,9 @@ impl AgentApplication {
         params: serde_json::Value,
     ) -> anyhow::Result<serde_json::Value> {
         Ok(match method {
+            "agent.team.profile.get" | "agent.team.profile.set" | "agent.team.profile.preview" => {
+                self.profile_route(method, params).await?
+            }
             "agent.team.list" => {
                 serde_json::to_value(self.team_list(serde_json::from_value(params)?).await?)?
             }
@@ -90,6 +100,15 @@ impl AgentApplication {
             "agent.team.worktrees.location.set" => serde_json::to_value(
                 self.set_worktree_location(serde_json::from_value(params)?).await?,
             )?,
+            "agent.team.graph.get" | "agent.team.graph.mutate" => {
+                self.graph_route(method, params).await?
+            }
+            "agent.team.peers.get" | "agent.team.peers.manage" => {
+                self.peer_mailbox_route(method, params).await?
+            }
+            "agent.team.policy.get" | "agent.team.policy.set" => {
+                self.session_policy_route(method, params).await?
+            }
             "agent.team.settings" => serde_json::to_value(self.team_settings().await?)?,
             "agent.team.settings.set" => serde_json::to_value(
                 self.set_team_settings(serde_json::from_value(params)?).await?,

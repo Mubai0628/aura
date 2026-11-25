@@ -5,10 +5,12 @@
 //! wrote the escapes too. Any other result, a picture `fs.read` returned and a result that did not
 //! succeed read as before; the stored result is unchanged.
 use aura_execution_contract::SideEffectStateV1;
+use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact};
 use aura_tool_contract::{
     ModelVisibleToolResultEnvelopeV1 as Envelope, ModelVisibleToolResultOutcomeV1 as Outcome,
-    ModelVisibleToolSuccessPayloadV1 as Payload,
+    ModelVisibleToolSuccessPayloadV1 as Payload, ToolResultOutcomeV1, ToolResultV1,
 };
+use rusqlite::Connection;
 use serde_json::{Map, Value, json};
 use std::fmt::Write as _;
 
@@ -20,6 +22,25 @@ pub(crate) fn model_text(name: &str, envelope: &Envelope) -> String {
         _ => None,
     };
     shown.unwrap_or_else(|| envelope.model_text())
+}
+
+pub(super) fn history_text(
+    db: &Connection,
+    result: &ToolResultV1,
+    subject: &str,
+    name: &str,
+    note: Option<&str>,
+) -> StoreResult<String> {
+    let raw = artifact::read(db, result.model_visible_result_ref.ok_or(Error::Conflict)?, subject)?;
+    let envelope: Envelope = serde_json::from_slice(&raw)?;
+    envelope.validate().map_err(|_| Error::Conflict)?;
+    let succeeded = matches!(result.outcome, ToolResultOutcomeV1::Succeeded);
+    let content = crate::hooks::result_override(db, result.tool_call_id, succeeded)?
+        .unwrap_or_else(|| model_text(name, &envelope));
+    Ok(match note {
+        Some(note) => format!("{note}\n\n{content}"),
+        None => content,
+    })
 }
 
 /// The structured value of a result that succeeded without an effect.

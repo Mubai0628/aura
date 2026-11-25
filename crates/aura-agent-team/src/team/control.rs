@@ -10,6 +10,7 @@ impl<H: TeamHost> Team<'_, H> {
     pub(super) async fn send(&self, call: &TeamCall) -> anyhow::Result<AgentsSendResult> {
         let input: AgentsSendInput = parse(&call.arguments)?;
         self.refuse_subagent(call.session_id).await?;
+        self.allow_new_work(call.session_id).await?;
         let text = input.text.trim();
         if text.is_empty() || text.chars().count() > SEND_MAX_CHARS {
             return Err(Refusal::new("agents.send_invalid", "text 不能为空，最多 8000 字。").into());

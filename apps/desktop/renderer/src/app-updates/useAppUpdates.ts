@@ -20,6 +20,7 @@ const ERRORS: Record<AppUpdateCommand['command'], string> = {
   state: '无法读取更新状态，请重试。',
   check: '检查更新失败，请重试。',
   download: '下载更新失败，请重试。',
+  retry_cleanup: '未能重新清理更新缓存，不影响已安装的更新。',
   pause: '暂停下载失败，请重试。',
   restart: '重启未完成，请重试。',
   roll_back: '回退未完成，请重试。',

@@ -13,6 +13,29 @@ impl AgentApplication {
         Option<ToolContinuationFactsV1>,
         Option<CoreContinuationFactsV1>,
     )> {
+        if matches!(step.continuation, AgentContinuation::Initial { .. }) {
+            let current = turn.clone();
+            if let Some((delivery_id, content)) = self
+                .store
+                .read(StoreStep::run(run_id, "peers.context"), move |db| {
+                    super::super::collaboration::peer_working_set(db, &current)
+                })
+                .await?
+            {
+                sections.push(section(
+                    ContextSectionKind::CurrentTurnWorkingSet,
+                    vec![ContextFragment {
+                        source_ref: ContextSourceRef::Event { event_id: delivery_id },
+                        source_kind: ModelEgressSourceKind::PeerTask,
+                        data_class: NetworkDataClass::UserFileContent,
+                        authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
+                        content,
+                    }],
+                    ContextCompressibility::NeverCompress,
+                ));
+                return Ok((ContextPreparationTriggerV1::PeerDelivery { delivery_id }, None, None));
+            }
+        }
         Ok(match &step.continuation {
             AgentContinuation::Initial { user_event_id }
             | AgentContinuation::QueryAnswered { user_event_id, .. } => {

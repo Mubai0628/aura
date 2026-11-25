@@ -126,10 +126,10 @@ impl ToolRegistryControlServiceV1 {
         &self,
         persistence: &PersistenceCoordinator,
         settings: ToolSettingsSnapshotV1,
-        configuration_rejected: bool,
+        rejection: Option<&str>,
     ) -> Result<PublishedToolSettingsProjectionV1, ToolRegistryControlErrorV1> {
         settings.validate().map_err(|_| ToolRegistryControlErrorV1::SettingsInvalid)?;
-        let configuration_issue = configuration_rejected.then(settings_invalid_projection_error);
+        let configuration_issue = rejection.map(settings_invalid_projection_error);
         let mut changes = persistence.commit_tool_projection_snapshots(vec![
             ToolProjectionDraft::ToolSettings(ToolSettingsProjection {
                 settings,
@@ -442,12 +442,12 @@ pub enum ToolRegistryControlErrorV1 {
     Persistence(#[from] PersistenceError),
 }
 
-fn settings_invalid_projection_error() -> ToolProjectionErrorView {
+fn settings_invalid_projection_error(diagnostic: &str) -> ToolProjectionErrorView {
     ToolProjectionErrorView {
         code: ErrorCode::new(ToolRegistryErrorCode::SettingsInvalid.as_str())
             .expect("registered Tool Registry code"),
         category: ErrorCategory::Conflict,
-        message: "工具设置无效；Aura 已保留最近一次有效配置。".to_owned(),
+        message: format!("{diagnostic} Aura 已保留最近一次有效配置。"),
         retryable: false,
     }
 }

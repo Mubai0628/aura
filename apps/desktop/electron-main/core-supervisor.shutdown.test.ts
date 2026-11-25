@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { expect, test, vi } from 'vitest';
+import { spawn } from 'node:child_process';
 import type { RuntimeHandshakeRequest } from '@aura/contracts/generated';
 import { CoreTransport } from './core-transport.js';
 import {
@@ -15,6 +16,36 @@ import { projectionCalls } from './core-supervisor-tests/support.js';
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 vi.mock('node:fs/promises', () => ({ mkdir: vi.fn(), appendFile: vi.fn() }));
 vi.mock('./core-transport.js', () => ({ CoreTransport: { connect: vi.fn() } }));
+
+test('concurrent starts own just one child and one startup handshake', async () => {
+  const f = await createFixture({ freshChildren: true });
+  const previous = vi.mocked(spawn).mock.calls.length;
+  try {
+    await Promise.all([f.supervisor.start(), f.supervisor.start()]);
+    expect(vi.mocked(spawn).mock.calls.length - previous).toBe(1);
+    expect(f.supervisor.snapshot.payload.state).toBe('ready');
+  } finally {
+    f.supervisor.stop();
+  }
+});
+
+test('stop invalidates a start that is waiting for the retiring child', async () => {
+  const f = await createFixture({ freshChildren: true });
+  await f.supervisor.start();
+  Object.assign(f.child, { signalCode: null });
+  const previous = vi.mocked(spawn).mock.calls.length;
+  const stopping = f.supervisor.stopAndWait();
+  const waitThenStart = f.supervisor.start();
+  f.supervisor.stop();
+  f.child.exitCode = 0;
+  f.child.emit('exit', 0, null);
+  try {
+    await Promise.all([stopping, waitThenStart]);
+    expect(vi.mocked(spawn).mock.calls.length).toBe(previous);
+  } finally {
+    f.supervisor.stop();
+  }
+});
 
 test('stop during beginHandshake does not activate or sync projections', async () => {
   const f = await createFixture({ startupTimeouts: { connectMs: 5_000, handshakeMs: 5_000 } });

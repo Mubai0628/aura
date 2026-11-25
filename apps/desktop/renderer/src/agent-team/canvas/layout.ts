@@ -158,10 +158,15 @@ export interface Camera {
 
 export const MIN_ZOOM = 0.4;
 export const MAX_ZOOM = 2;
-export const clampZoom = (zoom: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+export const clampZoom = (zoom: number, minimum = MIN_ZOOM) =>
+  Math.min(MAX_ZOOM, Math.max(minimum, zoom));
 
 /** The camera that shows every agent on a board this big, at most at full size, from the top. */
-export function fit(positions: Positions, board: { width: number; height: number }): Camera {
+export function fit(
+  positions: Positions,
+  board: { width: number; height: number },
+  minimum = MIN_ZOOM,
+): Camera {
   const boxes = Object.entries(positions).map(([key, at]) => boxOf(key, at));
   if (!boxes.length || board.width <= 0 || board.height <= 0) return { x: 0, y: 0, zoom: 1 };
   // Room for a branch tab above a sub-agent and an approval mark at its corner.
@@ -175,6 +180,7 @@ export function fit(positions: Positions, board: { width: number; height: number
       (board.width - 2 * MARGIN) / (right - left),
       (board.height - 2 * MARGIN) / (bottom - top),
     ),
+    minimum,
   );
   return {
     x: Math.round((board.width - (right - left) * zoom) / 2 - left * zoom),
@@ -184,8 +190,8 @@ export function fit(positions: Positions, board: { width: number; height: number
 }
 
 /** The camera zoomed by `factor` about the point `at` of the board. */
-export function zoomAbout(camera: Camera, factor: number, at: Point): Camera {
-  const zoom = clampZoom(camera.zoom * factor);
+export function zoomAbout(camera: Camera, factor: number, at: Point, minimum = MIN_ZOOM): Camera {
+  const zoom = clampZoom(camera.zoom * factor, minimum);
   const scale = zoom / camera.zoom;
   return { x: at.x - (at.x - camera.x) * scale, y: at.y - (at.y - camera.y) * scale, zoom };
 }

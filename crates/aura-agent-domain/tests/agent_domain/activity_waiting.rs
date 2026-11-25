@@ -20,6 +20,7 @@ fn a_secure_input_makes_a_running_conversation_wait_and_leaves_the_others() {
     let mut activity = AgentSessionsActivity {
         sessions: vec![running(asking), running(other)],
         ended: Vec::new(),
+        peer_results: Vec::new(),
     };
     let turns = activity.sessions[0].turn_task_ids.clone();
     activity.waiting_also(&[asking], AgentSessionWaitingFor::SensitiveInput);
@@ -51,6 +52,7 @@ fn an_approval_or_a_question_shows_before_a_secure_input_and_a_secure_input_befo
                 ..running(session)
             }],
             ended: Vec::new(),
+            peer_results: Vec::new(),
         };
         activity.waiting_also(&[session], AgentSessionWaitingFor::SensitiveInput);
         assert_eq!(activity.sessions[0].waiting_for, Some(shown), "{known:?}");

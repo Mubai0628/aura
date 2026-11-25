@@ -66,7 +66,7 @@ fn heads(db: &Connection, session: SessionId) -> StoreResult<Vec<Head>> {
     let mut query = db.prepare(
         "SELECT t.payload, e.sequence FROM turn_tasks t \
          JOIN events e ON e.event_id = json_extract(t.payload,'$.root_user_event_id') \
-         WHERE t.session_id=?1",
+         WHERE t.session_id=?1 AND e.kind='agent.user_message'",
     )?;
     let mut own = Vec::new();
     for row in query.query_map(params![session.to_string()], |row| {

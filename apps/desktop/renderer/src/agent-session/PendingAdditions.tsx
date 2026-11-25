@@ -1,6 +1,8 @@
 import type { AgentInboxProjection, AgentPendingMessage } from '@aura/contracts/generated';
 import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../clipboard';
+import { MessageAttachments } from '../composer-attachments/MessageAttachments';
+import { MessageReferencesLine } from '../composer-references/MessageReferences';
 import { ToolIcon } from '../tool-icon';
 import { QuotedWords } from './quote-reply/QuotedWords';
 import { userMessage } from './user-message';
@@ -16,14 +18,18 @@ export function PendingAdditions({
   inbox,
   turnTaskId,
   onChanged,
+  adoptedIds,
 }: {
   inbox: AgentInboxProjection;
   turnTaskId: string;
   onChanged: () => void;
+  adoptedIds?: ReadonlySet<string> | undefined;
 }) {
   const waiting = inbox.messages.filter(
     (message) =>
-      message.destination.lane === 'addition' && message.destination.turn_task_id === turnTaskId,
+      message.destination.lane === 'addition' &&
+      message.destination.turn_task_id === turnTaskId &&
+      !adoptedIds?.has(message.message_id),
   );
   return waiting.map((message) => (
     <PendingAddition
@@ -94,32 +100,34 @@ function PendingAddition({
     }
   };
   const copyLabel = copied ? '已复制' : '复制消息';
-  const files = message.attachments?.map((attachment) => attachment.name).join('、');
   return (
-    <article className="agent-user-message agent-steer-message agent-pending-addition">
-      <small>
-        追加信息
-        <span aria-label="等待模型接收" className="agent-pending-dots" role="status">
-          <i />
-          <i />
-          <i />
-        </span>
-      </small>
+    <article
+      aria-label="追加信息"
+      className="agent-user-message agent-steer-message agent-pending-addition"
+    >
+      <span aria-label="等待模型接收" className="agent-pending-dots" role="status">
+        <i />
+        <i />
+        <i />
+      </span>
       {message.text ? (
         <QuotedWords className="agent-message-text" text={message.text} words={(text) => text} />
       ) : null}
-      {files ? <small>附件 {files}</small> : null}
+      <MessageAttachments sessionId={inbox.session_id} attachments={message.attachments ?? []} />
+      <MessageReferencesLine references={message.references} />
       <div className="agent-user-actions">
         <div className="agent-reply-actions">
-          <button
-            aria-label={copyLabel}
-            className="icon-button agent-reply-action"
-            onClick={() => void copy()}
-            title={copyLabel}
-            type="button"
-          >
-            <ToolIcon name={copied ? 'check' : 'copy'} size={14} />
-          </button>
+          {message.text ? (
+            <button
+              aria-label={copyLabel}
+              className="icon-button agent-reply-action"
+              onClick={() => void copy()}
+              title={copyLabel}
+              type="button"
+            >
+              <ToolIcon name={copied ? 'check' : 'copy'} size={14} />
+            </button>
+          ) : null}
           <button
             aria-label="撤回到队列"
             className="icon-button agent-reply-action"

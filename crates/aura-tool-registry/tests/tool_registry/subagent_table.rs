@@ -5,13 +5,22 @@ use aura_tool_registry::{agent_release::release, subagent_keeps};
 /// What only the main agent has: the tools that end, plan or reconcile the user's turn, that ask
 /// the user, the team tools, and the user's own Chrome and desktop.
 fn main_only(name: &str) -> bool {
-    ["agents.", "chrome.", "computer.", "task_lineage.", "goal.", "plugin.chrome-control."]
-        .iter()
-        .any(|prefix| name.starts_with(prefix))
+    [
+        "agents.",
+        "peers.",
+        "chrome.",
+        "computer.",
+        "task_lineage.",
+        "goal.",
+        "plugin.chrome-control.",
+    ]
+    .iter()
+    .any(|prefix| name.starts_with(prefix))
         || [
             "normal.complete",
             "mode.disposition",
             "query.user_question",
+            "session.reply",
             "plan.complete",
             "workspace_init.complete",
             "terminal.request_sensitive_input",

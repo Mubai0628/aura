@@ -115,6 +115,30 @@ export function NewSessionView({
         if (!result.ok) throw new NotSent(preparationFailure(result.error, notSet));
       }
     }
+    if (current.allowSubagents !== undefined) {
+      const failure = '未能确认本会话的子 Agent 设置';
+      try {
+        const policy = await window.aura.v1.readSessionAgentPolicy({ session_id: id });
+        if (!policy.ok) throw policy.error;
+        if (policy.value.session_id !== id) throw new Error(failure);
+        if (policy.value.allow_proactive_temporary_agents !== current.allowSubagents) {
+          const saved = await window.aura.v1.setSessionAgentPolicy({
+            session_id: id,
+            expected_revision: policy.value.revision,
+            allow_proactive_temporary_agents: current.allowSubagents,
+          });
+          if (!saved.ok) throw saved.error;
+          if (
+            saved.value.session_id !== id ||
+            saved.value.allow_proactive_temporary_agents !== current.allowSubagents
+          ) {
+            throw new Error(failure);
+          }
+        }
+      } catch (error) {
+        throw new NotSent(preparationFailure(error, failure));
+      }
+    }
     return id;
   };
   return (
@@ -158,6 +182,10 @@ export function NewSessionView({
             demoMode={false}
             modelSelector={undefined}
             draftModelPicker={{ ...catalog, selectedId: draft.modelId ?? catalog.defaultId }}
+            draftAgentPolicy={{
+              allowed: draft.allowSubagents ?? false,
+              onChange: (allowSubagents) => updateComposerDraft(draft.id, { allowSubagents }),
+            }}
             preparation={{
               prepare,
               accepted: (id, text) => {

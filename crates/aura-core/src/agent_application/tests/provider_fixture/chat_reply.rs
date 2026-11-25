@@ -1,4 +1,6 @@
 use super::*;
+#[path = "peer_dispatch.rs"]
+pub(super) mod peer_dispatch;
 
 pub(super) struct ChatReply<'a> {
     pub scenario: Scenario,
@@ -46,6 +48,97 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
         discover,
         target,
     } = reply;
+    let user = peer_dispatch::latest_user(body);
+    let mut peer_results = body["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .rev()
+        .take_while(|message| message["role"] != "user" || message["content"] != user)
+        .filter(|message| message["role"] == "tool")
+        .map(|message| {
+            serde_json::from_str::<Value>(message["content"].as_str().unwrap_or("{}"))
+                .unwrap_or_default()
+        });
+    let invoke = |tool: &str, arguments: Value, n| json!({"role":"assistant","tool_calls":[call(tool, arguments, n)]});
+    if matches!(scenario, Scenario::HistoryReadPressure { .. }) {
+        if let Some(path) = user.strip_prefix("AURA-HISTORY-READ ")
+            && !body["messages"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .rev()
+                .take_while(|message| message["role"] != "user")
+                .any(|message| message["role"] == "tool")
+        {
+            return invoke("fs.read", json!({"path":path,"range":{"range_kind":"full"}}), 0);
+        }
+        return json!({"role":"assistant","content":"Fixture work done."});
+    }
+    if let Some(delivery) = user.strip_prefix("B5 discover ") {
+        let results = body["messages"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|message| message["role"] == "tool")
+            .filter_map(|message| {
+                serde_json::from_str::<Value>(message["content"].as_str().unwrap_or("{}")).ok()
+            })
+            .collect::<Vec<_>>();
+        if results.is_empty() {
+            return invoke("peers.status", json!({"delivery_id":delivery,"tool_call_id":null}), 0);
+        }
+        let sources = results[0]["outcome"]["payload"]["value"]["deliveries"][0]["sources"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let event = sources
+            .iter()
+            .max_by_key(|source| source["source_sequence"].as_u64())
+            .and_then(|source| source["event_id"].as_str())
+            .expect("a delivered source");
+        let max_chars = if sources.len() == 1 { 8000 } else { 200 };
+        if results.len() == 1 {
+            return invoke(
+                "peers.read_source",
+                json!({"delivery_id":delivery,"event_id":event,"offset":0,"max_chars":max_chars}),
+                0,
+            );
+        }
+        let page = &results.last().expect("read page")["outcome"]["payload"]["value"];
+        if let Some(next) = page["next_offset"].as_u64() {
+            return invoke(
+                "peers.read_source",
+                json!({"delivery_id":delivery,"event_id":event,"offset":next,"max_chars":max_chars}),
+                0,
+            );
+        }
+        return json!({"role":"assistant","content":page["text"].as_str().unwrap_or_default()});
+    } else if user.starts_with("B4 user authorizes a summary for B") {
+        match peer_results.next() {
+            None => return invoke("peers.list", json!({}), 0),
+            Some(last) if peer_results.next().is_none() => {
+                let directory = &last["outcome"]["payload"]["value"];
+                if let Some(target) = directory["peers"][0]["session_id"].as_str() {
+                    return invoke(
+                        "peers.dispatch",
+                        json!({
+                            "graph_id": directory["graph_id"],
+                            "graph_revision": directory["graph_revision"],
+                            "targets": [target],
+                            "task": "B4 peer: summarize only"
+                        }),
+                        1,
+                    );
+                }
+            }
+            _ => {}
+        }
+    } else if let Some(args) = user.strip_prefix("B5 source ")
+        && peer_results.next().is_none()
+    {
+        return invoke("peers.read_source", serde_json::from_str(args).expect("source fixture"), 0);
+    }
     if matches!(scenario, Scenario::DeepSeekWebFetchMissing) {
         let fetched = body["messages"]
             .as_array()
@@ -61,6 +154,9 @@ pub(super) fn delta(reply: ChatReply<'_>, call: &impl Fn(&str, Value, usize) -> 
     }
     if let Scenario::Team { plan } = scenario {
         return super::scenario::team::reply(plan, body, call);
+    }
+    if let Scenario::PeerDispatch { disconnect } = scenario {
+        return peer_dispatch::reply(body, call, disconnect);
     }
     if matches!(scenario, Scenario::ShellThenReadResult) {
         return super::context_read::reply(body, call);

@@ -219,7 +219,7 @@ mod tests {
         // desktop back after a takeover, and the approval card's 总是允许 (ReadOnly and
         // CommandInvocation, both surfaces). None of them acts on the desktop or reaches a model.
         ("computer", 8),
-        ("memory", 10),
+        ("memory", 11),
         // desktop-only user terminals: explicit Main/Core binding, no model authority. The user's
         // 「@」 on one (`terminal.user.hand_over`, CommandInvocation) gives it to the conversation's
         // model until the user takes it back.
@@ -308,7 +308,7 @@ mod tests {
         // `readAgentTeamSettings` and `setAgentTeamSettings`. Adds `agent.team.allowance.revoke`
         // (CommandInvocation, both surfaces), the preload's `revokeAgentTeamAllowance`: the user
         // takes back one thing a sub-agent's commands could do without asking; it never grants.
-        ("agent_team_settings", 3),
+        ("agent_team_settings", 8),
         // Adds Settings → Hook in its own module: list, preview and invocation records
         // (ReadOnly), trust, untrust, enable, remove and reorder (CommandInvocation, both
         // surfaces), and the Main-only folder picker. None of them runs a Hook; trust is

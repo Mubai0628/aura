@@ -25,6 +25,7 @@ fn two_sessions_merge_events_without_losing_content_and_archive_only_expired_blo
                 let actor = WriteActor {
                     kind: "automatic_maintenance".into(),
                     session_id: event.session_id,
+                    session_name: None,
                     turn_id: None,
                 };
                 barrier.wait();

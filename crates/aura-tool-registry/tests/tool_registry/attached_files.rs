@@ -3,14 +3,11 @@
 use aura_tool_registry::agent_release::release;
 
 #[test]
-fn fs_read_says_an_attached_outside_file_is_read_at_its_full_path() {
+fn fs_read_says_a_user_authorized_external_file_is_read_at_its_full_path() {
     let release = release().expect("verified current release");
     let description = &release.entry("fs.read").expect("published").definition.model_description;
     assert!(
-        description.contains(
-            "A file outside the workspace that the user attached to this conversation can be \
-             read at its full path."
-        ),
+        description.contains("A user-authorized external file can be read at its full path."),
         "{description}"
     );
 }

@@ -27,16 +27,20 @@ export function ConversationAttachments({
   className,
   draftKey,
   draftWorkspaceId,
+  inert,
   children,
 }: {
   className?: string;
   draftKey?: string | undefined;
   draftWorkspaceId?: string | undefined;
+  inert?: boolean | undefined;
   children: ReactNode;
 }) {
   return (
     <ConversationAttachmentState draftKey={draftKey} draftWorkspaceId={draftWorkspaceId}>
-      <ConversationDropArea className={className}>{children}</ConversationDropArea>
+      <ConversationDropArea className={className} inert={inert}>
+        {children}
+      </ConversationDropArea>
     </ConversationAttachmentState>
   );
 }
@@ -44,9 +48,11 @@ export function ConversationAttachments({
 function ConversationDropArea({
   className,
   children,
+  inert,
 }: {
   className: string | undefined;
   children: ReactNode;
+  inert: boolean | undefined;
 }) {
   const attached = useContext(ConversationAttachmentContext)!;
   const depth = useRef(0);
@@ -55,6 +61,7 @@ function ConversationDropArea({
     <section
       aria-label="当前会话"
       className={`${className ?? ''}${over ? ' is-file-drop-target' : ''}`}
+      inert={inert}
       onDragEnter={(event) => {
         if (!event.dataTransfer.types.includes('Files')) return;
         event.preventDefault();

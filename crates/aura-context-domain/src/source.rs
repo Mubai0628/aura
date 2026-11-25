@@ -36,3 +36,30 @@ pub enum ContextCompressibility {
     CompressibleSealedActiveSegment,
     UserReducibleOnly,
 }
+
+pub const ON_DEMAND_HISTORY_STATE: &str = "agent.history_recovery";
+pub const TOOL_RESULT_REFERENCE_PREFIX: &str = "[Tool result stored by reference:";
+
+#[must_use]
+pub fn is_tool_result_reference(text: &str) -> bool {
+    text.starts_with(TOOL_RESULT_REFERENCE_PREFIX)
+        || text.starts_with("[Earlier tool result cleared to save context:")
+}
+
+/// The only abbreviated representation accepted for an authenticated long user message.
+/// Byte boundaries are reproducible from the durable original on every provider path.
+pub fn user_event_excerpt(event: EventId, text: &str) -> Option<String> {
+    const EDGE: usize = 1024;
+    if text.len() <= EDGE * 3 {
+        return None;
+    }
+    let first = text.floor_char_boundary(EDGE);
+    let last = text.ceil_char_boundary(text.len() - EDGE);
+    Some(format!(
+        "{}\n[Aura excerpt of {event}; {} bytes omitted; original digest {}. Use history.search and history.read for the original.]\n{}",
+        &text[..first],
+        last - first,
+        ContentHash::sha256(text.as_bytes()).hex,
+        &text[last..]
+    ))
+}

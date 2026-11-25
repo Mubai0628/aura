@@ -47,24 +47,26 @@ async fn a_first_message_past_the_budget_in_bytes_is_sent_when_its_text_fits() {
     );
 }
 
-/// The same message, counted byte for byte as every uncounted request once was, never reaches
-/// the provider: the user is asked to reduce it although the model would have taken it.
+/// A conservative estimate may require a bounded view; the full original stays in history.
 #[tokio::test]
-async fn the_same_message_counted_byte_for_byte_waits_for_the_user() {
+async fn the_same_message_counted_byte_for_byte_is_available_on_demand() {
     let host = crate::r03_tests::Fixture::new();
     let provider = Provider::scenario(Scenario::Plain).await;
     let (runtime, session, model) =
         waiting::prepare_in_mode(&host, &provider, PermissionMode::ReadOnly).await;
     count_by_bytes(model);
     let run = start(&runtime, session, model, &records()).await;
-    waiting::wait(&runtime, &run, |v| {
-        matches!(v.run.state, AgentRunState::AwaitingContextRemediation { .. })
-    })
-    .await;
-    let view = remediation(call(&runtime, "agent.context.remediation", json!(run)).await);
-    let plan = view.remediation.expect("the reasons").plan;
-    assert_eq!(plan.overflow.error_code, "context.non_compressible_overflow");
-    assert!(provider.requests.lock().expect("requests").is_empty(), "nothing was sent");
+    waiting::wait(&runtime, &run, |v| matches!(v.turn.state, TurnTaskState::Completed { .. }))
+        .await;
+    let wire = provider
+        .requests
+        .lock()
+        .expect("provider request log")
+        .last()
+        .expect("provider received the bounded message")
+        .to_string();
+    assert!(wire.contains("AURA-UNMEASURED") && wire.contains("bytes omitted"));
+    assert!(!wire.contains("Record 02000:"));
 }
 
 /// The provider finds a request counted by the rule too long. Nothing is wrong with the model's

@@ -34,6 +34,8 @@ pub const TOOL_SEARCH_ALGORITHM_VERSION_V1: &str = "unicode_default_casefold_17_
 pub enum ToolRegistryContractError {
     #[error("tool settings are outside their frozen ranges")]
     InvalidSettings,
+    #[error("tool setting {field} is outside its supported range")]
+    SettingOutOfRange { field: &'static str },
     #[error(transparent)]
     InvalidNetworkProxy(#[from] crate::ToolNetworkProxyErrorV1),
     #[error("tool settings hash is inconsistent")]

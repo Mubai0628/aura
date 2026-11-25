@@ -7,6 +7,7 @@ export type AppUpdateCommand =
   | { command: 'state' }
   | { command: 'check' }
   | { command: 'download' }
+  | { command: 'retry_cleanup' }
   | { command: 'pause' }
   | { command: 'restart' }
   | { command: 'roll_back'; restore_data: boolean }
@@ -53,6 +54,8 @@ export interface AppUpdateState {
   latest: AppUpdateRelease | null;
   progress: { done: number; total: number } | null;
   error: string | null;
+  /** A successful install left files in the update cache. Not a failed install. */
+  cleanup_pending?: boolean;
   checked_at: string | null;
   auto_check: boolean;
   notice: AppUpdateNotice | null;
@@ -89,6 +92,7 @@ export function isAppUpdateCommand(value: unknown): value is AppUpdateCommand {
     case 'state':
     case 'check':
     case 'download':
+    case 'retry_cleanup':
     case 'pause':
     case 'restart':
     case 'dismiss_notice':
@@ -178,6 +182,7 @@ export function readAppUpdateState(value: unknown): AppUpdateState {
     notice === undefined ||
     progress === undefined ||
     !isTextOrNull(value.error) ||
+    (value.cleanup_pending !== undefined && typeof value.cleanup_pending !== 'boolean') ||
     !isTextOrNull(value.checked_at) ||
     typeof value.auto_check !== 'boolean' ||
     typeof value.rollback_needs_data !== 'boolean'
@@ -193,6 +198,9 @@ export function readAppUpdateState(value: unknown): AppUpdateState {
     latest,
     progress,
     error: value.error,
+    ...(typeof value.cleanup_pending === 'boolean'
+      ? { cleanup_pending: value.cleanup_pending }
+      : {}),
     checked_at: value.checked_at,
     auto_check: value.auto_check,
     notice,

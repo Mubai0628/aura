@@ -8,16 +8,20 @@ import {
 } from 'react';
 import './context-menu.css';
 
-export interface MenuAction {
+interface MenuLabel {
   label: string;
   icon?: ReactNode;
   disabled?: boolean;
   /** Said under the label: why it cannot be used here, or what it will do. */
   note?: string;
+}
+
+export interface MenuAction extends MenuLabel {
   run: () => void;
 }
 
-export type MenuEntry = MenuAction | 'separator';
+type MenuBranch = MenuLabel & { entries: MenuEntry[] };
+export type MenuEntry = MenuAction | MenuBranch | 'separator';
 
 export interface Opened {
   x: number;
@@ -43,9 +47,7 @@ export function ContextMenu({ x, y, label, entries, onClose }: Opened & { onClos
     if (!menu) return;
     if (typeof menu.showPopover === 'function') menu.showPopover();
     else menu.removeAttribute('popover');
-    const bounds = menu.getBoundingClientRect();
-    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - bounds.width - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - bounds.height - 8))}px`;
+    place(menu, x, y);
     items(menu)[0]?.focus();
     const outside = (event: Event) => {
       if (!(event.target instanceof Node) || !menu.contains(event.target)) onClose();
@@ -65,7 +67,91 @@ export function ContextMenu({ x, y, label, entries, onClose }: Opened & { onClos
     };
   }, [x, y, onClose]);
 
+  return (
+    <MenuLevel menuRef={ref} label={label} entries={entries} leave={leave} onClose={onClose} />
+  );
+}
+
+const EDGE = 8;
+
+function place(menu: HTMLElement, x: number, y: number, anchor?: HTMLElement) {
+  const bounds = menu.getBoundingClientRect();
+  const clamp = (start: number, extent: number, viewport: number) =>
+    Math.max(EDGE, Math.min(start, viewport - extent - EDGE));
+  const parent = anchor?.closest('[role="menu"]')?.getBoundingClientRect();
+  const top = clamp(y, bounds.height, window.innerHeight);
+  const left = clamp(x, bounds.width, window.innerWidth);
+  menu.style.left = `${left - (parent?.left ?? 0)}px`;
+  menu.style.top = `${top - (parent?.top ?? 0)}px`;
+}
+
+function Submenu({
+  branch,
+  anchor,
+  focus,
+  back,
+  leave,
+  onClose,
+}: {
+  branch: MenuBranch;
+  anchor: HTMLButtonElement;
+  focus: boolean;
+  back: () => void;
+  leave: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const menu = ref.current;
+    if (!menu) return;
+    const at = anchor.getBoundingClientRect();
+    const width = menu.getBoundingClientRect().width;
+    const parent = anchor.closest('[role="menu"]')?.getBoundingClientRect() ?? at;
+    const right = parent.right - 1;
+    const left = parent.left - width + 1;
+    const flip = right + width > window.innerWidth - EDGE && left >= EDGE;
+    place(menu, flip ? left : right, at.top, anchor);
+    if (focus) items(menu)[0]?.focus();
+  }, [anchor, focus]);
+  return (
+    <MenuLevel
+      menuRef={ref}
+      label={branch.label}
+      entries={branch.entries}
+      leave={leave}
+      onClose={onClose}
+      back={back}
+    />
+  );
+}
+
+function MenuLevel({
+  menuRef,
+  label,
+  entries,
+  leave,
+  onClose,
+  back,
+}: {
+  menuRef: React.RefObject<HTMLDivElement | null>;
+  label: string;
+  entries: MenuEntry[];
+  leave: () => void;
+  onClose: () => void;
+  back?: () => void;
+}) {
+  const [submenu, setSubmenu] = useState<{
+    entry: MenuBranch;
+    anchor: HTMLButtonElement;
+    focus: boolean;
+  }>();
+  function open(entry: MenuEntry, anchor: HTMLButtonElement, focus: boolean) {
+    if (entry !== 'separator' && 'entries' in entry && !entry.disabled) {
+      setSubmenu({ entry, anchor, focus });
+    } else if (!focus) setSubmenu(undefined);
+  }
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('[role="menu"]') !== event.currentTarget) return;
     const list = items(event.currentTarget);
     const at = list.indexOf(document.activeElement as HTMLButtonElement);
     const move = (index: number) => {
@@ -76,50 +162,90 @@ export function ContextMenu({ x, y, label, entries, onClose }: Opened & { onClos
     else if (event.key === 'ArrowUp') move(at - 1);
     else if (event.key === 'Home') move(0);
     else if (event.key === 'End') move(list.length - 1);
-    else if (event.key === 'Escape') {
+    else if (event.key === 'ArrowRight' && list[at]) {
+      const anchor = list[at];
+      const entry = entries[Number(anchor.dataset.entry)];
+      if (entry && entry !== 'separator' && 'entries' in entry) {
+        event.preventDefault();
+        open(entry, anchor, true);
+      }
+    } else if (event.key === 'ArrowLeft' && back) {
       event.preventDefault();
-      leave();
+      back();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      (back ?? leave)();
     } else if (event.key === 'Tab') onClose();
   };
 
   return (
     <div
       aria-label={label}
-      className="context-menu"
+      className={back ? 'context-menu context-submenu' : 'context-menu'}
       onContextMenu={(event) => event.preventDefault()}
       onKeyDown={keys}
-      popover="manual"
-      ref={ref}
+      popover={back ? undefined : 'manual'}
+      ref={menuRef}
       role="menu"
     >
-      {entries.map((entry, index) =>
-        entry === 'separator' ? (
-          <hr key={`separator-${index}`} />
-        ) : (
-          <button
-            aria-disabled={entry.disabled || undefined}
-            key={`${index}:${entry.label}`}
-            onClick={() => {
-              if (entry.disabled) return;
-              leave();
-              entry.run();
-            }}
-            role="menuitem"
-            type="button"
-          >
-            <span aria-hidden="true" className="context-menu-icon">
-              {entry.icon}
-            </span>
-            <span>{entry.label}</span>
-            {entry.note ? <span className="context-menu-note">{entry.note}</span> : null}
-          </button>
-        ),
-      )}
+      <div className="context-menu-items">
+        {entries.map((entry, index) =>
+          entry === 'separator' ? (
+            <hr key={`separator-${index}`} />
+          ) : (
+            <button
+              aria-disabled={entry.disabled || undefined}
+              aria-haspopup={'entries' in entry ? 'menu' : undefined}
+              aria-expanded={'entries' in entry ? submenu?.entry === entry : undefined}
+              data-entry={index}
+              key={`${index}:${entry.label}`}
+              onPointerEnter={(event) => {
+                if (submenu?.entry !== entry) open(entry, event.currentTarget, false);
+              }}
+              onClick={(event) => {
+                if (entry.disabled) return;
+                if ('entries' in entry) open(entry, event.currentTarget, true);
+                else {
+                  leave();
+                  entry.run();
+                }
+              }}
+              role="menuitem"
+              type="button"
+            >
+              <span aria-hidden="true" className="context-menu-icon">
+                {entry.icon}
+              </span>
+              <span>{entry.label}</span>
+              {'entries' in entry ? (
+                <span className="context-menu-chevron" aria-hidden="true">
+                  ›
+                </span>
+              ) : null}
+              {entry.note ? <span className="context-menu-note">{entry.note}</span> : null}
+            </button>
+          ),
+        )}
+      </div>
+      {submenu ? (
+        <Submenu
+          key={submenu.entry.label}
+          branch={submenu.entry}
+          anchor={submenu.anchor}
+          focus={submenu.focus}
+          leave={leave}
+          onClose={onClose}
+          back={() => {
+            submenu.anchor.focus();
+            setSubmenu(undefined);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
 /** The items a key can move to: every item, the unavailable ones too, so their notes are read. */
 const items = (menu: HTMLElement) => [
-  ...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+  ...menu.querySelectorAll<HTMLButtonElement>(':scope > .context-menu-items > [role="menuitem"]'),
 ];

@@ -183,6 +183,7 @@ fn another_providers_endpoint_keeps_the_state_after_the_conversation() {
     input(&request(&snapshot, &items[..1], "<State>one</State>"), &snapshot, session);
     let second = input(&request(&snapshot, &items, "<State>two</State>"), &snapshot, session);
     assert_eq!(second.len(), 3, "{second:?}");
+    assert_eq!([text(&second[0]), text(&second[1])], ["hello", "and then?"]);
     assert_eq!(text(second.last().expect("the state")), "<State>two</State>");
     assert!(!second.iter().any(|item| text(item) == "<State>one</State>"));
 }

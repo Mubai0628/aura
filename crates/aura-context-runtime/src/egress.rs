@@ -69,6 +69,7 @@ pub struct PersistedContextEventAuthorizationFact {
     pub actor: PersistedContextEventActor,
     pub content_hash: ContentHash,
     pub byte_length: u64,
+    pub excerpt: Option<(ContentHash, u64)>,
     pub model_visible: bool,
     pub explicitly_user_authored: bool,
 }
@@ -199,8 +200,11 @@ where
                     {
                         return Err(ModelEgressAuthorizationError::UserEventIdentityMismatch);
                     }
-                    if fact.content_hash != item.content_hash
-                        || fact.byte_length != item.byte_length
+                    if (fact.content_hash != item.content_hash
+                        || fact.byte_length != item.byte_length)
+                        && !fact.excerpt.as_ref().is_some_and(|(hash, bytes)| {
+                            hash == &item.content_hash && *bytes == item.byte_length
+                        })
                     {
                         return Err(ModelEgressAuthorizationError::UserEventContentMismatch);
                     }
@@ -270,6 +274,64 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn context_continuity_only_accepts_the_reproducible_excerpt_of_a_visible_event() {
+        let session = SessionId::new();
+        let event = EventId::new();
+        let source = "原始消息".repeat(800);
+        let excerpt =
+            aura_context_domain::user_event_excerpt(event, &source).expect("authenticated excerpt");
+        let expected = ContentHash::sha256(excerpt.as_bytes());
+        let mut facts = Facts {
+            channel: true,
+            events: BTreeMap::from([(
+                event,
+                PersistedContextEventAuthorizationFact {
+                    event_id: event,
+                    session_id: session,
+                    actor: PersistedContextEventActor::User,
+                    content_hash: ContentHash::sha256(source.as_bytes()),
+                    byte_length: source.len() as u64,
+                    excerpt: Some((expected.clone(), excerpt.len() as u64)),
+                    model_visible: true,
+                    explicitly_user_authored: true,
+                },
+            )]),
+        };
+        let manifest = |hash| {
+            build_model_egress_manifest(
+                ContextProjectionSnapshotId::new(),
+                vec![ModelEgressSourceDraft {
+                    source_ref: ContextSourceRef::Event { event_id: event },
+                    source_kind: ModelEgressSourceKind::UserEvent,
+                    data_class: NetworkDataClass::UserFileContent,
+                    content_hash: hash,
+                    byte_length: excerpt.len() as u64,
+                    authorization_basis: ModelEgressAuthorizationBasis::UserSubmission,
+                }],
+            )
+            .expect("excerpt manifest")
+        };
+        let profile = ModelProfileId::new();
+        ModelEgressAuthorizer::new(&facts)
+            .validate(session, profile, &manifest(expected.clone()))
+            .await
+            .expect("authorized excerpt");
+        assert_eq!(
+            ModelEgressAuthorizer::new(&facts)
+                .validate(session, profile, &manifest(ContentHash::sha256(b"edited excerpt")))
+                .await,
+            Err(ModelEgressAuthorizationError::UserEventContentMismatch)
+        );
+        facts.events.get_mut(&event).expect("persisted source").model_visible = false;
+        assert_eq!(
+            ModelEgressAuthorizer::new(&facts)
+                .validate(session, profile, &manifest(expected))
+                .await,
+            Err(ModelEgressAuthorizationError::UserEventNotVisible)
+        );
+    }
+
+    #[tokio::test]
     async fn user_submission_requires_the_exact_persisted_user_event_and_channel() {
         let session_id = SessionId::new();
         let event_id = EventId::new();
@@ -295,6 +357,7 @@ mod tests {
                     actor: PersistedContextEventActor::User,
                     content_hash: ContentHash::sha256(content.as_bytes()),
                     byte_length: content.len() as u64,
+                    excerpt: None,
                     model_visible: true,
                     explicitly_user_authored: true,
                 },

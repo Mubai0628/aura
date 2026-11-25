@@ -3,6 +3,7 @@ import type {
   AgentContextWindowCorrection,
 } from '@aura/contracts/generated';
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { isUnconfirmedCommandOutcome } from '../../shared/ipc-request-failure';
 import { failedAction } from './agent-session/failure-text';
@@ -18,12 +19,18 @@ export function ContextWindowCorrectionPanel({
   sessionId,
   record,
   onChanged,
+  refreshStatus,
+  refreshing,
+  readFeedback,
   onOpenModelSettings,
   onStop,
 }: {
   sessionId: string;
   record: AgentContextWindowCorrection;
   onChanged: () => void;
+  refreshStatus: () => void;
+  refreshing: boolean;
+  readFeedback: ReactNode;
   onOpenModelSettings: () => void;
   onStop: () => void;
 }) {
@@ -60,7 +67,8 @@ export function ContextWindowCorrectionPanel({
     numeric >= input.minimum_tokens &&
     (input.maximum_tokens == null || numeric <= input.maximum_tokens);
   const run = async (action: AgentContextWindowAction, save = false) => {
-    if (sending.current || unknown || record.state !== 'awaiting' || (save && !valid)) return;
+    if (sending.current || refreshing || unknown || record.state !== 'awaiting' || (save && !valid))
+      return;
     sending.current = true;
     setBusy(true);
     setError(undefined);
@@ -142,65 +150,89 @@ export function ContextWindowCorrectionPanel({
   return (
     <section className="agent-context-remediation" aria-label="上下文窗口修正">
       <strong>模型服务报告上下文超限</strong>
-      <p>当前任务等待处理。输入完整 Token 数修正窗口，或取消手工修正并尝试较小窗口。</p>
-      {resolution.type === 'automatic_candidates_exhausted' ? (
-        <p>较小窗口候选已用尽，请再次修正窗口或调整模型配置。</p>
-      ) : null}
-      {correction.provider_error ? (
-        <div className="provider-error-summary">
-          <strong>模型服务错误（已脱敏）</strong>
-          <p>
-            {correction.provider_error.provider_message ?? correction.provider_error.issue_code}
+      <div
+        className="context-remediation-details"
+        role="region"
+        aria-label="窗口修正详情"
+        tabIndex={0}
+      >
+        <p>当前任务等待处理。输入完整 Token 数修正窗口，或取消手工修正并尝试较小窗口。</p>
+        {resolution.type === 'automatic_candidates_exhausted' ? (
+          <p>较小窗口候选已用尽，请再次修正窗口或调整模型配置。</p>
+        ) : null}
+        {correction.provider_error ? (
+          <div className="provider-error-summary">
+            <strong>模型服务错误（已脱敏）</strong>
+            <p>
+              {correction.provider_error.provider_message ?? correction.provider_error.issue_code}
+            </p>
+          </div>
+        ) : null}
+        <label>
+          完整上下文窗口（Token）
+          <input
+            inputMode="numeric"
+            type="text"
+            value={tokens}
+            disabled={busy || unknown}
+            onChange={(event) => {
+              setTokens(event.target.value);
+              drafts.set(key, event.target.value);
+            }}
+          />
+        </label>
+        {error ? <p role="alert">{error}</p> : null}
+        {unknown ? (
+          <p role="alert">
+            上次处理的结果没有确认，没有自动重发；请先到模型设置里核对上下文窗口，再看任务是否还在等你处理。
           </p>
-        </div>
-      ) : null}
-      <label>
-        完整上下文窗口（Token）
-        <input
-          inputMode="numeric"
-          type="text"
-          value={tokens}
-          disabled={busy || unknown}
-          onChange={(event) => {
-            setTokens(event.target.value);
-            drafts.set(key, event.target.value);
-          }}
-        />
-      </label>
-      {error ? <p role="alert">{error}</p> : null}
-      {unknown ? (
-        <p role="alert">
-          上次处理的结果没有确认，没有自动重发；请先到模型设置里核对上下文窗口，再看任务是否还在等你处理。
-        </p>
-      ) : null}
+        ) : null}
+      </div>
+      {readFeedback}
       <div className="agent-actions">
         <button
+          className="button is-small is-primary"
           type="button"
-          disabled={busy || unknown || !valid}
+          disabled={busy || refreshing || unknown || !valid}
           onClick={() => void run('recheck', true)}
         >
           保存并重新检查
         </button>
         <button
+          className="button is-small"
           type="button"
-          disabled={busy || unknown || resolution.type === 'automatic_candidates_exhausted'}
+          disabled={
+            busy || refreshing || unknown || resolution.type === 'automatic_candidates_exhausted'
+          }
           onClick={() => void run('try_smaller_windows')}
         >
           取消手工修正，尝试较小窗口
         </button>
-        <button type="button" onClick={onOpenModelSettings}>
+        <button className="button is-small" type="button" onClick={onOpenModelSettings}>
           模型设置
         </button>
-        <button type="button" disabled={busy || unknown} onClick={() => void run('recheck')}>
+        <button
+          className="button is-small"
+          type="button"
+          disabled={busy || refreshing || unknown}
+          onClick={() => void run('recheck')}
+        >
           按当前配置重新检查
         </button>
-        <button type="button" disabled={busy} onClick={onChanged}>
-          刷新状态
+        <button
+          className="button is-small"
+          type="button"
+          disabled={busy || refreshing}
+          aria-busy={refreshing}
+          onClick={refreshStatus}
+        >
+          {refreshing ? '刷新中…' : '刷新状态'}
         </button>
         {unknown ? (
           <button
+            className="button is-small"
             type="button"
-            disabled={busy}
+            disabled={busy || refreshing}
             onClick={() => {
               uncertain.delete(key);
               setUnknown(false);
@@ -209,7 +241,7 @@ export function ContextWindowCorrectionPanel({
             已核对状态
           </button>
         ) : null}
-        <button type="button" onClick={onStop}>
+        <button className="button is-small is-danger" type="button" onClick={onStop}>
           停止任务
         </button>
       </div>

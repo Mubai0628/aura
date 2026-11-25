@@ -76,7 +76,7 @@ pub fn activity(db: &Connection, ended_turns: &[TurnTaskId]) -> StoreResult<Agen
             })
         })
         .collect::<StoreResult<Vec<_>>>()?;
-    Ok(AgentSessionsActivity { sessions, ended: ended(db, ended_turns)? })
+    Ok(AgentSessionsActivity { sessions, ended: ended(db, ended_turns)?, peer_results: Vec::new() })
 }
 
 fn ended(db: &Connection, turns: &[TurnTaskId]) -> StoreResult<Vec<AgentTurnEnded>> {

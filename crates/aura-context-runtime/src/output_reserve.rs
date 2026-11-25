@@ -17,6 +17,12 @@ pub fn trigger_output_reserve(configured_max_output_tokens: u64) -> u64 {
     configured_max_output_tokens.min(OUTPUT_RESERVE_FLOOR_TOKENS)
 }
 
+/// Room for request growth between successive context projections.
+#[must_use]
+pub fn context_growth_reserve(window: u64) -> u64 {
+    (window / 20).clamp(2_048, 16_384)
+}
+
 /// A budget that fits with the trigger reserve, given the room the window has left for the
 /// output: the request's output limit becomes that room, never above the configured limit.
 pub fn with_room_for_output(

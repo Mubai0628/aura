@@ -25,6 +25,7 @@ impl<H: TeamHost> Team<'_, H> {
             return Ok(spawned(&member, worktree.as_ref()));
         }
         self.refuse_subagent(parent_id).await?;
+        self.allow_new_work(parent_id).await?;
         let name = input.name.trim().to_owned();
         if name.is_empty()
             || name.chars().count() > NAME_MAX_CHARS
@@ -117,6 +118,9 @@ impl<H: TeamHost> Team<'_, H> {
         let inserted = self
             .host
             .write("agents.spawn.member", move |tx| {
+                if let Some(reason) = H::new_work_block(tx, parent_id)? {
+                    return Err(aura_persistence_core::PersistenceCoreError::Invalid(reason));
+                }
                 member.handle = store::next_handle(tx, parent_id)?;
                 store::insert_member(tx, &member)?;
                 if let Some(row) = &row {

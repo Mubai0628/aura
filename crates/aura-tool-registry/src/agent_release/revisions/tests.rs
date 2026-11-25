@@ -20,6 +20,9 @@ fn graduation_tool_schemas_refuse_fixed_limit_violations() {
     let lineage = aura_domain_common::TaskLineageId::new();
     let url = "https://example.test/page";
     for (tool, value) in [
+        ("fs.search", json!({"pattern":{"kind":"literal","text":"check"},"path":"README.md"})),
+        ("shell.powershell", json!({"script":"Write-Output check","max_output_tokens":1000})),
+        ("shell.cmd", json!({"script":"echo check","max_output_tokens":1000})),
         ("web.fetch", json!({"url": url, "max_bytes": 0})),
         ("web.fetch", json!({"url": url, "max_bytes": 8_388_609})),
         ("web.read", json!({"document_artifact_id": artifact, "max_chars": 0})),
@@ -46,6 +49,14 @@ fn graduation_tool_schemas_refuse_fixed_limit_violations() {
         assert!(!accepts(tool, value.clone()), "{tool} accepted {value}");
     }
     assert!(accepts("web.fetch", json!({"url": url, "max_bytes": 8_388_608})));
+    assert!(accepts(
+        "fs.search",
+        json!({"pattern":{"kind":"literal","text":"check"},"root":"docs","path_glob":"README.md"})
+    ));
+    assert!(accepts(
+        "shell.powershell",
+        json!({"script":"Write-Output check","max_output_bytes":1000})
+    ));
     assert!(accepts("web.read", json!({"document_artifact_id": artifact, "max_chars": 65_536})));
     assert!(accepts(
         "agents.spawn",

@@ -63,6 +63,8 @@ export class AppUpdates {
   #state: AppUpdateState;
   #latest: FeedRelease | null = null;
   #download: AbortController | null = null;
+  #unclearedPackages: string[] = [];
+  #retryingCleanup = false;
   #timer: ReturnType<typeof setTimeout> | null = null;
   #reread: ReturnType<typeof setTimeout> | null = null;
   #rereads = 0;
@@ -244,7 +246,12 @@ export class AppUpdates {
   async download(): Promise<AppUpdateState> {
     const installation = this.dependencies.installation;
     const latest = this.#latest;
-    if (!installation || !latest || ['downloading', 'applying'].includes(this.#state.phase)) {
+    if (
+      !installation ||
+      !latest ||
+      this.#retryingCleanup ||
+      ['downloading', 'applying'].includes(this.#state.phase)
+    ) {
       return this.#state;
     }
     this.#download = new AbortController();
@@ -271,11 +278,13 @@ export class AppUpdates {
       this.#download = null;
       this.#set({ phase: 'applying' });
       const waiting = await runSetup(installation, ['--apply-update', file], this.dependencies.run);
-      // The update is installed: a package that cannot be removed now goes at the next start.
-      await this.#clearPackages().catch((error: unknown) =>
-        this.dependencies.log?.('app_update.cleanup_failed', { reason: reasonOf(error) }),
-      );
-      return this.#set({ phase: 'ready', waiting, progress: null });
+      this.#unclearedPackages = await this.#tryClearPackages(await this.#packageNames());
+      return this.#set({
+        phase: 'ready',
+        waiting,
+        progress: null,
+        cleanup_pending: this.#unclearedPackages.length > 0,
+      });
     } catch (error) {
       const paused = this.#download?.signal.aborted === true;
       this.#download = null;
@@ -323,11 +332,47 @@ export class AppUpdates {
     }
   }
 
+  async #packageNames(): Promise<string[]> {
+    return (await readdir(this.#folder()).catch(() => [] as string[])).filter(
+      (name) => name.endsWith('.aura-update') || name.endsWith('.part'),
+    );
+  }
+
   async #clearPackages(): Promise<void> {
-    for (const name of await readdir(this.#folder()).catch(() => [] as string[])) {
-      if (name.endsWith('.aura-update') || name.endsWith('.part')) {
+    for (const name of await this.#packageNames()) {
+      await rm(join(this.#folder(), name), { force: true });
+    }
+  }
+
+  async #tryClearPackages(names: readonly string[]): Promise<string[]> {
+    const pending: string[] = [];
+    for (const name of names) {
+      try {
         await rm(join(this.#folder(), name), { force: true });
+      } catch (error) {
+        if (!pending.length)
+          this.dependencies.log?.('app_update.cleanup_failed', { reason: reasonOf(error) });
+        pending.push(name);
       }
+    }
+    return pending;
+  }
+
+  async retryCleanup(): Promise<AppUpdateState> {
+    if (
+      !this.dependencies.installation ||
+      !this.#unclearedPackages.length ||
+      this.#retryingCleanup ||
+      ['downloading', 'applying'].includes(this.#state.phase)
+    )
+      return this.#state;
+    this.#retryingCleanup = true;
+    try {
+      // Only names retained from the completed install, never a rescan or a renderer path.
+      this.#unclearedPackages = await this.#tryClearPackages(this.#unclearedPackages);
+      return this.#set({ cleanup_pending: this.#unclearedPackages.length > 0 });
+    } finally {
+      this.#retryingCleanup = false;
     }
   }
 
@@ -388,6 +433,8 @@ export class AppUpdates {
         return this.check();
       case 'download':
         return this.download();
+      case 'retry_cleanup':
+        return this.retryCleanup();
       case 'pause':
         return this.pause();
       case 'restart':

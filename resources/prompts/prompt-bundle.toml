@@ -1,5 +1,5 @@
 schema_version = 1
-bundle_version = "1.33.0"
+bundle_version = "1.36.0"
 serializer_version = 1
 
 [[modules]]
@@ -67,7 +67,7 @@ order = 60
 
 [[modules]]
 id = "core.working-efficiently"
-version = "1.0.0"
+version = "1.4.0"
 path = "core/working-efficiently.md"
 required = true
 section = "core"
@@ -76,7 +76,7 @@ order = 65
 
 [[modules]]
 id = "core.user-interaction"
-version = "1.4.0"
+version = "1.5.0"
 path = "core/user-interaction.md"
 required = true
 section = "core"
@@ -103,7 +103,7 @@ order = 90
 
 [[modules]]
 id = "core.normal-completion"
-version = "2.3.0"
+version = "2.4.0"
 path = "core/normal-completion.md"
 required = true
 section = "core"
@@ -239,7 +239,7 @@ order = 240
 
 [[modules]]
 id = "capabilities.agents"
-version = "1.4.2"
+version = "1.6.0"
 path = "capabilities/agents.md"
 required = false
 section = "core"
@@ -248,7 +248,7 @@ order = 250
 
 [[modules]]
 id = "mode.normal"
-version = "1.3.0"
+version = "1.4.0"
 path = "modes/normal.md"
 required = true
 section = "agent_mode"

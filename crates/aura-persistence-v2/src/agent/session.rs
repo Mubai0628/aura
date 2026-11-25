@@ -297,6 +297,14 @@ pub fn ordered_messages(
     session: SessionId,
     ids: impl IntoIterator<Item = EventId>,
 ) -> StoreResult<Vec<aura_agent_domain::OriginalUserMessage>> {
+    Ok(ordered_message_events(db, session, ids)?.into_iter().map(|(_, message)| message).collect())
+}
+
+pub(crate) fn ordered_message_events(
+    db: &Connection,
+    session: SessionId,
+    ids: impl IntoIterator<Item = EventId>,
+) -> StoreResult<Vec<(i64, aura_agent_domain::OriginalUserMessage)>> {
     let mut seen = std::collections::BTreeSet::new();
     let mut values = Vec::new();
     for id in ids {
@@ -311,7 +319,7 @@ pub fn ordered_messages(
         values.push((sequence, message));
     }
     values.sort_by_key(|(sequence, _)| *sequence);
-    Ok(values.into_iter().map(|(_, message)| message).collect())
+    Ok(values)
 }
 pub fn user_message(
     db: &Connection,

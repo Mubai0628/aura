@@ -8,13 +8,15 @@ use aura_domain_common::{
     *,
 };
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact, event, record};
-use aura_tool_contract::{NormalizedToolCallInputStateV1, ToolResultOutcomeV1};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+mod tool_results;
+pub(crate) use tool_results::whole_tool_result;
+pub use tool_results::{index_tool_result, tool_result};
+
 const HARD_CHARS: usize = 262_144;
-const RESULT_PAGE: usize = 65_536;
 /// A cursor that is not one this read gave.
 const CURSOR_UNKNOWN: &str = "context.cursor: it is not a cursor this read gave; pass next_cursor \
                               exactly as the last page returned it, or leave it out to start again";
@@ -391,132 +393,4 @@ pub(crate) fn own_rows(db: &Connection, session: SessionId, cutoff: i64) -> Stor
         });
     }
     Ok(result)
-}
-pub fn tool_result(
-    tx: &Transaction<'_>,
-    session: SessionId,
-    run: AgentRunId,
-    input: &AgentContextReadToolResultInput,
-    at: UtcTimestamp,
-) -> StoreResult<ContextReadToolResultResult> {
-    scope(tx, session, run)?;
-    // A call of a turn a branch carried is read from what the branch kept of it.
-    let whole = match crate::agent::branch::carried_tool_result(tx, session, input.tool_call_id)? {
-        Some(carried) => carried,
-        None => whole_tool_result(tx, session, input.tool_call_id)
-            .map_err(|error| unreadable(tx, input.tool_call_id, error))?,
-    };
-    let content = whole.result;
-    let hash = ContentHash::blake3(content.as_bytes());
-    let binding = canonical_sha256(&(input.tool_call_id, input.include_input, &hash))
-        .map_err(|_| Error::Conflict)?;
-    let mut page = cursor(tx, run, input.cursor.as_deref(), "tool_result", binding)?;
-    if page.position > content.len() || !content.is_char_boundary(page.position) {
-        return Err(Error::Conflict);
-    }
-    let end = content[page.position..]
-        .char_indices()
-        .nth(RESULT_PAGE)
-        .map_or(content.len(), |(i, _)| page.position + i);
-    let text = content[page.position..end].to_owned();
-    let arguments = if input.include_input && page.position == 0 {
-        let value = whole.input.ok_or(Error::Conflict)?;
-        if value.chars().count() > HARD_CHARS {
-            return Err(Error::Invalid(
-                "context.read_tool_result.include_input: this call's input is longer than 262,144 \
-                 characters, too long to include; read its result with include_input set to false",
-            ));
-        }
-        Some(value)
-    } else {
-        None
-    };
-    page.position = end;
-    Ok(ContextReadToolResultResult {
-        value: ContextReadToolResultView {
-            tool_call_id: input.tool_call_id,
-            tool_name: whole.tool_name,
-            input: arguments,
-            result: text,
-            is_error: whole.is_error,
-            content_hash: hash,
-        },
-        next_cursor: if end < content.len() {
-            Some(save_cursor(tx, run, &page, at)?)
-        } else {
-            None
-        },
-    })
-}
-
-/// The words for a call whose result cannot be read, when the call itself is why: it is not one
-/// of this conversation's calls, or it has no result yet. Anything else stays as it was.
-fn unreadable(db: &Connection, id: ToolCallId, error: Error) -> Error {
-    match error {
-        // The first lookup joins the call to this session's batches; no row means no such call.
-        Error::Sqlite(rusqlite::Error::QueryReturnedNoRows) => Error::Invalid(
-            "context.read_tool_result.tool_call_id: no tool call of this conversation has this \
-             id; copy the id exactly from the call whose result you want",
-        ),
-        Error::Conflict => match crate::tool::execution::call(db, id) {
-            Ok(call) if call.result.is_none() => {
-                Error::Invalid("context.read_tool_result.unfinished")
-            }
-            _ => Error::Conflict,
-        },
-        error => error,
-    }
-}
-
-/// One tool call's whole stored result, its input and its name, as `context.read_tool_result`
-/// pages them. A branch keeps this for each call of the turns it carries.
-pub(crate) fn whole_tool_result(
-    db: &Connection,
-    session: SessionId,
-    tool_call_id: ToolCallId,
-) -> StoreResult<crate::agent::branch::CarriedToolResult> {
-    let batch_id:String=db.query_row("SELECT c.batch_id FROM tool_calls c JOIN tool_batches b ON b.id=c.batch_id WHERE c.id=?1 AND b.session_id=?2",params![tool_call_id.to_string(),session.to_string()],|r|r.get(0))?;
-    let batch = crate::tool::execution::batch(db, batch_id.parse().map_err(|_| Error::Conflict)?)?;
-    let producer = crate::agent::turns::load_run(db, batch.batch.invocation_identity.agent_run_id)?;
-    if producer.parent_agent_run_id.is_some() {
-        return Err(Error::Conflict);
-    }
-    let call = crate::tool::execution::call(db, tool_call_id)?;
-    let result = call.result.ok_or(Error::Conflict)?;
-    let bytes = artifact::read(
-        db,
-        result.model_visible_result_ref.ok_or(Error::Conflict)?,
-        &tool_call_id.to_string(),
-    )?;
-    let envelope =
-        serde_json::from_slice::<aura_tool_contract::ModelVisibleToolResultEnvelopeV1>(&bytes)?;
-    let input = match &call.call.input {
-        NormalizedToolCallInputStateV1::Ready { arguments, .. } => {
-            serde_json::to_string(arguments)?
-        }
-        _ => serde_json::to_string(&call.call.input)?,
-    };
-    let name = if let Some(reference) = &call.call.definition_ref {
-        let registry =
-            crate::tool::registry(db, batch.batch.registry_snapshot_ref.tool_registry_snapshot_id)?
-                .ok_or(Error::Conflict)?;
-        registry
-            .catalog_entries
-            .iter()
-            .find(|e| e.tool_id == reference.tool_id && e.tool_version == reference.tool_version)
-            .ok_or(Error::Conflict)?
-            .canonical_name
-            .to_string()
-    } else {
-        crate::tool::call_name::unbound(db, &batch, &call.call)?
-    };
-    // Read again, a result reads as the model's history shows it.
-    let content = crate::agent::model_context::result_text::model_text(&name, &envelope);
-    Ok(crate::agent::branch::CarriedToolResult {
-        tool_call_id,
-        tool_name: name,
-        input: Some(input),
-        result: content,
-        is_error: !matches!(result.outcome, ToolResultOutcomeV1::Succeeded),
-    })
 }

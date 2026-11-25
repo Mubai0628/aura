@@ -214,6 +214,112 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
     ])
       expect(() => parseAgentResult('agent.status', value)).toThrow();
   });
+  it('validates profile actions and refuses client-supplied authorship', async () => {
+    const value = {
+      session_id: start.session_id,
+      workspace_id: `wsp_${id}`,
+      name: '旧会话',
+      description: '',
+      description_source: 'none',
+      revision: 0,
+      updated_at: null,
+      input_tokens: 0,
+      output_tokens: 0,
+      usage_complete: true,
+      generation: null,
+    };
+    const send = vi.fn().mockResolvedValue({ ok: true, value });
+    const bridge = agentBridge(
+      send,
+      error,
+      (value): value is IpcErrorEnvelope =>
+        typeof value === 'object' && value !== null && 'code' in value,
+    );
+    expect(await bridge.readAgentProfile({ session_id: start.session_id })).toEqual({
+      ok: true,
+      value,
+    });
+    expect(
+      await bridge.previewAgentProfile({ session_id: start.session_id, expected_revision: 0 }),
+    ).toEqual({ ok: true, value });
+    expect(
+      isAgentParams('agent.team.profile.set', {
+        session_id: start.session_id,
+        expected_revision: 0,
+        description: '职责',
+        author: 'another-agent',
+      }),
+    ).toBe(false);
+    expect(() =>
+      parseAgentResult('agent.team.profile.get', { ...value, actor: 'forged' }),
+    ).toThrow();
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+  it('keeps graph authorship and scope out of caller control and validates graph replies', async () => {
+    const request = {
+      session_id: start.session_id,
+      expected_graph: { graph_id: null, revision: 0 },
+      action: { action: 'place', positions: [{ session_id: start.session_id, x: -120, y: 96 }] },
+    };
+    expect(isAgentParams('agent.team.graph.mutate', request)).toBe(true);
+    for (const value of [
+      { ...request, author_session_id: start.session_id },
+      { ...request, workspace_id: `wsp_${id}` },
+      { ...request, expected_graph: { graph_id: start.session_id, revision: 0 } },
+      { ...request, action: { ...request.action, authority: 'user' } },
+      {
+        ...request,
+        action: { action: 'place', positions: [{ session_id: start.session_id, x: 1.5, y: 0 }] },
+      },
+    ])
+      expect(isAgentParams('agent.team.graph.mutate', value)).toBe(false);
+    const value = {
+      graph: {
+        graph_id: null,
+        workspace_id: `wsp_${id}`,
+        revision: 0,
+        sessions: [start.session_id],
+        edges: [],
+        positions: [],
+      },
+      profiles: [],
+      teams: [
+        {
+          parent_session_id: start.session_id,
+          team: { lead: { model: 'Fixture', working: false, tokens: 0 }, members: [] },
+        },
+      ],
+      candidates: [],
+    };
+    const send = vi.fn().mockResolvedValue({ ok: true, value });
+    const bridge = agentBridge(
+      send,
+      error,
+      (candidate): candidate is IpcErrorEnvelope =>
+        typeof candidate === 'object' && candidate !== null && 'code' in candidate,
+    );
+    expect(await bridge.readAgentGraph({ session_id: start.session_id })).toEqual({
+      ok: true,
+      value,
+    });
+    expect(
+      await bridge.mutateAgentGraph({
+        session_id: start.session_id,
+        expected_graph: { graph_id: null, revision: 0 },
+        action: { action: 'place', positions: [{ session_id: start.session_id, x: -120, y: 96 }] },
+      }),
+    ).toEqual({ ok: true, value });
+    expect(() =>
+      parseAgentResult('agent.team.graph.get', { ...value, author: 'forged' }),
+    ).toThrow();
+    expect(() =>
+      parseAgentResult('agent.team.graph.get', {
+        ...value,
+        teams: [{ ...value.teams[0], parent_session_id: 'A1' }],
+      }),
+    ).toThrow();
+    expect(send).toHaveBeenCalledTimes(2);
+  });
   it('exposes only the fixed whitelisted actions and preserves validated success/refusal', async () => {
     const refusal = error('permission.denied', 'Denied');
     const send = vi
@@ -260,9 +366,11 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'listMcpServers',
       'listPlugins',
       'listSkills',
+      'managePeerMailbox',
       // A sent picture copied or saved by the user.
       'messagePicture',
       'moveHook',
+      'mutateAgentGraph',
       'mutateAgentInbox',
       // A sub-agent's worktree in the file manager, from its menu on the canvas or its record.
       'openAgentTeamWorktree',
@@ -275,16 +383,19 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'pluginPanels',
       // Plugins' notices and status entries, as Main shows them (its own validated channel).
       'pluginUi',
+      'previewAgentProfile',
       'previewHook',
       'previewMcpServer',
       'previewPlugin',
       'previewSkill',
       'readAgentCompaction',
       'readAgentContextRemediation',
+      'readAgentGraph',
       'readAgentHistory',
       'readAgentInbox',
       'readAgentInspector',
       'readAgentMessageText',
+      'readAgentProfile',
       'readAgentResult',
       'readAgentSessionsActivity',
       // What a worktree changed, for the 多 Agent page and a merge's approval.
@@ -295,6 +406,8 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'readAgentToolSettings',
       // The text of a text file a message carried.
       'readAttachmentText',
+      'readPeerMailbox',
+      'readSessionAgentPolicy',
       'readShellExecution',
       // 设置 → 存储 → 工作副本: where new worktrees go.
       'readWorktreeLocation',
@@ -318,6 +431,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'selectSkillArchive',
       'selectSkillDirectory',
       'selectWorktreeLocation',
+      'setAgentProfile',
       'setAgentTeamSettings',
       'setCommandEnabled',
       'setHookEnabled',
@@ -326,6 +440,7 @@ describe('generated Agent boundary and fixed desktop bridge', () => {
       'setPluginEnabled',
       // A plugin's secret setting on its own SecretInput channel.
       'setPluginSecret',
+      'setSessionAgentPolicy',
       'setSkillEnabled',
       'setSkillPinned',
       'setWorktreeLocation',

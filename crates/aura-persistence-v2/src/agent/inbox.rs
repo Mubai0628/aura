@@ -55,7 +55,9 @@ fn addition_is_active(
         return Ok(false);
     }
     let value = turns::load(db, turn)?;
-    Ok(value.session_id == session_id && !value.state.terminal())
+    Ok(value.session_id == session_id
+        && !value.state.terminal()
+        && super::peer_input::delivery(db, &value)?.is_none())
 }
 
 fn replay<T: serde::Serialize>(
@@ -263,7 +265,10 @@ pub fn mutate(
     }
     let mut next = previous.clone();
     match &input.action {
-        AgentInboxAction::Pause => next.paused = true,
+        AgentInboxAction::Pause => {
+            next.paused = true;
+            next.pause_reason = Some("agent.inbox.user_paused".into());
+        }
         AgentInboxAction::Resume => {
             next.paused = false;
             next.pause_reason = None;
@@ -418,19 +423,71 @@ pub fn pause_with_reason(
 }
 
 pub fn startup(tx: &Transaction<'_>, at: UtcTimestamp) -> StoreResult<()> {
+    for id in inbox_sessions(tx)? {
+        let queue = load(tx, id)?;
+        if !queue.messages.is_empty() {
+            pause_with_reason(
+                tx,
+                id,
+                queue.pause_reason.or_else(|| Some("agent.inbox.restart_paused".into())),
+                at,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Older Core paused every known inbox on startup, even an empty one. Its authenticated
+/// pause commands have receipts, so a user's pause in the current pause period stays held.
+pub(super) fn legacy_empty_pause_is_automatic(
+    db: &Connection,
+    queue: &AgentInboxProjection,
+) -> StoreResult<bool> {
+    if !queue.paused || !queue.messages.is_empty() || queue.pause_reason.is_some() {
+        return Ok(false);
+    }
+    let manual = db.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM events WHERE kind='agent.inbox_command'
+              AND sequence>COALESCE((
+                  SELECT MAX(sequence) FROM events
+                  WHERE owner=?1 AND kind='agent.inbox' AND json_extract(payload,'$.paused')=0
+              ),0)
+              AND json_extract(payload,'$.session_id')=?2
+              AND json_extract(payload,'$.action.action')='pause'
+        )",
+        rusqlite::params![owner(queue.session_id), queue.session_id.to_string()],
+        |row| row.get::<_, bool>(0),
+    )?;
+    Ok(!manual)
+}
+
+/// Reads pending input without changing any user's, restart's or failure's pause.
+pub fn pending_sessions(db: &Connection) -> StoreResult<Vec<SessionId>> {
+    let mut pending = Vec::new();
+    for id in inbox_sessions(db)? {
+        if !load(db, id)?.messages.is_empty() {
+            pending.push(id);
+        }
+    }
+    Ok(pending)
+}
+
+fn inbox_sessions(db: &Connection) -> StoreResult<Vec<SessionId>> {
     // Every inbox is an owner of this prefix: a range of the index, not the journal.
-    let mut q = tx.prepare(
+    let mut q = db.prepare(
         "SELECT DISTINCT owner FROM events \
          WHERE owner>='agent-inbox:' AND owner<'agent-inbox;' AND kind='agent.inbox'",
     )?;
     let owners = q.query_map([], |r| r.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
+    let mut sessions = Vec::new();
     for name in owners {
         let id = name
             .strip_prefix("agent-inbox:")
             .ok_or(Error::Conflict)?
             .parse()
             .map_err(|_| Error::Conflict)?;
-        pause(tx, id, at)?;
+        sessions.push(id);
     }
-    Ok(())
+    Ok(sessions)
 }

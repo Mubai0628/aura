@@ -1,4 +1,4 @@
-import type { MouseEvent, PointerEvent } from 'react';
+import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react';
 import { amount, toolWords } from '../agent-team-words';
 import { LEAD, MEMBER, type Point } from './layout';
 import type { NodeFacts } from './node-facts';
@@ -12,23 +12,56 @@ export function CanvasNode({
   chosen,
   onPointerDown,
   onPick,
+  onOpen,
   onMenu,
+  context,
+  ariaLabel,
+  selectedForMove,
+  graphNode,
+  linkSource,
+  onKeyDown,
 }: {
   facts: NodeFacts;
   at: Point;
   lead?: boolean;
   chosen: boolean;
+  context?: string | undefined;
+  ariaLabel?: string | undefined;
+  selectedForMove?: boolean;
+  graphNode?: string;
+  linkSource?: boolean;
+  onKeyDown?: (event: KeyboardEvent<HTMLButtonElement>) => void;
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
   onPick: () => void;
+  onOpen?: (() => void) | undefined;
   onMenu?: ((event: MouseEvent<HTMLButtonElement>) => void) | undefined;
 }) {
   const size = lead ? LEAD : MEMBER;
   return (
     <button
       aria-current={chosen ? 'true' : 'false'}
+      aria-pressed={selectedForMove}
+      aria-keyshortcuts={selectedForMove === undefined ? undefined : 'Control+Space Enter'}
+      data-graph-node={graphNode}
+      data-link-source={linkSource || undefined}
+      aria-haspopup={onMenu ? 'menu' : undefined}
+      aria-label={
+        ariaLabel ??
+        (context
+          ? `${context}的 ${facts.handle ?? ''} ${facts.name}，${facts.model}，${facts.state}，${amount(facts.tokens)} Token${facts.tool ? `，${toolWords(facts.tool)}` : ''}`
+          : undefined)
+      }
+      title={context ? `${context}的 ${facts.handle ?? ''} ${facts.name}` : undefined}
       className={`agent-canvas-node${lead ? ' is-lead' : ''}${facts.ended ? ' is-ended' : ''}`}
       onClick={onPick}
+      onDoubleClick={onOpen}
       onContextMenu={onMenu}
+      onKeyDown={(event) => {
+        if (onOpen && event.key === 'Enter') {
+          event.preventDefault();
+          onOpen();
+        } else onKeyDown?.(event);
+      }}
       onPointerDown={onPointerDown}
       style={{ left: at.x, top: at.y, width: size.width, height: size.height }}
       type="button"
@@ -44,7 +77,9 @@ export function CanvasNode({
         <span className="agent-team-state" data-phase={facts.phase}>
           {facts.state}
         </span>
-        <span className="agent-canvas-tokens">{amount(facts.tokens)}</span>
+        <span className="agent-canvas-tokens" title="会话累计 token">
+          {amount(facts.tokens)}
+        </span>
       </span>
       <span className="agent-canvas-line">{facts.tool ? toolWords(facts.tool) : ''}</span>
     </button>

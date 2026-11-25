@@ -185,15 +185,17 @@
   padding-right: 10px;
 }
 
-.attachment-picture-missing {
-  display: block;
-  box-sizing: border-box;
-  width: 220px;
+.attachment-picture-placeholder {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 4px;
+  min-width: 64px;
   min-height: 64px;
-  padding: 8px 10px;
-  font-size: 11px;
-  line-height: 1.5;
   color: var(--quiet);
+}
+.attachment-picture-placeholder[role='status'] {
+  padding: 0 8px;
 }
 
 .conversation-workspace.is-file-drop-target {

@@ -4,6 +4,7 @@
 //! message added, or a turn stopped, failed or interrupted and then continued stays in its round.
 //! Rounds and their entries are worked out from the turns and events whenever they are asked for;
 //! a round that is over never changes, so its ids stay. A branch's carried turns come first.
+mod context_index;
 mod entries;
 mod recall;
 mod referred;
@@ -200,9 +201,15 @@ pub fn recent(
     count: usize,
     until: Option<aura_domain_common::UtcTimestamp>,
 ) -> StoreResult<Vec<HistoryTurnLine>> {
-    let all = rounds(db, session)?
+    Ok(context_index::recent(db, session, count, until, HISTORY_FIRST_MESSAGE_CHARS)?
         .into_iter()
-        .filter(|round| until.is_none_or(|until| round.sent_at <= until))
-        .collect::<Vec<_>>();
-    Ok(all.iter().skip(all.len().saturating_sub(count)).map(line).collect())
+        .map(|head| {
+            let mut line = line(&head.round);
+            if head.characters > line.first_message_chars {
+                line.first_message.push('…');
+            }
+            line.first_message_chars = head.characters;
+            line
+        })
+        .collect())
 }

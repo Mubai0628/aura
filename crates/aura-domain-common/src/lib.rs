@@ -32,18 +32,19 @@ pub use file::{FileIdentity, WorkspacePath, WorkspacePathError};
 pub use file_name::FileNameComparison;
 pub use id::parse_typed_ulid;
 pub use id::{
-    AgentRunId, ApprovalDecisionId, ApprovalRequestId, ArtifactId, AttachmentGrantId,
-    BrowserShareId, COMMON_ID_PREFIXES, COMMON_ID_TYPES, CancellationId, CausationId, CommandId,
-    CommandInvocationId, ContextProjectionSnapshotId, CorrelationId, CredentialId,
-    DeferredMutationId, DeleteConfirmationId, EditorReservationId, ElevationLaunchTicketId,
-    EndpointId, EventId, ExternalGrantId, FileReferenceId, HostPreparationOperationId,
-    IdParseError, IpcChannelId, MemoryId, ModelAvailabilityTestId, ModelContentBlockId,
-    ModelDiscoveryRunId, ModelExecutionSnapshotId, ModelFailureId, ModelProfileId, ModelStepId,
-    MutationJournalId, NetworkGrantId, NetworkRequestId, PermissionGrantId, PermissionSnapshotId,
-    PrincipalId, PromptBundleSnapshotId, ProviderId, QuarantineRecordId, ReleaseBundleId,
-    RendererInstanceId, RuntimeInstanceId, RuntimeLeaseId, SandboxAclJournalId, SandboxExecutionId,
-    SecurityOperationId, SessionId, SkillInstanceId, StreamId, TaskLineageId, TransportAttemptId,
-    TrustRecordId, TurnTaskId, WorkspaceId, WorkspaceLifecycleOperationId,
+    AgentCollaborationGraphId, AgentRunId, ApprovalDecisionId, ApprovalRequestId, ArtifactId,
+    AttachmentGrantId, BrowserShareId, COMMON_ID_PREFIXES, COMMON_ID_TYPES, CancellationId,
+    CausationId, CommandId, CommandInvocationId, ContextProjectionSnapshotId, CorrelationId,
+    CredentialId, DeferredMutationId, DeleteConfirmationId, EditorReservationId,
+    ElevationLaunchTicketId, EndpointId, EventId, ExternalGrantId, FileReferenceId,
+    HostPreparationOperationId, IdParseError, IpcChannelId, MemoryId, ModelAvailabilityTestId,
+    ModelContentBlockId, ModelDiscoveryRunId, ModelExecutionSnapshotId, ModelFailureId,
+    ModelProfileId, ModelStepId, MutationJournalId, NetworkGrantId, NetworkRequestId,
+    PermissionGrantId, PermissionSnapshotId, PrincipalId, PromptBundleSnapshotId, ProviderId,
+    QuarantineRecordId, ReleaseBundleId, RendererInstanceId, RuntimeInstanceId, RuntimeLeaseId,
+    SandboxAclJournalId, SandboxExecutionId, SecurityOperationId, SessionId, SkillInstanceId,
+    StreamId, TaskLineageId, TransportAttemptId, TrustRecordId, TurnTaskId, WorkspaceId,
+    WorkspaceLifecycleOperationId,
 };
 pub use id::{
     CompletionReviewId, HookInvocationId, NaturalCompletionRecordId, NormalCompletionRecordId,

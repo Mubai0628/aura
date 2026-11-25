@@ -87,13 +87,21 @@ impl ToolSettingsSnapshotV1 {
     }
 
     fn validate_values(&self) -> Result<(), ToolRegistryContractError> {
-        if self.max_dynamic_tool_schemas == 0
-            || !(MIN_MAX_CONCURRENT_TOOL_CALLS..=MAX_MAX_CONCURRENT_TOOL_CALLS)
-                .contains(&self.max_concurrent_tool_calls)
-            || !(MIN_TOOL_TIMEOUT_MS..=MAX_TOOL_TIMEOUT_MS).contains(&self.default_timeout_ms)
-            || self.max_retries > MAX_TOOL_RETRIES
+        let invalid = if self.max_dynamic_tool_schemas == 0 {
+            Some("max_dynamic_tool_schemas")
+        } else if !(MIN_MAX_CONCURRENT_TOOL_CALLS..=MAX_MAX_CONCURRENT_TOOL_CALLS)
+            .contains(&self.max_concurrent_tool_calls)
         {
-            return Err(ToolRegistryContractError::InvalidSettings);
+            Some("max_concurrent_tool_calls")
+        } else if !(MIN_TOOL_TIMEOUT_MS..=MAX_TOOL_TIMEOUT_MS).contains(&self.default_timeout_ms) {
+            Some("default_timeout_ms")
+        } else if self.max_retries > MAX_TOOL_RETRIES {
+            Some("max_retries")
+        } else {
+            None
+        };
+        if let Some(field) = invalid {
+            return Err(ToolRegistryContractError::SettingOutOfRange { field });
         }
         if let Some(proxy) = &self.network_proxy {
             proxy.validate()?;

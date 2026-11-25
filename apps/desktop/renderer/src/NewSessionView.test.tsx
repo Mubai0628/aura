@@ -72,6 +72,38 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+test('an untouched new session can opt in before sending the first message', async () => {
+  const user = userEvent.setup();
+  const id = createLocalConversation('workspace');
+  const readPolicy = vi.fn(async () => ({
+    ok: true,
+    value: { session_id: 'server-session', allow_proactive_temporary_agents: false, revision: 0 },
+  }));
+  const setPolicy = vi.fn(async () => ({
+    ok: true,
+    value: { session_id: 'server-session', allow_proactive_temporary_agents: true, revision: 1 },
+  }));
+  Object.assign(window.aura.v1, {
+    readSessionAgentPolicy: readPolicy,
+    setSessionAgentPolicy: setPolicy,
+  });
+  render(<Fixture id={id} />);
+  const allow = screen.getByRole('switch', { name: '允许子 Agent' });
+  expect(allow.getAttribute('aria-checked')).toBe('false');
+  await user.click(allow);
+  expect(create).not.toHaveBeenCalled();
+  expect(localStorage.getItem('aura.composer-drafts.v1')).toContain(id);
+  await user.type(screen.getByRole('textbox', { name: '输入消息' }), '核对三份材料');
+  await user.click(screen.getByRole('button', { name: '发送消息' }));
+  await waitFor(() => expect(accepted).toHaveBeenCalledWith(id, 'server-session'));
+  expect(setPolicy).toHaveBeenCalledWith({
+    session_id: 'server-session',
+    expected_revision: 0,
+    allow_proactive_temporary_agents: true,
+  });
+  expect(setPolicy.mock.invocationCallOrder[0]).toBeLessThan(submit.mock.invocationCallOrder[0]!);
+});
+
 function Fixture({ id }: { id: string }) {
   const draft = useComposerDrafts().find((item) => item.id === id)!;
   return (
@@ -83,7 +115,7 @@ function Fixture({ id }: { id: string }) {
     />
   );
 }
-test('typing saves the draft while keeping New Session; first send binds then submits and names five characters', async () => {
+test('typing saves the draft while keeping New Session; first send binds then submits and names seven characters', async () => {
   const user = userEvent.setup();
   const id = createLocalConversation('workspace');
   render(<Fixture id={id} />);
@@ -108,7 +140,7 @@ test('typing saves the draft while keeping New Session; first send binds then su
   expect(rename).toHaveBeenCalledWith({
     session_id: 'server-session',
     expected_title: '',
-    title: '请帮我完成',
+    title: '请帮我完成测试',
   });
 });
 

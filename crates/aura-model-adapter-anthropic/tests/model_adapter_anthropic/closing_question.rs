@@ -80,7 +80,11 @@ fn request(snapshot: &ModelExecutionSnapshot) -> LogicalModelRequest {
     ]
     .into_iter()
     .map(|kind| {
-        let content = format!("<{kind:?}>{kind:?}</{kind:?}>");
+        let content = if kind == LogicalInstructionKind::HistoricalSnapshot {
+            "<Historical-Snapshot-Summary>\n  <Empty reason=\"no-active-content\" />\n</Historical-Snapshot-Summary>".to_owned()
+        } else {
+            format!("<{kind:?}>{kind:?}</{kind:?}>")
+        };
         LogicalInstructionBlock {
             kind,
             content_hash: ContentHash::sha256(content.as_bytes()),

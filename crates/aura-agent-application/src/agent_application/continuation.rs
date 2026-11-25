@@ -52,7 +52,8 @@ impl AgentApplication {
 
     /// Continues the turns this process's start cut off, once, after Main said Core restarted
     /// while Aura stayed open (`cause`). A task already continued twice in the last half hour, or
-    /// cut off again within two minutes of being continued, is left for the user's 继续.
+    /// cut off again within two minutes of being continued, is left for the user's 继续. A cut-off
+    /// peer send with no known verdict is left for reconciliation; its outbox is independent.
     pub async fn continue_after_restart(
         self: &Arc<Self>,
         cause: CoreRestartCause,
@@ -96,6 +97,7 @@ impl AgentApplication {
                 match decision {
                     Decision::LimitReached => "limit_reached",
                     Decision::RestartLoop => "restart_loop",
+                    Decision::UnsettledPeerDelivery => "unsettled_peer_delivery",
                     _ => "moved",
                 }
             };

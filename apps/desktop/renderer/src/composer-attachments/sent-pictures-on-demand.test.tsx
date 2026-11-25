@@ -92,9 +92,8 @@ test('a picture that could not be read is asked for again the next time', async 
   readScreenshot.mockResolvedValueOnce({ ok: false, error: { code: 'ipc.handler_overloaded' } });
   const first = render(<MessageAttachments attachments={[picture(5)]} sessionId="s" />);
   near(screen.getByRole('listitem'));
-  expect((await screen.findByRole('status')).textContent).toBe(
-    '图片读不出来（服务没有回应，或记录里已没有这张图片）。消息本身不受影响；重新打开这个会话会再读一次。',
-  );
+  expect((await screen.findByRole('status')).textContent).toBe('图片暂不可用');
+  expect(screen.getByRole('listitem').title).toBe('shot-5.png');
   first.unmount();
   render(<MessageAttachments attachments={[picture(5)]} sessionId="s" />);
   near(screen.getByRole('listitem'));

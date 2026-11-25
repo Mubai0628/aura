@@ -79,6 +79,9 @@ pub struct ReviewRequest {
 }
 
 pub trait TeamHost: crate::WorktreeHost {
+    /// The current parent's eligibility for new temporary work, read in the caller's transaction.
+    fn new_work_block(db: &Connection, parent: SessionId) -> StoreResult<Option<&'static str>>;
+
     /// One read of the execution store.
     fn read<T, F>(
         &self,

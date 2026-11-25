@@ -60,10 +60,6 @@ pub(super) fn prepare(
         {
             return Err(MemoryError::Invalid("Vault path or scope"));
         }
-        let text = crate::render(&write.note)?;
-        if let Some(kind) = aura_secret_scanner::detect_text(&text) {
-            return Err(MemoryError::Secret { kind });
-        }
         let old = existing(state, &write.path, vault.scope().scope())?;
         let current = old.as_ref().map(|r| r.hash.clone());
         if current != write.expected_hash {
@@ -80,11 +76,23 @@ pub(super) fn prepare(
         } else if state.index.contains_id(&write.note.metadata.id.to_string())? {
             return Err(MemoryError::Invalid("memory id already exists"));
         }
+        let at = UtcTimestamp::now();
+        let mut note = write.note.clone();
+        crate::provenance::stamp(
+            &mut note,
+            old.as_ref().map(|read| read.provenance.clone().unwrap_or_default()),
+            actor,
+            at,
+        )?;
+        let text = crate::render(&note)?;
+        if let Some(kind) = aura_secret_scanner::detect_text(&text) {
+            return Err(MemoryError::Secret { kind });
+        }
         let hash = blake3::hash(text.as_bytes()).to_hex().to_string();
         files.push(IndexedFile {
             path: write.path.as_str().into(),
             hash: hash.clone(),
-            note: Some(write.note.clone()),
+            note: Some(note),
             invalid_reason: None,
         });
         changes.push(VaultChange {
@@ -102,7 +110,7 @@ pub(super) fn prepare(
             before_hash: write.expected_hash.clone(),
             after_hash: Some(hash),
             title: write.note.title(),
-            at: UtcTimestamp::now(),
+            at,
         });
     }
     for write in writes {

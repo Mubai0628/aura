@@ -110,6 +110,25 @@ export async function writeProvider({
         );
         return;
       }
+      // A finished conversation's low-priority profile update has no tools and no turn state.
+      // It is auxiliary work of this product, not a task request; answer "no material change".
+      const hasCurrentState = [...(body.messages ?? [])].some(
+        (message) =>
+          ['system', 'developer'].includes(message.role) &&
+          typeof message.content === 'string' &&
+          message.content.includes('{"continuation"'),
+      );
+      if (!body.tools?.length && !hasCurrentState) {
+        maintenanceRequests.push(body);
+        response.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-cache',
+        });
+        response.end(
+          `data: ${JSON.stringify({ id: 'profile-maintenance', choices: [{ index: 0, delta: { role: 'assistant', content: '{"description":null}' }, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } })}\n\ndata: [DONE]\n\n`,
+        );
+        return;
+      }
       observeRequest?.({ authorization: request.headers.authorization, body });
       const state = currentState(body);
       const turn = state.turn.turn_task_id;

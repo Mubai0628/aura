@@ -15,13 +15,14 @@ memory-test-profile = []
 # Hooks aura-core's tests rely on, as they had them while this code was compiled into Core's own
 # test build. Only aura-core's dev-dependencies enable it; check-architecture fails a product
 # build that carries it.
-test-hooks = ["aura-core-base/test-hooks"]
+test-hooks = ["aura-core-base/test-hooks", "aura-agent-collaboration/test-hooks"]
 
 [dependencies]
 anyhow.workspace = true
 aura-activity-domain = { path = "../aura-activity-domain" }
 aura-activity-runtime = { path = "../aura-activity-runtime" }
 aura-agent-domain = { path = "../aura-agent-domain" }
+aura-agent-collaboration = { path = "../aura-agent-collaboration" }
 aura-agent-execution = { path = "../aura-agent-execution" }
 aura-agent-team = { path = "../aura-agent-team" }
 aura-backend-windows-user = { path = "../aura-backend-windows-user" }

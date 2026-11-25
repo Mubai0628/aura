@@ -9,6 +9,9 @@ import type {
   AgentContextRemediationView,
   AgentContextWindowResolveRequest,
   AgentContinueRequest,
+  AgentGraphMutationRequest,
+  AgentGraphRequest,
+  AgentGraphView,
   AgentHistoryRequest,
   AgentInboxMutation,
   AgentInboxProjection,
@@ -20,6 +23,10 @@ import type {
   AgentModeEpisodeView,
   AgentNetworkProxyTestRequest,
   AgentNetworkProxyTestResult,
+  AgentProfile,
+  AgentProfilePreviewRequest,
+  AgentProfileRequest,
+  AgentProfileSetRequest,
   AgentPromptInspection,
   AgentQueryAnswerRequest,
   AgentQueryFileRequest,
@@ -33,6 +40,9 @@ import type {
   AgentRunRequest,
   AgentSessionBranchRequest,
   AgentSessionBranchResult,
+  AgentSessionPolicy,
+  AgentSessionPolicyRequest,
+  AgentSessionPolicySetRequest,
   AgentSessionProjection,
   AgentSessionRequest,
   AgentSessionsActivity,
@@ -214,6 +224,8 @@ import type {
   MediaHostReadResultV1,
   MediaHostResultAck,
   MediaHostResultV1,
+  MemoryBatchRead,
+  MemoryBatchReadRequest,
   MemoryDesktopActionResult,
   MemoryDesktopRepairApply,
   MemoryDesktopRequest,
@@ -229,6 +241,8 @@ import type {
   MemorySessionConsentView,
   MemorySettingsSnapshot,
   MemorySettingsUpdate,
+  MemoryTimeline,
+  MemoryTimelineRequest,
   MemoryValidation,
   MemoryVaultRequest,
   MemoryVaultStatus,
@@ -300,6 +314,9 @@ import type {
   PackageVersionRefV1,
   PackageVersionViewV1,
   PathSearchResult,
+  PeerMailbox,
+  PeerMailboxRequest,
+  PeerManageRequest,
   PermissionDefaults,
   PermissionGrant,
   PluginChangeRequest,
@@ -1072,6 +1089,15 @@ export type AgentMainParams = {
   'agent.team.worktrees.location.set': WorktreeLocationSetRequest;
   'agent.team.worktrees.location.select': EmptyToolInput;
   'agent.team.worktree.open': AgentTeamWorktreeRequest;
+  'agent.team.peers.get': PeerMailboxRequest;
+  'agent.team.peers.manage': PeerManageRequest;
+  'agent.team.graph.get': AgentGraphRequest;
+  'agent.team.graph.mutate': AgentGraphMutationRequest;
+  'agent.team.policy.get': AgentSessionPolicyRequest;
+  'agent.team.policy.set': AgentSessionPolicySetRequest;
+  'agent.team.profile.preview': AgentProfilePreviewRequest;
+  'agent.team.profile.get': AgentProfileRequest;
+  'agent.team.profile.set': AgentProfileSetRequest;
   'agent.team.settings': EmptyToolInput;
   'agent.team.settings.set': AgentTeamSettingsSetRequest;
   'agent.team.allowance.revoke': AgentTeamAllowanceRevokeRequest;
@@ -1227,6 +1253,15 @@ export type AgentMainResult = {
   'agent.team.worktrees.location.set': WorktreeLocationView;
   'agent.team.worktrees.location.select': WorktreeLocationSelected;
   'agent.team.worktree.open': OpenedOutside;
+  'agent.team.peers.get': PeerMailbox;
+  'agent.team.peers.manage': PeerMailbox;
+  'agent.team.graph.get': AgentGraphView;
+  'agent.team.graph.mutate': AgentGraphView;
+  'agent.team.policy.get': AgentSessionPolicy;
+  'agent.team.policy.set': AgentSessionPolicy;
+  'agent.team.profile.preview': AgentProfile;
+  'agent.team.profile.get': AgentProfile;
+  'agent.team.profile.set': AgentProfile;
   'agent.team.settings': AgentTeamSettingsView;
   'agent.team.settings.set': AgentTeamSettingsView;
   'agent.team.allowance.revoke': AgentTeamView;
@@ -1314,6 +1349,8 @@ export type PackageMainResult = {
 };
 export type PackageMainCommand = keyof PackageMainParams;
 export type MemoryMainParams = {
+  'memory.vault.timeline': MemoryTimelineRequest;
+  'memory.vault.read_many': MemoryBatchReadRequest;
   'memory.vaults.get': MemoryDesktopRequest;
   'memory.settings.get': EmptyToolInput;
   'memory.settings.update': MemorySettingsUpdate;
@@ -1326,6 +1363,8 @@ export type MemoryMainParams = {
   'memory.vault.export': MemoryVaultRequest;
 };
 export type MemoryMainResult = {
+  'memory.vault.timeline': MemoryTimeline;
+  'memory.vault.read_many': MemoryBatchRead;
   'memory.vaults.get': MemoryDesktopSnapshot;
   'memory.settings.get': MemorySettingsSnapshot;
   'memory.settings.update': MemorySettingsSnapshot;
@@ -1449,6 +1488,15 @@ export type AgentCoreParams = {
   'agent.team.worktrees.location': EmptyToolInput;
   'agent.team.worktrees.location.set': WorktreeLocationSetRequest;
   'agent.team.worktree.folder': AgentTeamWorktreeRequest;
+  'agent.team.peers.get': PeerMailboxRequest;
+  'agent.team.peers.manage': PeerManageRequest;
+  'agent.team.graph.get': AgentGraphRequest;
+  'agent.team.graph.mutate': AgentGraphMutationRequest;
+  'agent.team.policy.get': AgentSessionPolicyRequest;
+  'agent.team.policy.set': AgentSessionPolicySetRequest;
+  'agent.team.profile.preview': AgentProfilePreviewRequest;
+  'agent.team.profile.get': AgentProfileRequest;
+  'agent.team.profile.set': AgentProfileSetRequest;
   'agent.team.settings': EmptyToolInput;
   'agent.team.settings.set': AgentTeamSettingsSetRequest;
   'agent.team.allowance.revoke': AgentTeamAllowanceRevokeRequest;
@@ -1604,6 +1652,15 @@ export type AgentCoreResult = {
   'agent.team.worktrees.location': WorktreeLocationView;
   'agent.team.worktrees.location.set': WorktreeLocationView;
   'agent.team.worktree.folder': AgentTeamWorktreeFolder;
+  'agent.team.peers.get': PeerMailbox;
+  'agent.team.peers.manage': PeerMailbox;
+  'agent.team.graph.get': AgentGraphView;
+  'agent.team.graph.mutate': AgentGraphView;
+  'agent.team.policy.get': AgentSessionPolicy;
+  'agent.team.policy.set': AgentSessionPolicy;
+  'agent.team.profile.preview': AgentProfile;
+  'agent.team.profile.get': AgentProfile;
+  'agent.team.profile.set': AgentProfile;
   'agent.team.settings': AgentTeamSettingsView;
   'agent.team.settings.set': AgentTeamSettingsView;
   'agent.team.allowance.revoke': AgentTeamView;
@@ -1692,6 +1749,8 @@ export type PackageCoreResult = {
 };
 export type PackageCoreCommand = keyof PackageCoreParams;
 export type MemoryCoreParams = {
+  'memory.vault.timeline': MemoryTimelineRequest;
+  'memory.vault.read_many': MemoryBatchReadRequest;
   'memory.vaults.get': MemoryDesktopRequest;
   'memory.settings.get': EmptyToolInput;
   'memory.settings.update': MemorySettingsUpdate;
@@ -1705,6 +1764,8 @@ export type MemoryCoreParams = {
   'memory.export.close': MemoryExportCloseRequest;
 };
 export type MemoryCoreResult = {
+  'memory.vault.timeline': MemoryTimeline;
+  'memory.vault.read_many': MemoryBatchRead;
   'memory.vaults.get': MemoryDesktopSnapshot;
   'memory.settings.get': MemorySettingsSnapshot;
   'memory.settings.update': MemorySettingsSnapshot;
@@ -4035,6 +4096,105 @@ export const MAIN_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.team.peers.get': {
+    method: 'agent.team.peers.get',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'PeerMailboxRequest',
+    response_type: 'PeerMailbox',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.peers.manage': {
+    method: 'agent.team.peers.manage',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'PeerManageRequest',
+    response_type: 'PeerMailbox',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.graph.get': {
+    method: 'agent.team.graph.get',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentGraphRequest',
+    response_type: 'AgentGraphView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.graph.mutate': {
+    method: 'agent.team.graph.mutate',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentGraphMutationRequest',
+    response_type: 'AgentGraphView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.policy.get': {
+    method: 'agent.team.policy.get',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentSessionPolicyRequest',
+    response_type: 'AgentSessionPolicy',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.policy.set': {
+    method: 'agent.team.policy.set',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentSessionPolicySetRequest',
+    response_type: 'AgentSessionPolicy',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.profile.preview': {
+    method: 'agent.team.profile.preview',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentProfilePreviewRequest',
+    response_type: 'AgentProfile',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.profile.get': {
+    method: 'agent.team.profile.get',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentProfileRequest',
+    response_type: 'AgentProfile',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.profile.set': {
+    method: 'agent.team.profile.set',
+    owner: 'agent',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'AgentProfileSetRequest',
+    response_type: 'AgentProfile',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'agent.team.settings': {
     method: 'agent.team.settings',
     owner: 'agent',
@@ -4252,6 +4412,28 @@ export const MAIN_ROUTES = {
     request_type: 'PackageCredentialClearRequestV1',
     response_type: 'PackageSummaryV1',
     idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'memory.vault.timeline': {
+    method: 'memory.vault.timeline',
+    owner: 'memory',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'MemoryTimelineRequest',
+    response_type: 'MemoryTimeline',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'memory.vault.read_many': {
+    method: 'memory.vault.read_many',
+    owner: 'memory',
+    surface: 'main',
+    auth: 'trusted_renderer',
+    request_type: 'MemoryBatchReadRequest',
+    response_type: 'MemoryBatchRead',
+    idempotency: 'read_only',
     cancellation: 'none',
     test_only: false,
   },
@@ -7485,6 +7667,105 @@ export const CORE_ROUTES = {
     cancellation: 'none',
     test_only: false,
   },
+  'agent.team.peers.get': {
+    method: 'agent.team.peers.get',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PeerMailboxRequest',
+    response_type: 'PeerMailbox',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.peers.manage': {
+    method: 'agent.team.peers.manage',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'PeerManageRequest',
+    response_type: 'PeerMailbox',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.graph.get': {
+    method: 'agent.team.graph.get',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentGraphRequest',
+    response_type: 'AgentGraphView',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.graph.mutate': {
+    method: 'agent.team.graph.mutate',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentGraphMutationRequest',
+    response_type: 'AgentGraphView',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.policy.get': {
+    method: 'agent.team.policy.get',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentSessionPolicyRequest',
+    response_type: 'AgentSessionPolicy',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.policy.set': {
+    method: 'agent.team.policy.set',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentSessionPolicySetRequest',
+    response_type: 'AgentSessionPolicy',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.profile.preview': {
+    method: 'agent.team.profile.preview',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentProfilePreviewRequest',
+    response_type: 'AgentProfile',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
+  'agent.team.profile.get': {
+    method: 'agent.team.profile.get',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentProfileRequest',
+    response_type: 'AgentProfile',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'agent.team.profile.set': {
+    method: 'agent.team.profile.set',
+    owner: 'agent',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'AgentProfileSetRequest',
+    response_type: 'AgentProfile',
+    idempotency: 'command_invocation',
+    cancellation: 'domain_operation',
+    test_only: false,
+  },
   'agent.team.settings': {
     method: 'agent.team.settings',
     owner: 'agent',
@@ -7691,6 +7972,28 @@ export const CORE_ROUTES = {
     request_type: 'PackageCredentialClearRequestV1',
     response_type: 'PackageSummaryV1',
     idempotency: 'command_invocation',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'memory.vault.timeline': {
+    method: 'memory.vault.timeline',
+    owner: 'memory',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'MemoryTimelineRequest',
+    response_type: 'MemoryTimeline',
+    idempotency: 'read_only',
+    cancellation: 'none',
+    test_only: false,
+  },
+  'memory.vault.read_many': {
+    method: 'memory.vault.read_many',
+    owner: 'memory',
+    surface: 'core',
+    auth: 'authenticated_main',
+    request_type: 'MemoryBatchReadRequest',
+    response_type: 'MemoryBatchRead',
+    idempotency: 'read_only',
     cancellation: 'none',
     test_only: false,
   },
@@ -8668,4 +8971,4 @@ export function coreRoute(method: string) {
     ? CORE_ROUTES[method as keyof typeof CORE_ROUTES]
     : undefined;
 }
-export const ROUTE_COUNTS = { main: 310, core: 314 } as const;
+export const ROUTE_COUNTS = { main: 321, core: 325 } as const;

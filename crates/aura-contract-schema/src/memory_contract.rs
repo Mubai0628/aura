@@ -22,6 +22,10 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
     generator.subschema_for::<aura_config::MemorySettingsUpdate>();
     generator.subschema_for::<MemoryDesktopRequest>();
     generator.subschema_for::<MemoryVaultRequest>();
+    generator.subschema_for::<MemoryTimelineRequest>();
+    generator.subschema_for::<MemoryTimeline>();
+    generator.subschema_for::<MemoryBatchReadRequest>();
+    generator.subschema_for::<MemoryBatchRead>();
     generator.subschema_for::<MemoryDesktopSnapshot>();
     generator.subschema_for::<MemoryDesktopRepairApply>();
     generator.subschema_for::<MemoryDesktopActionResult>();

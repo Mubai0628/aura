@@ -62,13 +62,17 @@ test('the actual dev command builds, binds the Development Bundle, then prefligh
   const pkg = JSON.parse(
     await readFile(resolve(import.meta.dirname, '../apps/desktop/package.json'), 'utf8'),
   );
+  const launcher = await readFile(resolve(import.meta.dirname, 'dev-v2.mjs'), 'utf8');
+  assert.equal(pkg.scripts.dev, 'node ../../scripts/dev-v2.mjs --desktop-profile');
+  const prepare = launcher.indexOf("desktop('dev:prepare'");
+  assert.ok(prepare >= 0 && launcher.indexOf('runDevSession({') > prepare);
   // The order matters: the manifest has to be rebuilt from the binaries that were
   // just produced, or the published-Core comparison uses the previous build.
   assert.match(
-    pkg.scripts.dev,
-    /cargo build .*&& node \.\.\/\.\.\/scripts\/prepare-dev-release\.mjs && node \.\.\/\.\.\/scripts\/dev-execution-preflight\.mjs && concurrently/u,
+    pkg.scripts['dev:prepare'],
+    /cargo build .*&& node \.\.\/\.\.\/scripts\/prepare-dev-release\.mjs && node \.\.\/\.\.\/scripts\/dev-execution-preflight\.mjs$/u,
   );
-  assert.match(pkg.scripts.dev, /RUSTFLAGS=.*crt-static/u);
+  assert.match(pkg.scripts['dev:prepare'], /RUSTFLAGS=.*crt-static/u);
 });
 
 test('the Development Bundle is written after the components it binds', async () => {

@@ -25,7 +25,7 @@ pub struct AgentTeamLimits {
 impl AgentTeamLimits {
     pub const DEFAULT: Self =
         Self { max_running: 3, token_budget: None, minutes_per_task: 120, cpu_percent: 75 };
-    pub const RUNNING: RangeInclusive<u32> = 1..=8;
+    pub const RUNNING: RangeInclusive<u32> = 0..=8;
     pub const TOKENS: RangeInclusive<u64> = 100_000..=100_000_000;
     pub const MINUTES: RangeInclusive<u32> = 5..=480;
     pub const CPU: RangeInclusive<u32> = 10..=100;
@@ -99,6 +99,8 @@ impl Default for AgentTeamLimits {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentTeamSettingsView {
+    /// Allows new multi-agent work; management and already-started turns remain available.
+    pub enabled: bool,
     pub limits: AgentTeamLimits,
     /// What 恢复默认 puts back.
     pub defaults: AgentTeamLimits,
@@ -116,6 +118,9 @@ pub struct AgentTeamSettingsView {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentTeamSettingsSetRequest {
+    /// None preserves the current value, including a disabled value saved by a newer client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
     pub limits: AgentTeamLimits,
     /// None keeps the permissions saved before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -128,6 +133,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn session_agent_zero_parallelism_disables_temporary_spawns() {
+        let limits = AgentTeamLimits { max_running: 0, ..AgentTeamLimits::DEFAULT };
+        assert_eq!(limits.check(), Ok(()));
+    }
+
+    #[test]
     fn the_defaults_are_within_every_range_and_each_range_is_held() {
         assert_eq!(AgentTeamLimits::DEFAULT.check(), Ok(()));
         // By default the tokens are not limited and a task has two hours.
@@ -138,7 +149,7 @@ mod tests {
         assert_eq!(budget.warning_tokens(), Some(4_000_000));
         let refused = |limits: AgentTeamLimits| limits.check().map_err(|refusal| refusal.code);
         let base = AgentTeamLimits::DEFAULT;
-        assert!(refused(AgentTeamLimits { max_running: 0, ..base }).is_err());
+        assert_eq!(AgentTeamLimits { max_running: 0, ..base }.check(), Ok(()));
         assert!(refused(AgentTeamLimits { max_running: 9, ..base }).is_err());
         assert!(refused(AgentTeamLimits { token_budget: Some(99_999), ..base }).is_err());
         assert!(refused(AgentTeamLimits { token_budget: Some(100_000_001), ..base }).is_err());

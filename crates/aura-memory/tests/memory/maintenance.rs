@@ -63,6 +63,7 @@ fn schema_secret_and_final_permission_validation_happen_before_any_vault_write()
     let actor = WriteActor {
         kind: "automatic_maintenance".into(),
         session_id: Some(SessionId::new()),
+        session_name: None,
         turn_id: Some("temporary-turn".into()),
     };
     let mut invalid = output("global", "# 合法规则\n");

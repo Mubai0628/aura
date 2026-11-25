@@ -41,7 +41,7 @@ export function ToolSettings() {
           <AppIcon name="warning" />
           <span>
             <strong>{SETTINGS_FILE_REJECTED.title}</strong>
-            {SETTINGS_FILE_REJECTED.body}
+            {settings.configuration_issue.message} {SETTINGS_FILE_REJECTED.body}
           </span>
         </div>
       )}

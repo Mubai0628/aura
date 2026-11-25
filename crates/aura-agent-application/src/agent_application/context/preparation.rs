@@ -1,3 +1,4 @@
+use super::prepare_step::{PreparedStep, StepPreparation};
 use super::*;
 use aura_agent_execution::agent_execution;
 // The thinking level the conversation chose for its turn.
@@ -23,60 +24,18 @@ pub(in crate::agent_application) mod recall;
 mod team_downloads;
 
 impl AgentApplication {
-    pub(in crate::agent_application) async fn prepare(
+    pub(super) async fn prepare_existing_step(
         self: &Arc<Self>,
-        run_id: AgentRunId,
-        profile: ModelProfileId,
-        reasoning: Option<aura_agent_domain::TurnReasoningEffort>,
-        speed_mode: Option<aura_agent_domain::TurnSpeedMode>,
-        continuation: AgentContinuation,
+        draft: &StepPreparation,
         cancel: &ModelCancellationToken,
-    ) -> anyhow::Result<Option<Prepared>> {
-        self.refresh_prompt(run_id).await?;
-        let session = self.turn(run_id).await?.session_id;
-        // A branch's older turns may still be on their way; the model is sent its history
-        // only once it is whole.
-        self.wait_for_branch_copy(run_id, session, cancel).await?;
-        let permission = self.freeze_permission(session).await?;
+    ) -> anyhow::Result<PreparedStep> {
+        let step = draft.step.clone();
+        let run_id = step.agent_run_id;
+        let profile = draft.profile;
+        let reasoning = draft.reasoning;
+        let speed_mode = draft.speed_mode.clone();
+        let permission = self.freeze_permission(draft.session_id).await?;
         let at = UtcTimestamp::now();
-        // Boundary: the step-opening transaction. Before this round it took the journal lock
-        // on the reactive task polling this run; it now runs whole on the one bounded Agent Store
-        // owner, the same journal and the same transaction.
-        let step = self
-            .store
-            .run_critical(
-                StoreStep::run(run_id, "agent.context.prepare_step"),
-                StoreAccess::Write,
-                {
-                    let journal = Arc::clone(&self.execution.journal);
-                    move || {
-                        Ok(journal.lock()?.database.unit_of_work(|tx| {
-                            aura_persistence_v2::agent::lifecycle::prepare_step(
-                                tx,
-                                run_id,
-                                continuation,
-                                at,
-                            )
-                        })?)
-                    }
-                },
-            )
-            .await?;
-        let (
-            turn,
-            run,
-            bundle,
-            prompt,
-            settings,
-            history,
-            registry,
-            loads,
-            tool_settings,
-            package_tools,
-            mut state,
-        ) = self
-            .assemble_frozen_facts(run_id, &permission, &step, at, self.computer_offered(profile))
-            .await?;
         let config = self.p05.model_config.snapshot()?;
         let model_profile = config
             .registry
@@ -128,6 +87,87 @@ impl AgentApplication {
                 )
                 .await?;
         }
+        // Boundary: one bounded read of the newest context-window trial for this run.
+        let window_trial = self
+            .store
+            .run_critical(
+                StoreStep::run(run_id, "agent.context.window_trial"),
+                StoreAccess::Read,
+                {
+                    let journal = Arc::clone(&self.execution.journal);
+                    move || {
+                        Ok(model::context_window::latest(
+                            journal.lock()?.database.connection(),
+                            run_id,
+                        )?
+                        .filter(|r| r.view.state == AgentContextWindowState::Preparing))
+                    }
+                },
+            )
+            .await?;
+        let window_trial = match window_trial {
+            Some(record)
+                if self.p05.window_trial_matches(&record, &model_profile, &endpoint)? =>
+            {
+                Some(record)
+            }
+            _ => None,
+        };
+        let window = window_trial
+            .as_ref()
+            .and_then(|trial| trial.candidate_windows.last().copied())
+            .unwrap_or(model_profile.context.runtime_effective_window_tokens);
+        let reserve =
+            trigger_output_reserve(model_profile.effective_max_output_tokens().unwrap_or(1));
+        let history_budget = request_input_budget_v1(window, reserve).map_or_else(
+            |_| window.saturating_sub(safety_reserve_v1(window).unwrap_or(window)),
+            |(_, input)| input,
+        );
+        let (
+            turn,
+            run,
+            bundle,
+            prompt,
+            settings,
+            latest_input,
+            registry,
+            loads,
+            tool_settings,
+            package_tools,
+            mut state,
+        ) = self
+            .assemble_frozen_facts(run_id, &permission, &step, at, self.computer_offered(profile))
+            .await?;
+        let member = super::super::team::team_member(self, turn.session_id).await?;
+        let activity_summary = self.freeze_activity_summary(
+            turn.workspace_id,
+            turn.session_id,
+            run_id,
+            step.model_step_id,
+        );
+        debug_assert!(activity_summary.belongs_to_step(step.model_step_id));
+        let activity_fragments =
+            if member.is_none() { activity_summary.fragments()? } else { Vec::new() };
+        let downloads = self
+            .team_downloads(
+                &turn,
+                member.as_ref(),
+                latest_input.as_ref().map(|(_, text)| text.as_str()),
+            )
+            .await;
+        let memory_available = registry
+            .catalog_entries
+            .iter()
+            .any(|entry| entry.canonical_name.as_str() == "memory.read");
+        let source_access = super::compaction::dependencies::Access::for_step(
+            &turn,
+            latest_input.as_ref().map(|(id, text)| (*id, text.as_str())),
+            memory_available,
+            activity_fragments.iter().chain(downloads.iter()),
+        );
+        let (history, authorized_checkpoint) =
+            Box::pin(self.authorized_history(&turn, &step, history_budget, source_access.clone()))
+                .await?;
         let credential =
             self.p05.configuration_credential_preflight(&endpoint)?.credential_binding.map(|v| {
                 ModelExecutionCredentialBinding {
@@ -165,32 +205,6 @@ impl AgentApplication {
         );
         // Its own speed mode, when the model's settings allow speed modes.
         snapshot.request_options.speed_mode = speed::turn_mode(speed_mode.as_ref(), &model_profile);
-        // Boundary: one bounded read of the newest context-window trial for this run.
-        let window_trial = self
-            .store
-            .run_critical(
-                StoreStep::run(run_id, "agent.context.window_trial"),
-                StoreAccess::Read,
-                {
-                    let journal = Arc::clone(&self.execution.journal);
-                    move || {
-                        Ok(model::context_window::latest(
-                            journal.lock()?.database.connection(),
-                            run_id,
-                        )?
-                        .filter(|r| r.view.state == AgentContextWindowState::Preparing))
-                    }
-                },
-            )
-            .await?;
-        let window_trial = match window_trial {
-            Some(record)
-                if self.p05.window_trial_matches(&record, &model_profile, &endpoint)? =>
-            {
-                Some(record)
-            }
-            _ => None,
-        };
         if let Some(window) = window_trial.as_ref().and_then(|r| r.candidate_windows.last()) {
             // This is a newly allocated, still-unpublished operation snapshot.
             // A trial never edits the Profile or an earlier immutable snapshot.
@@ -204,7 +218,7 @@ impl AgentApplication {
             self.step_hooks(run_id, &turn, step.model_step_id, &snapshot.request_options).await?;
         if hooks.blocked {
             self.interrupt(run_id, "hooks.step_blocked", false).await?;
-            return Ok(None);
+            return Ok(PreparedStep::Waiting);
         }
         if hooks.temperature.is_some() {
             snapshot.request_options.temperature = hooks.temperature;
@@ -231,7 +245,15 @@ impl AgentApplication {
         identity.agent_run_id = Some(run_id);
         let mut fragments = vec![];
         for item in &history.items {
-            fragments.push(history_fragment(item)?);
+            let mut fragment = history_fragment(item)?;
+            if state["current_user_root_event_id"].is_null()
+                && fragment.source_ref
+                    == (ContextSourceRef::Event { event_id: turn.root_user_event_id })
+            {
+                fragment.source_kind = ModelEgressSourceKind::PeerTask;
+                fragment.authorization_basis = ModelEgressAuthorizationBasis::ModelChannelPolicy;
+            }
+            fragments.push(fragment);
         }
         // The activity fragment.
         //
@@ -244,16 +266,6 @@ impl AgentApplication {
         // The snapshot is frozen **once, here**, for this model step. `prepare` runs once per
         // step; the transport retry loop re-sends the request this call already compiled rather
         // than re-entering here, so a retry cannot re-sample and the bytes it sends do not drift.
-        let activity_summary = self.freeze_activity_summary(
-            turn.workspace_id,
-            turn.session_id,
-            run_id,
-            step.model_step_id,
-        );
-        debug_assert!(
-            activity_summary.belongs_to_step(step.model_step_id),
-            "the frozen activity must belong to the step it was taken for"
-        );
         // Written again before each compilation pass, as the conversation then stands.
         let mut task_state_fragments = vec![ContextFragment {
             source_ref: ContextSourceRef::RuntimeState {
@@ -285,19 +297,10 @@ impl AgentApplication {
         }
         // A sub-agent sees its task sheet, the project's instructions and the project memory, and
         // the user's Skills when it was given their tools: not what other conversations are doing.
-        let member = super::super::team::team_member(self, turn.session_id).await?;
         if member.is_none() {
-            if let Some(reviews) =
-                self.main_agent_review_fragment(turn.session_id, turn.revision).await?
-            {
-                task_state_fragments.push(reviews);
-            }
-            task_state_fragments.extend(activity_summary.fragments()?);
+            task_state_fragments.push(self.multi_agent_fragment(turn.session_id).await?);
         }
-        let memory_available = registry
-            .catalog_entries
-            .iter()
-            .any(|entry| entry.canonical_name.as_str() == "memory.read");
+        task_state_fragments.extend(activity_fragments);
         // The workspace's AGENTS.md, read again for every step: the folders' files with the task's
         // state, which changes anyway, the root file before the conversation.
         let agents =
@@ -342,11 +345,13 @@ impl AgentApplication {
             ContextCompressibility::NeverCompress,
         ));
         if !hooks.injections.is_empty() {
+            let mut seen = std::collections::BTreeSet::new();
             sections.push(section(
                 ContextSectionKind::HookInjections,
                 hooks
                     .injections
                     .iter()
+                    .filter(|text| seen.insert(text.as_str()))
                     .map(|text| ContextFragment {
                         source_ref: ContextSourceRef::RuntimeState {
                             state_kind: "hook.injection.v1".into(),
@@ -380,13 +385,31 @@ impl AgentApplication {
             compaction: false,
             maintenance_kind: None,
         };
-        let sources = assemble_prompt_context_sources(&prompt, &settings, &activation, sections)?;
+        let mut sources =
+            assemble_prompt_context_sources(&prompt, &settings, &activation, sections)?;
+        if let Some(core) = sources
+            .section_inputs
+            .iter_mut()
+            .find(|section| section.kind == ContextSectionKind::CoreSystemPrompt)
+        {
+            core.fragments.push(ContextFragment {
+                source_ref: ContextSourceRef::RuntimeState {
+                    state_kind: "agent.checkpoint_rules.v1".into(),
+                    state_revision: Revision::INITIAL,
+                },
+                source_kind: ModelEgressSourceKind::AuraCore,
+                data_class: NetworkDataClass::PublicContent,
+                authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
+                content: sources::CHECKPOINT_RULES.to_owned(),
+            });
+        }
         let estimators = super::super::estimators::for_model(profile);
         let (inspector_lineage, previous_snapshot, counted) = {
             // Boundary: one bounded read pair for the inspector view.
             let journal = Arc::clone(&self.execution.journal);
             let turn_task_id = turn.turn_task_id;
             let session_id = turn.session_id;
+            let adopted_turn = turn.clone();
             let (provider, model) = (snapshot.provider_id, snapshot.model_name.clone());
             self.store
                 .run_critical(
@@ -400,8 +423,9 @@ impl AgentApplication {
                                 db,
                                 turn_task_id,
                             )?,
-                            aura_persistence_v2::agent::inspector::previous_context(
-                                db, session_id,
+                            aura_persistence_v2::agent::inspector::adopted_context(
+                                db,
+                                &adopted_turn,
                             )?,
                             // A new conversation borrows another one's count of this model.
                             aura_persistence_v2::agent::counted_request::for_model(
@@ -479,21 +503,23 @@ impl AgentApplication {
             compacted_source_proofs: Vec::new(),
             coverage_hops: Vec::new(),
         };
-        let downloads = self
-            .team_downloads(
-                &turn,
-                member.as_ref(),
-                recall::latest_input(&input).map(|(_, text)| text),
-            )
-            .await;
         if let Some(state) =
             input.section_inputs.iter_mut().find(|s| s.kind == ContextSectionKind::CurrentTaskState)
         {
             state.fragments.extend(downloads);
         }
-        let source_access =
-            super::compaction::dependencies::Access::for_turn(&turn, &input, memory_available);
-        super::compaction::apply(self, &mut input, source_access).await?;
+        if let Some((start, end)) = history.deferred_range {
+            recovery::record_gap(
+                &mut input,
+                &format!(
+                    "{} older message groups between session sequences {start} and {end} are available on demand via history.list_turns, history.search and history.read.",
+                    history.deferred_groups
+                ),
+            );
+            recovery::clear_continuation(&mut input);
+        }
+        let background =
+            Box::pin(super::compaction::apply(self, &mut input, authorized_checkpoint)).await?;
         // The tool results the previous request showed cleared stay cleared.
         clearing::keep_cleared(&mut input)?;
         clearing::shorten_arguments(&mut input)?;
@@ -504,6 +530,7 @@ impl AgentApplication {
                 &input.recent_history_items,
                 &screenshots::current_messages(&input.trigger),
                 snapshot.request_options.image_input,
+                input.previous_snapshot.as_ref(),
             )
             .await?;
         // The tools the step always loads; a compaction on its prefix sends them too.
@@ -520,7 +547,7 @@ impl AgentApplication {
             .map(|entry| entry.tool_id)
             .collect::<Vec<_>>();
         let closing_question = asked_again_after.as_deref().and_then(super::provider::retry_note);
-        let Some((prepared, compiled_state)) =
+        let Some(compilation::CompiledStep { prepared, state: compiled_state, referenced_results }) =
             Box::pin(self.compile_context(compilation::CompilationInput {
                 run_id,
                 turn: &turn,
@@ -532,15 +559,21 @@ impl AgentApplication {
                 endpoint: &endpoint,
                 window_trial: &window_trial,
                 force_rebuild,
+                history_read_pressure: history.compaction_pressure,
+                selected_history_bytes: history.selected_history_bytes,
+                missing_adopted: history.missing_adopted,
                 cancel,
                 estimators,
                 fixed_tool_ids: &fixed_tool_ids,
+                native_prefixes: &history.native_prefixes,
                 screenshots: &screenshots,
                 memory_available,
+                source_access,
+                background,
             }))
             .await?
         else {
-            return Ok(None);
+            return Ok(PreparedStep::Waiting);
         };
         state = compiled_state;
         let context = prepared.context;
@@ -592,14 +625,26 @@ impl AgentApplication {
         // frozen context snapshot is handed back out, so no large domain value is cloned to satisfy
         // the `Send + 'static` requirement - a clone here would be a second copy of state that the
         // transaction is supposed to be deciding about.
-        let request_boundary =
-            aura_persistence_v2::agent::request_boundary::RequestBoundary::of(&logical)?;
+        let native_prefix = prepared.native_history.map(|native| {
+            if native.missing_evidence > 0 || native.mismatched > 0 {
+                aura_core_base::append_core_log("context.native_chain_rebuilt", serde_json::json!({
+                    "model_step_id": step.model_step_id, "prefix_unavailable": native.missing_evidence,
+                    "prefix_or_route_mismatch": native.mismatched,
+                }));
+            }
+            native.prefix
+        });
+        let request_boundary = aura_persistence_v2::agent::request_boundary::RequestBoundary::of(
+            &logical,
+            native_prefix,
+        )?;
         let frozen_context_snapshot = context.snapshot.clone();
         let frozen_model_snapshot = snapshot.clone();
         let artifacts = prepared.artifacts;
         let prompt_inspector = prepared.prompt_inspector;
         let activity_sources = activity_summary.sources();
-        {
+        let committed = {
+            let app = Arc::clone(self);
             let journal = Arc::clone(&self.execution.journal);
             self.store
                 .run_critical(
@@ -607,7 +652,15 @@ impl AgentApplication {
                     StoreAccess::Write,
                     move || {
                         Ok(journal.lock()?.database.unit_of_work(
-                            |tx| -> aura_persistence_core::StoreResult<()> {
+                            |tx| -> aura_persistence_core::StoreResult<bool> {
+                                if inbox::pending_additions(tx, &turn)? {
+                                    aura_persistence_v2::agent::input_consumption::additions(
+                                        tx,
+                                        run_id,
+                                        UtcTimestamp::now(),
+                                    )?;
+                                    return Ok(false);
+                                }
                                 if turn.mode == AgentTaskMode::Goal
                                     && work::goal(tx, turn.turn_task_id)?.budget_exhausted()
                                 {
@@ -624,12 +677,22 @@ impl AgentApplication {
                                 if checkpoint::current_state(tx, turn.turn_task_id)?
                                     != (expected_revision, expected_hash)
                                 {
-                                    return Err(
-                                        aura_persistence_core::PersistenceCoreError::Conflict,
-                                    );
+                                    return Ok(false);
+                                }
+                                let delivery =
+                                    aura_persistence_v2::agent::peer_input::delivery(tx, &turn)?;
+                                let latest_peers =
+                                    app.peer_prompt_state(tx, &turn, delivery.as_ref()).map_err(
+                                        |_| aura_persistence_core::PersistenceCoreError::Conflict,
+                                    )?;
+                                if latest_peers.as_ref() != state.get("peer_collaboration") {
+                                    return Ok(false);
                                 }
                                 if let Some(boundary) = &request_boundary {
                                     boundary.freeze(tx, step.model_step_id, at)?;
+                                }
+                                for (call, original) in &referenced_results {
+                                    context::read::index_tool_result(tx, *call, original, at)?;
                                 }
                                 for value in &artifacts {
                                     artifact::put(
@@ -708,14 +771,18 @@ impl AgentApplication {
                                     &frozen_model_snapshot,
                                     window_trial.as_ref(),
                                     at,
-                                )
+                                )?;
+                                Ok(true)
                             },
                         )?)
                     },
                 )
-                .await?;
+                .await?
+        };
+        if !committed {
+            return Ok(PreparedStep::DraftChanged);
         }
-        Ok(Some(Prepared {
+        Ok(PreparedStep::Ready(Box::new(Prepared {
             profile: model_profile,
             request: super::provider::Request {
                 single_attempt: false,
@@ -730,7 +797,7 @@ impl AgentApplication {
                 backup_waiting,
                 idle_retry,
             },
-        }))
+        })))
     }
 }
 

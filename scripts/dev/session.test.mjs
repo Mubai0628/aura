@@ -19,7 +19,7 @@ function child(pid) {
   return process;
 }
 
-function session({ windows = 1, electronEndsOnClose = true } = {}) {
+function session({ windows = 1, electronEndsOnClose = true, useRenderer = true } = {}) {
   const calls = [];
   const renderer = child(10);
   const electron = child(20);
@@ -27,7 +27,7 @@ function session({ windows = 1, electronEndsOnClose = true } = {}) {
   let exitedWith;
   const ended = new Promise((resolve) => {
     runDevSession({
-      spawnRenderer: () => renderer,
+      spawnRenderer: useRenderer ? () => renderer : undefined,
       spawnElectron: () => electron,
       closeAuraWindows: () => {
         calls.push('close windows');
@@ -83,6 +83,14 @@ test('closing the window ends the session with Electron, and the renderer with i
   run.electron.end(0);
   await run.ended;
   assert.deepEqual(run.calls, ['close windows', 'kill 10']);
+  assert.equal(run.exit(), 0);
+});
+
+test('the built renderer can close normally without a development server', async () => {
+  const run = session({ useRenderer: false });
+  run.electron.end(0);
+  await run.ended;
+  assert.deepEqual(run.calls, ['close windows']);
   assert.equal(run.exit(), 0);
 });
 

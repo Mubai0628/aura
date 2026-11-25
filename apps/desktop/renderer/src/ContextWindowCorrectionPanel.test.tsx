@@ -6,6 +6,7 @@ import {
   REQUEST_TIMEOUT_CODE,
 } from '../../shared/ipc-request-failure';
 import { ContextWindowCorrectionPanel } from './ContextWindowCorrectionPanel';
+import { ContextRemediation } from './agent-session/ContextRemediation';
 
 const settings = vi.fn();
 const save = vi.fn();
@@ -58,6 +59,9 @@ const props = {
   sessionId: 's',
   record,
   onChanged: vi.fn(),
+  refreshStatus: vi.fn(),
+  refreshing: false,
+  readFeedback: null,
   onOpenModelSettings: vi.fn(),
   onStop: vi.fn(),
 };
@@ -79,6 +83,33 @@ beforeEach(() => {
   });
 });
 afterEach(cleanup);
+
+test('the provider correction shares status refresh feedback and keeps an unsaved window value', async () => {
+  const read = vi.fn().mockResolvedValue({
+    ok: true,
+    value: { session_id: 's', agent_run_id: 'r', provider_correction: record },
+  });
+  Object.assign(window.aura.v1, { readAgentContextRemediation: read });
+  render(
+    <ContextRemediation
+      sessionId="s"
+      runId="r"
+      onChanged={vi.fn()}
+      onStop={vi.fn()}
+      onOpenModelSettings={vi.fn()}
+    />,
+  );
+  const field = await screen.findByLabelText('完整上下文窗口（Token）');
+  fireEvent.change(field, { target: { value: '128000' } });
+  read.mockResolvedValueOnce({ ok: false, error: { code: 'ipc.request_timeout' } });
+  fireEvent.click(screen.getByRole('button', { name: '刷新状态' }));
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: '刷新状态' }));
+  await screen.findByText('已刷新，任务仍在等待处理。');
+  expect((field as HTMLInputElement).value).toBe('128000');
+  expect(save).not.toHaveBeenCalled();
+  expect(resolve).not.toHaveBeenCalled();
+});
 
 test('manual correction uses P05 authority then explicitly rechecks the bound failed step', async () => {
   render(<ContextWindowCorrectionPanel {...props} />);

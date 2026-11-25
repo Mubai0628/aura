@@ -42,7 +42,15 @@ pub(super) fn capture(
     let mut items = Vec::new();
     let mut wire_bindings = Vec::new();
     timing.time("model.items", || {
-        model_context::turn_items(db, turn, groups, None, &mut items, &mut wire_bindings)
+        model_context::turn_items(
+            db,
+            turn,
+            groups,
+            None,
+            &Default::default(),
+            &mut items,
+            &mut wire_bindings,
+        )
     })?;
     let sequences = timing.time("model.sequences", || {
         items

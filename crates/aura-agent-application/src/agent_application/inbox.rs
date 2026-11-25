@@ -100,10 +100,17 @@ impl AgentApplication {
         let mut activity = self
             .store
             .read(StoreStep::operation("agent.sessions.activity"), move |db| {
-                aura_persistence_v2::agent::under_way::activity(db, &request.ended_turns)
+                let mut activity =
+                    aura_persistence_v2::agent::under_way::activity(db, &request.ended_turns)?;
+                activity.peer_results = super::collaboration::unseen_results(db)?;
+                Ok(activity)
             })
             .await?;
         self.input_waits(&mut activity);
+        // The sidebar and Main already poll this read while the window is open.
+        // Use that bounded cadence to retry pending peer outbox entries without
+        // reopening a claimed run; receipt and global-switch checks still decide.
+        self.wake_peer_queues().await?;
         Ok(activity)
     }
 
@@ -201,6 +208,9 @@ impl AgentApplication {
                     journal.database.unit_of_work(|tx| {
                         let at = UtcTimestamp::now();
                         let fresh = !inbox::submitted(tx, command, &stored)?;
+                        if fresh {
+                            super::team::require_start(tx, stored.session_id)?;
+                        }
                         let projection = inbox::submit_prepared(
                             tx,
                             command,
@@ -304,7 +314,8 @@ impl AgentApplication {
         let pending = self
             .store
             .read(StoreStep::operation("agent.inbox.drain"), move |db| {
-                if session::load(db, id)?.active_turn.is_some() {
+                if session::load(db, id)?.active_turn.is_some() || !super::team::can_start(db, id)?
+                {
                     return Ok(None);
                 }
                 let pending = inbox::load(db, id)?;
@@ -365,6 +376,7 @@ impl AgentApplication {
             .await;
         match result {
             Ok(_) => Ok(()),
+            Err(ref error) if super::team::is_control_pause(error) => Ok(()),
             // Another authenticated input can win the same start transaction.
             // It must not cause automatic replay or discard the remaining input.
             Err(_) => {
@@ -393,6 +405,7 @@ impl AgentApplication {
                 })
                 .await?;
         }
+        self.kick_peer(id);
         Ok(())
     }
 }

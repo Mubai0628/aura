@@ -6,10 +6,10 @@ use aura_domain_common::{
 };
 
 use aura_model_domain::{
-    ChatInstructionRole, ChatOutputTokenField, CompiledInstructionEnvelope, EndpointAuthScheme,
-    LogicalConversationItem, LogicalInstructionBlock, LogicalInstructionKind, LogicalModelRequest,
-    ModelApiFormat, ModelExecutionSnapshot, ModelOutputFormat, ModelOutputRequest,
-    ResolvedModelRequestOptions,
+    CHECKPOINT_INSTRUCTION_SERIALIZER_VERSION, ChatInstructionRole, ChatOutputTokenField,
+    CompiledInstructionEnvelope, EndpointAuthScheme, LogicalConversationItem,
+    LogicalInstructionBlock, LogicalInstructionKind, LogicalModelRequest, ModelApiFormat,
+    ModelExecutionSnapshot, ModelOutputFormat, ModelOutputRequest, ResolvedModelRequestOptions,
 };
 
 use aura_tool_contract::{ToolRegistrySnapshotRef, ToolSchemaSetSnapshotV1, ToolSchemaSnapshotV1};
@@ -82,7 +82,12 @@ fn instruction_envelope() -> CompiledInstructionEnvelope {
     .collect::<Vec<_>>();
     let canonical_text =
         blocks.iter().map(|block| block.content.as_str()).collect::<Vec<_>>().join("\n");
-    CompiledInstructionEnvelope::new(1, blocks, canonical_text).expect("instruction envelope")
+    CompiledInstructionEnvelope::new(
+        CHECKPOINT_INSTRUCTION_SERIALIZER_VERSION,
+        blocks,
+        canonical_text,
+    )
+    .expect("current instruction envelope")
 }
 
 fn tool_schema_set() -> ToolSchemaSetSnapshotV1 {

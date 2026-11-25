@@ -1,4 +1,5 @@
 import type { IpcErrorEnvelope } from '@aura/contracts/generated';
+import { agentProfileBridge } from './agent-profile.js';
 import { terminalBridge } from './terminal.js';
 import { browserBridge } from './browser.js';
 import { chromeBridge } from './chrome.js';
@@ -58,6 +59,7 @@ export function agentBridge(
     };
   };
   return {
+    ...agentProfileBridge(invoke),
     terminal: terminalBridge(invoke, error, isError),
     browser: browserBridge(invoke),
     chrome: chromeBridge(invoke),

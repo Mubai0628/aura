@@ -8,7 +8,9 @@ mod engine;
 mod error;
 mod failure;
 mod gate;
+mod history_archive;
 mod images;
+mod native_prefix;
 mod network;
 mod output;
 mod prompt_parts;
@@ -41,7 +43,11 @@ pub use engine::{
 };
 pub use error::{ModelTransportError, TransportTimeoutKind};
 pub use gate::{EndpointGate, EndpointGateMetrics, EndpointGateRegistry, EndpointPermit};
+pub use history_archive::{
+    archived_deepseek_group, deepseek_history_requires_reasoning, uses_deepseek_history_archive,
+};
 pub use images::{ToolResultImage, tool_result_image_label, tool_result_images};
+pub use native_prefix::{NativeHistoryProjection, NativePrefix};
 pub use network::{
     CORE_REQUEST_GRANT_TTL_SECONDS, CoreGatewayModelNetwork, ModelNetworkExecutor,
     ModelRequestAuthorizer, TransportHttpBody, TransportHttpResponse,
@@ -58,6 +64,7 @@ pub use reasoning_loop::REASONING_LOOP_REPEATS;
 pub use request_layout::{
     RoutingKeyField, cache_breakpoints, encrypted_reasoning, instruction_envelope_layout,
     instruction_layout, routing_key_field, state_before_conversation, store_off,
+    supports_task_state_replay,
 };
 pub use retry::{MAX_TRANSPORT_ATTEMPTS, RetryDecision, TransportRetryPolicy};
 pub use speed_mode::speed_mode_fields;

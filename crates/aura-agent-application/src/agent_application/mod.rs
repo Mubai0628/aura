@@ -24,6 +24,7 @@ mod attachments;
 pub mod branch;
 mod browser_screenshot;
 mod chrome_calls;
+mod collaboration;
 mod compaction;
 mod computer_calls;
 mod configuration;
@@ -91,11 +92,14 @@ pub struct AgentApplication {
     /// The one owner of each run's expiry timer.
     expiry_timers: approval_expiry::ExpiryTimers,
     legacy_expiry_timers: approval_expiry::ExpiryTimers<ApprovalRequestId>,
+    /// One wake-up for each recipient whose oldest eligible delivery is in backoff.
+    peer_retry_timers: approval_expiry::ExpiryTimers<SessionId>,
     /// The one owner of the derived-backfill task.
     derived_backfill: derived_backfill::DerivedBackfill,
     /// The turns this process's start found under way and cut off, until they are continued.
     startup_interrupted: Mutex<Vec<aura_persistence_v2::agent::recovery::InterruptedTurn>>,
     pub memory_maintenance: Arc<memory_maintenance::Maintenance>,
+    pub profile_maintenance: Arc<aura_agent_collaboration::maintenance::ProfileMaintenance>,
     registry_cache: Mutex<BTreeMap<AgentRunId, tools::RegistryCache>>,
     recall_cache: context::preparation::recall::RecallCache,
     /// Sessions whose `session.started`/`session.resumed` Hooks ran in this process.
@@ -116,15 +120,6 @@ pub struct AgentApplication {
     probe_drive_panic: std::sync::atomic::AtomicBool,
 }
 impl AgentApplication {
-    /// The channel to the browser host, for Main's results and its connection.
-    pub fn browser(&self) -> Arc<agent_execution::browser::BrowserBridge> {
-        Arc::clone(&self.execution.browser)
-    }
-
-    pub fn media(&self) -> Arc<agent_execution::media::MediaBridge> {
-        Arc::clone(&self.execution.media)
-    }
-
     /// The process-startup constructor.
     ///
     /// It runs the **one-time** startup responsibilities — the Agent recovery scan and the
@@ -159,6 +154,7 @@ impl AgentApplication {
                 aura_persistence_v2::agent::recovery::startup(tx, UtcTimestamp::now())?;
             team::recover_after_restart(tx, &mut interrupted, UtcTimestamp::now())?;
             aura_persistence_v2::agent::inbox::startup(tx, UtcTimestamp::now())?;
+            aura_agent_collaboration::profile::interrupt_generations(tx, UtcTimestamp::now())?;
             aura_persistence_v2::model::memory_maintenance::interrupt_previous_process(
                 tx,
                 execution.runtime,
@@ -254,6 +250,7 @@ impl AgentApplication {
                             )?;
                             team::recover_after_restart(tx, &mut interrupted, UtcTimestamp::now())?;
                             aura_persistence_v2::agent::inbox::startup(tx, UtcTimestamp::now())?;
+                            aura_agent_collaboration::profile::interrupt_generations(tx, UtcTimestamp::now())?;
                             aura_persistence_v2::model::memory_maintenance::interrupt_previous_process(tx,work.execution.runtime,UtcTimestamp::now())
                         })?;
                         work.restore_waits().await
@@ -284,6 +281,10 @@ impl AgentApplication {
             ),
         ));
         // The browser tools read the browser settings the user saved.
+        let profile_maintenance =
+            aura_agent_collaboration::maintenance::ProfileMaintenance::for_runtime(
+                execution.runtime,
+            );
         execution.browser.bind_settings(Arc::clone(&settings));
         Self {
             execution,
@@ -295,9 +296,11 @@ impl AgentApplication {
             supervisor,
             expiry_timers: approval_expiry::ExpiryTimers::default(),
             legacy_expiry_timers: approval_expiry::ExpiryTimers::default(),
+            peer_retry_timers: approval_expiry::ExpiryTimers::default(),
             derived_backfill: derived_backfill::DerivedBackfill::default(),
             startup_interrupted: Mutex::new(Vec::new()),
             memory_maintenance,
+            profile_maintenance,
             registry_cache: Mutex::new(BTreeMap::new()),
             recall_cache: Default::default(),
             hook_sessions: Mutex::new(Default::default()),

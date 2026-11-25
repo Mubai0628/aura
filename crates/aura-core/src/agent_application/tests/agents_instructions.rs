@@ -1,8 +1,7 @@
 //! The workspace's AGENTS.md reaches the model's instructions: the root file in every request,
 //! named with its path and hash, and the files of the folders the conversation works in from the
 //! next step on, root to deepest. The root file sits in the instructions before the conversation,
-//! which stay byte-identical for the prompt cache; the folders' files change as the conversation
-//! moves, so they come with the task's current state at the end. A file that cannot be used says
+//! and the folders' files follow the task's current scope in the checkpoint state. A file that cannot be used says
 //! why instead of being cut short.
 use super::*;
 use sha2::{Digest, Sha256};
@@ -19,12 +18,11 @@ pub(super) fn agents_block(request: &Value) -> String {
     text[start..end].to_owned()
 }
 
-/// The task's current state: the request's last message.
+/// State at the request's active checkpoint.
 fn task_state(request: &Value) -> String {
-    let state = request["messages"].as_array().and_then(|messages| messages.last());
-    let text = state.and_then(|state| state["content"].as_str()).expect("the last message");
-    assert!(text.contains("Current-Task-State"), "{text}");
-    text.to_owned()
+    let text = instructions(request);
+    let (_, state) = text.split_once("<Current-Task-State>").expect("checkpoint state");
+    state.split_once("</Current-Task-State>").expect("closed checkpoint state").0.to_owned()
 }
 
 fn short_hash(bytes: &[u8]) -> String {

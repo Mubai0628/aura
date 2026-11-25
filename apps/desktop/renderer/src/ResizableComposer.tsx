@@ -11,6 +11,10 @@ import { useContext, useRef, useState } from 'react';
 
 import { AppIcon } from './app-icons';
 import { ComposerModeChip } from './ComposerModeChip';
+import {
+  AllowSubagentsToggle,
+  SessionAgentPolicyControl,
+} from './agent-team/SessionAgentPolicyControl';
 import { useCompactRow } from './ui/useCompactRow';
 import { ModelQuickSelector, PermissionQuickSelector } from './ComposerQuickMenus';
 import { ContextUsageRing } from './ContextUsageRing';
@@ -48,6 +52,7 @@ type ComposerStyle = CSSProperties & { '--composer-editor-height': string };
 interface ResizableComposerProps {
   sessionId: string;
   draftModelPicker?: ModelPickerState;
+  draftAgentPolicy?: { allowed: boolean; onChange: (allowed: boolean) => void };
   preparation?: SubmissionPreparation;
   activeTurn?: string | undefined;
   queuePending: boolean;
@@ -101,6 +106,7 @@ export function ResizableComposer(props: ResizableComposerProps) {
 function Composer({
   sessionId,
   draftModelPicker,
+  draftAgentPolicy,
   preparation,
   activeTurn,
   queuePending,
@@ -549,6 +555,17 @@ function Composer({
               onLeave={() => submission.setMode('normal')}
             />
           ) : null}
+          {draftAgentPolicy ? (
+            <div className="session-agent-policy">
+              <AllowSubagentsToggle
+                checked={draftAgentPolicy.allowed}
+                disabled={submission.busy}
+                onChange={draftAgentPolicy.onChange}
+              />
+            </div>
+          ) : (
+            <SessionAgentPolicyControl sessionId={sessionId} demoMode={demoMode} />
+          )}
           <PermissionQuickSelector
             openSignal={permissionOpenSignal}
             demoMode={demoMode}

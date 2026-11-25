@@ -138,6 +138,20 @@ pub(super) fn run(
         "memory.export.entry" => serde_json::to_value(memory.export_entry(&decode(params)?)?)?,
         "memory.export.chunk" => serde_json::to_value(memory.export_chunk(&decode(params)?)?)?,
         "memory.export.close" => serde_json::to_value(memory.close_export(&decode(params)?))?,
+        "memory.vault.timeline" => {
+            let input: MemoryTimelineRequest = decode(params)?;
+            let w = workspace(runtime_workspace, input.vault.workspace_id)?;
+            serde_json::to_value(
+                memory.desktop_vault(input.vault.scope, w.as_ref())?.timeline(&input.query)?,
+            )?
+        }
+        "memory.vault.read_many" => {
+            let input: MemoryBatchReadRequest = decode(params)?;
+            let w = workspace(runtime_workspace, input.vault.workspace_id)?;
+            serde_json::to_value(
+                memory.desktop_vault(input.vault.scope, w.as_ref())?.read_many(&input.ids)?,
+            )?
+        }
         "memory.vault.repair.apply" => {
             let input: MemoryDesktopRepairApply = decode(params)?;
             let workspace = workspace(runtime_workspace, input.vault.workspace_id)?;
@@ -213,31 +227,12 @@ fn classify(id: CorrelationId, cause: &anyhow::Error) -> IpcErrorEnvelope {
         },
     )
 }
-// The file is authoritative: a later metadata/index failure cannot say that a
-// repair failed without changing files. Keep the same conservative distinction
-// as the model Memory adapter, with the original invocation and no replay.
 fn write_may_have_committed(cause: &anyhow::Error) -> bool {
     if let Some(error) = cause.downcast_ref::<MemoryError>() {
-        return !matches!(
-            error,
-            MemoryError::Format(_)
-                | MemoryError::Secret { .. }
-                | MemoryError::Conflict { .. }
-                | MemoryError::Invalid(_)
-                | MemoryError::NotFound
-                | MemoryError::RolledBack { .. }
-                | MemoryError::File(aura_fs_tools::vault::VaultFileError::Conflict { .. })
-        );
+        return error.write_may_have_committed();
     }
     if let Some(error) = cause.downcast_ref::<aura_config::SettingsFacadeError>() {
-        return !matches!(
-            error,
-            aura_config::SettingsFacadeError::Validation { .. }
-                | aura_config::SettingsFacadeError::RevisionConflict { .. }
-                | aura_config::SettingsFacadeError::DomainUnavailable { .. }
-                | aura_config::SettingsFacadeError::Codec { .. }
-                | aura_config::SettingsFacadeError::RevisionExhausted { .. }
-        );
+        return error.write_may_have_committed();
     }
     false
 }

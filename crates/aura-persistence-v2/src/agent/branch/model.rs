@@ -41,6 +41,29 @@ pub fn model_prefix(db: &Connection, session: SessionId) -> StoreResult<Option<M
     Ok(Some(prefix))
 }
 
+/// Apply the local read budget before loading a carried turn's transcript and tool artifacts.
+pub(crate) fn context_prefix(
+    db: &Connection,
+    session: SessionId,
+    plan: &mut crate::agent::model_context::ReadPlan,
+) -> StoreResult<Option<ModelPrefix>> {
+    let Some(branch) = finished(db, session)? else { return Ok(None) };
+    let mut selected = Vec::new();
+    for turn in branch.turns.iter().rev() {
+        let (bytes, ids) = model_index(db, session, turn.model_artifact_id)?;
+        if plan.include_carried(bytes, &ids) {
+            selected.push(turn.model_artifact_id);
+        }
+    }
+    let mut prefix = ModelPrefix { items: vec![], wire_bindings: vec![] };
+    for id in selected.into_iter().rev() {
+        let model: CarriedModel = record::read_json(db, session, id)?;
+        prefix.items.extend(model.items.into_iter().filter(|i| !plan.omits(event_of(i))));
+        prefix.wire_bindings.extend(model.wire_bindings);
+    }
+    Ok(Some(prefix))
+}
+
 /// Each carried item's place in the conversation. A compaction orders history units by it; the
 /// conversation they came from may no longer exist to ask.
 pub fn history_sequences(
@@ -48,15 +71,36 @@ pub fn history_sequences(
     session: SessionId,
 ) -> StoreResult<BTreeMap<EventId, u64>> {
     let mut sequences = BTreeMap::new();
-    for model in carried(db, session)? {
-        if model.items.len() != model.sequences.len() {
-            return Err(Error::Conflict);
-        }
-        for (item, sequence) in model.items.iter().zip(model.sequences) {
-            sequences.insert(event_of(item), sequence);
+    if let Some(branch) = finished(db, session)? {
+        for turn in &branch.turns {
+            let (_, rows) = model_index(db, session, turn.model_artifact_id)?;
+            for (id, sequence) in rows {
+                sequences.insert(id, u64::try_from(sequence).map_err(|_| Error::Conflict)?);
+            }
         }
     }
     Ok(sequences)
+}
+
+/// Extract identities and ordering in SQLite. Reading a selected artifact still verifies its bytes.
+fn model_index(
+    db: &Connection,
+    session: SessionId,
+    artifact: ArtifactId,
+) -> StoreResult<(u64, Vec<(EventId, i64)>)> {
+    let hash = aura_persistence_core::artifact::identity(db, artifact, &session.to_string())?;
+    let (bytes,ids,sequences):(i64,String,String)=db.query_row(
+        "SELECT length(bytes),(SELECT json_group_array(json_extract(value,'$.source_event_id')) FROM json_each(CAST(o.bytes AS TEXT),'$.items')),json_extract(CAST(bytes AS TEXT),'$.sequences') FROM artifact_objects o WHERE hash=?1",
+        [hash.hex], |row|Ok((row.get(0)?,row.get(1)?,row.get(2)?)))?;
+    let ids: Vec<EventId> = serde_json::from_str(&ids)?;
+    let sequences: Vec<i64> = serde_json::from_str(&sequences)?;
+    if ids.len() != sequences.len() {
+        return Err(Error::Conflict);
+    }
+    Ok((
+        u64::try_from(bytes).map_err(|_| Error::Conflict)?,
+        ids.into_iter().zip(sequences).collect(),
+    ))
 }
 
 pub(super) fn event_of(item: &LogicalConversationItem) -> EventId {

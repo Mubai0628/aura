@@ -1,0 +1,34 @@
+.session-agent-policy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.session-agent-policy > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.session-agent-policy-status {
+  max-width: 24em;
+  white-space: normal;
+  line-height: 1.5;
+}
+.session-agent-policy-status button {
+  margin-left: 4px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.session-agent-policy button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -38,7 +38,11 @@ afterEach(() => {
   resetSendingForTests();
 });
 
-function show(state: 'cancelled' | 'failed' | 'recovery_required' | 'completed', withPlan = false) {
+function show(
+  state: 'cancelled' | 'failed' | 'recovery_required' | 'completed',
+  withPlan = false,
+  peerInput?: AgentSessionProjection['turns'][number]['peer_input'],
+) {
   const projection = {
     session_id: 'session',
     runtime_instance_id: 'runtime',
@@ -54,6 +58,7 @@ function show(state: 'cancelled' | 'failed' | 'recovery_required' | 'completed',
           revision: '4',
         },
         user_messages: [],
+        peer_input: peerInput,
         assistant_messages: [],
         plan: withPlan
           ? {
@@ -88,6 +93,21 @@ function show(state: 'cancelled' | 'failed' | 'recovery_required' | 'completed',
     />,
   );
 }
+
+test('the collaboration message and sender appear before the receiving turn’s reply', () => {
+  show('completed', false, {
+    delivery_id: 'evt_delivery',
+    source_session_id: 'ses_sender',
+    source_session_title: '拟定首版验收项',
+    text: '核对离线启动和重开。',
+  });
+  const content = screen.getByRole('article', { name: '协作消息' });
+  expect(content.textContent).toContain('来自 拟定首版验收项');
+  expect(content.textContent).toContain('核对离线启动和重开。');
+  expect(content.compareDocumentPosition(screen.getByText('计划已完成'))).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+});
 
 test.each(['cancelled', 'failed', 'recovery_required'] as const)(
   '%s turns have no continue entry',

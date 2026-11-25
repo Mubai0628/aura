@@ -7,6 +7,37 @@ import { installAppTestEnvironment, workspaceSessionProjection } from './app-tes
 installAppTestEnvironment();
 
 describe('P05 prerequisite desktop shell', () => {
+  test('each conversation restores its own right sidebar after switching and reopening', async () => {
+    const user = userEvent.setup();
+    const payload = workspaceSessionProjection.payload;
+    const first = payload.sessions[0]!;
+    vi.mocked(window.aura.v1.getWorkspaceSessions).mockResolvedValue({
+      ok: true,
+      value: {
+        ...workspaceSessionProjection,
+        payload: {
+          ...payload,
+          sessions: [
+            first,
+            { ...first, session_id: 'ses_01ARZ3NDEKTSV4RRFFQ69G5FAW', title: '第二个会话' },
+          ],
+        },
+      },
+    });
+    const app = render(<App />);
+    await screen.findByRole('heading', { level: 2, name: '合成桌面会话' });
+    expect(screen.getByRole('complementary', { name: '右侧工作区' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '第二个会话' }));
+    await user.click(screen.getByRole('button', { name: '关闭右侧边栏' }));
+    expect(screen.queryByRole('complementary', { name: '右侧工作区' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: '合成桌面会话' }));
+    expect(screen.getByRole('complementary', { name: '右侧工作区' })).toBeTruthy();
+    app.unmount();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: '第二个会话' }));
+    expect(screen.queryByRole('complementary', { name: '右侧工作区' })).toBeNull();
+  });
+
   test('renders real empty history, quick selectors and keyboard resizers without demo content', async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);

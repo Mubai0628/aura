@@ -41,14 +41,15 @@ import type {
   ToolCredentialCandidatesProjectionV1,
 } from '@aura/contracts/generated';
 import { createHmac, randomBytes } from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { CoreTransport, CoreRpcError, errorEnvelope } from './core-transport.js';
 import type { CoreTransportChannelFacts, CoreTransportLifecycleRecord } from './core-transport.js';
 
 import { StartupAttempt, settleWithin, startupStillOwns, withDeadline } from './startup-attempt.js';
 
-import { waitForChildExit } from './child-exit.js';
+import { CoreProcessLifetime } from './core-process-lifetime.js';
+import { CoreConnectionLifetime } from './core-connection-lifetime.js';
 import { createAuraId } from './ids.js';
 import { describeCoreStartupFailure } from '../shared/core-startup-diagnostics.js';
 import { isRequestLocalTimeout } from '../shared/ipc-request-failure.js';
@@ -172,10 +173,17 @@ export class CoreSupervisor {
   readonly #toolScoped = new ScopedSubscriptions(toolProjectionRouteKey);
   readonly #mainRuntimeInstanceId = createAuraId('run');
   readonly #options: CoreSupervisorOptions;
-  #child: ChildProcess | undefined;
-  #stoppingChild: ChildProcess | undefined;
+  readonly #process = new CoreProcessLifetime();
+  get #child() {
+    return this.#process.child;
+  }
+  get #childExit() {
+    return this.#process.exit;
+  }
+  get #coreGeneration() {
+    return this.#process.generation;
+  }
   /** Exit observed while the startup budgets are still running, if any. */
-  #childExit: { code: number | null; signal: NodeJS.Signals | null } | undefined;
   #startupStartedAt = 0;
   /** Ends the whole startup phase on stop, a new generation, or a child exit. */
   #startupAbort: AbortController | undefined;
@@ -185,10 +193,13 @@ export class CoreSupervisor {
   #reconnectAttempt: StartupAttempt | undefined;
   /** Bounded Core stderr tail; the reason a Core refuses to start is not visible anywhere else. */
   #coreStderr = '';
-  #activeConnectionGeneration = 0;
-  #connectionGeneration = 0;
-  #connectionEpoch = 0;
-  #coreGeneration = 0;
+  readonly #connection = new CoreConnectionLifetime();
+  get #connectionGeneration() {
+    return this.#connection.generation;
+  }
+  get #connectionEpoch() {
+    return this.#connection.epoch;
+  }
   #coreHandshake: RuntimeHandshake | undefined;
   #corePeerIdentity:
     | {
@@ -220,7 +231,9 @@ export class CoreSupervisor {
   #toolCredentialsSupported = false;
   #stopping = false;
   #suspended = false;
-  #transport: CoreTransport | undefined;
+  get #transport() {
+    return this.#connection.transport;
+  }
   /**
    * The three projections Main relays from Core and republishes (core-supervisor/revisioned-projection.ts):
    * Core health, Workspace/Session and Workspace Files.
@@ -718,10 +731,10 @@ export class CoreSupervisor {
   }
 
   async start(): Promise<void> {
-    if (this.#stoppingChild !== undefined) await waitForChildExit(this.#stoppingChild);
-    this.#stoppingChild = undefined;
-    this.#stopping = false;
-    await this.#spawnCore(0);
+    await this.#process.start(async () => {
+      this.#stopping = false;
+      await this.#spawnCore(0);
+    });
   }
 
   stop(): void {
@@ -730,20 +743,14 @@ export class CoreSupervisor {
     this.#reconnectAttempt?.abandon();
     this.#startupAbort?.abort();
     this.#clearTimers();
-    this.#connectionGeneration += 1;
-    this.#activeConnectionGeneration = 0;
-    this.#transport?.close();
-    this.#transport = undefined;
-    this.#stoppingChild = this.#child ?? this.#stoppingChild;
-    this.#child?.kill();
-    this.#child = undefined;
+    this.#connection.close();
+    this.#process.stop();
   }
 
   async stopAndWait(): Promise<void> {
-    const child = this.#child ?? this.#stoppingChild;
     // Register first: a fast exit must not race the observer. Preserve the
     // existing synchronous stop entry for desktop shutdown callers.
-    const stopped = child === undefined ? Promise.resolve() : waitForChildExit(child);
+    const stopped = this.#process.whenStopped();
     this.stop();
     await stopped;
   }
@@ -856,11 +863,8 @@ export class CoreSupervisor {
 
   async #spawnCore(restartAttempt: number): Promise<void> {
     if (this.#stopping) return;
-    this.#coreGeneration += 1;
-    const generation = this.#coreGeneration;
-    this.#connectionGeneration += 1;
-    this.#activeConnectionGeneration = 0;
-    this.#connectionEpoch = 0;
+    const generation = this.#process.beginGeneration();
+    this.#connection.close(true);
     this.#coreHandshake = undefined;
     this.#corePeerIdentity = undefined;
     this.#corePid = undefined;
@@ -926,7 +930,6 @@ export class CoreSupervisor {
     }
     coreArguments.push(...this.#exitRecovery.spawning());
 
-    this.#childExit = undefined;
     // Monotonic: the startup budgets are measured on a clock that cannot step.
     // A new Core generation also retires a reconnect that has not activated.
     this.#reconnectAttempt?.abandon();
@@ -936,6 +939,7 @@ export class CoreSupervisor {
     this.#startupAbort?.abort();
     this.#startupAbort = this.#startupAttempt.abort;
     this.#coreStderr = '';
+    if (this.#stopping || generation !== this.#coreGeneration) return;
     const child = spawn(executable, coreArguments, {
       cwd: dirname(executable),
       detached: false,
@@ -955,7 +959,7 @@ export class CoreSupervisor {
         ? { ...process.env, AURA_DEV_COMPONENT_ROOT: this.#options.release.componentRoot }
         : process.env,
     });
-    this.#child = child;
+    this.#process.attach(child);
     child.stdin?.on('error', () => {
       // Process startup and handshake paths report the authoritative failure.
     });
@@ -965,19 +969,20 @@ export class CoreSupervisor {
       // keep the child from blocking on a full pipe.
     });
     child.stderr?.on('data', (chunk: Buffer | string) => {
+      if (!this.#process.owns(generation, child)) return;
       this.#coreStderr = sanitizeCoreStderr(`${this.#coreStderr}${String(chunk)}`);
     });
     let spawnError: unknown;
     child.once('error', (error) => {
       spawnError = error;
-      if (generation !== this.#coreGeneration || this.#stopping) return;
+      if (!this.#process.owns(generation, child) || this.#stopping) return;
       void this.#log('core_spawn_failed', { message: error.message });
       this.#spawnFailed(error, restartAttempt);
     });
     child.once('exit', (code, signal) => {
       // A process that exits while the startup budgets run is reported as an
       // exit reason instead of waiting the remaining budget out.
-      this.#childExit = { code, signal };
+      if (!this.#process.acceptExit(generation, child, { code, signal })) return;
       this.#startupAttempt?.abandon();
       this.#reconnectAttempt?.abandon();
       this.#startupAbort?.abort();
@@ -1019,9 +1024,7 @@ export class CoreSupervisor {
       if (this.#childExit !== undefined && startupFailureIsAbandoned(error)) return;
       if (error instanceof CompatibilityFailure) {
         void this.#log('core_incompatible', { reason: error.message });
-        this.#connectionGeneration += 1;
-        this.#transport?.close();
-        this.#transport = undefined;
+        this.#connection.close();
         this.#coreProjection.emit(
           localProjection(
             this.#coreRuntimeInstanceId,
@@ -1385,7 +1388,7 @@ export class CoreSupervisor {
     },
     connectBudgetMilliseconds?: number,
   ): Promise<{ connectionGeneration: number; transport: CoreTransport }> {
-    const connectionGeneration = ++this.#connectionGeneration;
+    const connectionGeneration = this.#connection.nextAttempt();
     const connectOptions: Parameters<typeof CoreTransport.connect>[0] = {
       addonPath: this.#options.release.mainPipeBridgePath,
       channelId,
@@ -1422,11 +1425,10 @@ export class CoreSupervisor {
         if (
           this.#stopping ||
           generation !== this.#coreGeneration ||
-          connectionGeneration !== this.#activeConnectionGeneration
+          !this.#connection.observeClose(connectionGeneration)
         ) {
           return;
         }
-        this.#activeConnectionGeneration = 0;
         void this.#handleTransportClosed(generation, error);
       },
       onNotification: (method, params) => {
@@ -1507,12 +1509,8 @@ export class CoreSupervisor {
     connectionGeneration: number,
     connectionEpoch: number,
   ): void {
-    const previous = this.#transport;
-    this.#transport = transport;
-    this.#activeConnectionGeneration = connectionGeneration;
-    this.#connectionEpoch = connectionEpoch;
+    this.#connection.replace(transport, connectionGeneration, connectionEpoch);
     this.#heartbeats.start();
-    if (previous !== undefined && previous !== transport) previous.close();
   }
 
   async #handleTransportClosed(
@@ -1992,9 +1990,7 @@ export class CoreSupervisor {
   ): Promise<void> {
     if (generation !== this.#coreGeneration || this.#stopping) return;
     this.#clearTimers();
-    this.#connectionGeneration += 1;
-    this.#transport?.close();
-    this.#transport = undefined;
+    this.#connection.close();
     const cause = this.#ending ?? 'crash';
     this.#ending = undefined;
     const state = this.#coreProjection.current.payload.state;
@@ -2002,6 +1998,7 @@ export class CoreSupervisor {
     if (recovery.kind === 'stopped') return;
     const { attempt } = recovery;
     await this.#log('core_exited', { attempt, exitCode, signal, cause });
+    if (generation !== this.#coreGeneration || this.#stopping) return;
     this.#coreProjection.emit(
       nextLocalProjection(
         this.#coreProjection.current,

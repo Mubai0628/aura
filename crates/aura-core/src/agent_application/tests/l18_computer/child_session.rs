@@ -22,7 +22,12 @@ fn state(desktop: &Desktop) -> String {
     let request =
         desktop.provider.requests.lock().expect("requests").last().cloned().expect("asked");
     let messages = request["messages"].as_array().expect("messages");
-    messages.last().and_then(|state| state["content"].as_str()).expect("the state").to_owned()
+    messages
+        .iter()
+        .filter_map(|message| message["content"].as_str())
+        .find(|text| text.contains("<Current-Task-State>"))
+        .expect("the checkpoint state")
+        .to_owned()
 }
 
 /// Opens a page only when run, and is never run past its condition: if the guard missed it,

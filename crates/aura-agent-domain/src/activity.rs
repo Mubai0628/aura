@@ -3,7 +3,7 @@
 //! approval, a question, a secure input a terminal asked for, or a decision about the context);
 //! and how the turns a caller saw under way ended, for the notifications of a conversation the
 //! user is not looking at.
-use aura_domain_common::{SessionId, TurnTaskId};
+use aura_domain_common::{EventId, SessionId, TurnTaskId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -85,6 +85,36 @@ pub struct AgentTurnEnded {
     pub outcome: AgentTurnOutcome,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentPeerResultKind {
+    Dispatch,
+    Question,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentPeerResultState {
+    Completed,
+    Failed,
+    Cancelled,
+    Unknown,
+}
+
+/// A result its requestor has not looked at yet. The result body stays behind the
+/// delivery receipt; a notice never starts a turn or consumes collaboration capacity.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentPeerResultNotice {
+    /// The requestor conversation that should see this notice.
+    pub session_id: SessionId,
+    pub delivery_id: EventId,
+    pub kind: AgentPeerResultKind,
+    pub target_session_id: SessionId,
+    pub target_title: String,
+    pub state: AgentPeerResultState,
+}
+
 /// Only the conversations with a turn under way; every other one is idle.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -93,6 +123,9 @@ pub struct AgentSessionsActivity {
     /// Of the turns the request named, those that have ended.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ended: Vec<AgentTurnEnded>,
+    /// Results the requestor has not opened, newest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub peer_results: Vec<AgentPeerResultNotice>,
 }
 
 impl AgentSessionsActivity {

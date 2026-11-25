@@ -128,11 +128,16 @@ async fn a_compaction_is_asked_on_the_request_the_step_would_have_sent() {
             layout(&now)
         );
     }
-    // The step's task state stays where the step sends it, and the ask follows it as a user
-    // message of its own; no tool choice is named, so the request's tools stay as they were.
-    let state = &now[now.len() - 2];
-    assert_eq!(state["role"], before.last().expect("the step's task state")["role"]);
-    assert!(state["content"].as_str().is_some_and(|text| text.contains("\"turn\"")), "{state}");
+    // The checkpoint serializer may carry the task state in the instruction envelope before
+    // the history. The compaction ask follows the history as its own user message.
+    assert!(
+        now[..now.len() - 1].iter().any(|message| {
+            matches!(message["role"].as_str(), Some("developer" | "system"))
+                && message["content"].as_str().is_some_and(|text| text.contains("\"turn\""))
+        }),
+        "{}",
+        layout(&now)
+    );
     let ask = now.last().expect("the ask");
     assert_eq!(ask["role"], "user", "{}", layout(&now));
     let ask = ask["content"].as_str().expect("text").to_owned();

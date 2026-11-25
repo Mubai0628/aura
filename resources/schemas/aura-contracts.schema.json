@@ -1481,6 +1481,9 @@
       ],
       "type": "object"
     },
+    "AgentCollaborationGraphId": {
+      "type": "string"
+    },
     "AgentCompactionRequest": {
       "additionalProperties": false,
       "properties": {
@@ -1750,6 +1753,24 @@
           "default": false,
           "description": "Also return the call's input. Default false.",
           "type": "boolean"
+        },
+        "max_bytes": {
+          "description": "Maximum bytes per page when a byte range is requested, from 4 to 65,536.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "offset_bytes": {
+          "description": "Seek within the model-readable result by UTF-8 byte offset. Offsets inside a character\nare rounded down. Optional; omit to start at the beginning.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "tool_call_id": {
           "$ref": "#/$defs/ToolCallId"
@@ -2072,6 +2093,14 @@
         "turn_task_id"
       ],
       "type": "object"
+    },
+    "AgentDescriptionSource": {
+      "enum": [
+        "none",
+        "user",
+        "model"
+      ],
+      "type": "string"
     },
     "AgentFileDeleteInput": {
       "additionalProperties": false,
@@ -2407,6 +2436,334 @@
           "type": "object"
         }
       ]
+    },
+    "AgentGraph": {
+      "additionalProperties": false,
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/AgentGraphEdge"
+          },
+          "type": "array"
+        },
+        "graph_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentCollaborationGraphId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "positions": {
+          "items": {
+            "$ref": "#/$defs/AgentGraphPosition"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sessions": {
+          "items": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "type": "array"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "revision",
+        "sessions",
+        "edges",
+        "positions"
+      ],
+      "type": "object"
+    },
+    "AgentGraphAction": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "merge",
+              "type": "string"
+            },
+            "confirmed": {
+              "type": "boolean"
+            },
+            "expected_other": {
+              "$ref": "#/$defs/AgentGraphRevision"
+            },
+            "other_session_id": {
+              "$ref": "#/$defs/SessionId"
+            },
+            "positions": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/AgentGraphPosition"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "action",
+            "other_session_id",
+            "expected_other",
+            "confirmed"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "remove",
+              "type": "string"
+            },
+            "session_id": {
+              "$ref": "#/$defs/SessionId"
+            }
+          },
+          "required": [
+            "action",
+            "session_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "connect",
+              "type": "string"
+            },
+            "source_session_id": {
+              "$ref": "#/$defs/SessionId"
+            },
+            "target_session_id": {
+              "$ref": "#/$defs/SessionId"
+            }
+          },
+          "required": [
+            "action",
+            "source_session_id",
+            "target_session_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "disconnect",
+              "type": "string"
+            },
+            "source_session_id": {
+              "$ref": "#/$defs/SessionId"
+            },
+            "target_session_id": {
+              "$ref": "#/$defs/SessionId"
+            }
+          },
+          "required": [
+            "action",
+            "source_session_id",
+            "target_session_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "place",
+              "type": "string"
+            },
+            "positions": {
+              "items": {
+                "$ref": "#/$defs/AgentGraphPosition"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "action",
+            "positions"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "reset_layout",
+              "type": "string"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "AgentGraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "source_session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "target_session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "source_session_id",
+        "target_session_id"
+      ],
+      "type": "object"
+    },
+    "AgentGraphMutationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/AgentGraphAction"
+        },
+        "expected_graph": {
+          "$ref": "#/$defs/AgentGraphRevision"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id",
+        "expected_graph",
+        "action"
+      ],
+      "type": "object"
+    },
+    "AgentGraphPosition": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "x": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "y": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "AgentGraphRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "AgentGraphRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "graph_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentCollaborationGraphId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "None is the existing conversation's as-yet-unpersisted singleton canvas."
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "type": "object"
+    },
+    "AgentGraphTeam": {
+      "additionalProperties": false,
+      "properties": {
+        "parent_session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "team": {
+          "$ref": "#/$defs/AgentTeamView"
+        }
+      },
+      "required": [
+        "parent_session_id",
+        "team"
+      ],
+      "type": "object"
+    },
+    "AgentGraphView": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/AgentProfile"
+          },
+          "type": "array"
+        },
+        "graph": {
+          "$ref": "#/$defs/AgentGraph"
+        },
+        "peer_activity": {
+          "items": {
+            "$ref": "#/$defs/PeerEdgeActivity"
+          },
+          "type": "array"
+        },
+        "profiles": {
+          "items": {
+            "$ref": "#/$defs/AgentProfile"
+          },
+          "type": "array"
+        },
+        "teams": {
+          "description": "Handles are parent-local; the parent binding is explicit and independent of list order.",
+          "items": {
+            "$ref": "#/$defs/AgentGraphTeam"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "graph",
+        "profiles",
+        "teams",
+        "candidates"
+      ],
+      "type": "object"
     },
     "AgentHistoryRequest": {
       "additionalProperties": false,
@@ -3281,6 +3638,82 @@
       ],
       "type": "object"
     },
+    "AgentPeerInputView": {
+      "additionalProperties": false,
+      "properties": {
+        "delivery_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "source_session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "source_session_title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delivery_id",
+        "source_session_id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "AgentPeerResultKind": {
+      "enum": [
+        "dispatch",
+        "question"
+      ],
+      "type": "string"
+    },
+    "AgentPeerResultNotice": {
+      "additionalProperties": false,
+      "description": "A result its requestor has not looked at yet. The result body stays behind the\ndelivery receipt; a notice never starts a turn or consumes collaboration capacity.",
+      "properties": {
+        "delivery_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "kind": {
+          "$ref": "#/$defs/AgentPeerResultKind"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId",
+          "description": "The requestor conversation that should see this notice."
+        },
+        "state": {
+          "$ref": "#/$defs/AgentPeerResultState"
+        },
+        "target_session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "target_title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "delivery_id",
+        "kind",
+        "target_session_id",
+        "target_title",
+        "state"
+      ],
+      "type": "object"
+    },
+    "AgentPeerResultState": {
+      "enum": [
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown"
+      ],
+      "type": "string"
+    },
     "AgentPendingMessage": {
       "additionalProperties": false,
       "properties": {
@@ -3359,6 +3792,220 @@
         "text",
         "destination",
         "created_at"
+      ],
+      "type": "object"
+    },
+    "AgentProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "description_source": {
+          "$ref": "#/$defs/AgentDescriptionSource"
+        },
+        "generation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentProfileGeneration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "input_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "The primary session registry owns this name; editing a description cannot rename it.",
+          "type": "string"
+        },
+        "output_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usage_complete": {
+          "type": "boolean"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/WorkspaceId"
+        }
+      },
+      "required": [
+        "session_id",
+        "workspace_id",
+        "name",
+        "description",
+        "description_source",
+        "revision",
+        "input_tokens",
+        "output_tokens",
+        "usage_complete"
+      ],
+      "type": "object"
+    },
+    "AgentProfileGeneration": {
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message": {
+          "description": "A bounded, safe product diagnostic, never the provider's raw response or credentials.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_profile_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelProfileId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output_tokens": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentProfilePreview"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_run_id": {
+          "$ref": "#/$defs/AgentRunId"
+        },
+        "source_turn_id": {
+          "$ref": "#/$defs/TurnTaskId"
+        },
+        "state": {
+          "$ref": "#/$defs/AgentProfileGenerationState"
+        },
+        "usage_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source_run_id",
+        "source_turn_id",
+        "state",
+        "input_tokens",
+        "output_tokens",
+        "usage_complete"
+      ],
+      "type": "object"
+    },
+    "AgentProfileGenerationState": {
+      "enum": [
+        "running",
+        "completed",
+        "failed",
+        "interrupted",
+        "superseded"
+      ],
+      "type": "string"
+    },
+    "AgentProfilePreview": {
+      "additionalProperties": false,
+      "properties": {
+        "base_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "base_revision",
+        "description"
+      ],
+      "type": "object"
+    },
+    "AgentProfilePreviewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id",
+        "expected_revision"
+      ],
+      "type": "object"
+    },
+    "AgentProfileRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "AgentProfileSetRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id",
+        "expected_revision",
+        "description"
       ],
       "type": "object"
     },
@@ -4004,6 +4651,63 @@
       ],
       "type": "object"
     },
+    "AgentSessionPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_proactive_temporary_agents": {
+          "description": "A behaviour preference, never a grant of file, tool or model permissions.",
+          "type": "boolean"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id",
+        "allow_proactive_temporary_agents",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "AgentSessionPolicyRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "type": "object"
+    },
+    "AgentSessionPolicySetRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_proactive_temporary_agents": {
+          "type": "boolean"
+        },
+        "expected_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "session_id",
+        "expected_revision",
+        "allow_proactive_temporary_agents"
+      ],
+      "type": "object"
+    },
     "AgentSessionProjection": {
       "additionalProperties": false,
       "properties": {
@@ -4130,6 +4834,13 @@
           "description": "Of the turns the request named, those that have ended.",
           "items": {
             "$ref": "#/$defs/AgentTurnEnded"
+          },
+          "type": "array"
+        },
+        "peer_results": {
+          "description": "Results the requestor has not opened, newest first.",
+          "items": {
+            "$ref": "#/$defs/AgentPeerResultNotice"
           },
           "type": "array"
         },
@@ -4339,7 +5050,8 @@
       "enum": [
         "conversation",
         "workspace_init",
-        "compaction"
+        "compaction",
+        "peer_dispatch"
       ],
       "type": "string"
     },
@@ -4599,6 +5311,17 @@
     "AgentTeamMemberView": {
       "additionalProperties": false,
       "properties": {
+        "activity_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The last recorded change to this member's work, separate from projection refreshes."
+        },
         "agent": {
           "type": "string"
         },
@@ -4806,6 +5529,13 @@
       "additionalProperties": false,
       "description": "The user saves the limits, and the permissions when given, at the revision the page read.",
       "properties": {
+        "enabled": {
+          "description": "None preserves the current value, including a disabled value saved by a newer client.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "expected_revision": {
           "format": "uint64",
           "minimum": 0,
@@ -4840,6 +5570,10 @@
           "$ref": "#/$defs/AgentTeamLimits",
           "description": "What 恢复默认 puts back."
         },
+        "enabled": {
+          "description": "Allows new multi-agent work; management and already-started turns remain available.",
+          "type": "boolean"
+        },
         "limits": {
           "$ref": "#/$defs/AgentTeamLimits"
         },
@@ -4865,6 +5599,7 @@
         }
       },
       "required": [
+        "enabled",
         "limits",
         "defaults",
         "minimum",
@@ -5818,6 +6553,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/AgentTurnHistoryCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "peer_input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentPeerInputView"
             },
             {
               "type": "null"
@@ -13691,6 +14436,17 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
+        },
+        "task_state_replay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskStateReplay"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A route-specific representation of the same current task state."
         }
       },
       "required": [
@@ -16237,6 +16993,23 @@
         },
         {
           "additionalProperties": false,
+          "properties": {
+            "delivery_id": {
+              "$ref": "#/$defs/EventId"
+            },
+            "type": {
+              "const": "peer_delivery",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "delivery_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
           "description": "Core progression after a durable assistant response. This does not\nrepresent a new user message or an invented Tool batch.",
           "properties": {
             "assistant_response_event_id": {
@@ -16418,6 +17191,16 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
+        },
+        "task_state_replay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskStateReplay"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "tool_schema_set": {
           "$ref": "#/$defs/ToolSchemaSetSnapshotV1"
@@ -28137,6 +28920,81 @@
       ],
       "type": "object"
     },
+    "MemoryAuthorStamp": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "type": "string"
+        },
+        "at": {
+          "$ref": "#/$defs/UtcTimestamp"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_name_at_write": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "actor",
+        "at"
+      ],
+      "type": "object"
+    },
+    "MemoryBatchRead": {
+      "additionalProperties": false,
+      "properties": {
+        "missing_ids": {
+          "items": {
+            "$ref": "#/$defs/MemoryId"
+          },
+          "type": "array"
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/MemoryRead"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "notes",
+        "missing_ids"
+      ],
+      "type": "object"
+    },
+    "MemoryBatchReadRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "ids": {
+          "items": {
+            "$ref": "#/$defs/MemoryId"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "type": "array"
+        },
+        "vault": {
+          "$ref": "#/$defs/MemoryVaultRequest"
+        }
+      },
+      "required": [
+        "vault",
+        "ids"
+      ],
+      "type": "object"
+    },
     "MemoryCandidate": {
       "oneOf": [
         {
@@ -29091,6 +29949,33 @@
       ],
       "type": "object"
     },
+    "MemoryProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "creator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemoryAuthorStamp"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "None means there is no reliable creation record. Source sessions alone are not proof."
+        },
+        "modifiers": {
+          "description": "New authorship stamps plus recent known events, most recent last.",
+          "items": {
+            "$ref": "#/$defs/MemoryAuthorStamp"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "modifiers"
+      ],
+      "type": "object"
+    },
     "MemoryRead": {
       "additionalProperties": false,
       "properties": {
@@ -29108,6 +29993,16 @@
         },
         "path": {
           "type": "string"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MemoryProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -29655,6 +30550,134 @@
           "type": "object"
         }
       ]
+    },
+    "MemoryTimeline": {
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/MemoryTimelineEntry"
+          },
+          "type": "array"
+        },
+        "incomplete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "entries",
+        "incomplete"
+      ],
+      "type": "object"
+    },
+    "MemoryTimelineEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cursor": {
+          "type": "string"
+        },
+        "event": {
+          "$ref": "#/$defs/MemoryHistory"
+        },
+        "session_name_at_write": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "cursor",
+        "event"
+      ],
+      "type": "object"
+    },
+    "MemoryTimelineQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "author_session_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "before": {
+          "description": "The record hash, not a row number tied to one SQLite rebuild.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "category": {
+          "description": "Current category of the note; deleted/unindexed notes have no category.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "format": "uint32",
+          "maximum": 100,
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "since": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "until": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UtcTimestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "MemoryTimelineRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "$ref": "#/$defs/MemoryTimelineQuery"
+        },
+        "vault": {
+          "$ref": "#/$defs/MemoryVaultRequest"
+        }
+      },
+      "required": [
+        "vault",
+        "query"
+      ],
+      "type": "object"
     },
     "MemoryUpdateInput": {
       "additionalProperties": false,
@@ -32018,6 +33041,11 @@
         {
           "const": "activity_index",
           "description": "The run-information activity fragment.\n\nIt is its own source kind, not `AuraCore`, because the fact it carries comes from\n**other executors** - Main, the buffer store, P04, a Shell's managed background - and\nrelabelling those as Core-owned would hide their real origin from the manifest, the\nInspector and the compaction source filter. That distinction is what lets compaction\nexclude this fragment by name while keeping the control facts it does need.",
+          "type": "string"
+        },
+        {
+          "const": "peer_task",
+          "description": "A verified, recipient-scoped collaboration envelope, not a user submission.",
           "type": "string"
         }
       ]
@@ -39034,6 +40062,587 @@
       "required": [
         "matches",
         "catalog_revision"
+      ],
+      "type": "object"
+    },
+    "PeerActiveBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/PeerBudget"
+        },
+        "delivery_id": {
+          "$ref": "#/$defs/EventId"
+        }
+      },
+      "required": [
+        "delivery_id",
+        "budget"
+      ],
+      "type": "object"
+    },
+    "PeerBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "root_event_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "stopped": {
+          "type": "boolean"
+        },
+        "used": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "root_event_id",
+        "used",
+        "limit",
+        "revision",
+        "stopped"
+      ],
+      "type": "object"
+    },
+    "PeerBudgetDefault": {
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "limit",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "PeerDeliveryKind": {
+      "enum": [
+        "dispatch",
+        "question"
+      ],
+      "type": "string"
+    },
+    "PeerDeliveryState": {
+      "enum": [
+        "queued",
+        "started",
+        "completed",
+        "failed",
+        "cancelled",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "PeerDeliveryView": {
+      "additionalProperties": false,
+      "properties": {
+        "delivery_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "kind": {
+          "$ref": "#/$defs/PeerDeliveryKind"
+        },
+        "next_source_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PeerSourceCursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_catalog_issue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PeerSourceCatalogIssue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Source access can change independently of the durable delivery receipt."
+        },
+        "source_session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "sources": {
+          "description": "One bounded page of currently authorized source metadata, without text.",
+          "items": {
+            "$ref": "#/$defs/PeerSourceEntry"
+          },
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/PeerDeliveryState"
+        },
+        "target_run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentRunId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_session_id": {
+          "$ref": "#/$defs/SessionId"
+        }
+      },
+      "required": [
+        "delivery_id",
+        "kind",
+        "source_session_id",
+        "target_session_id",
+        "state"
+      ],
+      "type": "object"
+    },
+    "PeerEdgeActivity": {
+      "additionalProperties": false,
+      "properties": {
+        "edge": {
+          "$ref": "#/$defs/AgentGraphEdge"
+        },
+        "paused_by_global_switch": {
+          "type": "boolean"
+        },
+        "state": {
+          "$ref": "#/$defs/PeerDeliveryState"
+        }
+      },
+      "required": [
+        "edge",
+        "state",
+        "paused_by_global_switch"
+      ],
+      "type": "object"
+    },
+    "PeerMailbox": {
+      "additionalProperties": false,
+      "properties": {
+        "active_budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PeerActiveBudget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "before": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "budget_default": {
+          "$ref": "#/$defs/PeerBudgetDefault"
+        },
+        "collaboration_enabled": {
+          "type": "boolean"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/PeerMailboxEntry"
+          },
+          "type": "array"
+        },
+        "review_policy": {
+          "$ref": "#/$defs/PeerReviewPolicy"
+        }
+      },
+      "required": [
+        "collaboration_enabled",
+        "budget_default",
+        "entries",
+        "review_policy"
+      ],
+      "type": "object"
+    },
+    "PeerMailboxEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "$ref": "#/$defs/PeerBudget"
+        },
+        "delivery": {
+          "$ref": "#/$defs/PeerDeliveryView"
+        },
+        "manages_run": {
+          "description": "Only the user at the root session can stop the entire run or change its limit.",
+          "type": "boolean"
+        },
+        "review_text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "delivery",
+        "budget",
+        "manages_run"
+      ],
+      "type": "object"
+    },
+    "PeerMailboxRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EventId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "view": {
+          "$ref": "#/$defs/PeerMailboxView",
+          "default": "all"
+        }
+      },
+      "type": "object"
+    },
+    "PeerMailboxView": {
+      "enum": [
+        "all",
+        "active",
+        "settings"
+      ],
+      "type": "string"
+    },
+    "PeerManageAction": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "set_default",
+              "type": "string"
+            },
+            "limit": {
+              "format": "uint32",
+              "maximum": 1024,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "expected_revision",
+            "limit"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delivery_id": {
+              "$ref": "#/$defs/EventId"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "increase",
+              "type": "string"
+            },
+            "limit": {
+              "format": "uint32",
+              "maximum": 1024,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "delivery_id",
+            "expected_revision",
+            "limit"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delivery_id": {
+              "$ref": "#/$defs/EventId"
+            },
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "stop_run",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "delivery_id",
+            "expected_revision"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delivery_id": {
+              "$ref": "#/$defs/EventId"
+            },
+            "kind": {
+              "const": "cancel",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "delivery_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The requestor opened this result; it clears only the prompt.",
+          "properties": {
+            "delivery_id": {
+              "$ref": "#/$defs/EventId"
+            },
+            "kind": {
+              "const": "mark_result_seen",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "delivery_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "expected_revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "set_review",
+              "type": "string"
+            },
+            "required": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "expected_revision",
+            "required"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delivery_id": {
+              "$ref": "#/$defs/EventId"
+            },
+            "kind": {
+              "const": "release",
+              "type": "string"
+            },
+            "revised_text": {
+              "maxLength": 8000,
+              "minLength": 1,
+              "pattern": "\\S",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "delivery_id"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Schedule only unsettled outbox entries. Never reopen a bound receiver run.",
+          "properties": {
+            "kind": {
+              "const": "wake_queued",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PeerManageRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/PeerManageAction"
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SessionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "view": {
+          "$ref": "#/$defs/PeerMailboxView",
+          "default": "all"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    },
+    "PeerReviewPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "required",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "PeerSourceCatalogIssue": {
+      "enum": [
+        "unavailable",
+        "restart_from_first_page"
+      ],
+      "type": "string"
+    },
+    "PeerSourceCursor": {
+      "additionalProperties": false,
+      "properties": {
+        "after_sequence": {
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "delivery_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "lineage_revision": {
+          "$ref": "#/$defs/Revision"
+        }
+      },
+      "required": [
+        "delivery_id",
+        "lineage_revision",
+        "after_sequence"
+      ],
+      "type": "object"
+    },
+    "PeerSourceEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "event_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "source_sequence": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total_chars": {
+          "description": "Unicode scalar count of the same authorized text that peers.read_source pages.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "event_id",
+        "source_sequence",
+        "content_hash",
+        "total_chars"
       ],
       "type": "object"
     },
@@ -48608,6 +50217,10 @@
           "type": "integer"
         },
         "compacted": {
+          "type": "boolean"
+        },
+        "history_on_demand": {
+          "description": "The current request uses a bounded view; omitted originals remain readable in the session.",
           "type": "boolean"
         },
         "input_tokens_before": {
@@ -59758,6 +61371,53 @@
           "type": "string"
         }
       ]
+    },
+    "TaskStateReplay": {
+      "additionalProperties": false,
+      "description": "Scoped to the admitted conversation and to the sources still authorized for that conversation.\nAn update follows a whole exchange, so replay cannot split a function call and its results.",
+      "properties": {
+        "active_sources": {
+          "items": {
+            "$ref": "#/$defs/ContentHash"
+          },
+          "type": "array"
+        },
+        "authority": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "leading": {
+          "type": "string"
+        },
+        "updates": {
+          "items": {
+            "$ref": "#/$defs/TaskStateUpdate"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "authority",
+        "active_sources",
+        "leading",
+        "updates"
+      ],
+      "type": "object"
+    },
+    "TaskStateUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/EventId"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "after",
+        "content"
+      ],
+      "type": "object"
     },
     "TerminalControlRequestV1": {
       "additionalProperties": false,

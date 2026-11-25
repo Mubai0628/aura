@@ -1,4 +1,6 @@
 use super::*;
+#[path = "collaboration.rs"]
+mod collaboration;
 use aura_persistence_core::DatabaseConnection;
 use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
 

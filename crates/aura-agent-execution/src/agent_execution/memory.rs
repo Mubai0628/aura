@@ -187,6 +187,9 @@ pub(super) async fn invoke(
                 let actor = aura_memory::WriteActor {
                     kind: "model_tool".into(), session_id: Some(call.snapshot.session_id),
                     turn_id: call.operation.content.identity.turn_task_id.map(|id| id.to_string()),
+                    session_name: aura_persistence_v2::workspace::session(
+                        service.journal.lock()?.database.connection(), call.snapshot.session_id,
+                    )?.map(|session| session.title),
                 };
                 entered_write = write;
                 let value = service.journal.memory().invoke(

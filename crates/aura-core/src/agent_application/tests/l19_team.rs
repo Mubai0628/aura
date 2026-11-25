@@ -6,6 +6,18 @@
 use super::*;
 use provider_fixture::{ANSWER, QUESTION, SUMMARY, Scenario, TeamPlan, offers};
 use std::collections::BTreeSet;
+#[path = "session_agent_controls.rs"]
+mod session_agent_controls;
+#[path = "session_agent_dispatch.rs"]
+mod session_agent_dispatch;
+#[path = "session_agent_graph.rs"]
+mod session_agent_graph;
+#[path = "session_agent_races.rs"]
+mod session_agent_races;
+#[path = "session_agents.rs"]
+mod session_agents;
+#[path = "session_profile_model.rs"]
+mod session_profile_model;
 
 /// One request to Core, boxed: Core's request futures are large.
 pub(super) async fn call(runtime: &crate::RuntimeState, method: &str, params: Value) -> Value {
@@ -14,6 +26,15 @@ pub(super) async fn call(runtime: &crate::RuntimeState, method: &str, params: Va
 
 /// A runtime whose one model the user allowed for sub-agents, and a conversation.
 pub(super) async fn team(
+    host: &crate::r03_tests::Fixture,
+    provider: &Provider,
+) -> (crate::RuntimeState, SessionId, ModelProfileId) {
+    let (runtime, session, model) = team_with_model(host, provider).await;
+    session_agent_controls::set_session_policy(&runtime, session, true).await;
+    (runtime, session, model)
+}
+
+async fn team_with_model(
     host: &crate::r03_tests::Fixture,
     provider: &Provider,
 ) -> (crate::RuntimeState, SessionId, ModelProfileId) {
@@ -181,7 +202,9 @@ async fn a_sub_agent_reports_through_wait_and_is_offered_the_main_agents_tools()
     );
     assert!(texts(first, "system").iter().any(|t| t.contains("You are a sub-agent.")));
     assert!(!texts(&ours[0], "system").iter().any(|t| t.contains("You are a sub-agent.")));
-    assert!(texts(&ours[0], "system").iter().any(|t| t.contains("You can start sub-agents")));
+    let guide = texts(&ours[0], "system").join("\n");
+    assert!(guide.contains("Use agents.spawn for a bounded independent part"), "{guide}");
+    assert!(guide.contains("\"temporary_slots_available\":3"), "{guide}");
     // Its sheet says it starts read-only in the shared workspace; the role it shares with a
     // writing sub-agent says nothing either way.
     assert!(
@@ -191,7 +214,6 @@ async fn a_sub_agent_reports_through_wait_and_is_offered_the_main_agents_tools()
     assert!(!texts(first, "system").iter().any(|t| t.contains("change no file")), "{first}");
     // The conversation is told which sub-agents may change files, and that a sub-agent loads the
     // user's Skills itself.
-    let guide = texts(&ours[0], "system").join("\n");
     assert!(guide.contains("With worktree: true"), "{guide}");
     assert!(guide.contains("finds and loads the user's Skills itself"), "{guide}");
     // What the conversation is offered but the main agent's own tools, and its report; the

@@ -13,6 +13,7 @@ mod media_definitions;
 mod memory_definitions;
 #[cfg(test)]
 mod memory_tests;
+mod peer_definitions;
 mod plugin_definitions;
 pub mod revisions;
 mod schema;
@@ -184,6 +185,12 @@ pub enum AgentBuiltinHandler {
     AgentsApprove,
     /// A sub-agent's report to the main agent.
     AgentReport,
+    PeersList,
+    PeersDispatch,
+    PeersAsk,
+    PeersStatus,
+    PeersResult,
+    PeersReadSource,
 }
 impl AgentBuiltinHandler {
     pub fn name(self) -> &'static str {
@@ -316,6 +323,12 @@ impl AgentBuiltinHandler {
             Self::AgentsDiscard => "agents.discard",
             Self::AgentsApprove => "agents.approve",
             Self::AgentReport => "agent.report",
+            Self::PeersList => "peers.list",
+            Self::PeersDispatch => "peers.dispatch",
+            Self::PeersAsk => "peers.ask",
+            Self::PeersStatus => "peers.status",
+            Self::PeersResult => "peers.result",
+            Self::PeersReadSource => "peers.read_source",
         }
     }
     pub fn is_control(self) -> bool {

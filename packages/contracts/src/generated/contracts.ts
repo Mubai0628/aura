@@ -536,7 +536,8 @@ export type ModelEgressSourceKind =
       | 'compaction'
     )
   | 'memory_maintenance'
-  | 'activity_index';
+  | 'activity_index'
+  | 'peer_task';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "ContextPreparationOutcome".
@@ -597,6 +598,10 @@ export type ContextPreparationTriggerV1 =
   | {
       type: 'user_batch';
       user_event_ids: EventId[];
+    }
+  | {
+      delivery_id: EventId;
+      type: 'peer_delivery';
     }
   | {
       assistant_response_event_id: EventId;
@@ -6995,6 +7000,11 @@ export type AgentAttachmentDraft =
  */
 export type CoreRestartCause = 'crash' | 'unresponsive' | 'transport_lost' | 'user_restart';
 /**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentCollaborationGraphId".
+ */
+export type AgentCollaborationGraphId = string;
+/**
  * The desktop selected by the user for one durable turn. It is never a fallback policy.
  *
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -7055,6 +7065,11 @@ export type AgentContinuation =
 export type UserQueryId = string;
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentDescriptionSource".
+ */
+export type AgentDescriptionSource = 'none' | 'user' | 'model';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentFileDeleteOutcome".
  */
 export type AgentFileDeleteOutcome = 'recycled' | 'deleted';
@@ -7086,6 +7101,68 @@ export type AgentFinalTextSource =
   | {
       kind: 'completion_report';
     };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphAction".
+ */
+export type AgentGraphAction =
+  | {
+      action: 'merge';
+      confirmed: boolean;
+      expected_other: AgentGraphRevision;
+      other_session_id: SessionId;
+      positions?: AgentGraphPosition[];
+    }
+  | {
+      action: 'remove';
+      session_id: SessionId;
+    }
+  | {
+      action: 'connect';
+      source_session_id: SessionId;
+      target_session_id: SessionId;
+    }
+  | {
+      action: 'disconnect';
+      source_session_id: SessionId;
+      target_session_id: SessionId;
+    }
+  | {
+      action: 'place';
+      positions: AgentGraphPosition[];
+    }
+  | {
+      action: 'reset_layout';
+    };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamReportStatus".
+ */
+export type AgentTeamReportStatus = 'progress' | 'waiting' | 'ready' | 'blocked' | 'failed';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamMemberState".
+ */
+export type AgentTeamMemberState = 'running' | 'reported' | 'stopped';
+/**
+ * Where a worktree is in its life.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "WorktreeState".
+ */
+export type WorktreeState = 'active' | 'merged' | 'discarded';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentProfileGenerationState".
+ */
+export type AgentProfileGenerationState =
+  'running' | 'completed' | 'failed' | 'interrupted' | 'superseded';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerDeliveryState".
+ */
+export type PeerDeliveryState =
+  'queued' | 'started' | 'completed' | 'failed' | 'cancelled' | 'unknown';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentInboxAction".
@@ -7258,6 +7335,16 @@ export type ModeEpisodeEndReason =
  * via the `definition` "AgentTaskMode".
  */
 export type AgentTaskMode = 'normal' | 'plan' | 'goal';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentPeerResultKind".
+ */
+export type AgentPeerResultKind = 'dispatch' | 'question';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentPeerResultState".
+ */
+export type AgentPeerResultState = 'completed' | 'failed' | 'cancelled' | 'unknown';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "QueryAnswerValue".
@@ -7486,7 +7573,7 @@ export type AgentTurnOutcome = ('completed' | 'failed' | 'cancelled') | 'recover
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentTaskPurpose".
  */
-export type AgentTaskPurpose = 'conversation' | 'workspace_init' | 'compaction';
+export type AgentTaskPurpose = 'conversation' | 'workspace_init' | 'compaction' | 'peer_dispatch';
 /**
  * What a sub-agent's commands may do without asking, one kind at a time.
  *
@@ -7499,23 +7586,6 @@ export type AgentTeamAllowanceKind = 'deletions' | 'outside_writes' | 'downloads
  * via the `definition` "WorktreeChangeKind".
  */
 export type WorktreeChangeKind = 'added' | 'modified' | 'deleted';
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "AgentTeamMemberState".
- */
-export type AgentTeamMemberState = 'running' | 'reported' | 'stopped';
-/**
- * Where a worktree is in its life.
- *
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "WorktreeState".
- */
-export type WorktreeState = 'active' | 'merged' | 'discarded';
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "AgentTeamReportStatus".
- */
-export type AgentTeamReportStatus = 'progress' | 'waiting' | 'ready' | 'blocked' | 'failed';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "TerminalEndReason".
@@ -9114,6 +9184,16 @@ export type MediaHostOutcomeV1 =
     };
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryScope".
+ */
+export type MemoryScope = 'global' | 'project';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryStatus".
+ */
+export type MemoryStatus = 'active' | 'superseded' | 'forgotten' | 'conflicted' | 'archived';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "MemoryCandidate".
  */
 export type MemoryCandidate =
@@ -9153,11 +9233,6 @@ export type MemoryCandidate =
     };
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "MemoryScope".
- */
-export type MemoryScope = 'global' | 'project';
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "MemoryTarget".
  */
 export type MemoryTarget =
@@ -9175,11 +9250,6 @@ export type MemoryTarget =
  */
 export type MemoryMaintenanceState =
   'queued' | 'running' | 'completed' | 'skipped' | 'failed' | 'interrupted';
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "MemoryStatus".
- */
-export type MemoryStatus = 'active' | 'superseded' | 'forgotten' | 'conflicted' | 'archived';
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "MemoryRelation".
@@ -9324,6 +9394,63 @@ export type PackageImportOutcomeV1 =
   | {
       diagnostics: PackageImportDiagnosticV1[];
       type: 'rejected';
+    };
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerDeliveryKind".
+ */
+export type PeerDeliveryKind = 'dispatch' | 'question';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerSourceCatalogIssue".
+ */
+export type PeerSourceCatalogIssue = 'unavailable' | 'restart_from_first_page';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerMailboxView".
+ */
+export type PeerMailboxView = 'all' | 'active' | 'settings';
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerManageAction".
+ */
+export type PeerManageAction =
+  | {
+      expected_revision: number;
+      kind: 'set_default';
+      limit: number;
+    }
+  | {
+      delivery_id: EventId;
+      expected_revision: number;
+      kind: 'increase';
+      limit: number;
+    }
+  | {
+      delivery_id: EventId;
+      expected_revision: number;
+      kind: 'stop_run';
+    }
+  | {
+      delivery_id: EventId;
+      kind: 'cancel';
+    }
+  | {
+      delivery_id: EventId;
+      kind: 'mark_result_seen';
+    }
+  | {
+      expected_revision: number;
+      kind: 'set_review';
+      required: boolean;
+    }
+  | {
+      delivery_id: EventId;
+      kind: 'release';
+      revised_text?: string | null;
+    }
+  | {
+      kind: 'wake_queued';
     };
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -10127,6 +10254,7 @@ export interface ContextProjectionSnapshot {
   session_id: SessionId;
   snapshot_hash: ContentHash;
   snapshot_version: number;
+  task_state_replay?: TaskStateReplay | null;
   tool_schema_set: ToolSchemaSetSnapshotV1;
   turn_task_id: TurnTaskId;
 }
@@ -10252,6 +10380,27 @@ export interface ContextSectionSnapshot {
   physical_ordinal: number;
   privacy_class: ContextPrivacyClass;
   source_refs: ContextSourceRef[];
+}
+/**
+ * Scoped to the admitted conversation and to the sources still authorized for that conversation.
+ * An update follows a whole exchange, so replay cannot split a function call and its results.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "TaskStateReplay".
+ */
+export interface TaskStateReplay {
+  active_sources: ContentHash[];
+  authority: ContentHash;
+  leading: string;
+  updates: TaskStateUpdate[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "TaskStateUpdate".
+ */
+export interface TaskStateUpdate {
+  after: EventId;
+  content: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -10469,6 +10618,10 @@ export interface CompiledInstructionEnvelope {
   instruction_hash: ContentHash;
   ordered_blocks: LogicalInstructionBlock[];
   serializer_version: number;
+  /**
+   * A route-specific representation of the same current task state.
+   */
+  task_state_replay?: TaskStateReplay | null;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -10722,6 +10875,10 @@ export interface PromptInspectorEgressClassView {
 export interface PromptInspectorReductionView {
   cleared_tool_results: number;
   compacted: boolean;
+  /**
+   * The current request uses a bounded view; omitted originals remain readable in the session.
+   */
+  history_on_demand?: boolean;
   input_tokens_before: number;
   summary_cache?: CompactionCacheUsage | null;
 }
@@ -18387,6 +18544,15 @@ export interface AgentContextReadToolResultInput {
    * Also return the call's input. Default false.
    */
   include_input?: boolean;
+  /**
+   * Maximum bytes per page when a byte range is requested, from 4 to 65,536.
+   */
+  max_bytes?: number | null;
+  /**
+   * Seek within the model-readable result by UTF-8 byte offset. Offsets inside a character
+   * are rounded down. Optional; omit to start at the beginning.
+   */
+  offset_bytes?: number | null;
   tool_call_id: ToolCallId;
 }
 /**
@@ -18638,6 +18804,258 @@ export interface AgentFileWriteInput {
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraph".
+ */
+export interface AgentGraph {
+  edges: AgentGraphEdge[];
+  graph_id?: AgentCollaborationGraphId | null;
+  positions: AgentGraphPosition[];
+  revision: number;
+  sessions: SessionId[];
+  workspace_id: WorkspaceId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphEdge".
+ */
+export interface AgentGraphEdge {
+  source_session_id: SessionId;
+  target_session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphPosition".
+ */
+export interface AgentGraphPosition {
+  session_id: SessionId;
+  x: number;
+  y: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphRevision".
+ */
+export interface AgentGraphRevision {
+  /**
+   * None is the existing conversation's as-yet-unpersisted singleton canvas.
+   */
+  graph_id?: AgentCollaborationGraphId | null;
+  revision: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphMutationRequest".
+ */
+export interface AgentGraphMutationRequest {
+  action: AgentGraphAction;
+  expected_graph: AgentGraphRevision;
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphRequest".
+ */
+export interface AgentGraphRequest {
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphTeam".
+ */
+export interface AgentGraphTeam {
+  parent_session_id: SessionId;
+  team: AgentTeamView;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamView".
+ */
+export interface AgentTeamView {
+  lead: AgentTeamLeadView;
+  members: AgentTeamMemberView[];
+}
+/**
+ * The conversation's own agent, first in the list.
+ */
+export interface AgentTeamLeadView {
+  /**
+   * Its name, while it is enabled.
+   */
+  model?: string | null;
+  /**
+   * The model the conversation uses, when it has one.
+   */
+  model_profile_id?: ModelProfileId | null;
+  /**
+   * What the conversation's answers used so far, as their providers counted.
+   */
+  tokens: number;
+  tool?: string | null;
+  working: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentTeamMemberView".
+ */
+export interface AgentTeamMemberView {
+  /**
+   * The last recorded change to this member's work, separate from projection refreshes.
+   */
+  activity_at?: UtcTimestamp | null;
+  agent: string;
+  allowed?: AgentTeamMemberAllowances;
+  /**
+   * Approvals it waits for the user to decide, in the conversation that started it.
+   */
+  approvals: ApprovalRequestId[];
+  last_report?: AgentTeamReportStatus | null;
+  /**
+   * Its permission mode now, which the user may change while it works.
+   */
+  mode?: PermissionMode | null;
+  model: string;
+  model_profile_id: ModelProfileId;
+  name: string;
+  /**
+   * The newest report's question for the main agent.
+   */
+  question?: string | null;
+  /**
+   * Approvals it waits for the main agent to decide first.
+   */
+  reviewing?: ApprovalRequestId[];
+  /**
+   * Its questions the main agent or the settings answered, newest last.
+   */
+  reviews?: AgentApprovalReview[];
+  /**
+   * The conversation it works in.
+   */
+  session_id: string;
+  state: AgentTeamMemberState;
+  /**
+   * The newest report's summary, cut to [`LIST_SUMMARY_CHARS`].
+   */
+  summary?: string | null;
+  /**
+   * What its answers used so far, as their providers counted.
+   */
+  tokens: number;
+  tool?: string | null;
+  working: boolean;
+  /**
+   * The workspace that conversation works in: its worktree's, or the starting conversation's.
+   */
+  workspace_id?: WorkspaceId | null;
+  /**
+   * The worktree it changes files in, when it has one.
+   */
+  worktree?: AgentWorktreeView | null;
+}
+/**
+ * What the user lets its commands do without asking.
+ */
+export interface AgentTeamMemberAllowances {
+  /**
+   * Its commands delete without asking where their targets lie in its worktree or temporary
+   * folder, or are left to a variable or the pipeline while the command stands there. Only a
+   * sub-agent with a worktree has it.
+   */
+  deletions?: boolean;
+  /**
+   * Its downloads run without asking.
+   */
+  downloads?: boolean;
+  /**
+   * Its commands write outside its workspace without asking; a deletion there still asks.
+   */
+  outside_writes?: boolean;
+}
+/**
+ * A sub-agent's worktree as the 多 Agent page shows it.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentWorktreeView".
+ */
+export interface AgentWorktreeView {
+  branch: string;
+  /**
+   * Bytes on disk, build outputs included; none until counted.
+   */
+  size_bytes?: number | null;
+  state: WorktreeState;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentGraphView".
+ */
+export interface AgentGraphView {
+  candidates: AgentProfile[];
+  graph: AgentGraph;
+  peer_activity?: PeerEdgeActivity[];
+  profiles: AgentProfile[];
+  /**
+   * Handles are parent-local; the parent binding is explicit and independent of list order.
+   */
+  teams: AgentGraphTeam[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentProfile".
+ */
+export interface AgentProfile {
+  description: string;
+  description_source: AgentDescriptionSource;
+  generation?: AgentProfileGeneration | null;
+  input_tokens: number;
+  /**
+   * The primary session registry owns this name; editing a description cannot rename it.
+   */
+  name: string;
+  output_tokens: number;
+  revision: number;
+  session_id: SessionId;
+  updated_at?: UtcTimestamp | null;
+  usage_complete: boolean;
+  workspace_id: WorkspaceId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentProfileGeneration".
+ */
+export interface AgentProfileGeneration {
+  input_tokens: number;
+  /**
+   * A bounded, safe product diagnostic, never the provider's raw response or credentials.
+   */
+  message?: string | null;
+  model_profile_id?: ModelProfileId | null;
+  output_tokens: number;
+  preview?: AgentProfilePreview | null;
+  source_run_id: AgentRunId;
+  source_turn_id: TurnTaskId;
+  state: AgentProfileGenerationState;
+  usage_complete: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentProfilePreview".
+ */
+export interface AgentProfilePreview {
+  base_revision: number;
+  description: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerEdgeActivity".
+ */
+export interface PeerEdgeActivity {
+  edge: AgentGraphEdge;
+  paused_by_global_switch: boolean;
+  state: PeerDeliveryState;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentHistoryRequest".
  */
 export interface AgentHistoryRequest {
@@ -18874,6 +19292,58 @@ export interface AgentNetworkProxyTestRequest {
 export interface AgentNetworkProxyTestResult {
   message: string;
   ok: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentPeerInputView".
+ */
+export interface AgentPeerInputView {
+  delivery_id: EventId;
+  source_session_id: SessionId;
+  source_session_title?: string | null;
+  text: string;
+}
+/**
+ * A result its requestor has not looked at yet. The result body stays behind the
+ * delivery receipt; a notice never starts a turn or consumes collaboration capacity.
+ *
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentPeerResultNotice".
+ */
+export interface AgentPeerResultNotice {
+  delivery_id: EventId;
+  kind: AgentPeerResultKind;
+  /**
+   * The requestor conversation that should see this notice.
+   */
+  session_id: string;
+  state: AgentPeerResultState;
+  target_session_id: SessionId;
+  target_title: string;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentProfilePreviewRequest".
+ */
+export interface AgentProfilePreviewRequest {
+  expected_revision: number;
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentProfileRequest".
+ */
+export interface AgentProfileRequest {
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentProfileSetRequest".
+ */
+export interface AgentProfileSetRequest {
+  description: string;
+  expected_revision: number;
+  session_id: SessionId;
 }
 /**
  * A historical inspector is bound to the exact execution and context that
@@ -19206,6 +19676,34 @@ export interface AgentSessionBranchResult {
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentSessionPolicy".
+ */
+export interface AgentSessionPolicy {
+  /**
+   * A behaviour preference, never a grant of file, tool or model permissions.
+   */
+  allow_proactive_temporary_agents: boolean;
+  revision: number;
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentSessionPolicyRequest".
+ */
+export interface AgentSessionPolicyRequest {
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "AgentSessionPolicySetRequest".
+ */
+export interface AgentSessionPolicySetRequest {
+  allow_proactive_temporary_agents: boolean;
+  expected_revision: number;
+  session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentSessionProjection".
  */
 export interface AgentSessionProjection {
@@ -19258,6 +19756,7 @@ export interface AgentTurnView {
    */
   imported?: boolean;
   next_messages?: AgentTurnHistoryCursor | null;
+  peer_input?: AgentPeerInputView | null;
   plan?: PlanRecord | null;
   source?: AgentRelatedTurnRequest | null;
   todo: TodoState;
@@ -19419,6 +19918,10 @@ export interface AgentSessionsActivity {
    * Of the turns the request named, those that have ended.
    */
   ended?: AgentTurnEnded[];
+  /**
+   * Results the requestor has not opened, newest first.
+   */
+  peer_results?: AgentPeerResultNotice[];
   sessions: AgentSessionActivity[];
 }
 /**
@@ -19586,7 +20089,7 @@ export interface WorktreeChange {
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentTeamLeadView".
  */
-export interface AgentTeamLeadView {
+export interface AgentTeamLeadView1 {
   /**
    * Its name, while it is enabled.
    */
@@ -19643,80 +20146,6 @@ export interface AgentTeamListRequest {
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "AgentTeamMemberAllowances".
  */
-export interface AgentTeamMemberAllowances {
-  /**
-   * Its commands delete without asking where their targets lie in its worktree or temporary
-   * folder, or are left to a variable or the pipeline while the command stands there. Only a
-   * sub-agent with a worktree has it.
-   */
-  deletions?: boolean;
-  /**
-   * Its downloads run without asking.
-   */
-  downloads?: boolean;
-  /**
-   * Its commands write outside its workspace without asking; a deletion there still asks.
-   */
-  outside_writes?: boolean;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "AgentTeamMemberView".
- */
-export interface AgentTeamMemberView {
-  agent: string;
-  allowed?: AgentTeamMemberAllowances1;
-  /**
-   * Approvals it waits for the user to decide, in the conversation that started it.
-   */
-  approvals: ApprovalRequestId[];
-  last_report?: AgentTeamReportStatus | null;
-  /**
-   * Its permission mode now, which the user may change while it works.
-   */
-  mode?: PermissionMode | null;
-  model: string;
-  model_profile_id: ModelProfileId;
-  name: string;
-  /**
-   * The newest report's question for the main agent.
-   */
-  question?: string | null;
-  /**
-   * Approvals it waits for the main agent to decide first.
-   */
-  reviewing?: ApprovalRequestId[];
-  /**
-   * Its questions the main agent or the settings answered, newest last.
-   */
-  reviews?: AgentApprovalReview[];
-  /**
-   * The conversation it works in.
-   */
-  session_id: string;
-  state: AgentTeamMemberState;
-  /**
-   * The newest report's summary, cut to [`LIST_SUMMARY_CHARS`].
-   */
-  summary?: string | null;
-  /**
-   * What its answers used so far, as their providers counted.
-   */
-  tokens: number;
-  tool?: string | null;
-  working: boolean;
-  /**
-   * The workspace that conversation works in: its worktree's, or the starting conversation's.
-   */
-  workspace_id?: WorkspaceId | null;
-  /**
-   * The worktree it changes files in, when it has one.
-   */
-  worktree?: AgentWorktreeView | null;
-}
-/**
- * What the user lets its commands do without asking.
- */
 export interface AgentTeamMemberAllowances1 {
   /**
    * Its commands delete without asking where their targets lie in its worktree or temporary
@@ -19732,20 +20161,6 @@ export interface AgentTeamMemberAllowances1 {
    * Its commands write outside its workspace without asking; a deletion there still asks.
    */
   outside_writes?: boolean;
-}
-/**
- * A sub-agent's worktree as the 多 Agent page shows it.
- *
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "AgentWorktreeView".
- */
-export interface AgentWorktreeView {
-  branch: string;
-  /**
-   * Bytes on disk, build outputs included; none until counted.
-   */
-  size_bytes?: number | null;
-  state: WorktreeState;
 }
 /**
  * Under 设置 → 智能能力 → 多 Agent. A sub-agent already working keeps its mode and grants; the
@@ -19789,6 +20204,10 @@ export interface AgentTeamPermissions {
  * via the `definition` "AgentTeamSettingsSetRequest".
  */
 export interface AgentTeamSettingsSetRequest {
+  /**
+   * None preserves the current value, including a disabled value saved by a newer client.
+   */
+  enabled?: boolean | null;
   expected_revision: number;
   limits: AgentTeamLimits;
   /**
@@ -19804,6 +20223,10 @@ export interface AgentTeamSettingsSetRequest {
  */
 export interface AgentTeamSettingsView {
   defaults: AgentTeamLimits1;
+  /**
+   * Allows new multi-agent work; management and already-started turns remain available.
+   */
+  enabled: boolean;
   limits: AgentTeamLimits;
   maximum: AgentTeamLimits;
   minimum: AgentTeamLimits2;
@@ -19909,33 +20332,6 @@ export interface AgentTeamStopRequest {
    * The conversation that started it.
    */
   session_id: string;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "AgentTeamView".
- */
-export interface AgentTeamView {
-  lead: AgentTeamLeadView1;
-  members: AgentTeamMemberView[];
-}
-/**
- * The conversation's own agent, first in the list.
- */
-export interface AgentTeamLeadView1 {
-  /**
-   * Its name, while it is enabled.
-   */
-  model?: string | null;
-  /**
-   * The model the conversation uses, when it has one.
-   */
-  model_profile_id?: ModelProfileId | null;
-  /**
-   * What the conversation's answers used so far, as their providers counted.
-   */
-  tokens: number;
-  tool?: string | null;
-  working: boolean;
 }
 /**
  * The folder of a sub-agent's worktree still in use, for Main to open.
@@ -24655,6 +25051,116 @@ export interface MediaProbeResult {
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryAuthorStamp".
+ */
+export interface MemoryAuthorStamp {
+  actor: string;
+  at: UtcTimestamp;
+  session_id?: SessionId | null;
+  session_name_at_write?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryBatchRead".
+ */
+export interface MemoryBatchRead {
+  missing_ids: MemoryId[];
+  notes: MemoryRead[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryRead".
+ */
+export interface MemoryRead {
+  hash: string;
+  history: MemoryHistory[];
+  note: MemoryDocument;
+  path: string;
+  provenance?: MemoryProvenance | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryHistory".
+ */
+export interface MemoryHistory {
+  action: string;
+  actor: string;
+  after_hash?: string | null;
+  at: UtcTimestamp;
+  before_hash?: string | null;
+  id?: MemoryId | null;
+  path: string;
+  session_id?: SessionId | null;
+  title: string;
+  turn_id?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryDocument".
+ */
+export interface MemoryDocument {
+  body: string;
+  metadata: MemoryMetadata;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryMetadata".
+ */
+export interface MemoryMetadata {
+  category: string;
+  confidence: number;
+  conflicts_with_ids: MemoryId[];
+  created_at: UtcTimestamp;
+  id: MemoryId;
+  importance: number;
+  last_confirmed_at?: UtcTimestamp | null;
+  recall_weight: number;
+  related_ids: MemoryId[];
+  schema_version: number;
+  scope: MemoryScope;
+  source_events: string[];
+  source_sessions: SessionId[];
+  status: MemoryStatus;
+  supersedes_ids: MemoryId[];
+  tags: string[];
+  updated_at: UtcTimestamp;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryProvenance".
+ */
+export interface MemoryProvenance {
+  /**
+   * None means there is no reliable creation record. Source sessions alone are not proof.
+   */
+  creator?: MemoryAuthorStamp | null;
+  /**
+   * New authorship stamps plus recent known events, most recent last.
+   */
+  modifiers: MemoryAuthorStamp[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryBatchReadRequest".
+ */
+export interface MemoryBatchReadRequest {
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  ids: [MemoryId, ...MemoryId[]];
+  vault: MemoryVaultRequest;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryVaultRequest".
+ */
+export interface MemoryVaultRequest {
+  scope: MemoryScope;
+  workspace_id?: WorkspaceId | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "MemoryCandidateContent".
  */
 export interface MemoryCandidateContent {
@@ -24741,14 +25247,6 @@ export interface MemoryDesktopRepairApply {
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "MemoryVaultRequest".
- */
-export interface MemoryVaultRequest {
-  scope: MemoryScope;
-  workspace_id?: WorkspaceId | null;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
  * via the `definition` "MemoryDesktopRequest".
  */
 export interface MemoryDesktopRequest {
@@ -24800,53 +25298,6 @@ export interface MemoryVaultStatus {
   scope: MemoryScope;
   valid: number;
   watcher_error?: string | null;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "MemoryHistory".
- */
-export interface MemoryHistory {
-  action: string;
-  actor: string;
-  after_hash?: string | null;
-  at: UtcTimestamp;
-  before_hash?: string | null;
-  id?: MemoryId | null;
-  path: string;
-  session_id?: SessionId | null;
-  title: string;
-  turn_id?: string | null;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "MemoryDocument".
- */
-export interface MemoryDocument {
-  body: string;
-  metadata: MemoryMetadata;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "MemoryMetadata".
- */
-export interface MemoryMetadata {
-  category: string;
-  confidence: number;
-  conflicts_with_ids: MemoryId[];
-  created_at: UtcTimestamp;
-  id: MemoryId;
-  importance: number;
-  last_confirmed_at?: UtcTimestamp | null;
-  recall_weight: number;
-  related_ids: MemoryId[];
-  schema_version: number;
-  scope: MemoryScope;
-  source_events: string[];
-  source_sessions: SessionId[];
-  status: MemoryStatus;
-  supersedes_ids: MemoryId[];
-  tags: string[];
-  updated_at: UtcTimestamp;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -24965,16 +25416,6 @@ export interface MemoryReceipt {
   path: string;
   scope: MemoryScope;
   title: string;
-}
-/**
- * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
- * via the `definition` "MemoryRead".
- */
-export interface MemoryRead {
-  hash: string;
-  history: MemoryHistory[];
-  note: MemoryDocument;
-  path: string;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -25114,6 +25555,51 @@ export interface MemorySettingsUpdate {
 export interface MemoryStateInput {
   scope: MemoryScope;
   targets: MemoryTarget[];
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryTimeline".
+ */
+export interface MemoryTimeline {
+  before?: string | null;
+  entries: MemoryTimelineEntry[];
+  incomplete: boolean;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryTimelineEntry".
+ */
+export interface MemoryTimelineEntry {
+  category?: string | null;
+  cursor: string;
+  event: MemoryHistory;
+  session_name_at_write?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryTimelineQuery".
+ */
+export interface MemoryTimelineQuery {
+  author_session_id?: SessionId | null;
+  /**
+   * The record hash, not a row number tied to one SQLite rebuild.
+   */
+  before?: string | null;
+  /**
+   * Current category of the note; deleted/unindexed notes have no category.
+   */
+  category?: string | null;
+  limit?: number | null;
+  since?: UtcTimestamp | null;
+  until?: UtcTimestamp | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "MemoryTimelineRequest".
+ */
+export interface MemoryTimelineRequest {
+  query: MemoryTimelineQuery;
+  vault: MemoryVaultRequest;
 }
 /**
  * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
@@ -25741,6 +26227,129 @@ export interface PackageVersionSummaryV1 {
   conformance: PackageConformanceStateV1;
   imported_at: UtcTimestamp;
   version: PackageVersionBindingV1;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerActiveBudget".
+ */
+export interface PeerActiveBudget {
+  budget: PeerBudget;
+  delivery_id: EventId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerBudget".
+ */
+export interface PeerBudget {
+  limit: number;
+  revision: number;
+  root_event_id: EventId;
+  stopped: boolean;
+  used: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerBudgetDefault".
+ */
+export interface PeerBudgetDefault {
+  limit: number;
+  revision: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerDeliveryView".
+ */
+export interface PeerDeliveryView {
+  delivery_id: EventId;
+  kind: PeerDeliveryKind;
+  next_source_cursor?: PeerSourceCursor | null;
+  reason?: string | null;
+  result?: string | null;
+  /**
+   * Source access can change independently of the durable delivery receipt.
+   */
+  source_catalog_issue?: PeerSourceCatalogIssue | null;
+  source_session_id: SessionId;
+  /**
+   * One bounded page of currently authorized source metadata, without text.
+   */
+  sources?: PeerSourceEntry[];
+  state: PeerDeliveryState;
+  target_run_id?: AgentRunId | null;
+  target_session_id: SessionId;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerSourceCursor".
+ */
+export interface PeerSourceCursor {
+  after_sequence: number;
+  delivery_id: EventId;
+  lineage_revision: Revision;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerSourceEntry".
+ */
+export interface PeerSourceEntry {
+  content_hash: ContentHash;
+  event_id: EventId;
+  source_sequence: number;
+  /**
+   * Unicode scalar count of the same authorized text that peers.read_source pages.
+   */
+  total_chars: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerMailbox".
+ */
+export interface PeerMailbox {
+  active_budget?: PeerActiveBudget | null;
+  before?: EventId | null;
+  budget_default: PeerBudgetDefault;
+  collaboration_enabled: boolean;
+  entries: PeerMailboxEntry[];
+  review_policy: PeerReviewPolicy;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerMailboxEntry".
+ */
+export interface PeerMailboxEntry {
+  budget: PeerBudget;
+  delivery: PeerDeliveryView;
+  /**
+   * Only the user at the root session can stop the entire run or change its limit.
+   */
+  manages_run: boolean;
+  review_text?: string | null;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerReviewPolicy".
+ */
+export interface PeerReviewPolicy {
+  required: boolean;
+  revision: number;
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerMailboxRequest".
+ */
+export interface PeerMailboxRequest {
+  before?: EventId | null;
+  session_id?: SessionId | null;
+  view?: 'all' | 'active' | 'settings';
+}
+/**
+ * This interface was referenced by `AuraContractCatalog`'s JSON-Schema
+ * via the `definition` "PeerManageRequest".
+ */
+export interface PeerManageRequest {
+  action: PeerManageAction;
+  session_id?: SessionId | null;
+  view?: 'all' | 'active' | 'settings';
 }
 /**
  * Someone on a chat platform the user lets reach Aura through one of the plugin's channels.

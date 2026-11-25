@@ -17,6 +17,7 @@ import { useAgentSession } from './agent-session/useAgentSession';
 import { useLatestInspection } from './agent-session/useLatestInspection';
 import { usePromptInspection } from './agent-session/usePromptInspection';
 import { InboxPanel } from './agent-session/InboxPanel';
+import { ActivePeerWork } from './agent-team/peer/ActivePeerWork';
 import { ContextRemediation } from './agent-session/ContextRemediation';
 import { QueryForm } from './agent-session/query/QueryForm';
 import { SensitiveInputPanel } from './terminal/SensitiveInputPanel';
@@ -45,11 +46,7 @@ import { GoalDock } from './goal/GoalDock';
 import { TodoDock } from './todo/TodoDock';
 import { AgentToolActivityCard } from './AgentToolActivityCard';
 import { useUiSettings } from './ui-settings-store';
-import {
-  DEFAULT_RIGHT_SIDEBAR_RESPONSIVE_STATE,
-  manuallyOpenRightSidebar,
-  respondToWindowWidth,
-} from './workspace-layout-state';
+import { rightSidebarNeedsFullArea } from './workspace-layout-state';
 import { WorkspaceSplitPane } from './WorkspaceSplitPane';
 import { useToolShortcuts } from './right-workspace/useToolShortcuts';
 import { toolTabs, useToolTabs, type ToolKind } from './right-workspace/tool-tabs';
@@ -76,6 +73,7 @@ interface WorkspaceViewProps {
   permissionMode: PermissionMode | undefined;
   permissionTransition?: PermissionModeTransition | undefined;
   rightPanelOpen: boolean;
+  rightPanelExplicit?: boolean;
   rightPanelWidth: number;
   runtimeNotice:
     | {
@@ -111,6 +109,7 @@ export function WorkspaceView({
   permissionMode,
   permissionTransition,
   rightPanelOpen,
+  rightPanelExplicit = false,
   rightPanelWidth,
   runtimeNotice,
   selectedSession,
@@ -125,7 +124,6 @@ export function WorkspaceView({
   const conversationCanvasRef = useRef<HTMLDivElement>(null);
   const conversationColumnRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
-  const latestResponsiveCandidate = useRef<number | undefined>(undefined);
   const dockClearance = useComposerDockClearance(dockRef);
   const agent = useAgentSession(selectedSession.id);
   // A sub-agent picked on the 多 Agent page shows in the main area, over this conversation.
@@ -150,9 +148,7 @@ export function WorkspaceView({
   const [stopRequest, setStopRequest] = useState<{ run: string; waiting: boolean }>();
   /** The active run while its 停止 is under way; nothing once that run has ended. */
   const stopping = active && stopRequest?.run === active.run.agent_run_id ? stopRequest : undefined;
-  const [rightSidebarResponsive, setRightSidebarResponsive] = useState(
-    DEFAULT_RIGHT_SIDEBAR_RESPONSIVE_STATE,
-  );
+  const [compactTools, setCompactTools] = useState(false);
   const [combinedSidebarWidthRatio, setCombinedSidebarWidthRatio] = useState(0);
   const selectorRoute = useMemo(
     () =>
@@ -195,6 +191,11 @@ export function WorkspaceView({
   });
   const desktop = desktopState(controlling.apps);
   const waiting = useSessionActivity().get(selectedSession.id) === 'waiting';
+  const peerNames = new Map(
+    workspaces
+      ?.find((workspace) => workspace.id === workspaceId)
+      ?.sessions.map((session) => [session.id, session.title]),
+  );
   // A file action that did not happen (copy a path, open a file, show it) says so.
   const notifyFileProblem = useCallback(
     (problem: string) =>
@@ -266,11 +267,9 @@ export function WorkspaceView({
   );
   const requestOpenRightSidebar = useCallback(() => {
     setRightPanelOpen(true);
-    setRightSidebarResponsive(manuallyOpenRightSidebar(latestResponsiveCandidate.current));
   }, [setRightPanelOpen]);
   const closeRightSidebar = useCallback(() => {
     setRightPanelOpen(false);
-    setRightSidebarResponsive(DEFAULT_RIGHT_SIDEBAR_RESPONSIVE_STATE);
   }, [setRightPanelOpen]);
   // A link or a shortcut shows the tool's latest tab in this conversation, or opens one.
   const sessionId = selectedSession.id;
@@ -285,9 +284,7 @@ export function WorkspaceView({
   );
   const openTabs = useToolTabs(sessionId);
   const rightPanel = openTabs.tabs.find((tab) => tab.id === openTabs.active)?.kind ?? 'empty';
-  const rightSidebarVisible =
-    rightPanelOpen &&
-    (!rightSidebarResponsive.autoHidden || rightSidebarResponsive.narrowManualOverride);
+  const rightSidebarVisible = rightPanelOpen && (rightPanelExplicit || !compactTools);
   const {
     inspection,
     error: inspectionError,
@@ -347,16 +344,13 @@ export function WorkspaceView({
     [sessionId, workspaceId, workspaceRoot, notifyFileProblem, attachmentNamed, zipEntryNamed],
   );
   const panelExpanded =
+    !compactTools &&
     expandedPanel === rightPanel &&
     (rightPanel === 'review' || rightPanel === 'browser' || rightPanel === 'agents');
+  const rightExpanded = rightSidebarVisible && (compactTools || panelExpanded);
   const handleResponsiveCandidateWidth = useCallback(
-    (candidateConversationWidth: number) => {
-      latestResponsiveCandidate.current = candidateConversationWidth;
-      setRightSidebarResponsive((current) =>
-        respondToWindowWidth(current, candidateConversationWidth, rightPanelOpen),
-      );
-    },
-    [rightPanelOpen],
+    (width: number) => setCompactTools((previous) => rightSidebarNeedsFullArea(previous, width)),
+    [],
   );
 
   const conversationCanvasStyle =
@@ -383,10 +377,14 @@ export function WorkspaceView({
           completionKey={toolCompletion}
           sessionId={selectedSession.id}
           browserSessionId={focusedMember?.session_id}
+          onOpenSession={(sessionId) => onOpenSession?.(sessionId, true) ?? false}
           onToggleSidebar={closeRightSidebar}
-          expanded={panelExpanded}
-          onToggleExpanded={() =>
-            setExpandedPanel((value) => (value === rightPanel ? undefined : rightPanel))
+          expanded={rightExpanded}
+          closeOnEscape={compactTools}
+          onToggleExpanded={
+            compactTools
+              ? undefined
+              : () => setExpandedPanel((value) => (value === rightPanel ? undefined : rightPanel))
           }
           promptInspector={promptInspector}
           inspection={inspection}
@@ -397,7 +395,7 @@ export function WorkspaceView({
         />
       }
       rightPanel={rightPanel}
-      rightExpanded={panelExpanded && rightSidebarVisible}
+      rightExpanded={rightExpanded}
       rightPanelWidth={rightPanelWidth}
       rightSidebarVisible={rightSidebarVisible}
     >
@@ -405,6 +403,7 @@ export function WorkspaceView({
         key={selectedSession.id}
         className="conversation-workspace"
         draftKey={selectedSession.id}
+        inert={rightExpanded}
       >
         <header className="conversation-header" inert={focusedMember !== undefined}>
           <h2>{selectedSession.title || '新会话'}</h2>
@@ -584,9 +583,20 @@ export function WorkspaceView({
                 />
               ) : null}
               {agent.projection ? (
-                <InboxPanel
-                  inbox={agent.projection.inbox}
-                  activeTurn={active?.turn.turn_task_id}
+                <FileLinkContext.Provider value={fileLinks}>
+                  <InboxPanel
+                    inbox={agent.projection.inbox}
+                    activeTurn={active?.turn.turn_task_id}
+                    onChanged={agent.refresh}
+                  />
+                </FileLinkContext.Provider>
+              ) : null}
+              {!demoMode ? (
+                <ActivePeerWork
+                  key={selectedSession.id}
+                  sessionId={selectedSession.id}
+                  names={peerNames}
+                  inputQueue={agent.projection?.inbox}
                   onChanged={agent.refresh}
                 />
               ) : null}

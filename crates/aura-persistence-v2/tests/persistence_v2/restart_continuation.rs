@@ -124,6 +124,93 @@ fn only_the_cut_off_last_turn_of_a_session_is_continued() {
 }
 
 #[test]
+fn only_unsettled_peer_sends_of_the_interrupted_run_stop_automatic_continuation() {
+    use Decision::{Continue, UnsettledPeerDelivery};
+    use aura_execution_contract::SideEffectStateV1::{FullyApplied, NoEffect, Unknown};
+
+    for (kind, state, receipt, same_run, expected) in [
+        ("peers.dispatch", "running", None, false, Continue),
+        ("peers.list", "running", None, true, Continue),
+        ("peers.dispatch", "running", None, true, UnsettledPeerDelivery),
+        ("peers.ask", "failed", Some(Unknown), true, UnsettledPeerDelivery),
+        ("peers.ask", "failed", Some(NoEffect), true, Continue),
+        ("peers.dispatch", "succeeded", Some(FullyApplied), true, Continue),
+    ] {
+        assert_eq!(
+            decision_with_peer_tool(kind, state, receipt, same_run),
+            expected,
+            "{kind} {state} {receipt:?}, same_run={same_run}"
+        );
+    }
+}
+
+fn decision_with_peer_tool(
+    kind: &str,
+    state: &str,
+    receipt: Option<aura_execution_contract::SideEffectStateV1>,
+    same_run: bool,
+) -> Decision {
+    let temp = tempfile::tempdir().expect("temp store");
+    let mut store = V2Store::create(&temp.path().join("v2")).expect("test store");
+    let f = support::Fixture::new(&mut store, AgentTaskMode::Normal);
+    configure(&mut store, &f);
+    store.database.unit_of_work(|tx| recovery::startup(tx, f.at)).expect("cut-off turn");
+    let op = SecurityOperationId::new().to_string();
+    let batch = ToolBatchId::new().to_string();
+    let registry = ToolRegistrySnapshotId::new().to_string();
+    let run = if same_run { f.turn.agent_run_id } else { AgentRunId::new() };
+    let invocation =
+        serde_json::json!({"batch":{"invocation_identity":{"agent_run_id":run}}}).to_string();
+    store
+        .database
+        .unit_of_work(|tx| -> aura_persistence_core::StoreResult<Decision> {
+            let at = f.at.to_string();
+            tx.execute(
+                "INSERT INTO tool_registry_snapshots VALUES(?1,'fixture','{}')",
+                [&registry],
+            )?;
+            tx.execute(
+                "INSERT INTO tool_batches VALUES(?1,?2,?3,'running',1,?4)",
+                rusqlite::params![batch, f.turn.session_id.to_string(), registry, invocation],
+            )?;
+            tx.execute(
+                "INSERT INTO operations VALUES(?1,'execution',?2,'fixture',1,'{}',1,?3,?4,?4)",
+                rusqlite::params![op, kind, state, at],
+            )?;
+            tx.execute(
+                "INSERT INTO tool_calls VALUES(?1,?2,1,?3,'{}')",
+                rusqlite::params![ToolCallId::new().to_string(), batch, op],
+            )?;
+            if let Some(side_effect) = receipt {
+                let artifact = ArtifactId::new();
+                aura_persistence_core::artifact::put(
+                    tx,
+                    artifact,
+                    &op,
+                    "text/plain",
+                    b"fixture receipt",
+                    f.at,
+                )?;
+                tx.execute(
+                    "INSERT INTO execution_attempts VALUES(?1,1,'fixture','terminal',1,'{}')",
+                    [&op],
+                )?;
+                tx.execute(
+                    "INSERT INTO execution_results VALUES(?1,1,?2,?3,?4,'{}')",
+                    rusqlite::params![
+                        op,
+                        aura_persistence_core::record::encode(&state)?,
+                        aura_persistence_core::record::encode(&side_effect)?,
+                        artifact.to_string()
+                    ],
+                )?;
+            }
+            continuation::decide(tx, f.turn.turn_task_id, f.at)
+        })
+        .expect("isolated continuation and receipt fixture")
+}
+
+#[test]
 fn a_continuation_record_written_by_a_later_version_is_no_record() {
     let temp = tempfile::tempdir().unwrap();
     let mut store = V2Store::create(&temp.path().join("v2")).unwrap();

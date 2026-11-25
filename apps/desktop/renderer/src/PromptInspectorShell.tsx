@@ -1,5 +1,6 @@
 import type { PromptInspectorProjection } from '@aura/contracts/generated';
 import type { ReactNode } from 'react';
+import { localTime } from '../../shared/local-time';
 import { PixelBar, PixelCard } from './inspector/PixelBar';
 import { COMPACTION_LABELS, amount, share } from './inspector/inspector-labels';
 import { pixelCells } from './inspector/pixel-cells';
@@ -12,10 +13,12 @@ import './inspector/pixel-inspector.css';
 export function PromptInspectorShell({
   projection,
   chips,
+  snapshotTime,
 }: {
   projection: PromptInspectorProjection | undefined;
   /** What the step ran on, beside the title. */
   chips?: ReactNode;
+  snapshotTime?: string | undefined;
 }) {
   if (projection === undefined) {
     return (
@@ -36,7 +39,7 @@ export function PromptInspectorShell({
         {chips}
       </header>
       <PixelCard
-        title="上下文"
+        title="所选步骤的上下文"
         figure={
           usage ? share(usage.used_input_tokens, usage.runtime_effective_window_tokens) : undefined
         }
@@ -69,6 +72,17 @@ export function PromptInspectorShell({
                 </li>
               ))}
             </ul>
+            <p className="pixel-caption">
+              {snapshotTime ? (
+                <>
+                  <time dateTime={snapshotTime}>快照 {localTime(snapshotTime)}</time> ·{' '}
+                </>
+              ) : null}
+              {usage.estimated ? '本步输入估算' : '本步输入计数'}
+              {projection.cache_usage.actual_input_tokens != null
+                ? ` · 服务商实报 ${amount(projection.cache_usage.actual_input_tokens)} Token`
+                : ''}
+            </p>
           </>
         ) : (
           <p className="pixel-muted">无用量</p>

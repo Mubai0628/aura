@@ -45,7 +45,7 @@ impl ModelProtocolCompiler for OpenAiChatCompletionsAdapter {
         let layout = aura_model_transport::instruction_layout(input.request);
         let mut messages = vec![json!({
             "role": chat_instruction_role(instruction_role),
-            "content": layout.stable,
+            "content": layout.including_checkpoint(),
         })];
         let compile = |items: &[LogicalConversationItem]| {
             history::compile_chat_history(
@@ -55,11 +55,16 @@ impl ModelProtocolCompiler for OpenAiChatCompletionsAdapter {
                 input.resolved_attachments,
             )
         };
+        if let Some(background) = &layout.background {
+            messages.push(json!({"role":"assistant","content":background}));
+        }
         messages.extend(compile(&input.request.conversation_items)?);
-        messages.push(json!({
-            "role": chat_instruction_role(instruction_role),
-            "content": layout.current,
-        }));
+        if !layout.checkpoint {
+            messages.push(json!({
+                "role": chat_instruction_role(instruction_role),
+                "content": layout.current,
+            }));
+        }
         // A message after the step's request - a compaction's question or a retry's note - is a
         // user message of its own after the task state, and what followed a question when the model
         // called tools comes next, so all before them is the step's request as it was sent. Chat

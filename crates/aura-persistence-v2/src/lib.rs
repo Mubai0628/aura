@@ -43,6 +43,7 @@ pub const MODULES: &[SchemaModule] = &[
     SchemaModule { owner: "context", sql: include_str!("context.sql") },
     SchemaModule { owner: "tool", sql: include_str!("tool.sql") },
     SchemaModule { owner: "agent", sql: include_str!("agent.sql") },
+    SchemaModule { owner: "collaboration", sql: aura_agent_collaboration::SCHEMA },
     // `memory.sql` is deliberately absent: it is the schema of each Vault's own
     // disposable cache (see `memory`), never a table set in this shared database.
 ];

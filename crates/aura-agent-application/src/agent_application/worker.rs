@@ -125,7 +125,7 @@ impl AgentApplication {
                     error.to_string(),
                 );
             }
-            if let Err(error) = app.schedule_memory(run).await {
+            if let Err(error) = app.schedule_background_maintenance(run).await {
                 append_core_log(
                     "memory.maintenance_schedule_failed",
                     serde_json::json!({"run":run,"error":error.to_string()}),

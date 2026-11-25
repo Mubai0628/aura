@@ -7,6 +7,20 @@ use serde_json::Value;
 
 use crate::{ConfigModule, ConfigValidationError, ModuleConfigDocument};
 
+impl crate::SettingsFacadeError {
+    /// Validation and revision failures occur before writes begin.
+    pub const fn write_may_have_committed(&self) -> bool {
+        !matches!(
+            self,
+            Self::Validation { .. }
+                | Self::RevisionConflict { .. }
+                | Self::DomainUnavailable { .. }
+                | Self::Codec { .. }
+                | Self::RevisionExhausted { .. }
+        )
+    }
+}
+
 pub const MAX_DYNAMIC_TOOL_SCHEMAS_FIELD: &str = "max_dynamic_tool_schemas";
 pub const MAX_CONCURRENT_TOOL_CALLS_FIELD: &str = "max_concurrent_tool_calls";
 pub const TOOL_DEFAULT_TIMEOUT_MS_FIELD: &str = "default_timeout_ms";
@@ -97,6 +111,19 @@ pub(crate) fn validate_tools_document(
     tool_settings_snapshot_from_document(document).map(|_| ())
 }
 
+#[test]
+fn tool_configuration_diagnostic_names_field_without_echoing_input() {
+    let mut tools = ModuleConfigDocument::empty();
+    tools.values.insert(TOOL_DEFAULT_TIMEOUT_MS_FIELD.into(), Value::from(0));
+    let error = tool_settings_snapshot_from_document(&tools).expect_err("out-of-range timeout");
+    assert!(error.to_string().contains(TOOL_DEFAULT_TIMEOUT_MS_FIELD), "{error}");
+    let private = "synthetic-private-config-value";
+    tools.values.insert(TOOL_DEFAULT_TIMEOUT_MS_FIELD.into(), Value::from(private));
+    let error = tool_settings_snapshot_from_document(&tools).expect_err("invalid type");
+    assert!(error.to_string().contains(TOOL_DEFAULT_TIMEOUT_MS_FIELD));
+    assert!(!error.to_string().contains(private));
+}
+
 pub fn tool_settings_snapshot_from_document(
     document: &ModuleConfigDocument,
 ) -> Result<ToolSettingsSnapshotV1, ConfigValidationError> {
@@ -119,7 +146,52 @@ pub fn tool_settings_snapshot_from_document(
             crate::network_proxy_state_from_document(document).effective_proxy(),
         )
     })
-    .map_err(|error| ConfigValidationError::Semantic(error.to_string()))
+    .map_err(|error| match error {
+        aura_tool_contract::ToolRegistryContractError::SettingOutOfRange { field } => {
+            ConfigValidationError::ModuleFieldOutOfRange { field }
+        }
+        _ => ConfigValidationError::Semantic(error.to_string()),
+    })
+}
+
+/// The projection must never include raw file text, unknown keys, parser errors
+/// or nested credentials. Only explicitly public field names may be echoed.
+pub(crate) fn public_rejection(error: &crate::SettingsFacadeError) -> String {
+    use crate::SettingsFacadeError as E;
+    let allowed = |field: &str| {
+        DEFAULT_TOOL_POLICY_FIELDS.iter().any(|(name, _)| *name == field)
+            || [
+                FIXED_TOOL_IDS_FIELD,
+                FIXED_TOOL_RECOMMENDATIONS_FIELD,
+                WEB_SERVICE_FIELD,
+                crate::NETWORK_PROXY_FIELD,
+            ]
+            .contains(&field)
+    };
+    match error {
+        E::Validation {
+            source: ConfigValidationError::ModuleFieldOutOfRange { field }, ..
+        } if allowed(field) => format!("{field}：超出允许范围。"),
+        E::Validation {
+            source: ConfigValidationError::InvalidModuleFieldType { field, .. },
+            ..
+        } if allowed(field) => format!("{field}：字段类型不正确。"),
+        E::Validation { source: ConfigValidationError::UnknownModuleField { .. }, .. } => {
+            "工具设置包含未知字段。".into()
+        }
+        E::Validation {
+            source:
+                ConfigValidationError::SecretField { .. }
+                | ConfigValidationError::InvalidCredentialRef { .. },
+            ..
+        } => "凭据字段不符合配置规则；请通过凭据管理设置。".into(),
+        E::Codec { .. } => "配置文件格式无法解析。".into(),
+        E::NonMonotonicRevision { .. } | E::RevisionConflict { .. } => {
+            "配置修订与当前版本冲突。".into()
+        }
+        E::Validation { .. } => "配置字段未通过校验。".into(),
+        _ => "无法读取或采用这份配置。".into(),
+    }
 }
 
 fn read_u32(

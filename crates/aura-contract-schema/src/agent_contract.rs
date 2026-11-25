@@ -7,6 +7,19 @@ pub(super) fn register(generator: &mut schemars::SchemaGenerator) {
     use aura_workspace_domain::*;
     macro_rules! register { ($($ty:ty),* $(,)?) => { $(generator.subschema_for::<$ty>();)* } }
     register!(
+        aura_agent_collaboration_contract::AgentGraphRequest,
+        aura_agent_collaboration_contract::AgentGraphMutationRequest,
+        aura_agent_collaboration_contract::AgentGraphView,
+        aura_agent_collaboration_contract::PeerMailbox,
+        aura_agent_collaboration_contract::PeerMailboxRequest,
+        aura_agent_collaboration_contract::PeerManageRequest,
+        aura_agent_collaboration_contract::AgentSessionPolicy,
+        aura_agent_collaboration_contract::AgentSessionPolicyRequest,
+        aura_agent_collaboration_contract::AgentSessionPolicySetRequest,
+        aura_agent_collaboration_contract::AgentProfileRequest,
+        aura_agent_collaboration_contract::AgentProfileSetRequest,
+        aura_agent_collaboration_contract::AgentProfile,
+        aura_agent_collaboration_contract::AgentProfilePreviewRequest,
         aura_windows_user_contract::UserTerminalOpenRequestV1,
         aura_windows_user_contract::TerminalSessionRequestV1,
         aura_windows_user_contract::TerminalRequestV1,

@@ -274,7 +274,9 @@ export function userMessage(value: unknown, given?: string): string {
  * Why the queue stopped starting its messages: the cause in a sentence, that the messages are
  * kept, and what to do. A cause whose own sentence already says what to do is shown as it is.
  */
-export function queuePauseMessage(reason: unknown): string {
+export function queuePauseMessage(reason: unknown): string | undefined {
+  if (reason === 'agent.inbox.user_paused') return undefined;
+  if (reason === 'agent.inbox.restart_paused') return '重启后队列已暂停。';
   const cause = userMessage(reason, '');
   if (cause.includes('继续队列')) return cause;
   return cause

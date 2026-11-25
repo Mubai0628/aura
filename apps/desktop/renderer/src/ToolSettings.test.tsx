@@ -142,12 +142,14 @@ describe('ToolSettings when its settings are not read', () => {
     expect(screen.queryByText(/Tool Settings/u)).toBeNull();
   });
 
-  test('settings rejected from outside say what is in force and how to replace them', async () => {
+  test('settings rejected from outside show the diagnostic and how to recover', async () => {
     stub({ refreshToolProjection: vi.fn().mockResolvedValue({ ok: true, value: issue }) });
     render(<ToolSettings />);
-    const banner = await screen.findByText('工具设置文件里的改动无效');
-    expect(banner.closest('[role="alert"]')?.textContent).toBe(
-      '工具设置文件里的改动无效Aura 正在使用上次有效的设置；在本页改好后保存即可覆盖它。',
+    const banner = await screen.findByRole('alert');
+    expect(banner.textContent).toContain('工具设置文件里的改动无效');
+    expect(banner.textContent).toContain(issue.payload.configuration_issue.message);
+    expect(banner.textContent).toContain(
+      'Aura 正在使用上次有效的设置；在本页改好后保存即可覆盖它。',
     );
   });
 });

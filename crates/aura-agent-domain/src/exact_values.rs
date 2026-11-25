@@ -10,6 +10,13 @@ pub struct ExactArtifactValue {
 }
 
 impl ExactArtifactValue {
+    pub fn formatting_hint(&self) -> &'static str {
+        if self.title_only {
+            "此文件只写最新题名正文，可保留一个行末换行。引用题名用的书名号、引号和标题标签都不属于正文。"
+        } else {
+            "请按最新用户原话核对指定内容。"
+        }
+    }
     pub fn matches(&self, document: &str) -> bool {
         if self.title_only {
             return document == self.text
@@ -58,8 +65,16 @@ const ORIGINAL: &[&str] = &[
     "keep verbatim",
     "preserve verbatim",
 ];
-const UPDATE: &[&str] =
-    &["题名改为", "标题改为", "题目改为", "题名更正为", "标题更正为", "change the title to"];
+const UPDATE: &[&str] = &[
+    "题名改为",
+    "标题改为",
+    "题目改为",
+    "题名更正为",
+    "标题更正为",
+    "题名改回",
+    "标题改回",
+    "change the title to",
+];
 const APPROVED_TITLE: &[&str] =
     &["题名定为", "标题定为", "题名为", "标题为", "the approved title is"];
 const LATEST_TITLE_ONLY: &[&str] = &[
@@ -93,11 +108,33 @@ pub fn explicit_title(message: &str) -> Option<&str> {
     if trimmed.starts_with("/compact") || trimmed.starts_with("/init") {
         return None;
     }
-    direct_clauses(message).into_iter().rev().find_map(|clause| {
+    let clauses = direct_clauses(message);
+    clauses.iter().enumerate().rev().find_map(|(index, &clause)| {
         let lower = clause.to_ascii_lowercase();
-        let end = marker(&lower, UPDATE).or_else(|| marker(&lower, APPROVED_TITLE))?;
+        let end = assignment(&clauses, index).or_else(|| {
+            if ["上一版", "旧题名", "原题名", "此前", "仅供对照", "曾用", "previous title"]
+                .iter()
+                .any(|label| lower.contains(label))
+            {
+                return None;
+            }
+            marker(&lower, APPROVED_TITLE)
+        })?;
         let (title, rest) = quoted_value(&clause[end..])?;
         (!rest.trim().starts_with(['吗', '么'])).then_some(title)
+    })
+}
+
+fn assignment(clauses: &[&str], index: usize) -> Option<usize> {
+    let clause = clauses[index].to_ascii_lowercase();
+    marker(&clause, UPDATE).or_else(|| {
+        let previous = clauses.get(index.checked_sub(1)?)?.to_ascii_lowercase();
+        marker(&previous, TITLE)?;
+        let verb = clause.trim_start_matches("现在").trim_start_matches("正式");
+        ["改为", "改回", "更正为"]
+            .into_iter()
+            .find(|w| verb.starts_with(w))
+            .map(|w| clause.len() - verb.len() + w.len())
     })
 }
 
@@ -113,7 +150,7 @@ pub fn apply_exact_artifact_values(values: &mut Vec<ExactArtifactValue>, message
         destinations.next().filter(|(_, paths)| paths.len() == 1 && destinations.next().is_none());
     for (index, clause) in clauses.iter().enumerate() {
         let lower = clause.to_ascii_lowercase();
-        let correction = marker(&lower, UPDATE);
+        let correction = assignment(&clauses, index);
         let original = marker(&lower, ORIGINAL);
         let Some(end) = correction.or(original) else { continue };
         let tail = clause[end..].trim_start();
@@ -317,6 +354,19 @@ fn add_path(word: &str, found: &mut Vec<WorkspacePath>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn context_continuity_distinguishes_a_title_comparison_from_a_correction_or_reversion() {
+        assert_eq!(explicit_title("上一版题名为《旧》。仅供对照。"), None);
+        assert_eq!(
+            explicit_title(
+                "上一版题名《旧》仅供对照。现在正式改为《新（修订版）》，后续逐字使用新题名。"
+            ),
+            Some("新（修订版）")
+        );
+        assert_eq!(explicit_title("题名改回《旧》。"), Some("旧"));
+        assert_eq!(explicit_title("上一版题名《旧》仅供对照。把文件夹改为《archive》。"), None);
+    }
 
     #[test]
     fn a_title_and_its_only_delivery_path_may_be_in_adjacent_sentences() {

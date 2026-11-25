@@ -1,6 +1,6 @@
 //! A conversation's sub-agents as the desktop shows them.
 use crate::{MemberState, ReportStatus};
-use aura_domain_common::{ApprovalRequestId, ModelProfileId, SessionId, WorkspaceId};
+use aura_domain_common::{ApprovalRequestId, ModelProfileId, SessionId, UtcTimestamp, WorkspaceId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -109,6 +109,9 @@ pub struct AgentTeamMemberView {
     pub reviewing: Vec<ApprovalRequestId>,
     /// What its answers used so far, as their providers counted.
     pub tokens: u64,
+    /// The last recorded change to this member's work, separate from projection refreshes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity_at: Option<UtcTimestamp>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_report: Option<ReportStatus>,
     /// The newest report's summary, cut to [`LIST_SUMMARY_CHARS`].

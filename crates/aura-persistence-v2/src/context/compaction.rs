@@ -7,6 +7,8 @@ use aura_model_domain::*;
 use aura_persistence_core::{PersistenceCoreError as Error, StoreResult, artifact, event, record};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
+mod checkpoint;
+pub use checkpoint::usable_checkpoint;
 
 /// The journal record of a compaction starting (`running`) and ending (its final state), written
 /// in the transaction that changes its state and owned by the compaction, so the session's
@@ -80,20 +82,19 @@ pub fn load(db: &Connection, id: ContextProjectionSnapshotId) -> StoreResult<Com
     Ok(value)
 }
 pub fn latest(db: &Connection, session: SessionId) -> StoreResult<Option<Compaction>> {
-    let raw: Option<String> = db.query_row("SELECT payload FROM context_compactions WHERE session_id=?1 AND state='completed' ORDER BY json_extract(payload,'$.sequence') DESC LIMIT 1", [session.to_string()], |r| r.get(0)).optional()?;
-    raw.map(|s| record::decode(&s)).transpose()
+    Ok(usable_checkpoint(db, session, None, |_| true)?.0)
 }
 pub fn existing_for_step(
     db: &Connection,
     session: SessionId,
     step: ModelStepId,
 ) -> StoreResult<Option<Compaction>> {
-    let raw: Option<String> = db.query_row("SELECT payload FROM context_compactions WHERE session_id=?1 AND json_extract(payload,'$.source_step_id')=?2 ORDER BY rowid DESC LIMIT 1", params![session.to_string(), step.to_string()], |row| row.get(0)).optional()?;
+    let raw: Option<String> = db.query_row("SELECT payload FROM context_compactions WHERE session_id=?1 AND CASE WHEN json_valid(payload) THEN json_extract(payload,'$.source_step_id') END=?2 ORDER BY rowid DESC LIMIT 1", params![session.to_string(), step.to_string()], |row| row.get(0)).optional()?;
     raw.as_deref().map(record::decode).transpose()
 }
 
 pub fn next_sequence(db: &Connection, session: SessionId) -> StoreResult<u32> {
-    let value: i64 = db.query_row("SELECT COALESCE(MAX(json_extract(payload,'$.sequence')),0)+1 FROM context_compactions WHERE session_id=?1", [session.to_string()], |r| r.get(0))?;
+    let value: i64 = db.query_row("SELECT MAX(COUNT(*), COALESCE(MAX(CASE WHEN json_valid(payload) THEN json_extract(payload,'$.sequence') END),0))+1 FROM context_compactions WHERE session_id=?1", [session.to_string()], |r| r.get(0))?;
     value.try_into().map_err(|_| Error::Conflict)
 }
 pub fn begin(tx: &Transaction<'_>, value: &Compaction, sources: &[u8]) -> StoreResult<()> {

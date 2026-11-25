@@ -31,7 +31,7 @@
   height: 100%;
 }
 
-/* The review page fills the main area; the conversation keeps its layout underneath. */
+/* Full-area tools leave the conversation mounted at full width underneath. */
 .workspace-main[data-right-expanded='true'] > .right-pane-slot {
   position: absolute;
   inset: 0;

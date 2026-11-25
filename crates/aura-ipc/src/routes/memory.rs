@@ -2,6 +2,46 @@
 use super::*;
 pub(super) const ROUTES: &[RouteDescriptor] = &[
     route!(
+        "memory.vault.timeline",
+        Memory,
+        Main,
+        TrustedRenderer,
+        "MemoryTimelineRequest",
+        "MemoryTimeline",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "memory.vault.timeline",
+        Memory,
+        Core,
+        AuthenticatedMain,
+        "MemoryTimelineRequest",
+        "MemoryTimeline",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "memory.vault.read_many",
+        Memory,
+        Main,
+        TrustedRenderer,
+        "MemoryBatchReadRequest",
+        "MemoryBatchRead",
+        ReadOnly,
+        None
+    ),
+    route!(
+        "memory.vault.read_many",
+        Memory,
+        Core,
+        AuthenticatedMain,
+        "MemoryBatchReadRequest",
+        "MemoryBatchRead",
+        ReadOnly,
+        None
+    ),
+    route!(
         "memory.vaults.get",
         Memory,
         Main,

@@ -5,7 +5,8 @@ import { AppIcon } from '../../app-icons';
 import { useContextMenu } from '../../ui/useContextMenu';
 import { useMemberMenu } from '../member-menu';
 import { CanvasNode } from './CanvasNode';
-import { useTeamFlows } from './flows';
+import { CanvasFlow } from './CanvasFlow';
+import { teamLineFlow, useTeamFlows } from './flows';
 import {
   LEAD_KEY,
   defaultLayout,
@@ -51,6 +52,7 @@ export function AgentTeamCanvas({
   // The camera the user set; while following, the one that shows every agent is used instead.
   const [own, setOwn] = useState<Camera>({ x: 0, y: 0, zoom: 1 });
   const [follow, setFollow] = useState(true);
+  const [selected, setSelected] = useState<string>();
   const drag = useRef<Drag | undefined>(undefined);
   const moved = useRef(false);
   const members = useMemo(() => view?.members ?? [], [view]);
@@ -154,13 +156,13 @@ export function AgentTeamCanvas({
   const release = () => {
     drag.current = undefined;
   };
-  const pick = (agent: string | undefined) => {
+  const select = (key: string) => {
     // A card that was moved is not picked.
     if (moved.current) {
       moved.current = false;
       return;
     }
-    onPick(agent);
+    setSelected(key);
   };
 
   const lines = members.map((member) => {
@@ -189,7 +191,7 @@ export function AgentTeamCanvas({
       >
         <svg aria-hidden="true" className="agent-canvas-lines" height="1" width="1">
           {lines.map(({ member, corners, flow, facts }) => {
-            const flowing = flow ? pathOf(flow.up ? [...corners].reverse() : corners) : '';
+            const lineFlow = teamLineFlow(member, flow);
             return (
               <g key={member.session_id}>
                 <path
@@ -199,16 +201,12 @@ export function AgentTeamCanvas({
                   data-ended={facts.ended ? 'true' : undefined}
                   d={pathOf(corners)}
                 />
-                {flow ? (
-                  <>
-                    <path className="agent-canvas-glow" data-kind={flow.kind} d={flowing} />
-                    <path
-                      className="agent-canvas-flow"
-                      data-agent={member.agent}
-                      data-kind={flow.kind}
-                      d={flowing}
-                    />
-                  </>
+                {lineFlow ? (
+                  <CanvasFlow
+                    agent={member.agent}
+                    kind={lineFlow.kind}
+                    path={pathOf(lineFlow.up ? [...corners].reverse() : corners)}
+                  />
                 ) : null}
               </g>
             );
@@ -219,7 +217,9 @@ export function AgentTeamCanvas({
           chosen={chosen === undefined}
           facts={leadFacts(view?.lead)}
           lead
-          onPick={() => pick(undefined)}
+          selectedForMove={selected === LEAD_KEY}
+          onPick={() => select(LEAD_KEY)}
+          onOpen={() => onPick(undefined)}
           onPointerDown={(event) => grab(event, LEAD_KEY)}
         />
         {lines.map(({ member, facts }) => (
@@ -229,7 +229,9 @@ export function AgentTeamCanvas({
             facts={facts}
             key={member.session_id}
             onMenu={(event) => menu.open(event, member.name, actions.entries(member))}
-            onPick={() => pick(member.agent)}
+            selectedForMove={selected === member.agent}
+            onPick={() => select(member.agent)}
+            onOpen={() => onPick(member.agent)}
             onPointerDown={(event) => grab(event, member.agent)}
           />
         ))}

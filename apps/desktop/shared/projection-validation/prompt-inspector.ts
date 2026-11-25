@@ -76,7 +76,7 @@ const isPromptInspectorReduction = (value: unknown): boolean =>
   recordWithOptional(
     value,
     ['cleared_tool_results', 'compacted', 'input_tokens_before'],
-    ['summary_cache'],
+    ['summary_cache', 'history_on_demand'],
   ) &&
   isOptionalNullable(
     value.summary_cache,
@@ -92,6 +92,7 @@ const isPromptInspectorReduction = (value: unknown): boolean =>
   ) &&
   isSafeUnsigned(value.cleared_tool_results) &&
   typeof value.compacted === 'boolean' &&
+  (value.history_on_demand === undefined || typeof value.history_on_demand === 'boolean') &&
   isSafeUnsigned(value.input_tokens_before);
 
 const isPromptInspectorActivity = (value: unknown): boolean =>

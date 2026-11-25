@@ -114,6 +114,7 @@ pub enum VisibleSource {
     Assistant,
     Reasoning,
     Completion,
+    ToolResult,
 }
 
 /// How much text one stored chunk carries.
@@ -408,6 +409,7 @@ fn source_name(source: VisibleSource) -> &'static str {
         VisibleSource::Assistant => "assistant",
         VisibleSource::Reasoning => "reasoning",
         VisibleSource::Completion => "completion",
+        VisibleSource::ToolResult => "tool_result",
     }
 }
 
@@ -838,7 +840,7 @@ pub fn reasoning_window(output: &NormalizedModelOutput, offset: u64, limit: u64)
 /// total is known once the last piece is pushed. Widening by up to three bytes on each side
 /// is what lets the boundary snap happen locally: a UTF-8 character is never longer than
 /// four bytes, so a boundary can be honoured without seeing the rest of the body.
-pub(super) fn window_of<'a>(
+pub(crate) fn window_of<'a>(
     pieces: impl Iterator<Item = &'a str>,
     offset: u64,
     limit: u64,

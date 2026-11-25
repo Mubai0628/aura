@@ -9,6 +9,13 @@ use aura_persistence_v2::agent::{model_context, session};
 use std::future::Future;
 
 impl TeamHost for TeamApp {
+    fn new_work_block(
+        db: &aura_persistence_core::Connection,
+        parent: SessionId,
+    ) -> aura_persistence_core::StoreResult<Option<&'static str>> {
+        super::admission::new_work_block(db, parent)
+    }
+
     fn read<T, F>(
         &self,
         step: &'static str,
@@ -157,9 +164,15 @@ impl TeamHost for TeamApp {
     ) -> impl Future<Output = anyhow::Result<Delivery>> + Send {
         let app = Arc::clone(&self.0);
         async move {
+            let model =
+                app.execution.persistence.session_model_binding(child)?.ok_or_else(|| {
+                    anyhow::anyhow!("agents.model_unavailable: 子 Agent 没有绑定模型。")
+                })?;
+            app.require_temporary_model(model.model_profile_id)?;
             let active = app
                 .store
                 .read(StoreStep::operation("agents.deliver.turn"), move |db| {
+                    super::admission::require_start(db, child)?;
                     Ok(session::load(db, child)?.active_turn)
                 })
                 .await?;

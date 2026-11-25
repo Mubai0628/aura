@@ -47,6 +47,9 @@ pub enum ContextPreparationTriggerV1 {
     UserBatch {
         user_event_ids: Vec<EventId>,
     },
+    PeerDelivery {
+        delivery_id: EventId,
+    },
     /// Core progression after a durable assistant response. This does not
     /// represent a new user message or an invented Tool batch.
     CoreContinuation {
@@ -71,6 +74,7 @@ impl ContextPreparationTriggerV1 {
         match self {
             Self::UserSubmission { .. }
             | Self::UserBatch { .. }
+            | Self::PeerDelivery { .. }
             | Self::CoreContinuation { .. } => None,
             Self::ToolContinuation { provider_continuation, .. } => provider_continuation.as_ref(),
         }

@@ -30,6 +30,15 @@ pub fn load_run(db: &Connection, id: AgentRunId) -> StoreResult<AgentRun> {
     Ok(run)
 }
 pub fn insert(tx: &Transaction<'_>, turn: &TurnTask, run: &AgentRun) -> StoreResult<()> {
+    super::session::user_message(tx, turn.session_id, turn.root_user_event_id)?;
+    insert_for_input(tx, turn, run)
+}
+
+pub(super) fn insert_for_input(
+    tx: &Transaction<'_>,
+    turn: &TurnTask,
+    run: &AgentRun,
+) -> StoreResult<()> {
     if turn.state != TurnTaskState::Pending
         || turn.revision != Revision::INITIAL
         || run.revision != Revision::INITIAL
@@ -39,10 +48,6 @@ pub fn insert(tx: &Transaction<'_>, turn: &TurnTask, run: &AgentRun) -> StoreRes
         || run.agent_run_id != turn.agent_run_id
         || run.turn_task_id != turn.turn_task_id
     {
-        return Err(Error::Conflict);
-    }
-    let root = super::session::user_message(tx, turn.session_id, turn.root_user_event_id)?;
-    if root.session_id != turn.session_id {
         return Err(Error::Conflict);
     }
     super::insert_turn(tx, turn.turn_task_id, turn.session_id, &serde_json::to_value(turn)?)?;

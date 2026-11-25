@@ -4,9 +4,8 @@
 //! cleared and not compacted away, are attached. A screenshot travels as its tool's result, on the
 //! same basis and in the same class as the result's text.
 //!
-//! A screenshot that leaves the request changes the request where its result is, so the prefix a
-//! provider cached ends there. Older screenshots therefore leave a batch at a time: one change of
-//! that part of the request per batch, not one per new screenshot.
+//! Materialized attachments keep their original source binding until the associated history is
+//! replaced by a checkpoint, or an explicit request budget recovery defers the image.
 //!
 //! So do the pictures the user sent with a
 //! message, each with its message, as the user's own submission.
@@ -15,6 +14,7 @@ use super::*;
 use aura_agent_domain::{MAX_MEDIA_FRAMES, MediaFramesResult};
 use aura_model_domain::{ModelAttachmentSnapshot, ResolvedModelAttachment};
 use aura_tool_contract::{ModelVisibleToolResultOutcomeV1, ModelVisibleToolSuccessPayloadV1};
+use std::collections::BTreeSet;
 
 /// How many of the newest screenshots a request carries at least.
 const SENT: usize = 3;
@@ -81,6 +81,38 @@ pub struct ToolImage {
     display_name: String,
 }
 
+struct MediaPrefix {
+    events: BTreeSet<EventId>,
+    attachments: BTreeSet<(EventId, ArtifactId)>,
+}
+
+impl MediaPrefix {
+    fn new(snapshot: &ContextProjectionSnapshot) -> Self {
+        Self {
+            events: snapshot
+                .conversation_items
+                .iter()
+                .map(|i| match i {
+                    LogicalConversationItem::User { source_event_id, .. }
+                    | LogicalConversationItem::Assistant { source_event_id, .. }
+                    | LogicalConversationItem::ToolResult { source_event_id, .. } => {
+                        *source_event_id
+                    }
+                })
+                .collect(),
+            attachments: snapshot
+                .attachments
+                .iter()
+                .map(|a| (a.source_event_id, a.artifact_id))
+                .collect(),
+        }
+    }
+
+    fn admits(&self, event: EventId, artifact: ArtifactId) -> bool {
+        !self.events.contains(&event) || self.attachments.contains(&(event, artifact))
+    }
+}
+
 /// History carries the envelope's model view, not its raw structured result. Only the typed
 /// successful payload at this exact position is authoritative; artifact metadata is not payload.
 pub fn media_result(content: &str) -> Option<MediaFramesResult> {
@@ -100,6 +132,13 @@ pub fn media_result(content: &str) -> Option<MediaFramesResult> {
 /// media result replaces the previous one even when it failed, is hidden, or has no images. Every
 /// screenshot the model was shown counts, so how many are carried follows [`carried`].
 pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
+    projected_tool_images(items, None)
+}
+
+fn projected_tool_images(
+    items: &[LogicalConversationItem],
+    previous: Option<&MediaPrefix>,
+) -> Vec<ToolImage> {
     // Newest first: each screenshot as its own group, and the latest media result's group.
     let mut groups = Vec::new();
     let mut screenshots = Vec::new();
@@ -116,7 +155,7 @@ pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
             continue;
         };
         let mut images = Vec::new();
-        if tool_name == "media.frames" && !media_seen {
+        if tool_name == "media.frames" && (!media_seen || previous.is_some()) {
             media_seen = true;
             if *is_error {
                 continue;
@@ -176,13 +215,20 @@ pub fn tool_images(items: &[LogicalConversationItem]) -> Vec<ToolImage> {
         }
     }
     // The older screenshots beyond what is carried leave; the media result's group stays.
-    let left = screenshots.split_off(carried(screenshots.len()));
+    let left = if previous.is_none() {
+        screenshots.split_off(carried(screenshots.len()))
+    } else {
+        Vec::new()
+    };
     groups
         .into_iter()
         .enumerate()
         .filter(|(index, _)| left.binary_search(index).is_err())
         .rev()
         .flat_map(|(_, group)| group)
+        .filter(|image| {
+            previous.is_none_or(|prefix| prefix.admits(image.result_event, image.artifact_id))
+        })
         .collect()
 }
 
@@ -196,6 +242,7 @@ impl AgentApplication {
         items: &[LogicalConversationItem],
         current: &[EventId],
         takes_images: bool,
+        previous: Option<&ContextProjectionSnapshot>,
     ) -> anyhow::Result<Screenshots> {
         if !takes_images {
             return Ok(Screenshots::default());
@@ -210,7 +257,11 @@ impl AgentApplication {
             .chain(current.iter().copied())
             .collect::<Vec<_>>();
         messages.reverse();
-        let wanted = tool_images(items);
+        let previous = previous.map(MediaPrefix::new);
+        let wanted = match &previous {
+            Some(prefix) => projected_tool_images(items, Some(prefix)),
+            None => tool_images(items),
+        };
         if wanted.is_empty() && messages.is_empty() {
             return Ok(Screenshots::default());
         }
@@ -244,12 +295,19 @@ impl AgentApplication {
                             continue;
                         };
                         for attachment in attached.iter().rev() {
-                            if pictures.len() == PICTURES {
-                                break;
-                            }
                             if let AgentMessageAttachment::Image { name, artifact_id, .. } =
                                 attachment
                             {
+                                if !previous
+                                    .as_ref()
+                                    .is_none_or(|prefix| prefix.admits(message, *artifact_id))
+                                    || (pictures.len() >= PICTURES
+                                        && previous.as_ref().is_none_or(|prefix| {
+                                            !prefix.attachments.contains(&(message, *artifact_id))
+                                        }))
+                                {
+                                    continue;
+                                }
                                 match artifact::read(db, *artifact_id, &session.to_string()) {
                                     Ok(bytes) => {
                                         pictures.push((message, *artifact_id, name.clone(), bytes))
@@ -319,7 +377,11 @@ impl AgentApplication {
 impl Screenshots {
     /// Attaches the screenshots whose results the request still carries as they were, and names
     /// the pictures of the messages it carries that could not be read.
-    pub fn attach(&self, input: &mut ContextPreparationInput) -> Vec<String> {
+    pub fn attach(
+        &self,
+        input: &mut ContextPreparationInput,
+        deferred: &std::collections::BTreeSet<ArtifactId>,
+    ) -> Vec<String> {
         // The step's own messages, which the request adds after the history.
         let current = current_messages(&input.trigger);
         let carried = |message: &EventId| {
@@ -329,18 +391,22 @@ impl Screenshots {
                         if source_event_id == message)
                 })
         };
-        let retained = tool_images(&input.recent_history_items);
-        let kept = self
-            .shots
-            .iter()
-            .filter(|shot| match &shot.place {
-                Place::Result => retained.iter().any(|image| {
-                    image.result_event == shot.result_event
-                        && image.artifact_id == shot.attachment.snapshot.artifact_id
-                }),
-                Place::Message => carried(&shot.result_event),
-            })
-            .collect::<Vec<_>>();
+        let previous = input.previous_snapshot.as_ref().map(MediaPrefix::new);
+        let retained: BTreeSet<_> =
+            projected_tool_images(&input.recent_history_items, previous.as_ref())
+                .into_iter()
+                .map(|image| (image.result_event, image.artifact_id))
+                .collect();
+        let kept =
+            self.shots
+                .iter()
+                .filter(|shot| !deferred.contains(&shot.attachment.snapshot.artifact_id))
+                .filter(|shot| match &shot.place {
+                    Place::Result => retained
+                        .contains(&(shot.result_event, shot.attachment.snapshot.artifact_id)),
+                    Place::Message => carried(&shot.result_event),
+                })
+                .collect::<Vec<_>>();
         let unread = self
             .unread
             .iter()

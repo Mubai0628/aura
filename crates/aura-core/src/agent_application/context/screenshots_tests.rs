@@ -146,11 +146,11 @@ async fn l13_3_media_images_carry_latest_twelve_frames_plus_three_screenshots_an
         content_hash: ContentHash::sha256(b"pictures"),
     });
     let shots = app
-        .screenshots(AgentRunId::new(), session, &history, &[], true)
+        .screenshots(AgentRunId::new(), session, &history, &[], true, None)
         .await
         .expect("load context images");
     let mut request = input(history);
-    shots.attach(&mut request);
+    shots.attach(&mut request, &Default::default());
     let ids = request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>();
     assert_eq!(ids.len(), 35, "12 latest video frames, 3 screenshots, 20 user pictures");
     assert_eq!(&ids[..3], &browser[3..]);
@@ -158,6 +158,10 @@ async fn l13_3_media_images_carry_latest_twelve_frames_plus_three_screenshots_an
     assert_eq!(&ids[15..], &user_ids[1..]);
     assert!(!ids.iter().any(|id| old.contains(id)), "previous media result is not carried");
     assert_eq!(shots.resolved(&request.attachments).expect("resolve bytes").len(), 35);
+    shots.attach(&mut request, &std::collections::BTreeSet::from([ids[0]]));
+    assert_eq!(request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>(), ids[1..]);
+    assert_eq!(request.attachment_egress_sources.len(), 34);
+    assert!(!request.attachment_egress_sources.iter().any(|s| matches!(s.source_ref, aura_context_domain::ContextSourceRef::Artifact{artifact_id} if artifact_id == ids[0])));
 }
 
 #[tokio::test]
@@ -169,16 +173,18 @@ async fn l13_3_media_images_a_sheet_is_one_image_and_a_non_image_model_receives_
         "media.frames",
         json!({"frames":[{"requested_time":0,"actual_time":0,"image_artifact_id":null},{"requested_time":1,"actual_time":1,"image_artifact_id":null}],"sheet_artifact_id":sheet,"shown_to_model":true,"note":""}),
     )];
-    let shots =
-        app.screenshots(AgentRunId::new(), session, &history, &[], true).await.expect("sheet");
+    let shots = app
+        .screenshots(AgentRunId::new(), session, &history, &[], true, None)
+        .await
+        .expect("sheet");
     let mut request = input(history.clone());
-    shots.attach(&mut request);
+    shots.attach(&mut request, &Default::default());
     assert_eq!(request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>(), vec![sheet]);
     let none = app
-        .screenshots(AgentRunId::new(), session, &history, &[], false)
+        .screenshots(AgentRunId::new(), session, &history, &[], false, None)
         .await
         .expect("no image model");
-    none.attach(&mut request);
+    none.attach(&mut request, &Default::default());
     assert!(request.attachments.is_empty());
 }
 
@@ -190,7 +196,7 @@ async fn l13_3_media_images_hidden_latest_results_replace_old_frames_and_other_s
     let own = images(&app, session, 2);
     let foreign = images(&app, SessionId::new(), 1);
     let denied = app
-        .screenshots(AgentRunId::new(), session, &[frames(&foreign, true, None)], &[], true)
+        .screenshots(AgentRunId::new(), session, &[frames(&foreign, true, None)], &[], true, None)
         .await
         .expect("foreign safely omitted");
     assert!(denied.is_empty(), "cannot read another session's artifact");
@@ -212,7 +218,7 @@ async fn l13_3_media_images_hidden_latest_results_replace_old_frames_and_other_s
     ] {
         let history = vec![frames(&own[..1], true, None), latest];
         let shots = app
-            .screenshots(AgentRunId::new(), session, &history, &[], true)
+            .screenshots(AgentRunId::new(), session, &history, &[], true, None)
             .await
             .expect("latest result");
         assert!(shots.is_empty(), "a newer unavailable result must not revive the prior frame");
@@ -226,14 +232,14 @@ async fn l13_3_media_images_only_still_shown_retained_results_attach_and_frame_c
     let ids = images(&app, session, 13);
     let history = vec![frames(&ids, true, None)];
     let shots = app
-        .screenshots(AgentRunId::new(), session, &history, &[], true)
+        .screenshots(AgentRunId::new(), session, &history, &[], true, None)
         .await
         .expect("bounded frames");
     let mut request = input(history.clone());
-    shots.attach(&mut request);
+    shots.attach(&mut request, &Default::default());
     assert_eq!(request.attachments.len(), 12);
     request.recent_history_items.clear();
-    shots.attach(&mut request);
+    shots.attach(&mut request, &Default::default());
     assert!(request.attachments.is_empty(), "compacted/cleared result no longer sends images");
     request.recent_history_items = history;
     if let LogicalConversationItem::ToolResult { content, content_hash, .. } =
@@ -242,7 +248,7 @@ async fn l13_3_media_images_only_still_shown_retained_results_attach_and_frame_c
         *content = content.replace("\"shown_to_model\":true", "\"shown_to_model\":false");
         *content_hash = ContentHash::sha256(content.as_bytes());
     }
-    shots.attach(&mut request);
+    shots.attach(&mut request, &Default::default());
     assert!(request.attachments.is_empty(), "artifact text alone does not mean it remains shown");
     if let LogicalConversationItem::ToolResult { content, content_hash, .. } =
         &mut request.recent_history_items[0]
@@ -253,7 +259,7 @@ async fn l13_3_media_images_only_still_shown_retained_results_attach_and_frame_c
         .to_string();
         *content_hash = ContentHash::sha256(content.as_bytes());
     }
-    shots.attach(&mut request);
+    shots.attach(&mut request, &Default::default());
     assert!(request.attachments.is_empty(), "a retained non-success outcome cannot attach images");
 }
 
@@ -301,11 +307,11 @@ async fn l14_chrome_screenshots_travel_with_their_results_like_the_browsers() {
     for (count, carried) in [(4, &ids[..4]), (6, &ids[3..])] {
         let history = &history[..count];
         let shots = app
-            .screenshots(AgentRunId::new(), session, history, &[], true)
+            .screenshots(AgentRunId::new(), session, history, &[], true, None)
             .await
             .expect("load context images");
         let mut request = input(history.to_vec());
-        shots.attach(&mut request);
+        shots.attach(&mut request, &Default::default());
         let attached = request.attachments.iter().map(|a| a.artifact_id).collect::<Vec<_>>();
         assert_eq!(attached, carried, "{count} screenshots, Chrome's included");
     }

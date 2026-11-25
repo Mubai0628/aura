@@ -36,10 +36,12 @@ use crate::{
 };
 
 mod budget_items;
+mod input_sources;
 use budget_items::{
     ContextAccounting, RequestBudgetParts, build_accounting, build_pending_budget_items,
     estimator_inputs,
 };
+use input_sources::{peer_item, validate_current_user_source, validate_recent_history_sources};
 
 #[derive(Clone, Debug)]
 pub struct ContextToolInput {
@@ -170,6 +172,8 @@ pub struct CoreContinuationFactsV1 {
 pub struct AcceptedTurnAdditionV1 {
     pub user_event_id: EventId,
     pub content_hash: ContentHash,
+    /// Optional digest of the bounded presentation, derived from the authenticated original.
+    pub excerpt_hash: Option<ContentHash>,
     pub session_id: SessionId,
     pub turn_task_id: TurnTaskId,
     pub revision: Revision,
@@ -188,6 +192,7 @@ pub struct PreparedContextDraft {
     pub context: PreparedLogicalContext,
     pub artifacts: Vec<PreparedContextArtifactDraft>,
     pub prompt_inspector: PromptInspectorProjection,
+    pub native_history: Option<crate::NativeHistoryProjection>,
 }
 
 #[derive(Clone, Debug)]
@@ -377,24 +382,17 @@ pub enum ContextPreparationError {
     CoverageBudgetExhausted,
 }
 
-type ReplayTaskStates<'a> = dyn Fn(
-        &aura_model_domain::CompiledInstructionEnvelope,
-        &[LogicalConversationItem],
-        &[ModelAttachmentSnapshot],
-    ) -> Result<Vec<String>, ContextPreparationError>
-    + 'a;
-
 pub struct ContextPreparationCompiler<'a> {
     estimators: &'a ContextEstimatorRegistry,
     provider: Option<&'a ModelExecutionSnapshot>,
     closing_question: Option<&'a str>,
-    replay_task_states: Option<&'a ReplayTaskStates<'a>>,
+    native_history: Option<crate::native_history::NativeHistory<'a>>,
 }
 
 impl<'a> ContextPreparationCompiler<'a> {
     #[must_use]
     pub const fn new(estimators: &'a ContextEstimatorRegistry) -> Self {
-        Self { estimators, provider: None, closing_question: None, replay_task_states: None }
+        Self { estimators, provider: None, closing_question: None, native_history: None }
     }
 
     #[must_use]
@@ -402,11 +400,13 @@ impl<'a> ContextPreparationCompiler<'a> {
         mut self,
         provider: &'a ModelExecutionSnapshot,
         closing_question: Option<&'a str>,
-        replay_task_states: Option<&'a ReplayTaskStates<'a>>,
+        fixed_tools: &'a [ToolId],
+        origins: &'a BTreeMap<EventId, ContentHash>,
     ) -> Self {
         self.provider = Some(provider);
         self.closing_question = closing_question;
-        self.replay_task_states = replay_task_states;
+        self.native_history =
+            Some(crate::native_history::NativeHistory { target: provider, fixed_tools, origins });
         self
     }
 
@@ -424,7 +424,7 @@ impl<'a> ContextPreparationCompiler<'a> {
         validate_attachment_sources(&input.attachments, &input.attachment_egress_sources)?;
         validate_provider_target(&input)?;
 
-        let assembly = assemble_context_sections(std::mem::take(&mut input.section_inputs))
+        let mut assembly = assemble_context_sections(std::mem::take(&mut input.section_inputs))
             .map_err(map_section_error)?;
         validate_recent_history_sources(&assembly, &input.recent_history_items)?;
         let mut conversation_items = std::mem::take(&mut input.recent_history_items);
@@ -472,6 +472,15 @@ impl<'a> ContextPreparationCompiler<'a> {
                     content_hash: ContentHash::sha256(current_user_content.as_bytes()),
                     content: current_user_content,
                 });
+                None
+            }
+            ContextPreparationTriggerV1::PeerDelivery { delivery_id } => {
+                conversation_items.push(peer_item(
+                    &assembly,
+                    *delivery_id,
+                    &input,
+                    conversation_items.is_empty(),
+                )?);
                 None
             }
             ContextPreparationTriggerV1::ToolContinuation { .. } => {
@@ -529,27 +538,33 @@ impl<'a> ContextPreparationCompiler<'a> {
             }
         };
 
-        let context_snapshot_id = ContextProjectionSnapshotId::new();
-        let mut egress_sources =
-            assembly.egress_fragments.iter().map(ModelEgressSourceDraft::from).collect::<Vec<_>>();
-        egress_sources.extend(tool_egress_sources(&input.tool_schema_set)?);
-        egress_sources.append(&mut input.attachment_egress_sources);
-        let model_egress_manifest =
-            build_model_egress_manifest(context_snapshot_id, egress_sources)
-                .map_err(map_egress_error)?;
-
         // Validate source identities first, then use the same printable conversation for the
         // budget, the compaction prefix, and the request that will actually be sent.
         for item in &mut conversation_items {
             crate::section::printable_conversation_item(item);
         }
-        let replayed_task_states = self
-            .replay_task_states
-            .map(|preview| {
-                preview(&assembly.instruction_envelope, &conversation_items, &input.attachments)
+        if let Some(route) = self.provider {
+            assembly.instruction_envelope.task_state_replay =
+                crate::task_state_replay::place(&input, &assembly, &conversation_items, route)?;
+        }
+        let context_snapshot_id = ContextProjectionSnapshotId::new();
+        let mut egress_sources =
+            assembly.egress_fragments.iter().map(ModelEgressSourceDraft::from).collect::<Vec<_>>();
+        if let Some(replay) = &assembly.instruction_envelope.task_state_replay {
+            egress_sources.extend(crate::task_state_replay::admitted_egress(replay));
+        }
+        egress_sources.extend(tool_egress_sources(&input.tool_schema_set)?);
+        egress_sources.append(&mut input.attachment_egress_sources);
+        let model_egress_manifest =
+            build_model_egress_manifest(context_snapshot_id, egress_sources)
+                .map_err(map_egress_error)?;
+        let native_history = self
+            .native_history
+            .as_ref()
+            .map(|native| {
+                native.project(&input, &assembly.instruction_envelope, &mut conversation_items)
             })
-            .transpose()?
-            .unwrap_or_default();
+            .transpose()?;
         let pending_budget = build_pending_budget_items(
             &assembly,
             &input.tool_schema_set,
@@ -564,7 +579,6 @@ impl<'a> ContextPreparationCompiler<'a> {
                 ),
                 provider: self.provider,
                 closing_question: self.closing_question,
-                replayed_task_states,
             },
         )?;
         let (text_items, native_attachments) = estimator_inputs(&pending_budget)?;
@@ -622,7 +636,10 @@ impl<'a> ContextPreparationCompiler<'a> {
             accounting,
             context_snapshot_id,
         )
-        .map(|draft| ContextPreparationCompilationOutcome::Prepared(Box::new(draft)))
+        .map(|mut draft| {
+            draft.native_history = native_history;
+            ContextPreparationCompilationOutcome::Prepared(Box::new(draft))
+        })
     }
 
     pub fn compile_after_context_window_resolution(
@@ -886,39 +903,6 @@ fn validate_provider_target(
     Ok(())
 }
 
-fn validate_current_user_source(
-    assembly: &ContextSectionAssembly,
-    event_id: EventId,
-) -> Result<(), ContextPreparationError> {
-    let present = assembly.egress_fragments.iter().any(|fragment| {
-        fragment.source_ref == aura_context_domain::ContextSourceRef::Event { event_id }
-            && fragment.source_kind == ModelEgressSourceKind::UserEvent
-            && matches!(fragment.authorization_basis, ModelEgressAuthorizationBasis::UserSubmission)
-    });
-    present.then_some(()).ok_or(ContextPreparationError::CurrentUserSourceMissing)
-}
-
-fn validate_recent_history_sources(
-    assembly: &ContextSectionAssembly,
-    items: &[LogicalConversationItem],
-) -> Result<(), ContextPreparationError> {
-    for item in items {
-        let event_id = conversation_source_event_id(item);
-        let expected = match item {
-            LogicalConversationItem::User { .. } => ModelEgressSourceKind::UserEvent,
-            LogicalConversationItem::Assistant { .. } => ModelEgressSourceKind::AssistantEvent,
-            LogicalConversationItem::ToolResult { .. } => ModelEgressSourceKind::ToolResult,
-        };
-        if !assembly.egress_fragments.iter().any(|fragment| {
-            fragment.source_ref == aura_context_domain::ContextSourceRef::Event { event_id }
-                && fragment.source_kind == expected
-        }) {
-            return Err(ContextPreparationError::ConversationInvalid);
-        }
-    }
-    Ok(())
-}
-
 fn tool_egress_sources(
     schema_set: &ToolSchemaSetSnapshotV1,
 ) -> Result<Vec<ModelEgressSourceDraft>, ContextPreparationError> {
@@ -1013,6 +997,7 @@ fn build_prepared_context(
         tool_schema_set: input.tool_schema_set.clone(),
         effective_tool_bindings: input.effective_tool_bindings.clone(),
         conversation_items: conversation_items.clone(),
+        task_state_replay: assembly.instruction_envelope.task_state_replay.clone(),
         attachments: input.attachments.clone(),
         active_task_lineage_id: input
             .inspector
@@ -1049,7 +1034,7 @@ fn build_prepared_context(
         model_egress_manifest,
         snapshot,
     };
-    Ok(PreparedContextDraft { context, artifacts, prompt_inspector })
+    Ok(PreparedContextDraft { context, artifacts, prompt_inspector, native_history: None })
 }
 
 fn build_prompt_inspector(
@@ -1252,13 +1237,14 @@ const fn section_placement(kind: ContextSectionKind) -> PromptInspectorSectionPl
         | ContextSectionKind::PermissionAndSecurity
         | ContextSectionKind::LoadedToolSchemas
         | ContextSectionKind::WorkspaceAgentsInstructions
-        | ContextSectionKind::HistoricalSnapshotSummary
         | ContextSectionKind::AgentModePrompt
         | ContextSectionKind::HookInjections
         | ContextSectionKind::CurrentTaskState => {
             PromptInspectorSectionPlacement::InstructionEnvelope
         }
-        ContextSectionKind::RecentHistory => PromptInspectorSectionPlacement::Conversation,
+        ContextSectionKind::RecentHistory | ContextSectionKind::HistoricalSnapshotSummary => {
+            PromptInspectorSectionPlacement::Conversation
+        }
         ContextSectionKind::FileReferencesAndPendingAttachments => {
             PromptInspectorSectionPlacement::Attachment
         }
@@ -1297,12 +1283,13 @@ fn additions_are_authorized(
 fn user_submission_matches(
     assembly: &ContextSectionAssembly,
     addition: &AcceptedTurnAdditionV1,
+    emitted: &ContentHash,
 ) -> bool {
     assembly.egress_fragments.iter().any(|fragment| {
         fragment.source_ref == ContextSourceRef::Event { event_id: addition.user_event_id }
             && fragment.source_kind == ModelEgressSourceKind::UserEvent
             && matches!(fragment.authorization_basis, ModelEgressAuthorizationBasis::UserSubmission)
-            && ContentHash::sha256(fragment.content.as_bytes()) == addition.content_hash
+            && ContentHash::sha256(fragment.content.as_bytes()) == *emitted
     })
 }
 
@@ -1336,7 +1323,10 @@ fn addition_body<'a>(
         else {
             break;
         };
-        if addition.content_hash != *content_hash || !user_submission_matches(assembly, addition) {
+        if (addition.content_hash != *content_hash
+            && addition.excerpt_hash.as_ref() != Some(content_hash))
+            || !user_submission_matches(assembly, addition, content_hash)
+        {
             return Err(invalid);
         }
         tail.push(addition.user_event_id);
@@ -1853,6 +1843,7 @@ mod tests {
         let facts = input.tool_continuation_facts.as_mut().expect("tool facts");
         let order = u32::try_from(facts.accepted_additions.len()).expect("order") + 1;
         facts.accepted_additions.push(AcceptedTurnAdditionV1 {
+            excerpt_hash: None,
             user_event_id: event_id,
             content_hash: content_hash.clone(),
             session_id: input.request.session_id,
@@ -1956,6 +1947,7 @@ mod tests {
             checkpoint_hash: hash,
             previous_response_visible: true,
             accepted_additions: vec![AcceptedTurnAdditionV1 {
+                excerpt_hash: None,
                 user_event_id: EventId::new(),
                 content_hash: ContentHash::sha256(b"Seen addition."),
                 session_id: input.request.session_id,

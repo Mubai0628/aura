@@ -1,6 +1,7 @@
 import type { AgentMessageAttachment } from '@aura/contracts/generated';
 import { useCallback, useContext, useEffect, useState } from 'react';
 
+import { AppIcon } from '../app-icons';
 import { carriedMenuEntries, openCarried } from '../files/carried-menu';
 import { FileLinkContext } from '../files/file-links';
 import type { FileActionScope } from '../files/file-menu';
@@ -9,7 +10,7 @@ import { useNearView } from '../ui/useNearView';
 import { FileCard } from './AttachmentCards';
 import { PicturePreview } from './PicturePreview';
 import { pictureMenuEntries } from './picture-menu';
-import { readPicture } from './picture-reads';
+import { cachedPicture, readPicture } from './picture-reads';
 import './composer-attachments.css';
 
 /** One picture of a message, read back from the conversation's own record. */
@@ -24,7 +25,9 @@ function SentPicture({
   name: string;
   scope: FileActionScope | undefined;
 }) {
-  const [url, setUrl] = useState<string | null>();
+  const [url, setUrl] = useState<string | null | undefined>(() =>
+    cachedPicture(sessionId, artifactId),
+  );
   const [previewing, setPreviewing] = useState(false);
   const [spot, near] = useNearView<HTMLLIElement>();
   const menu = useContextMenu();
@@ -58,11 +61,12 @@ function SentPicture({
         >
           <img alt={name} src={url} />
         </button>
-      ) : url === null ? (
-        <span className="attachment-picture-missing" role="status">
-          图片读不出来（服务没有回应，或记录里已没有这张图片）。消息本身不受影响；重新打开这个会话会再读一次。
+      ) : (
+        <span className="attachment-picture-placeholder" role={url === null ? 'status' : undefined}>
+          <AppIcon name="file" />
+          {url === null ? <span>图片暂不可用</span> : null}
         </span>
-      ) : null}
+      )}
       {previewing && url ? <PicturePreview name={name} onClose={close} src={url} /> : null}
       {menu.menu}
     </li>

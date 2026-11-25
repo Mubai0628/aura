@@ -11,7 +11,6 @@ use std::collections::{BTreeSet, VecDeque};
 const MAX_SOURCES: usize = 3;
 const CACHE_SIZE: usize = 16;
 pub(in crate::agent_application) const RELATED_SOURCES: &str = "agent.related_sources";
-pub(in crate::agent_application) const DOCUMENT_READS: &str = "agent.document_reads";
 
 pub(in crate::agent_application) fn latest_input(
     input: &ContextPreparationInput,
@@ -73,19 +72,24 @@ impl AgentApplication {
         input: &mut ContextPreparationInput,
         memory_available: bool,
     ) {
+        if input
+            .section_inputs
+            .iter()
+            .flat_map(|s| &s.fragments)
+            .any(|source| source.source_kind == ModelEgressSourceKind::PeerTask)
+        {
+            return;
+        }
         let recalled = self.recall_sources(turn, input, memory_available).await;
-        let documents = recent_document_reads(turn, &input.recent_history_items);
         let materials = self.prior_materials(turn, input).await;
         if let Some(state) =
             input.section_inputs.iter_mut().find(|s| s.kind == ContextSectionKind::CurrentTaskState)
         {
             state.fragments.retain(|fragment| {
                 !matches!(&fragment.source_ref, ContextSourceRef::RuntimeState { state_kind, .. }
-                    if state_kind == RELATED_SOURCES || state_kind == DOCUMENT_READS
-                        || state_kind == super::prior_materials::PRIOR_MATERIALS)
+                    if state_kind == RELATED_SOURCES || state_kind == super::prior_materials::PRIOR_MATERIALS)
             });
             state.fragments.extend(recalled);
-            state.fragments.extend(documents);
             state.fragments.extend(materials);
         }
     }
@@ -147,9 +151,7 @@ impl AgentApplication {
             .recent_history_items
             .iter()
             .filter_map(|item| match item {
-                LogicalConversationItem::User { content, .. } => {
-                    Some(ContentHash::sha256(content.as_bytes()).to_string())
-                }
+                LogicalConversationItem::User { content, .. } => Some(content.as_str()),
                 _ => None,
             })
             .chain(
@@ -158,8 +160,14 @@ impl AgentApplication {
                     .iter()
                     .filter(|s| s.kind == ContextSectionKind::CurrentTurnWorkingSet)
                     .flat_map(|s| &s.fragments)
-                    .map(|source| ContentHash::sha256(source.content.as_bytes()).to_string()),
+                    .map(|source| source.content.as_str()),
             )
+            // Root history entries use the stored BLAKE3 revision. Detailed entries and the
+            // sent conversation use SHA-256 for the same user text.
+            .flat_map(|text| {
+                [ContentHash::blake3(text.as_bytes()), ContentHash::sha256(text.as_bytes())]
+                    .map(|hash| hash.to_string())
+            })
             .collect::<BTreeSet<_>>();
         sources
             .historic
@@ -293,57 +301,4 @@ fn fragment(
         authorization_basis: ModelEgressAuthorizationBasis::ModelChannelPolicy,
         content: value.to_string(),
     }
-}
-
-/// This index refers to excerpts already carried in the conversation. It never offers an old
-/// read as the current version of the file.
-fn recent_document_reads(
-    turn: &TurnTask,
-    items: &[LogicalConversationItem],
-) -> Option<ContextFragment> {
-    let mut reads = std::collections::BTreeMap::<String, (Value, Vec<Value>)>::new();
-    for item in items.iter().rev().take(120) {
-        let LogicalConversationItem::ToolResult {
-            tool_name,
-            content,
-            tool_call_id,
-            is_error: false,
-            ..
-        } = item
-        else {
-            continue;
-        };
-        if tool_name != "fs.read" {
-            continue;
-        }
-        let Ok(head) = serde_json::from_str::<Value>(content.lines().next().unwrap_or_default())
-        else {
-            continue;
-        };
-        let (Some(path), Some(hash), Some(lines)) =
-            (head["path"].as_str(), head.get("logical_hash"), head.get("lines"))
-        else {
-            continue;
-        };
-        if head.get("document_format").is_none() || !safe(path) {
-            continue;
-        }
-        if reads.len() == 4 && !reads.contains_key(path) {
-            continue;
-        }
-        let known = reads.entry(path.to_owned()).or_insert_with(|| (hash.clone(), Vec::new()));
-        if known.0 == *hash && known.1.len() < 4 {
-            known.1.push(json!({"lines": lines, "tool_call": tool_call_id}));
-        }
-    }
-    if reads.is_empty() {
-        return None;
-    }
-    Some(fragment(
-        turn,
-        DOCUMENT_READS,
-        NetworkDataClass::WorkspaceMetadata,
-        json!({"earlier_document_reads": reads.into_iter().map(|(path, (hash, excerpts))|
-            json!({"path":path,"logical_hash":hash,"excerpts":excerpts})).collect::<Vec<_>>()}),
-    ))
 }

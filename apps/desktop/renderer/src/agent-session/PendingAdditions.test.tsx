@@ -44,7 +44,7 @@ test("the running task's appended message waits in the conversation as the user'
   render(<PendingAdditions inbox={inbox} turnTaskId="trn_1" onChanged={changed} />);
   const waiting = screen.getByText('顺便把测试也跑一下').closest('article') as HTMLElement;
   expect(waiting.classList.contains('agent-user-message')).toBe(true);
-  expect(within(waiting).getByText('追加信息')).toBeTruthy();
+  expect(waiting.getAttribute('aria-label')).toBe('追加信息');
   expect(within(waiting).getByRole('status', { name: '等待模型接收' })).toBeTruthy();
   // Another task's addition, and the next turn's message, are not this turn's.
   expect(screen.queryByText('另一个任务的')).toBeNull();
@@ -96,4 +96,20 @@ test('with only appended messages waiting, there is no queue over the composer',
   const appended = { ...inbox, messages: inbox.messages.slice(0, 1) } as AgentInboxProjection;
   render(<InboxPanel inbox={appended} activeTurn="trn_1" onChanged={vi.fn()} />);
   expect(screen.queryByRole('region', { name: '消息队列' })).toBeNull();
+});
+
+test('an attachment-only addition shows a file card while it waits for the model', () => {
+  const appended = {
+    ...inbox,
+    messages: [
+      {
+        ...message('attachments', '', 'addition'),
+        attachments: [
+          { kind: 'text', name: 'sample.txt', artifact_id: 'art_sample', byte_length: 20 },
+        ],
+      },
+    ],
+  } satisfies AgentInboxProjection;
+  render(<PendingAdditions inbox={appended} turnTaskId="trn_1" onChanged={vi.fn()} />);
+  expect(screen.getByRole('list', { name: '发送的文件' }).textContent).toContain('sample.txt');
 });

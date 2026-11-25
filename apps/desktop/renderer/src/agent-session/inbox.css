@@ -1,17 +1,16 @@
-/* A compact tray over the composer, about two
-   thirds of its width: one line per message, every action an icon. */
 .agent-inbox {
-  width: clamp(320px, 66%, 640px);
+  box-sizing: border-box;
+  container-type: inline-size;
+  width: 90%;
   max-width: 100%;
-  max-height: 168px;
-  margin: 0 auto 6px;
-  padding: 5px 6px 6px 10px;
+  max-height: min(30vh, 240px);
+  margin: 0 auto 8px;
+  padding: 8px 10px;
   overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-strong);
   background: var(--surface);
   box-shadow: var(--shadow-md);
-  font-size: 12px;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
@@ -19,97 +18,94 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 24px;
-  color: var(--muted);
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
 }
 
 .agent-inbox > header > strong {
-  font-size: 11.5px;
   font-weight: 600;
 }
 
-.agent-inbox ol {
-  margin: 2px 0 0;
+.agent-inbox > ol {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.agent-inbox li + li {
+.agent-inbox > ol > li + li {
   border-top: 1px solid var(--line);
 }
 
 .agent-inbox-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 30px;
-}
-
-.agent-inbox-lane {
   display: grid;
-  flex: none;
-  place-items: center;
-  width: 16px;
-  color: var(--quiet);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 38px;
+  padding: 4px 0;
 }
 
 .agent-inbox-text {
-  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
-  padding: 4px 2px;
-  overflow: hidden;
+  padding: 6px 2px;
   border: 0;
   background: transparent;
   color: var(--ink);
   font: inherit;
   text-align: left;
+  cursor: pointer;
+}
+
+.agent-inbox-preview {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
 }
 
 .agent-inbox-actions {
   display: inline-flex;
-  flex: none;
-  gap: 1px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .agent-inbox-action {
-  display: grid;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  white-space: nowrap;
+}
+
+.agent-inbox-action svg,
+.agent-inbox-text > svg {
   flex: none;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out);
-}
-
-.agent-inbox-action:hover:not(:disabled),
-.agent-inbox-action:focus-visible {
-  background: var(--surface-muted);
-  color: var(--ink);
-}
-
-.agent-inbox-action:disabled {
-  opacity: 0.45;
-  cursor: default;
 }
 
 .agent-inbox-full {
-  margin: 0 0 6px 22px;
-  color: var(--muted);
+  margin: 0 0 4px 20px;
+  padding: 6px 8px 8px;
+  border-left: 2px solid var(--line-strong);
+}
+
+.agent-inbox-full .message-attachments {
+  justify-items: start;
+}
+
+.agent-inbox-full :is(.attachment-pictures, .attachment-files) {
+  justify-content: flex-start;
 }
 
 .agent-inbox-editor {
   display: flex;
-  flex: 1 1 auto;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 4px;
   min-width: 0;
@@ -117,7 +113,7 @@
 }
 
 .agent-inbox-editor textarea {
-  flex: 1 1 auto;
+  flex: 1 0 100%;
   min-width: 0;
   min-height: 46px;
   padding: 6px 8px;
@@ -128,6 +124,13 @@
   font: inherit;
   line-height: 1.5;
   resize: vertical;
+}
+
+@container (max-width: 410px) {
+  .agent-inbox-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 4px;
+  }
 }
 
 .agent-inbox > p[role='alert'] {

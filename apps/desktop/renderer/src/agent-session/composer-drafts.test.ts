@@ -33,9 +33,10 @@ test('clearing an unsent draft discards it on leaving but preserves uncertain su
   discardEmptyConversations();
   expect(getComposerDraft(unknown)?.needsReview).toBe(true);
 });
-test('only accepted first messages assign five Unicode characters and metadata retry never resends', async () => {
-  expect(firstMessageTitle('  请帮我完成界面  ')).toBe('请帮我完成');
-  expect(firstMessageTitle('😀一二三四五')).toBe('😀一二三四');
+test('only accepted first messages assign up to seven Unicode characters and metadata retry never resends', async () => {
+  expect(firstMessageTitle('  请帮我完成界面  ')).toBe('请帮我完成界面');
+  expect(firstMessageTitle('😀一二三四五六七')).toBe('😀一二三四五六');
+  expect(firstMessageTitle('短标题')).toBe('短标题');
   const rename = vi.fn().mockResolvedValue({ ok: true, value: {} });
   Object.defineProperty(window, 'aura', {
     configurable: true,
@@ -46,7 +47,7 @@ test('only accepted first messages assign five Unicode characters and metadata r
   expect(rename).toHaveBeenCalledWith({
     session_id: 'session',
     expected_title: '',
-    title: '请帮我完成',
+    title: '请帮我完成界面',
   });
   await flushPendingTitles();
   expect(rename).toHaveBeenCalledOnce();

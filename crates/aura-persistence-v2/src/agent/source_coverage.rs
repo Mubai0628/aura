@@ -16,7 +16,9 @@ use aura_persistence_core::{Connection, PersistenceCoreError as Error, StoreResu
 use rusqlite::Transaction;
 use std::collections::BTreeSet;
 
-pub(super) fn source_covered(
+/// A complete answer can follow an authenticated handoff by reference. This check is
+/// separate from the evidence that a compaction actually covered an event's entire text.
+pub(super) fn source_available_to_responder(
     tx: &Transaction<'_>,
     snapshot: &ContextProjectionSnapshot,
     source: &TaskLineageSource,
@@ -29,6 +31,16 @@ pub(super) fn source_covered(
         return Ok(true);
     }
     if snapshot_manifest_binds_user_text(tx, snapshot, source, &user.text)? {
+        return Ok(true);
+    }
+    let bounded = snapshot.sections.iter().flat_map(|s| &s.source_refs).any(|r|
+        matches!(r, ContextSourceRef::RuntimeState {state_kind,..} if state_kind == aura_context_domain::ON_DEMAND_HISTORY_STATE));
+    if bounded
+        && let Some(view) =
+            aura_context_domain::user_event_excerpt(source.user_event_id, &user.text)
+        && snapshot_shows_exact_history_item(snapshot, source, &view)
+        && snapshot_manifest_binds_user_text(tx, snapshot, source, &view)?
+    {
         return Ok(true);
     }
     for section in &snapshot.sections {

@@ -68,7 +68,7 @@ impl AgentApplication {
     /// `/compact` in an idle session. Its
     /// user message is the command with the user's note, exactly as the transcript shows it; the
     /// compaction is requested for the turn's run as it is created, so Core compacts before the
-    /// first step, and the model only confirms it.
+    /// first step. The command reports its durable outcome locally.
     pub async fn start_compaction(
         self: &Arc<Self>,
         command: CommandInvocationId,
@@ -171,6 +171,7 @@ impl AgentApplication {
                 .status(&AgentRunRequest { session_id: input.session_id, agent_run_id: run })
                 .await?);
         }
+        self.preflight_temporary_start(input.session_id, purpose, input.model_profile_id).await?;
         // A queued root was checked when it was queued: its words may be blank beside its
         // attachments or references, which it keeps itself.
         anyhow::ensure!(
@@ -326,6 +327,9 @@ impl AgentApplication {
                                 turns::load(tx, turns::load_run(tx, run)?.turn_task_id)?,
                                 false,
                             ));
+                        }
+                        if purpose != AgentTaskPurpose::Compaction {
+                            super::team::require_start(tx, owned.session_id)?;
                         }
                         AgentApplication::mirror_session(tx, &workspace, &session)?;
                         if purpose.is_command() {

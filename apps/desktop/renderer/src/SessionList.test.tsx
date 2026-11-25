@@ -1,8 +1,9 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { SessionList } from './SessionList';
 import { LIST_PAGE } from './ui/useIncrementalList';
+import { SESSION_DRAG } from './agent-team/graph/drag-data';
 
 // A workspace with many conversations
 // draws its first page at once and the rest as the end comes into view; the open one is always
@@ -67,4 +68,25 @@ test('the open conversation beyond the first page is drawn after it, without the
   // The pages reached it: it is in its place among them, once.
   expect(rows()).toHaveLength(LIST_PAGE * 2);
   expect(screen.getAllByRole('button', { name: '会话 70' })).toHaveLength(1);
+});
+
+test('dragging an existing conversation offers only its session id and keeps normal selection', () => {
+  const select = vi.fn();
+  render(
+    <SessionList
+      activeScreen="workspace"
+      activity={new Map()}
+      onSelectSession={select}
+      selectedSessionId="session-0"
+      workspace={workspace}
+    />,
+  );
+  const row = screen.getByRole('button', { name: '会话 0' });
+  const setData = vi.fn();
+  fireEvent.dragStart(row, { dataTransfer: { setData, effectAllowed: 'none' } });
+  expect(setData).toHaveBeenCalledWith(SESSION_DRAG, JSON.stringify({ session_id: 'session-0' }));
+  expect(setData).toHaveBeenCalledTimes(1);
+  expect(select).not.toHaveBeenCalled();
+  fireEvent.click(row);
+  expect(select).toHaveBeenCalledWith('workspace', 'session-0');
 });

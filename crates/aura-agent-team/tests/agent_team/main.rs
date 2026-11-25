@@ -1,5 +1,6 @@
 //! Integration tests of `aura-agent-team` in one test program, one module per behaviour.
 
+mod controls;
 mod delegation;
 mod desktop;
 mod failures;

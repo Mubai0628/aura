@@ -3,6 +3,7 @@
 mod capability_selection;
 mod file_cleanup;
 mod interactive_terminals;
+mod normal_continuation;
 mod user_questions;
 mod users_way;
 mod working_efficiently;

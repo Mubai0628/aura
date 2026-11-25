@@ -36,6 +36,7 @@ pub(super) fn note(
     db: &Connection,
     turn: &TurnTask,
     unfinished: Option<Unfinished>,
+    selection: &super::ReadPlan,
 ) -> StoreResult<Option<LogicalConversationItem>> {
     if !matches!(turn.state, TurnTaskState::Cancelled | TurnTaskState::RecoveryRequired { .. }) {
         return Ok(None);
@@ -50,6 +51,9 @@ pub(super) fn note(
     else {
         return Ok(None);
     };
+    if selection.omits(event.parse().map_err(|_| Error::Conflict)?) {
+        return Ok(None);
+    }
     let (reason, cancelled): (String, bool) = record::decode(&payload)?;
     let mut content = String::new();
     if let Some(unfinished) = &unfinished

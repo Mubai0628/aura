@@ -8,11 +8,11 @@ use std::io::Read as _;
 const MAX_REUSE_HASH_BYTES: u64 = 2 * 1024 * 1024;
 
 impl AgentExecution {
-    pub async fn unverified_delivery_path(
+    pub async fn unverified_delivery_value(
         self: &std::sync::Arc<Self>,
         workspace: WorkspaceId,
         values: Vec<ExactArtifactValue>,
-    ) -> anyhow::Result<Option<WorkspacePath>> {
+    ) -> anyhow::Result<Option<ExactArtifactValue>> {
         if values.is_empty() {
             return Ok(None);
         }
@@ -21,7 +21,6 @@ impl AgentExecution {
             values
                 .into_iter()
                 .find(|value| !service.verify_delivered_value(workspace, value).unwrap_or(false))
-                .map(|value| value.path)
         })
         .await?)
     }

@@ -604,7 +604,7 @@ mod tests {
             );
         }
         assert!(
-            normal.contains("a complete end of your response that carries the user-visible answer finishes the turn"),
+            normal.contains("A final answer ends the turn"),
             "Normal must state that its own answer ends the turn"
         );
         assert!(
@@ -613,8 +613,9 @@ mod tests {
             "Normal keeps the explicit report optional"
         );
         for (mode, text) in [("plan", &plan), ("goal", &goal)] {
+            let routing = text.to_ascii_lowercase();
             assert!(
-                text.contains("finish a single turn through normal.complete"),
+                routing.contains("finish a single turn through normal.complete"),
                 "{mode} keeps the explicit single-turn completion"
             );
             assert!(
@@ -622,7 +623,7 @@ mod tests {
                 "{mode} states the intent disposition instead of silent inheritance"
             );
             assert!(
-                text.contains("a plain answer does not end"),
+                routing.contains(&format!("a plain answer does not end a {mode} turn")),
                 "{mode} must not promise that prose alone ends its turns"
             );
         }

@@ -125,8 +125,13 @@ async fn context_returns_actual_sources_and_keeps_tool_history_whole() {
         offset = view.content_next_offset;
     }
     assert_eq!(text, whole.events[0].content);
-    let result_input =
-        AgentContextReadToolResultInput { tool_call_id: call, include_input: true, cursor: None };
+    let result_input = AgentContextReadToolResultInput {
+        tool_call_id: call,
+        include_input: true,
+        offset_bytes: None,
+        max_bytes: None,
+        cursor: None,
+    };
     let result = store
         .database
         .unit_of_work(|tx| {
